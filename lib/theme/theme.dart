@@ -60,8 +60,8 @@ class AppThemes {
       colorScheme: colorScheme,
       scaffoldBackgroundColor: colorScheme.surfaceDim,
       appBarTheme: AppBarTheme(
-        backgroundColor: colorScheme.secondary,
-        foregroundColor: colorScheme.onSecondary,
+        backgroundColor: colorScheme.onPrimary,
+        foregroundColor: colorScheme.onTertiaryContainer,
         elevation: 0,
         centerTitle: true,
       ),

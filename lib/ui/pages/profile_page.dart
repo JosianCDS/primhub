@@ -103,6 +103,8 @@ class _ProfilePageState extends State<ProfilePage> {
     final int orgId = _userInfo['AD_Org_ID'] ?? 0;
     final int userId = _userInfo['AD_User_ID'] ?? 0;
     final String language = _userInfo['AD_Language'] ?? 'es_PA';
+    final String email = _userInfo['email'] ?? 'admin@gardenworld.com';
+    final String bPartner = _userInfo['bpartner_name'] ?? 'GardenWorld HQ';
 
     final String roleName = roleId == 102 ? 'GardenWorld Admin' : 'Rol $roleId';
     final String clientName = clientId == 11
@@ -187,7 +189,11 @@ class _ProfilePageState extends State<ProfilePage> {
                       clientName,
                     ),
                     const Divider(),
+                    _buildInfoTile(Icons.store, 'Socio de Negocio', bPartner),
+                    const Divider(),
                     _buildInfoTile(Icons.domain, 'Organización', orgName),
+                    const Divider(),
+                    _buildInfoTile(Icons.email, 'Correo Electrónico', email),
                     const Divider(),
                     _buildInfoTile(
                       Icons.badge,

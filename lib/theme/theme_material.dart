@@ -239,7 +239,7 @@ class MaterialTheme {
       onSecondaryContainer: Color(0xff000000),
       tertiary: Color(0xffffcfe8),
       onTertiary: Color(0xff3f1732),
-      tertiaryContainer: Color(0xffb880a0),
+      tertiaryContainer: Color(0xFFB880A0),
       onTertiaryContainer: Color(0xff000000),
       error: Color(0xffffd2cc),
       onError: Color(0xff540003),
