@@ -203,7 +203,35 @@ class SupportPage extends StatelessWidget {
                   DataColumn(label: Text('Ticket Relacionado')),
                   DataColumn(label: Text('Horas Consumidas')),
                 ],
-                rows: const [],
+                rows: [
+                  DataRow(
+                    onSelectChanged: (value) {},
+                    cells: const [
+                      DataCell(Text('2023-10-25')),
+                      DataCell(Text('Revisión de logs de servidor')),
+                      DataCell(Text('#1023')),
+                      DataCell(Text('2.5')),
+                    ],
+                  ),
+                  DataRow(
+                    onSelectChanged: (value) {},
+                    cells: const [
+                      DataCell(Text('2023-10-28')),
+                      DataCell(Text('Actualización de base de datos')),
+                      DataCell(Text('#1045')),
+                      DataCell(Text('4.0')),
+                    ],
+                  ),
+                  DataRow(
+                    onSelectChanged: (value) {},
+                    cells: const [
+                      DataCell(Text('2023-11-02')),
+                      DataCell(Text('Soporte usuario final - Login')),
+                      DataCell(Text('#1056')),
+                      DataCell(Text('1.0')),
+                    ],
+                  ),
+                ],
               ),
             ),
           ],

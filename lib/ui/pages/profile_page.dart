@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../api/token.dart';
 import '../widgets/custom_drawer.dart';
 import '../shared/custom_modal.dart';
@@ -96,7 +97,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    // Mapeo de nombres amigables basado en el token
+    // Mapeo de nombres amigabless basado en el token
     final String username = _userInfo['sub'] ?? 'Desconocido';
     final int roleId = _userInfo['AD_Role_ID'] ?? 0;
     final int clientId = _userInfo['AD_Client_ID'] ?? 0;
@@ -234,7 +235,9 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                     ),
                     value: mode == ThemeMode.dark,
-                    onChanged: (bool value) {
+                    onChanged: (bool value) async {
+                      final prefs = await SharedPreferences.getInstance();
+                      await prefs.setBool('is_dark_mode', value);
                       AppThemes.themeModeNotifier.value = value
                           ? ThemeMode.dark
                           : ThemeMode.light;

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../api/token.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../shared/custom_modal.dart';
 import '../shared/custom_button.dart';
 import '../shared/hover_widgets.dart';
@@ -17,6 +18,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
   String _username = '';
   String _role = '';
   String _client = '';
+  String _userRolePref = 'ADMIN';
 
   @override
   void initState() {
@@ -24,7 +26,9 @@ class _CustomDrawerState extends State<CustomDrawer> {
     _loadUserInfo();
   }
 
-  void _loadUserInfo() {
+  void _loadUserInfo() async {
+    final prefs = await SharedPreferences.getInstance();
+    _userRolePref = prefs.getString('user_role') ?? 'ADMIN';
     try {
       String token = Token.token;
       if (token.startsWith('Bearer ')) {
@@ -87,7 +91,13 @@ class _CustomDrawerState extends State<CustomDrawer> {
             ),
             CustomButton(
               text: 'Sí, salir',
-              onPressed: () => SystemNavigator.pop(),
+              onPressed: () {
+                Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  '/login',
+                  (route) => false,
+                );
+              },
               backgroundColor: Colors.red,
             ),
           ],
@@ -141,72 +151,75 @@ class _CustomDrawerState extends State<CustomDrawer> {
                     ],
                   ),
                 ),
-                HoverListTile(
-                  builder: (isHovered) => ListTile(
-                    leading: Icon(
-                      Icons.home,
-                      color: isHovered
-                          ? colorScheme.primary
-                          : colorScheme.onSurfaceVariant,
-                    ),
-                    title: Text(
-                      'Inicio',
-                      style: TextStyle(
+                if (_userRolePref != 'PROYECTO')
+                  HoverListTile(
+                    builder: (isHovered) => ListTile(
+                      leading: Icon(
+                        Icons.home,
                         color: isHovered
                             ? colorScheme.primary
-                            : colorScheme.onSurface,
+                            : colorScheme.onSurfaceVariant,
                       ),
+                      title: Text(
+                        'Inicio',
+                        style: TextStyle(
+                          color: isHovered
+                              ? colorScheme.primary
+                              : colorScheme.onSurface,
+                        ),
+                      ),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.pushNamed(context, '/');
+                      },
                     ),
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.pushNamed(context, '/');
-                    },
                   ),
-                ),
-                HoverListTile(
-                  builder: (isHovered) => ListTile(
-                    leading: Icon(
-                      Icons.schedule,
-                      color: isHovered
-                          ? colorScheme.primary
-                          : colorScheme.onSurfaceVariant,
-                    ),
-                    title: Text(
-                      'Horas de Soporte',
-                      style: TextStyle(
+                if (_userRolePref != 'PROYECTO')
+                  HoverListTile(
+                    builder: (isHovered) => ListTile(
+                      leading: Icon(
+                        Icons.schedule,
                         color: isHovered
                             ? colorScheme.primary
-                            : colorScheme.onSurface,
+                            : colorScheme.onSurfaceVariant,
                       ),
+                      title: Text(
+                        'Horas de Soporte',
+                        style: TextStyle(
+                          color: isHovered
+                              ? colorScheme.primary
+                              : colorScheme.onSurface,
+                        ),
+                      ),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.pushNamed(context, '/support');
+                      },
                     ),
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.pushNamed(context, '/support');
-                    },
                   ),
-                ),
-                HoverListTile(
-                  builder: (isHovered) => ListTile(
-                    leading: Icon(
-                      Icons.help_outline,
-                      color: isHovered
-                          ? colorScheme.primary
-                          : colorScheme.onSurfaceVariant,
-                    ),
-                    title: Text(
-                      'Mis Solicitudes',
-                      style: TextStyle(
+                if (_userRolePref != 'PROYECTO')
+                  HoverListTile(
+                    builder: (isHovered) => ListTile(
+                      leading: Icon(
+                        Icons.help_outline,
                         color: isHovered
                             ? colorScheme.primary
-                            : colorScheme.onSurface,
+                            : colorScheme.onSurfaceVariant,
                       ),
+                      title: Text(
+                        'Mis Solicitudes',
+                        style: TextStyle(
+                          color: isHovered
+                              ? colorScheme.primary
+                              : colorScheme.onSurface,
+                        ),
+                      ),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.pushNamed(context, '/my-requests');
+                      },
                     ),
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.pushNamed(context, '/my-requests');
-                    },
                   ),
-                ),
                 HoverListTile(
                   builder: (isHovered) => ListTile(
                     leading: Icon(
@@ -229,28 +242,29 @@ class _CustomDrawerState extends State<CustomDrawer> {
                     },
                   ),
                 ),
-                HoverListTile(
-                  builder: (isHovered) => ListTile(
-                    leading: Icon(
-                      Icons.folder,
-                      color: isHovered
-                          ? colorScheme.primary
-                          : colorScheme.onSurfaceVariant,
-                    ),
-                    title: Text(
-                      'Entregables/Seguimiento',
-                      style: TextStyle(
+                if (_userRolePref != 'SOPORTE')
+                  HoverListTile(
+                    builder: (isHovered) => ListTile(
+                      leading: Icon(
+                        Icons.folder,
                         color: isHovered
                             ? colorScheme.primary
-                            : colorScheme.onSurface,
+                            : colorScheme.onSurfaceVariant,
                       ),
+                      title: Text(
+                        'Entregables/Seguimiento',
+                        style: TextStyle(
+                          color: isHovered
+                              ? colorScheme.primary
+                              : colorScheme.onSurface,
+                        ),
+                      ),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.pushNamed(context, '/deliverables');
+                      },
                     ),
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.pushNamed(context, '/deliverables');
-                    },
                   ),
-                ),
                 HoverListTile(
                   builder: (isHovered) => ListTile(
                     leading: Icon(

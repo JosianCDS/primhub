@@ -32,7 +32,7 @@ class AppThemes {
         backgroundColor: colorScheme.primary,
         foregroundColor: colorScheme.onPrimary,
       ),
-      cardColor: Color.fromARGB(255, 255, 0, 0),
+      cardColor: colorScheme.surface,
 
       dividerColor: colorScheme.outline,
       listTileTheme: ListTileThemeData(

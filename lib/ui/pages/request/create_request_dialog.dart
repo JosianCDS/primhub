@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/ui/shared/custom_inputs.dart';
 import 'package:primhub/ui/shared/custom_modal.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../shared/custom_button.dart';
 import '../../../api/token.dart';
 
@@ -22,6 +23,21 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
   final TextEditingController _summaryController = TextEditingController();
   String _selectedPriority = 'Media';
   String _selectedType = 'Service Request';
+  bool _isAdmin = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkRole();
+  }
+
+  Future<void> _checkRole() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted)
+      setState(
+        () => _isAdmin = (prefs.getString('user_role') ?? 'ADMIN') == 'ADMIN',
+      );
+  }
 
   // Mapeo de valores para el backend
   final Map<String, String> _priorityMap = {
@@ -114,17 +130,16 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
               onChanged: (val) => setState(() => _selectedType = val!),
             ),
             const SizedBox(height: 16),
-            CustomDropdown<String>(
-              value: _selectedPriority,
-              label: 'Prioridad',
-              items: [
-                'Alta',
-                'Media',
-                'Baja',
-              ].map((p) => DropdownMenuItem(value: p, child: Text(p))).toList(),
-              onChanged: (val) => setState(() => _selectedPriority = val!),
-            ),
-            const SizedBox(height: 16),
+            if (_isAdmin)
+              CustomDropdown<String>(
+                value: _selectedPriority,
+                label: 'Prioridad',
+                items: ['Alta', 'Media', 'Baja']
+                    .map((p) => DropdownMenuItem(value: p, child: Text(p)))
+                    .toList(),
+                onChanged: (val) => setState(() => _selectedPriority = val!),
+              ),
+            if (_isAdmin) const SizedBox(height: 16),
             CustomTextField(
               controller: _summaryController,
               label: 'Descripción / Resumen',

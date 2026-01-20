@@ -21,7 +21,7 @@ class _CalendarPageState extends State<CalendarPage> {
     {'date': DateTime(2025, 12, 1), 'description': 'Cierre de sprint'},
   ];
 
-  DateTime _focusedMonth = DateTime(2025, 11, 1);
+  DateTime _focusedMonth = DateTime.now();
 
   void _addEvent() {
     DateTime? selectedDate;
@@ -100,6 +100,100 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 
+  void _editEvent(BuildContext context, Map<String, dynamic> event) {
+    final TextEditingController descController = TextEditingController(
+      text: event['description'],
+    );
+    DateTime selectedDate = event['date'];
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setStateDialog) {
+          return CustomModal(
+            title: 'Editar Evento',
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CustomTextField(
+                  controller: descController,
+                  label: 'Descripción',
+                  maxLines: 3,
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Text(
+                      'Fecha: ${selectedDate.day}/${selectedDate.month}/${selectedDate.year}',
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.calendar_today),
+                      onPressed: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: selectedDate,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime(2030),
+                        );
+                        if (picked != null) {
+                          setStateDialog(() {
+                            selectedDate = picked;
+                          });
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancelar'),
+              ),
+              CustomButton(
+                text: 'Guardar',
+                onPressed: () {
+                  if (descController.text.isNotEmpty) {
+                    setState(() {
+                      event['description'] = descController.text;
+                      event['date'] = selectedDate;
+                      _events.sort(
+                        (a, b) => (a['date'] as DateTime).compareTo(
+                          b['date'] as DateTime,
+                        ),
+                      );
+                    });
+                    Navigator.pop(context);
+                  }
+                },
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _selectMonthYear(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _focusedMonth,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+      initialDatePickerMode: DatePickerMode.year,
+    );
+    if (picked != null &&
+        (picked.year != _focusedMonth.year ||
+            picked.month != _focusedMonth.month)) {
+      setState(() {
+        _focusedMonth = DateTime(picked.year, picked.month, 1);
+      });
+    }
+  }
+
   void _showDayDetails(BuildContext context, DateTime date) {
     final eventsForDay = _events
         .where((e) => DateUtils.isSameDay(e['date'] as DateTime, date))
@@ -119,28 +213,34 @@ class _CalendarPageState extends State<CalendarPage> {
                   'No hay eventos programados para este día.\n\nAquí se muestra una descripción más extensa del día seleccionado, permitiendo ver notas o recordatorios adicionales.',
                 ),
               if (eventsForDay.isNotEmpty)
-                ...eventsForDay.map(
-                  (e) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          e['description'],
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
+                ...eventsForDay.map((e) {
+                  return InkWell(
+                    onTap: () {
+                      Navigator.pop(context); // Close details
+                      _editEvent(context, e); // Open edit
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            e['description'],
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'Detalles adicionales del evento: Hora de inicio, ubicación, participantes y notas extensas sobre la actividad planificada para este día.',
-                          style: TextStyle(color: Colors.black87),
-                        ),
-                      ],
+                          const SizedBox(height: 4),
+                          Text(
+                            'Click para editar. Detalles adicionales del evento: Hora de inicio, ubicación, etc.',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ),
+                  );
+                }),
             ],
           ),
           actions: [
@@ -205,24 +305,28 @@ class _CalendarPageState extends State<CalendarPage> {
                       }
 
                       return InkWell(
-                        onTap: () => _showDayDetails(context, date),
-                        hoverColor: Colors.blue.withOpacity(0.1),
+                        onTap: () => _editEvent(context, event),
+                        hoverColor: colorScheme.primary.withOpacity(0.1),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(vertical: 4.0),
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
+                              Text(
                                 '• ',
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
+                                  color: colorScheme.onSurface,
                                 ),
                               ),
                               Expanded(
                                 child: Text(
                                   '$dateStr: $description',
-                                  style: const TextStyle(fontSize: 16),
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: colorScheme.onSurface,
+                                  ),
                                 ),
                               ),
                             ],
@@ -253,11 +357,21 @@ class _CalendarPageState extends State<CalendarPage> {
                             ),
                           ),
                         ),
-                        Text(
-                          '${_getMonthName(_focusedMonth.month)} ${_focusedMonth.year}',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+                        InkWell(
+                          onTap: () => _selectMonthYear(context),
+                          borderRadius: BorderRadius.circular(8),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12.0,
+                              vertical: 8.0,
+                            ),
+                            child: Text(
+                              '${_getMonthName(_focusedMonth.month)} ${_focusedMonth.year}',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
                         ),
                         IconButton(

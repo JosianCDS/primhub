@@ -30,6 +30,7 @@ class CustomTable extends StatelessWidget {
             child: ConstrainedBox(
               constraints: BoxConstraints(minWidth: constraints.maxWidth),
               child: DataTable(
+                showCheckboxColumn: false,
                 headingTextStyle: TextStyle(
                   fontWeight: FontWeight.bold,
                   color: theme.colorScheme.onSurface,

@@ -5,6 +5,9 @@ import 'package:primhub/ui/shared/custom_button.dart';
 import 'package:primhub/ui/shared/cardcustom.dart';
 import 'package:primhub/ui/shared/custom_chart.dart';
 import 'package:primhub/ui/shared/custom_container.dart';
+import 'package:primhub/ui/shared/custom_inputs.dart';
+import 'package:primhub/ui/shared/custom_modal.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/custom_drawer.dart';
 
 class HomePage extends StatefulWidget {
@@ -35,11 +38,21 @@ class _HomePageState extends State<HomePage> {
   bool _isLoading = true;
   int _openRequestsCount = 0;
   int _inProgressRequestsCount = 0;
+  bool _isAdmin = true;
 
   @override
   void initState() {
     super.initState();
+    _checkRole();
     _loadRecentRequests();
+  }
+
+  Future<void> _checkRole() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted)
+      setState(
+        () => _isAdmin = (prefs.getString('user_role') ?? 'ADMIN') == 'ADMIN',
+      );
   }
 
   Future<void> _loadRecentRequests() async {
@@ -95,6 +108,7 @@ class _HomePageState extends State<HomePage> {
                 'level': level,
                 'levelColor': baseColor,
                 'levelBgColor': baseColor.withOpacity(0.2),
+                'status': r['R_Status_Name'] ?? '1_Open',
               };
             })
             .toList();
@@ -114,6 +128,81 @@ class _HomePageState extends State<HomePage> {
       default:
         return Colors.grey;
     }
+  }
+
+  void _editRequest(Map<String, dynamic> req) {
+    String currentPriority = req['level'];
+    String currentStatus = req['status'];
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setStateDialog) {
+          return CustomModal(
+            title: 'Editar Solicitud ${req['code']}',
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CustomDropdown<String>(
+                  label: 'Nivel de Prioridad',
+                  value: currentPriority,
+                  items: ['Alta', 'Media', 'Baja']
+                      .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                      .toList(),
+                  onChanged: (val) {
+                    if (val != null)
+                      setStateDialog(() => currentPriority = val);
+                  },
+                ),
+                const SizedBox(height: 16),
+                CustomDropdown<String>(
+                  label: 'Estado',
+                  value: currentStatus,
+                  items:
+                      [
+                            '1_Open',
+                            '2_Waiting on customer',
+                            '3_Closed',
+                            '9_Final Close',
+                          ]
+                          .map(
+                            (e) => DropdownMenuItem(value: e, child: Text(e)),
+                          )
+                          .toList(),
+                  onChanged: (val) {
+                    if (val != null) setStateDialog(() => currentStatus = val);
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancelar'),
+              ),
+              CustomButton(
+                text: 'Guardar',
+                onPressed: () {
+                  setState(() {
+                    req['level'] = currentPriority;
+                    req['status'] = currentStatus;
+                    if (currentPriority == 'Alta') {
+                      req['levelColor'] = Colors.red;
+                    } else if (currentPriority == 'Media') {
+                      req['levelColor'] = Colors.amber.shade800;
+                    } else {
+                      req['levelColor'] = Colors.green;
+                    }
+                    req['levelBgColor'] = req['levelColor'].withOpacity(0.2);
+                  });
+                  Navigator.pop(context);
+                },
+              ),
+            ],
+          );
+        },
+      ),
+    );
   }
 
   @override
@@ -340,7 +429,9 @@ class _HomePageState extends State<HomePage> {
                           : Column(
                               children: _recentRequests.map((req) {
                                 return InkWell(
-                                  onTap: () {}, // Habilita el efecto hover
+                                  onTap: _isAdmin
+                                      ? () => _editRequest(req)
+                                      : null,
                                   hoverColor: Colors.blue.withOpacity(0.1),
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(
