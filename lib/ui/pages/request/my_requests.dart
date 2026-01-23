@@ -26,12 +26,17 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   bool _showHistory = false;
   bool _isInit = true;
   bool _isAdmin = true;
+  double? _contractedHours;
+  double _consumedHours = 0.0;
+  double _estimatedHours = 0.0;
+  DateTime? _lastContractDate;
+  Map<String, int> _statusIdMap = {};
 
   @override
   void initState() {
     super.initState();
     _checkRole();
-    _refreshRequest();
+    _initData();
   }
 
   Future<void> _checkRole() async {
@@ -40,6 +45,12 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       setState(
         () => _isAdmin = (prefs.getString('user_role') ?? 'ADMIN') == 'ADMIN',
       );
+  }
+
+  Future<void> _initData() async {
+    await _loadContractedHours();
+    await _fetchStatuses();
+    await _refreshRequest();
   }
 
   @override
@@ -54,19 +65,139 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     }
   }
 
+  Future<void> _fetchStatuses() async {
+    try {
+      final response = await http.get(
+        Uri.parse('${Endpoint.baseUrl}/api/v1/models/R_Status'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': Token.token,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
+        final records = jsonResponse['records'] as List;
+        if (mounted) {
+          setState(() {
+            _statusIdMap = {for (var r in records) r['Name']: r['id']};
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching statuses: $e');
+    }
+  }
+
+  Future<void> _loadContractedHours() async {
+    final payload = Token.decodePayload(Token.token);
+    final int userId = payload['AD_User_ID'] ?? 101;
+
+    final String queryUrl =
+        "${Endpoint.baseUrl}/api/v1/models/C_Invoice?\$filter=IsSOTrx eq true and C_DocTypeTarget_ID eq 116 and AD_User_ID eq $userId and (DocStatus eq 'CO' or DocStatus eq 'DR')&\$expand=C_InvoiceLine(\$select=M_Product_ID,QtyEntered;\$filter=M_Product_ID eq 1000850)&\$select=DocumentNo";
+
+    try {
+      final response = await http.get(
+        Uri.parse(queryUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': Token.token,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
+        final records = jsonResponse['records'] as List;
+
+        // Ordenar para encontrar el último contrato
+        records.sort(
+          (a, b) => (b['Created'] ?? '').compareTo(a['Created'] ?? ''),
+        );
+
+        double total = 0.0;
+
+        if (records.isNotEmpty) {
+          final latest = records.first;
+          _lastContractDate = DateTime.tryParse(latest['Created'] ?? '');
+
+          final lines = latest['C_InvoiceLine'] as List?;
+          if (lines != null && lines.isNotEmpty) {
+            for (var line in lines) {
+              total += (line['QtyEntered'] as num?)?.toDouble() ?? 0.0;
+            }
+          }
+        }
+
+        if (mounted) {
+          setState(() {
+            _contractedHours = total;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading contracted hours: $e');
+    }
+  }
+
   Future<void> _refreshRequest() async {
     final requests = await fetchRequest();
+    double consumed = 0.0;
+    double estimated = 0.0;
+
+    for (var req in requests) {
+      // Filtrar por fecha del último contrato para consumo
+      bool isAfterContract = true;
+      if (_lastContractDate != null) {
+        final reqDate = DateTime.tryParse(req['Created'] ?? '');
+        if (reqDate != null && reqDate.isBefore(_lastContractDate!)) {
+          isAfterContract = false;
+        }
+      }
+
+      final statusName = req['R_Status_Name'] ?? '';
+      final qtyPlan = (req['QtyPlan'] as num?)?.toDouble() ?? 0.0;
+
+      // Lógica de Consumo Real: Solo si está en Final Close
+      if (statusName == '9_Final Close' || req['R_Status_ID'] == 103) {
+        if (isAfterContract) {
+          consumed += qtyPlan;
+        }
+      } else {
+        // Lógica de Estimación (Si NO está en Final Close)
+        // Sumamos lo planificado
+        estimated += qtyPlan;
+      }
+    }
+
     setState(() {
+      _consumedHours = consumed;
+      _estimatedHours = estimated;
+
       _requests = requests.map((r) {
         String level = r['Priority_Name'] ?? 'Baja';
         String status = r['R_Status_Name'] ?? '';
+        int? statusId = r['R_Status_ID'];
+
+        // Normalizar el nombre del estado usando el mapa de IDs si es posible
+        if (statusId != null && _statusIdMap.isNotEmpty) {
+          for (var entry in _statusIdMap.entries) {
+            if (entry.value == statusId) {
+              status = entry.key;
+              break;
+            }
+          }
+        }
 
         // Asignar colores según el nivel
         Color baseColor = Colors.green;
-        if (level == 'Alta')
+        if (level == 'Urgente')
+          baseColor = Colors.purple;
+        else if (level == 'Alta')
           baseColor = Colors.red;
         else if (level == 'Media')
           baseColor = Colors.amber.shade800;
+        else if (level == 'Menor')
+          baseColor = Colors.grey;
         String formattedTime = r['Created'] ?? '';
         try {
           if (formattedTime.isNotEmpty) {
@@ -83,10 +214,16 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
           'description': r['Summary'] ?? '',
           'level': level,
           'status': status,
+          'statusId': statusId,
           'time': formattedTime,
           'levelColor': baseColor,
           'levelBgColor': baseColor.withOpacity(0.2),
           'statusColor': Colors.grey,
+          'dateStartPlan': r['DateStartPlan'] ?? '',
+          'dateCompletePlan': r['DateCompletePlan'] ?? '',
+          'startTime': _extractTime(r['StartTime']),
+          'endTime': _extractTime(r['EndTime']),
+          'qtyPlan': r['QtyPlan']?.toString() ?? '',
         };
       }).toList();
       _isLoading = false;
@@ -97,30 +234,88 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   String? _selectedStatus;
 
   final Map<String, String> _priorityMap = {
+    'Urgente': '1',
     'Alta': '3',
     'Media': '5',
     'Baja': '7',
+    'Menor': '9',
   };
 
-  // IDs from API response
-  final Map<String, int> _statusMap = {
-    '1_Open': 100,
-    '2_Waiting on customer': 101,
-    '3_Closed': 102,
-    '9_Final Close': 103,
-  };
+  String _extractTime(String? val) {
+    if (val == null || val.isEmpty) return '';
+    String t = val;
+    if (t.contains('T')) {
+      t = t.split('T')[1];
+    }
+    return t.replaceAll('Z', '');
+  }
 
-  Future<bool> _updateRemoteRequest(
+  String _ensureIsoDate(String val) {
+    if (val.isEmpty) return "";
+    if (val.contains('T')) return val;
+    if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(val)) {
+      return "${val}T00:00:00Z";
+    }
+    return val;
+  }
+
+  String _ensureIsoTime(String? dateContext, String time) {
+    if (time.isEmpty) return "";
+    String timePart = time;
+    if (time.contains('T')) {
+      timePart = time.split('T')[1];
+    }
+    if (timePart.length == 5) timePart = "$timePart:00";
+    if (!timePart.endsWith('Z')) timePart = "${timePart}Z";
+    return timePart;
+  }
+
+  Future<Map<String, dynamic>> _updateRemoteRequest(
     dynamic id,
     String priority,
-    String status,
+    int? statusId,
+    String? statusIdentifier,
+    String summary,
+    String? dateStartPlan,
+    String? dateCompletePlan,
+    String? startTime,
+    String? endTime,
+    double? qtyPlan,
+    String? startDate,
+    String? closeDate,
   ) async {
     try {
       final url = Uri.parse('${Endpoint.request}/$id');
-      final body = jsonEncode({
+      final Map<String, dynamic> data = {
         'Priority': _priorityMap[priority],
-        'R_Status_ID': _statusMap[status],
-      });
+        'Summary': summary,
+      };
+
+      if (statusId != null) {
+        data['R_Status_ID'] = statusId;
+      } else if (statusIdentifier != null) {
+        data['R_Status_ID'] = {'identifier': statusIdentifier};
+      }
+
+      if (dateStartPlan != null && dateStartPlan.isNotEmpty)
+        data['DateStartPlan'] = _ensureIsoDate(dateStartPlan);
+      if (dateCompletePlan != null && dateCompletePlan.isNotEmpty)
+        data['DateCompletePlan'] = _ensureIsoDate(dateCompletePlan);
+      if (startTime != null && startTime.isNotEmpty)
+        data['StartTime'] = _ensureIsoTime(dateStartPlan, startTime);
+      if (endTime != null && endTime.isNotEmpty)
+        data['EndTime'] = _ensureIsoTime(
+          dateCompletePlan ?? dateStartPlan,
+          endTime,
+        );
+      if (qtyPlan != null) data['QtyPlan'] = qtyPlan;
+
+      if (startDate != null) data['StartDate'] = startDate;
+      if (closeDate != null) data['CloseDate'] = closeDate;
+
+      final body = jsonEncode(data);
+
+      debugPrint('Update Payload: $body');
 
       final response = await http.put(
         url,
@@ -130,111 +325,405 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
         },
         body: body,
       );
-      return response.statusCode == 200 || response.statusCode == 201;
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        debugPrint('Update Error ${response.statusCode}: ${response.body}');
+        return {
+          'success': false,
+          'error': 'Error ${response.statusCode}: ${response.body}',
+          'payload': body,
+        };
+      }
+      return {'success': true};
     } catch (e) {
       debugPrint('Error updating request: $e');
-      return false;
+      return {
+        'success': false,
+        'error': e.toString(),
+        'payload': 'Exception occurred',
+      };
     }
   }
 
   void _editRequest(Map<String, dynamic> req) {
     String currentPriority = req['level'];
     String currentStatus = req['status'];
+    int? statusId = req['statusId'];
+    bool isReadOnly = currentStatus == '9_Final Close' || statusId == 103;
     bool isSaving = false;
+
+    final TextEditingController summaryController = TextEditingController(
+      text: req['description'],
+    );
+    // Controladores para nuevos campos
+    final TextEditingController dateStartController = TextEditingController(
+      text: req['dateStartPlan'],
+    );
+    final TextEditingController dateCompleteController = TextEditingController(
+      text: req['dateCompletePlan'],
+    );
+    final TextEditingController startTimeController = TextEditingController(
+      text: req['startTime'],
+    );
+    final TextEditingController endTimeController = TextEditingController(
+      text: req['endTime'],
+    );
+    final TextEditingController qtyPlanController = TextEditingController(
+      text: req['qtyPlan'],
+    );
+
+    Future<void> selectDate(
+      BuildContext context,
+      TextEditingController controller,
+    ) async {
+      final DateTime? picked = await showDatePicker(
+        context: context,
+        initialDate: DateTime.now(),
+        firstDate: DateTime(2000),
+        lastDate: DateTime(2101),
+      );
+      if (picked != null) {
+        controller.text =
+            "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
+      }
+    }
+
+    Future<void> selectTime(
+      BuildContext context,
+      TextEditingController controller,
+    ) async {
+      final TimeOfDay? picked = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay.now(),
+      );
+      if (picked != null) {
+        // Formato HH:mm:ss para backend si es necesario, o HH:mm
+        controller.text =
+            "${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}:00";
+      }
+    }
 
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setStateDialog) {
+          // Asegurar que el estado actual esté en la lista para evitar error de Dropdown
+          final List<String> statusItems = _statusIdMap.isNotEmpty
+              ? (_statusIdMap.keys.toList()..sort())
+              : [
+                  '1_Open',
+                  '2_Waiting on customer',
+                  '3_Closed',
+                  '9_Final Close',
+                ];
+          if (currentStatus.isNotEmpty &&
+              !statusItems.contains(currentStatus)) {
+            statusItems.add(currentStatus);
+          }
+
           return CustomModal(
             title: 'Editar Solicitud ${req['id']}',
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CustomDropdown<String>(
-                  label: 'Nivel de Prioridad',
-                  value: currentPriority,
-                  items: ['Alta', 'Media', 'Baja']
-                      .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                      .toList(),
-                  onChanged: (val) {
-                    if (val != null)
-                      setStateDialog(() => currentPriority = val);
-                  },
-                ),
-                const SizedBox(height: 16),
-                CustomDropdown<String>(
-                  label: 'Estado',
-                  value: currentStatus,
-                  items:
-                      [
-                            '1_Open',
-                            '2_Waiting on customer',
-                            '3_Closed',
-                            '9_Final Close',
-                          ]
-                          .map(
-                            (e) => DropdownMenuItem(value: e, child: Text(e)),
-                          )
-                          .toList(),
-                  onChanged: (val) {
-                    if (val != null) setStateDialog(() => currentStatus = val);
-                  },
-                ),
-              ],
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CustomTextField(
+                    controller: summaryController,
+                    label: 'Descripción / Resumen',
+                    readOnly: isReadOnly,
+                    maxLines: 3,
+                    validator: (value) => value == null || value.isEmpty
+                        ? 'Por favor ingrese una descripción'
+                        : null,
+                  ),
+                  const SizedBox(height: 16),
+                  CustomDropdown<String>(
+                    label: 'Nivel de Prioridad',
+                    value: currentPriority,
+                    items: ['Urgente', 'Alta', 'Media', 'Baja', 'Menor']
+                        .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                        .toList(),
+                    onChanged: isReadOnly
+                        ? null
+                        : (val) {
+                            if (val != null)
+                              setStateDialog(() => currentPriority = val);
+                          },
+                  ),
+                  const SizedBox(height: 16),
+                  CustomDropdown<String>(
+                    label: 'Estado',
+                    value: currentStatus,
+                    items: statusItems
+                        .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                        .toList(),
+                    onChanged: isReadOnly
+                        ? null
+                        : (val) {
+                            if (val != null)
+                              setStateDialog(() => currentStatus = val);
+                          },
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: isReadOnly
+                              ? null
+                              : () => selectDate(context, dateStartController),
+                          child: AbsorbPointer(
+                            child: CustomTextField(
+                              controller: dateStartController,
+                              label: 'Inicio Plan',
+                              readOnly:
+                                  true, // Siempre readonly porque usa picker, pero el tap está controlado
+                              hintText: 'YYYY-MM-DD',
+                              prefixIcon: const Icon(Icons.calendar_today),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: isReadOnly
+                              ? null
+                              : () =>
+                                    selectDate(context, dateCompleteController),
+                          child: AbsorbPointer(
+                            child: CustomTextField(
+                              controller: dateCompleteController,
+                              label: 'Fin Plan',
+                              readOnly: true,
+                              hintText: 'YYYY-MM-DD',
+                              prefixIcon: const Icon(Icons.calendar_today),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: isReadOnly
+                              ? null
+                              : () => selectTime(context, startTimeController),
+                          child: AbsorbPointer(
+                            child: CustomTextField(
+                              controller: startTimeController,
+                              label: 'Hora Inicio',
+                              readOnly: true,
+                              hintText: 'HH:mm:ss',
+                              prefixIcon: const Icon(Icons.access_time),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: isReadOnly
+                              ? null
+                              : () => selectTime(context, endTimeController),
+                          child: AbsorbPointer(
+                            child: CustomTextField(
+                              controller: endTimeController,
+                              label: 'Hora Fin',
+                              readOnly: true,
+                              hintText: 'HH:mm:ss',
+                              prefixIcon: const Icon(Icons.access_time),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  CustomTextField(
+                    controller: qtyPlanController,
+                    label: 'Cant Plan (Horas)',
+                    readOnly: true,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                  ),
+                ],
+              ),
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Cancelar'),
+                child: Text(isReadOnly ? 'Cerrar' : 'Cancelar'),
               ),
-              CustomButton(
-                text: 'Guardar',
-                isLoading: isSaving,
-                onPressed: () async {
-                  setStateDialog(() => isSaving = true);
-                  final success = await _updateRemoteRequest(
-                    req['realId'],
-                    currentPriority,
-                    currentStatus,
-                  );
-                  setStateDialog(() => isSaving = false);
+              if (!isReadOnly)
+                CustomButton(
+                  text: 'Guardar',
+                  isLoading: isSaving,
+                  onPressed: () async {
+                    setStateDialog(() => isSaving = true);
 
-                  if (success) {
-                    if (mounted) {
-                      setState(() {
-                        req['level'] = currentPriority;
-                        req['status'] = currentStatus;
-                        if (currentPriority == 'Alta') {
-                          req['levelColor'] = Colors.red;
-                        } else if (currentPriority == 'Media') {
-                          req['levelColor'] = Colors.amber.shade800;
-                        } else {
-                          req['levelColor'] = Colors.green;
+                    // Calcular QtyPlan automáticamente si hay horas definidas
+                    if (startTimeController.text.isNotEmpty &&
+                        endTimeController.text.isNotEmpty) {
+                      try {
+                        DateTime startBase = dateStartController.text.isNotEmpty
+                            ? DateTime.parse(dateStartController.text)
+                            : DateTime.now();
+                        DateTime endBase =
+                            dateCompleteController.text.isNotEmpty
+                            ? DateTime.parse(dateCompleteController.text)
+                            : startBase;
+
+                        final sParts = startTimeController.text.split(':');
+                        final eParts = endTimeController.text.split(':');
+                        if (sParts.length >= 2 && eParts.length >= 2) {
+                          final start = DateTime(
+                            startBase.year,
+                            startBase.month,
+                            startBase.day,
+                            int.parse(sParts[0]),
+                            int.parse(sParts[1]),
+                          );
+                          var end = DateTime(
+                            endBase.year,
+                            endBase.month,
+                            endBase.day,
+                            int.parse(eParts[0]),
+                            int.parse(eParts[1]),
+                          );
+                          if (end.isBefore(start)) {
+                            end = end.add(const Duration(days: 1));
+                            // Actualizar la fecha de fin visualmente y para el envío
+                            dateCompleteController.text =
+                                "${end.year}-${end.month.toString().padLeft(2, '0')}-${end.day.toString().padLeft(2, '0')}";
+                          }
+                          final diff = end.difference(start);
+                          final hours = diff.inMinutes / 60.0;
+                          qtyPlanController.text = hours.toStringAsFixed(2);
                         }
-                        req['levelBgColor'] = req['levelColor'].withOpacity(
-                          0.2,
+                      } catch (_) {}
+                    }
+
+                    int? statusIdToSend;
+                    String? statusIdentifierToSend;
+
+                    if (currentStatus != req['status']) {
+                      if (_statusIdMap.containsKey(currentStatus)) {
+                        statusIdToSend = _statusIdMap[currentStatus];
+                      } else {
+                        statusIdentifierToSend = currentStatus;
+                      }
+                    }
+
+                    // Solo enviar campos si han cambiado respecto al valor original
+                    String? dateStartPlanToSend =
+                        dateStartController.text != req['dateStartPlan']
+                        ? dateStartController.text
+                        : null;
+                    String? dateCompletePlanToSend =
+                        dateCompleteController.text != req['dateCompletePlan']
+                        ? dateCompleteController.text
+                        : null;
+                    String? startTimeToSend =
+                        startTimeController.text != req['startTime']
+                        ? startTimeController.text
+                        : null;
+                    String? endTimeToSend =
+                        endTimeController.text != req['endTime']
+                        ? endTimeController.text
+                        : null;
+                    double? qtyPlanToSend =
+                        qtyPlanController.text != req['qtyPlan']
+                        ? double.tryParse(qtyPlanController.text)
+                        : null;
+
+                    // Si el estado es Final Close, preparamos StartDate y CloseDate
+                    String? startDateToSend;
+                    String? closeDateToSend;
+
+                    if (currentStatus == '9_Final Close' ||
+                        (statusIdToSend != null && statusIdToSend == 103)) {
+                      // Usamos los valores actuales de los controladores (sean nuevos o viejos)
+                      if (dateStartController.text.isNotEmpty &&
+                          startTimeController.text.isNotEmpty) {
+                        String t = startTimeController.text;
+                        if (t.length == 5) t = "$t:00";
+                        startDateToSend = "${dateStartController.text}T${t}Z";
+                      }
+                      if (dateCompleteController.text.isNotEmpty &&
+                          endTimeController.text.isNotEmpty) {
+                        String t = endTimeController.text;
+                        if (t.length == 5) t = "$t:00";
+                        closeDateToSend =
+                            "${dateCompleteController.text}T${t}Z";
+                      }
+                    }
+
+                    final result = await _updateRemoteRequest(
+                      req['realId'],
+                      currentPriority,
+                      statusIdToSend,
+                      statusIdentifierToSend,
+                      summaryController.text,
+                      dateStartPlanToSend,
+                      dateCompletePlanToSend,
+                      startTimeToSend,
+                      endTimeToSend,
+                      qtyPlanToSend,
+                      startDateToSend,
+                      closeDateToSend,
+                    );
+                    setStateDialog(() => isSaving = false);
+
+                    if (result['success'] == true) {
+                      if (mounted) {
+                        setState(() {
+                          req['level'] = currentPriority;
+                          req['status'] = currentStatus;
+                          req['description'] = summaryController.text;
+                          if (currentPriority == 'Urgente') {
+                            req['levelColor'] = Colors.purple;
+                          } else if (currentPriority == 'Alta') {
+                            req['levelColor'] = Colors.red;
+                          } else if (currentPriority == 'Media') {
+                            req['levelColor'] = Colors.amber.shade800;
+                          } else if (currentPriority == 'Menor') {
+                            req['levelColor'] = Colors.grey;
+                          } else {
+                            req['levelColor'] = Colors.green;
+                          }
+                          req['levelBgColor'] = req['levelColor'].withOpacity(
+                            0.2,
+                          );
+                          _refreshRequest(); // Recalcular totales
+                        });
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Solicitud actualizada correctamente',
+                            ),
+                          ),
                         );
-                      });
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Solicitud actualizada correctamente'),
-                        ),
-                      );
+                      }
+                    } else {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Error: ${result['error']}\nPayload: ${result['payload']}',
+                            ),
+                            backgroundColor: Colors.red,
+                            duration: const Duration(seconds: 10),
+                          ),
+                        );
+                      }
                     }
-                  } else {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Error al actualizar la solicitud'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  }
-                },
-              ),
+                  },
+                ),
             ],
           );
         },
@@ -244,12 +733,15 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final filteredAlerts = _requests.where((alert) {
       // Lógica para separar Activas de Historial (Final Close)
+      bool isClosed =
+          alert['status'] == '9_Final Close' || alert['statusId'] == 103;
       if (_showHistory) {
-        if (alert['status'] != '9_Final Close') return false;
+        if (!isClosed) return false;
       } else {
-        if (alert['status'] == '9_Final Close') return false;
+        if (isClosed) return false;
       }
 
       if (_selectedLevel != null && alert['level'] != _selectedLevel)
@@ -265,6 +757,20 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       return _isAscending ? timeA.compareTo(timeB) : timeB.compareTo(timeA);
     });
 
+    double availableHours = (_contractedHours ?? 0) - _consumedHours;
+    bool isInsufficient = _estimatedHours > availableHours;
+
+    double maxHours = _contractedHours ?? 1.0;
+    if (maxHours <= 0) maxHours = 1.0;
+    double consumedPct = (_consumedHours / maxHours).clamp(0.0, 1.0);
+    double estimatedPct = (_estimatedHours / maxHours).clamp(
+      0.0,
+      1.0 - consumedPct,
+    );
+    int consumedFlex = (consumedPct * 1000).toInt();
+    int estimatedFlex = (estimatedPct * 1000).toInt();
+    int remainingFlex = 1000 - consumedFlex - estimatedFlex;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Mis Solicitudes De Soporte')),
       drawer: const CustomDrawer(),
@@ -273,6 +779,99 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // Card de Estimación de Horas
+            if (_contractedHours != null)
+              Card(
+                color: isInsufficient
+                    ? (isDark
+                          ? Colors.red.shade900.withOpacity(0.5)
+                          : Colors.red.shade50)
+                    : (isDark
+                          ? Colors.blue.shade900.withOpacity(0.5)
+                          : Colors.blue.shade50),
+                elevation: 2,
+                margin: const EdgeInsets.only(bottom: 20),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Consumidas: ${_consumedHours.toStringAsFixed(1)}',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: isDark
+                                  ? Colors.green.shade300
+                                  : Colors.green.shade800,
+                            ),
+                          ),
+                          Text(
+                            'Estimadas: ${_estimatedHours.toStringAsFixed(1)}',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: isDark
+                                  ? Colors.amber.shade300
+                                  : Colors.amber.shade800,
+                            ),
+                          ),
+                          Text(
+                            'Disponibles: ${availableHours.toStringAsFixed(1)}',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          height: 12,
+                          color: Colors.grey.shade300,
+                          child: isInsufficient
+                              ? Container(color: Colors.red)
+                              : Row(
+                                  children: [
+                                    if (consumedFlex > 0)
+                                      Expanded(
+                                        flex: consumedFlex,
+                                        child: Container(color: Colors.green),
+                                      ),
+                                    if (estimatedFlex > 0)
+                                      Expanded(
+                                        flex: estimatedFlex,
+                                        child: Container(color: Colors.amber),
+                                      ),
+                                    if (remainingFlex > 0)
+                                      Expanded(
+                                        flex: remainingFlex,
+                                        child: const SizedBox(),
+                                      ),
+                                  ],
+                                ),
+                        ),
+                      ),
+                      if (isInsufficient) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          '¡Advertencia! Las horas estimadas superan las disponibles. Deberá contratar más horas.',
+                          style: TextStyle(
+                            color: isDark
+                                ? Colors.red.shade200
+                                : Colors.red.shade800,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
             LayoutBuilder(
               builder: (context, constraints) {
                 final filters = Column(
@@ -291,12 +890,14 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                         DropdownButton<String>(
                           hint: const Text('Nivel'),
                           value: _selectedLevel,
-                          items: ['Alta', 'Media', 'Baja'].map((String value) {
-                            return DropdownMenuItem<String>(
-                              value: value,
-                              child: Text(value),
-                            );
-                          }).toList(),
+                          items: ['Urgente', 'Alta', 'Media', 'Baja', 'Menor']
+                              .map((String value) {
+                                return DropdownMenuItem<String>(
+                                  value: value,
+                                  child: Text(value),
+                                );
+                              })
+                              .toList(),
                           onChanged: (val) =>
                               setState(() => _selectedLevel = val),
                         ),
@@ -425,6 +1026,11 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                           DataColumn(label: Text('Asunto')),
                           DataColumn(label: Text('Nivel')),
                           DataColumn(label: Text('Ultima Actualización')),
+                          DataColumn(label: Text('Inicio Plan')),
+                          DataColumn(label: Text('Fin Plan')),
+                          DataColumn(label: Text('Hora Inicio')),
+                          DataColumn(label: Text('Hora Fin')),
+                          DataColumn(label: Text('Cant. Plan')),
                           DataColumn(label: Text('Descripción')),
                           DataColumn(label: Text('Estado')),
                         ],
@@ -456,6 +1062,11 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                                 ),
                               ),
                               DataCell(Text(alert['time'] ?? '')),
+                              DataCell(Text(alert['dateStartPlan'])),
+                              DataCell(Text(alert['dateCompletePlan'])),
+                              DataCell(Text(alert['startTime'])),
+                              DataCell(Text(alert['endTime'])),
+                              DataCell(Text(alert['qtyPlan'])),
                               DataCell(Text(alert['description'])),
                               DataCell(
                                 Row(

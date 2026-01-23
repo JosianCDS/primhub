@@ -1,4 +1,8 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:primhub/api/token.dart';
+import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/ui/pages/request/create_request_dialog.dart';
 import 'package:primhub/ui/pages/request/request_functions.dart';
 import 'package:primhub/ui/shared/custom_button.dart';
@@ -38,13 +42,22 @@ class _HomePageState extends State<HomePage> {
   bool _isLoading = true;
   int _openRequestsCount = 0;
   int _inProgressRequestsCount = 0;
+  int _closedRequestsCount = 0;
   bool _isAdmin = true;
+  double? _contractedHours;
+  double _consumedHours = 0.0;
+  DateTime? _lastContractDate;
 
   @override
   void initState() {
     super.initState();
     _checkRole();
-    _loadRecentRequests();
+    _initData();
+  }
+
+  Future<void> _initData() async {
+    await _loadContractedHours();
+    await _loadRecentRequests();
   }
 
   Future<void> _checkRole() async {
@@ -60,11 +73,36 @@ class _HomePageState extends State<HomePage> {
 
     int open = 0;
     int others = 0;
+    int closed = 0;
+    double totalConsumed = 0.0;
+
     for (var req in requests) {
-      if (req['R_Status_Name'] == '9_Final Close') {
-        continue; // No contar las cerradas definitivamente
-      } else if (req['R_Status_Name'] == '1_Open') {
-        open++;
+      // Solo contar consumo si está cerrado
+      if (req['R_Status_Name'] != '9_Final Close' &&
+          req['R_Status_ID'] != 103) {
+        // Si no está cerrado, no suma consumo
+      } else {
+        // Filtrar consumo basado en el último contrato
+        if (_lastContractDate != null) {
+          final reqDate = DateTime.tryParse(req['Created'] ?? '');
+          if (reqDate != null && reqDate.isBefore(_lastContractDate!)) {
+            // Si es anterior al contrato, no suma al consumo actual, pero sí cuenta para stats generales si se desea
+            // Para el cálculo de horas disponibles, lo ignoramos en totalConsumed
+          } else {
+            // Lógica de consumo solo si es posterior
+            double hours = (req['QtyPlan'] as num?)?.toDouble() ?? 0.0;
+            totalConsumed += hours;
+          }
+        } else {
+          // Si no hay contrato, sumamos todo (o nada, según regla de negocio, asumimos todo)
+          double hours = (req['QtyPlan'] as num?)?.toDouble() ?? 0.0;
+          totalConsumed += hours;
+        }
+      }
+
+      if (req['R_Status_Name'] == '9_Final Close' ||
+          req['R_Status_ID'] == 103) {
+        closed++;
       } else {
         others++;
       }
@@ -81,16 +119,26 @@ class _HomePageState extends State<HomePage> {
       setState(() {
         _openRequestsCount = open;
         _inProgressRequestsCount = others;
+        _closedRequestsCount = closed;
+        _consumedHours = totalConsumed;
         _recentRequests = requests
-            .where((r) => r['R_Status_Name'] != '9_Final Close')
+            .where(
+              (r) =>
+                  r['R_Status_Name'] != '9_Final Close' &&
+                  r['R_Status_ID'] != 103,
+            )
             .take(3)
             .map((r) {
               String level = r['Priority_Name'] ?? 'Baja';
               Color baseColor = Colors.green;
-              if (level == 'Alta')
+              if (level == 'Urgente')
+                baseColor = Colors.purple;
+              else if (level == 'Alta')
                 baseColor = Colors.red;
               else if (level == 'Media')
                 baseColor = Colors.amber.shade800;
+              else if (level == 'Menor')
+                baseColor = Colors.grey;
 
               String formattedTime = r['Created'] ?? '';
               try {
@@ -114,6 +162,55 @@ class _HomePageState extends State<HomePage> {
             .toList();
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _loadContractedHours() async {
+    final payload = Token.decodePayload(Token.token);
+    final int userId = payload['AD_User_ID'] ?? 101;
+
+    final String queryUrl =
+        "${Endpoint.baseUrl}/api/v1/models/C_Invoice?\$filter=IsSOTrx eq true and C_DocTypeTarget_ID eq 116 and AD_User_ID eq $userId and (DocStatus eq 'CO' or DocStatus eq 'DR')&\$expand=C_InvoiceLine(\$select=M_Product_ID,QtyEntered;\$filter=M_Product_ID eq 1000850)&\$select=DocumentNo";
+
+    try {
+      final response = await http.get(
+        Uri.parse(queryUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': Token.token,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
+        final records = jsonResponse['records'] as List;
+
+        // Ordenar para obtener el último contrato
+        records.sort(
+          (a, b) => (b['Created'] ?? '').compareTo(a['Created'] ?? ''),
+        );
+
+        double total = 0.0;
+
+        if (records.isNotEmpty) {
+          final latest = records.first;
+          _lastContractDate = DateTime.tryParse(latest['Created'] ?? '');
+          final lines = latest['C_InvoiceLine'] as List?;
+          if (lines != null && lines.isNotEmpty) {
+            for (var line in lines) {
+              total += (line['QtyEntered'] as num?)?.toDouble() ?? 0.0;
+            }
+          }
+        }
+
+        if (mounted) {
+          setState(() {
+            _contractedHours = total;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading contracted hours: $e');
     }
   }
 
@@ -146,7 +243,7 @@ class _HomePageState extends State<HomePage> {
                 CustomDropdown<String>(
                   label: 'Nivel de Prioridad',
                   value: currentPriority,
-                  items: ['Alta', 'Media', 'Baja']
+                  items: ['Urgente', 'Alta', 'Media', 'Baja', 'Menor']
                       .map((e) => DropdownMenuItem(value: e, child: Text(e)))
                       .toList(),
                   onChanged: (val) {
@@ -186,10 +283,14 @@ class _HomePageState extends State<HomePage> {
                   setState(() {
                     req['level'] = currentPriority;
                     req['status'] = currentStatus;
-                    if (currentPriority == 'Alta') {
+                    if (currentPriority == 'Urgente') {
+                      req['levelColor'] = Colors.purple;
+                    } else if (currentPriority == 'Alta') {
                       req['levelColor'] = Colors.red;
                     } else if (currentPriority == 'Media') {
                       req['levelColor'] = Colors.amber.shade800;
+                    } else if (currentPriority == 'Menor') {
+                      req['levelColor'] = Colors.grey;
                     } else {
                       req['levelColor'] = Colors.green;
                     }
@@ -207,6 +308,13 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : const Color(0xFF777D8A);
+    double progress = 0.0;
+    if (_contractedHours != null && _contractedHours! > 0) {
+      progress = _consumedHours / _contractedHours!;
+    }
+
     return Scaffold(
       appBar: AppBar(title: const Text('Mi Aplicación')),
 
@@ -247,16 +355,19 @@ class _HomePageState extends State<HomePage> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          const Text(
+                          Text(
                             'Horas De soporte',
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF777D8A),
+                              color: textColor,
                             ),
                           ),
                           Text(
-                            '32.5',
+                            _contractedHours == null
+                                ? '...'
+                                : (_contractedHours! - _consumedHours)
+                                      .toStringAsFixed(1),
                             style: Theme.of(context).textTheme.displayMedium
                                 ?.copyWith(
                                   color: const Color(0xff4F47E5),
@@ -265,19 +376,44 @@ class _HomePageState extends State<HomePage> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 10),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                        child: TweenAnimationBuilder<double>(
+                          tween: Tween<double>(
+                            begin: 0,
+                            end: progress.clamp(0.0, 1.0),
+                          ),
+                          duration: const Duration(seconds: 2),
+                          builder: (context, value, _) =>
+                              LinearProgressIndicator(
+                                value: value,
+                                backgroundColor: isDark
+                                    ? Colors.grey.shade800
+                                    : Colors.grey.shade200,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  progress > 1.0 ? Colors.red : Colors.green,
+                                ),
+                                minHeight: 8,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
                       Text(
-                        'Contrato de 50 horas.',
+                        _contractedHours == null
+                            ? 'Cargando contrato...'
+                            : 'Contrato de ${_contractedHours!.toStringAsFixed(0)} horas.',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: const Color(0xff9DA3AF),
+                          color: textColor,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'renovacion: 31/12/1015',
+                        'renovacion: 31/12/2026',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: const Color(0xff9DA3AF),
+                          color: textColor,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -307,16 +443,16 @@ class _HomePageState extends State<HomePage> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          const Text(
-                            'Solicitudes Abiertas',
+                          Text(
+                            'Solicitudes ya atendidas',
                             style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xff777D8A),
+                              color: textColor,
                             ),
                           ),
                           Text(
-                            '$_openRequestsCount',
+                            '$_closedRequestsCount',
                             style: Theme.of(context).textTheme.displayMedium
                                 ?.copyWith(
                                   color: const Color(0xffD97708),
@@ -327,9 +463,9 @@ class _HomePageState extends State<HomePage> {
                       ),
                       const SizedBox(height: 20),
                       Text(
-                        '$_inProgressRequestsCount en revisión/progreso.',
+                        '$_inProgressRequestsCount están en revisión/progreso.',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: const Color(0xff9DA3AF),
+                          color: textColor,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -342,12 +478,12 @@ class _HomePageState extends State<HomePage> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Text(
+                      Text(
                         'Accesos Rápidos',
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xff777D8A),
+                          color: textColor,
                         ),
                       ),
                       const SizedBox(height: 40),

@@ -5,10 +5,12 @@ import 'package:primhub/ui/pages/deliverables.dart';
 import 'package:primhub/ui/pages/home_page.dart';
 import 'ui/pages/login.dart';
 import 'package:primhub/ui/pages/knowledge_base.dart';
+import 'package:primhub/ui/pages/login_selection_page.dart';
 import 'package:primhub/ui/pages/marketplace.dart';
 import 'package:primhub/ui/pages/metrics.dart';
 import 'package:primhub/ui/pages/profile_page.dart';
 import 'package:primhub/ui/pages/request/my_requests.dart';
+import 'package:primhub/ui/pages/api_test_page.dart';
 import 'package:primhub/ui/pages/support.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -39,6 +41,7 @@ class MyApp extends StatelessWidget {
           routes: {
             '/': (context) => const HomePage(),
             '/login': (context) => const LoginPage(),
+            '/login-selection': (context) => const LoginSelectionPage(),
             '/support': (context) => const SupportPage(),
             '/my-requests': (context) => const MyRequestsPage(),
             '/knowledge-base': (context) => const KnowledgeBasePage(),
@@ -47,6 +50,7 @@ class MyApp extends StatelessWidget {
             '/calendar': (context) => const CalendarPage(),
             '/marketplace': (context) => const MarketplacePage(),
             '/profile': (context) => const ProfilePage(),
+            '/api-test': (context) => const ApiTestPage(),
           },
         );
       },

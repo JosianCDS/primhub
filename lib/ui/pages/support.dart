@@ -1,11 +1,125 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:primhub/api/token.dart';
+import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/ui/shared/cardcustom.dart';
 import 'package:primhub/ui/shared/custom_container.dart';
 import 'package:primhub/ui/shared/custom_table.dart';
 import '../widgets/custom_drawer.dart';
+import 'request/request_functions.dart';
 
-class SupportPage extends StatelessWidget {
+class SupportPage extends StatefulWidget {
   const SupportPage({super.key});
+
+  @override
+  State<SupportPage> createState() => _SupportPageState();
+}
+
+class _SupportPageState extends State<SupportPage> {
+  List<Map<String, dynamic>> _supportRecords = [];
+  bool _isLoading = true;
+  double _totalConsumedHours = 0.0;
+  double? _contractedHours;
+  DateTime? _lastContractDate;
+
+  @override
+  void initState() {
+    super.initState();
+    _initData();
+  }
+
+  Future<void> _initData() async {
+    await _loadContractedHours();
+    await _loadSupportData();
+  }
+
+  Future<void> _loadSupportData() async {
+    final requests = await fetchRequest();
+
+    double total = 0.0;
+    List<Map<String, dynamic>> validRequests = [];
+
+    for (var req in requests) {
+      // Solo mostrar y sumar si está cerrado (Final Close)
+      if (req['R_Status_Name'] != '9_Final Close' && req['R_Status_ID'] != 103)
+        continue;
+
+      // Filtrar por fecha del último contrato
+      if (_lastContractDate != null) {
+        final reqDate = DateTime.tryParse(req['Created'] ?? '');
+        if (reqDate != null && reqDate.isBefore(_lastContractDate!)) {
+          continue;
+        }
+      }
+
+      // El consumo es la cantidad planeada (QtyPlan) una vez cerrado
+      double hours = (req['QtyPlan'] as num?)?.toDouble() ?? 0.0;
+
+      if (hours > 0) {
+        total += hours;
+        validRequests.add(req);
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _supportRecords = validRequests;
+        _totalConsumedHours = total;
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _loadContractedHours() async {
+    final payload = Token.decodePayload(Token.token);
+    final int userId = payload['AD_User_ID'] ?? 101;
+
+    final String queryUrl =
+        "${Endpoint.baseUrl}/api/v1/models/C_Invoice?\$filter=IsSOTrx eq true and C_DocTypeTarget_ID eq 116 and AD_User_ID eq $userId and (DocStatus eq 'CO' or DocStatus eq 'DR')&\$expand=C_InvoiceLine(\$select=M_Product_ID,QtyEntered;\$filter=M_Product_ID eq 1000850)&\$select=DocumentNo";
+
+    try {
+      final response = await http.get(
+        Uri.parse(queryUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': Token.token,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
+        final records = jsonResponse['records'] as List;
+
+        // Ordenar para encontrar el último contrato
+        records.sort(
+          (a, b) => (b['Created'] ?? '').compareTo(a['Created'] ?? ''),
+        );
+
+        double total = 0.0;
+
+        if (records.isNotEmpty) {
+          final latest = records.first;
+          _lastContractDate = DateTime.tryParse(latest['Created'] ?? '');
+
+          final lines = latest['C_InvoiceLine'] as List?;
+          if (lines != null && lines.isNotEmpty) {
+            for (var line in lines) {
+              total += (line['QtyEntered'] as num?)?.toDouble() ?? 0.0;
+            }
+          }
+        }
+
+        if (mounted) {
+          setState(() {
+            _contractedHours = total;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading contracted hours: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -71,7 +185,9 @@ class SupportPage extends StatelessWidget {
                                   ),
                                 ),
                                 Text(
-                                  '50',
+                                  _contractedHours == null
+                                      ? '...'
+                                      : _contractedHours!.toStringAsFixed(0),
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
                                     fontSize: 30,
@@ -111,7 +227,9 @@ class SupportPage extends StatelessWidget {
                                   ),
                                 ),
                                 Text(
-                                  '32.5',
+                                  _isLoading
+                                      ? '...'
+                                      : _totalConsumedHours.toStringAsFixed(1),
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
                                     fontSize: 30,
@@ -151,7 +269,11 @@ class SupportPage extends StatelessWidget {
                                   ),
                                 ),
                                 Text(
-                                  '17.5',
+                                  _isLoading || _contractedHours == null
+                                      ? '...'
+                                      : (_contractedHours! -
+                                                _totalConsumedHours)
+                                            .toStringAsFixed(1),
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
                                     fontSize: 30,
@@ -196,43 +318,35 @@ class SupportPage extends StatelessWidget {
             const SizedBox(height: 30),
             CustomContainer(
               title: 'Registro de Horas Consumidas',
-              child: CustomTable(
-                columns: const [
-                  DataColumn(label: Text('Fecha')),
-                  DataColumn(label: Text('Actividad/Tarea')),
-                  DataColumn(label: Text('Ticket Relacionado')),
-                  DataColumn(label: Text('Horas Consumidas')),
-                ],
-                rows: [
-                  DataRow(
-                    onSelectChanged: (value) {},
-                    cells: const [
-                      DataCell(Text('2023-10-25')),
-                      DataCell(Text('Revisión de logs de servidor')),
-                      DataCell(Text('#1023')),
-                      DataCell(Text('2.5')),
-                    ],
-                  ),
-                  DataRow(
-                    onSelectChanged: (value) {},
-                    cells: const [
-                      DataCell(Text('2023-10-28')),
-                      DataCell(Text('Actualización de base de datos')),
-                      DataCell(Text('#1045')),
-                      DataCell(Text('4.0')),
-                    ],
-                  ),
-                  DataRow(
-                    onSelectChanged: (value) {},
-                    cells: const [
-                      DataCell(Text('2023-11-02')),
-                      DataCell(Text('Soporte usuario final - Login')),
-                      DataCell(Text('#1056')),
-                      DataCell(Text('1.0')),
-                    ],
-                  ),
-                ],
-              ),
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : CustomTable(
+                      columns: const [
+                        DataColumn(label: Text('Ticket Relacionado')),
+                        DataColumn(label: Text('Actividad/Tarea')),
+                        DataColumn(label: Text('Fecha de inicio Planeada')),
+                        DataColumn(
+                          label: Text('Fecha de Terminacion Planeada'),
+                        ),
+                        DataColumn(label: Text('Horas Consumidas')),
+                      ],
+                      rows: _supportRecords.map((record) {
+                        final hours = record['QtyPlan']?.toString() ?? '0';
+                        return DataRow(
+                          cells: [
+                            DataCell(
+                              Text(
+                                record['DocumentNo'] ?? record['id'].toString(),
+                              ),
+                            ),
+                            DataCell(Text(record['Summary'] ?? '')),
+                            DataCell(Text(record['DateStartPlan'] ?? '')),
+                            DataCell(Text(record['DateCompletePlan'] ?? '')),
+                            DataCell(Text(hours)),
+                          ],
+                        );
+                      }).toList(),
+                    ),
             ),
           ],
         ),

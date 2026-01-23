@@ -55,8 +55,8 @@ class _CalendarPageState extends State<CalendarPage> {
                         final picked = await showDatePicker(
                           context: context,
                           initialDate: _focusedMonth,
-                          firstDate: DateTime(2020),
-                          lastDate: DateTime(2030),
+                          firstDate: DateTime(1999),
+                          lastDate: DateTime(2100),
                         );
                         if (picked != null) {
                           setStateDialog(() {
@@ -134,8 +134,8 @@ class _CalendarPageState extends State<CalendarPage> {
                         final picked = await showDatePicker(
                           context: context,
                           initialDate: selectedDate,
-                          firstDate: DateTime(2020),
-                          lastDate: DateTime(2030),
+                          firstDate: DateTime(1999),
+                          lastDate: DateTime(2100),
                         );
                         if (picked != null) {
                           setStateDialog(() {
@@ -149,6 +149,14 @@ class _CalendarPageState extends State<CalendarPage> {
               ],
             ),
             actions: [
+              TextButton(
+                onPressed: () {
+                  setState(() => _events.remove(event));
+                  Navigator.pop(context);
+                },
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text('Eliminar'),
+              ),
               TextButton(
                 onPressed: () => Navigator.pop(context),
                 child: const Text('Cancelar'),
@@ -181,8 +189,8 @@ class _CalendarPageState extends State<CalendarPage> {
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: _focusedMonth,
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2030),
+      firstDate: DateTime(1999),
+      lastDate: DateTime(2100),
       initialDatePickerMode: DatePickerMode.year,
     );
     if (picked != null &&

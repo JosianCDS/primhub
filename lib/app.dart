@@ -10,6 +10,8 @@ import 'ui/pages/calendar.dart';
 import 'ui/pages/marketplace.dart';
 import 'ui/pages/profile_page.dart';
 import 'ui/pages/login.dart';
+import 'ui/pages/login_selection_page.dart';
+import 'ui/pages/api_test_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class MainApp extends StatefulWidget {
@@ -83,6 +85,8 @@ class _MainAppState extends State<MainApp> {
             '/marketplace': (context) => const MarketplacePage(),
             '/profile': (context) => const ProfilePage(),
             '/login': (context) => const LoginPage(),
+            '/login-selection': (context) => const LoginSelectionPage(),
+            '/api-test': (context) => const ApiTestPage(),
           },
         );
       },

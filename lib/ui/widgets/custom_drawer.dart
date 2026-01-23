@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../api/token.dart';
@@ -30,11 +29,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
     final prefs = await SharedPreferences.getInstance();
     _userRolePref = prefs.getString('user_role') ?? 'ADMIN';
     try {
-      String token = Token.token;
-      if (token.startsWith('Bearer ')) {
-        token = token.substring(7);
-      }
-      final payload = _parseJwt(token);
+      final payload = Token.decodePayload(Token.token);
       setState(() {
         _username = payload['sub'] ?? 'Usuario';
         // Mapeo simple de IDs a Nombres (En producción esto vendría de un endpoint de sesión)
@@ -47,32 +42,6 @@ class _CustomDrawerState extends State<CustomDrawer> {
     } catch (e) {
       debugPrint('Error decoding token: $e');
     }
-  }
-
-  Map<String, dynamic> _parseJwt(String token) {
-    final parts = token.split('.');
-    if (parts.length != 3) return {};
-    final payload = _decodeBase64(parts[1]);
-    final payloadMap = json.decode(payload);
-    if (payloadMap is! Map<String, dynamic>) return {};
-    return payloadMap;
-  }
-
-  String _decodeBase64(String str) {
-    String output = str.replaceAll('-', '+').replaceAll('_', '/');
-    switch (output.length % 4) {
-      case 0:
-        break;
-      case 2:
-        output += '==';
-        break;
-      case 3:
-        output += '=';
-        break;
-      default:
-        throw Exception('Illegal base64url string!"');
-    }
-    return utf8.decode(base64Url.decode(output));
   }
 
   void _showLogoutDialog(BuildContext context) {
@@ -328,6 +297,28 @@ class _CustomDrawerState extends State<CustomDrawer> {
                     onTap: () {
                       Navigator.pop(context);
                       Navigator.pushNamed(context, '/marketplace');
+                    },
+                  ),
+                ),
+                HoverListTile(
+                  builder: (isHovered) => ListTile(
+                    leading: Icon(
+                      Icons.api,
+                      color: isHovered
+                          ? colorScheme.primary
+                          : colorScheme.onSurfaceVariant,
+                    ),
+                    title: Text(
+                      'API Prueba',
+                      style: TextStyle(
+                        color: isHovered
+                            ? colorScheme.primary
+                            : colorScheme.onSurface,
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.pushNamed(context, '/api-test');
                     },
                   ),
                 ),

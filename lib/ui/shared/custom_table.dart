@@ -6,6 +6,7 @@ class CustomTable extends StatelessWidget {
   final double? width;
   final double? height;
   final bool enableHover;
+  final bool showCheckboxColumn;
 
   const CustomTable({
     super.key,
@@ -14,6 +15,7 @@ class CustomTable extends StatelessWidget {
     this.width,
     this.height,
     this.enableHover = true,
+    this.showCheckboxColumn = false,
   });
 
   @override
@@ -30,7 +32,7 @@ class CustomTable extends StatelessWidget {
             child: ConstrainedBox(
               constraints: BoxConstraints(minWidth: constraints.maxWidth),
               child: DataTable(
-                showCheckboxColumn: false,
+                showCheckboxColumn: showCheckboxColumn,
                 headingTextStyle: TextStyle(
                   fontWeight: FontWeight.bold,
                   color: theme.colorScheme.onSurface,

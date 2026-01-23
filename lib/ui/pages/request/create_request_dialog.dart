@@ -41,9 +41,11 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
 
   // Mapeo de valores para el backend
   final Map<String, String> _priorityMap = {
+    'Urgente': '1',
     'Alta': '3',
     'Media': '5',
     'Baja': '7',
+    'Menor': '9',
   };
 
   // IDs correspondientes a los tipos de solicitud
@@ -61,13 +63,25 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     try {
       final url = Uri.parse(Endpoint.request);
 
-      final body = jsonEncode({
+      final payload = Token.decodePayload(Token.token);
+      int clientId = Token.client ?? payload['AD_Client_ID'] ?? 11;
+      int orgId = Token.organitation ?? payload['AD_Org_ID'] ?? 11;
+      int userId = payload['AD_User_ID'] ?? 101;
+      if (orgId == 0) orgId = 11;
+
+      final Map<String, dynamic> data = {
         'Summary': _summaryController.text,
         'Priority': _priorityMap[_selectedPriority],
         'R_RequestType_ID': _requestTypeMap[_selectedType],
-        'AD_Client_ID': 11, // ID de Cliente (GardenWorld)
-        'AD_Org_ID': 11, // ID de Organización (HQ)
-      });
+        'AD_Client_ID': clientId,
+        'AD_Org_ID': orgId,
+        'AD_User_ID': userId,
+        'SalesRep_ID': userId,
+      };
+
+      final body = jsonEncode(data);
+
+      debugPrint('Payload enviado: $body');
 
       final response = await http.post(
         url,
@@ -89,7 +103,9 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Error del servidor: ${response.statusCode}'),
+              content: Text(
+                'Error ${response.statusCode}: ${response.body}\nPayload: $body',
+              ),
               backgroundColor: Colors.red,
             ),
           );
@@ -113,7 +129,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
   Widget build(BuildContext context) {
     return CustomModal(
       title: 'Nueva Solicitud de Soporte',
-      width: 400,
+      width: 500,
       content: Form(
         key: _formKey,
         child: Column(
@@ -130,16 +146,6 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
               onChanged: (val) => setState(() => _selectedType = val!),
             ),
             const SizedBox(height: 16),
-            if (_isAdmin)
-              CustomDropdown<String>(
-                value: _selectedPriority,
-                label: 'Prioridad',
-                items: ['Alta', 'Media', 'Baja']
-                    .map((p) => DropdownMenuItem(value: p, child: Text(p)))
-                    .toList(),
-                onChanged: (val) => setState(() => _selectedPriority = val!),
-              ),
-            if (_isAdmin) const SizedBox(height: 16),
             CustomTextField(
               controller: _summaryController,
               label: 'Descripción / Resumen',

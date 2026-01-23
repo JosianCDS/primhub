@@ -14,9 +14,7 @@ Future<bool> updateRequestStatus(String id, String newStatusIdentifier) async {
         'Authorization': Token.token,
       },
       body: jsonEncode({
-        'R_Status_ID': {
-          'identifier': newStatusIdentifier
-        }
+        'R_Status_ID': {'identifier': newStatusIdentifier},
       }),
     );
 
@@ -32,16 +30,10 @@ Future<bool> updateRequestStatus(String id, String newStatusIdentifier) async {
   }
 }
 
-Future<List<Map<String, dynamic>>> fetchRequest(
-
-) async {
+Future<List<Map<String, dynamic>>> fetchRequest() async {
   try {
-    
-    
     final response = await get(
-      Uri.parse(
-        Endpoint.request,
-      ),
+      Uri.parse(Endpoint.request),
       headers: {
         'Content-Type': 'application/json; charset=UTF-8',
         'Authorization': Token.token,
@@ -58,20 +50,25 @@ Future<List<Map<String, dynamic>>> fetchRequest(
           'DocumentNo': record['DocumentNo'],
           'R_RequestType_ID': record['R_RequestType_ID']?['id'],
           'R_RequestType_Name': record['R_RequestType_ID']?['identifier'],
-       
+
           'R_Status_ID': record['R_Status_ID']?['id'],
           'R_Status_Name': record['R_Status_ID']?['identifier'],
 
           'Priority': record['Priority']?['id'],
           'Priority_Name': record['Priority']?['identifier'],
-          
-          'Created':record['Created'],
 
-          'identifier1': record['r status']
+          'EndTime': record['EndTime'],
+          'StartTime': record['StartTime'],
+          'DateCompletePlan': record['DateCompletePlan'],
+          'DateStartPlan': record['DateStartPlan'],
+          'QtyPlan': record['QtyPlan'],
+          'Created': record['Created'],
+          'StartDate': record['StartDate'],
+          'CloseDate': record['CloseDate'],
+
+          'identifier1': record['r status'],
         };
       }).toList();
-
-
     } else {
       throw Exception('Error al cargar los terceros: ${response.statusCode}');
     }

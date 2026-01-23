@@ -13,6 +13,7 @@ class CustomTextField extends StatelessWidget {
   final TextInputType? keyboardType;
   final bool filled;
   final Color? fillColor;
+  final bool readOnly;
 
   const CustomTextField({
     super.key,
@@ -28,6 +29,7 @@ class CustomTextField extends StatelessWidget {
     this.keyboardType,
     this.filled = false,
     this.fillColor,
+    this.readOnly = false,
   });
 
   @override
@@ -43,6 +45,7 @@ class CustomTextField extends StatelessWidget {
         obscureText: obscureText,
         validator: validator,
         keyboardType: keyboardType,
+        readOnly: readOnly,
         decoration: InputDecoration(
           labelText: label,
           hintText: hintText,
