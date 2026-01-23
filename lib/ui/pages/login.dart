@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:primhub/api/auth_api.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/ui/shared/custom_button.dart';
-import 'package:primhub/ui/shared/custom_inputs.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginPage extends StatefulWidget {

@@ -49,7 +49,7 @@ class CustomAreaChart extends StatelessWidget {
   }
 }
 
-class CustomLineChart extends StatelessWidget {
+class CustomLineChart extends StatefulWidget {
   final List<List<double>> data;
   final List<Color> colors;
   final List<String> labels;
@@ -64,10 +64,17 @@ class CustomLineChart extends StatelessWidget {
   });
 
   @override
+  State<CustomLineChart> createState() => _CustomLineChartState();
+}
+
+class _CustomLineChartState extends State<CustomLineChart> {
+  Offset? _touchPosition;
+
+  @override
   Widget build(BuildContext context) {
     return Center(
       child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: maxWidth),
+        constraints: BoxConstraints(maxWidth: widget.maxWidth),
         child: LayoutBuilder(
           builder: (context, constraints) {
             final double chartWidth = constraints.maxWidth < 600
@@ -75,14 +82,24 @@ class CustomLineChart extends StatelessWidget {
                 : constraints.maxWidth;
             return SingleChildScrollView(
               scrollDirection: Axis.horizontal,
-              child: SizedBox(
-                width: chartWidth,
-                height: constraints.maxHeight,
-                child: CustomPaint(
-                  painter: LineChartPainter(
-                    data: data,
-                    colors: colors,
-                    labels: labels,
+              child: GestureDetector(
+                onPanUpdate: (details) =>
+                    setState(() => _touchPosition = details.localPosition),
+                onPanEnd: (_) => setState(() => _touchPosition = null),
+                onTapUp: (details) =>
+                    setState(() => _touchPosition = details.localPosition),
+                onTapDown: (details) =>
+                    setState(() => _touchPosition = details.localPosition),
+                child: SizedBox(
+                  width: chartWidth,
+                  height: constraints.maxHeight,
+                  child: CustomPaint(
+                    painter: LineChartPainter(
+                      data: widget.data,
+                      colors: widget.colors,
+                      labels: widget.labels,
+                      touchPosition: _touchPosition,
+                    ),
                   ),
                 ),
               ),
@@ -94,7 +111,7 @@ class CustomLineChart extends StatelessWidget {
   }
 }
 
-class CustomBarChart extends StatelessWidget {
+class CustomBarChart extends StatefulWidget {
   final List<String> labels;
   final List<double> values;
   final List<Color> colors;
@@ -109,19 +126,70 @@ class CustomBarChart extends StatelessWidget {
   });
 
   @override
+  State<CustomBarChart> createState() => _CustomBarChartState();
+}
+
+class _CustomBarChartState extends State<CustomBarChart>
+    with SingleTickerProviderStateMixin {
+  Offset? _touchPosition;
+  AnimationController? _controller;
+  Animation<double>? _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _initController();
+  }
+
+  void _initController() {
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    );
+    _animation = CurvedAnimation(
+      parent: _controller!,
+      curve: Curves.easeOutQuart,
+    );
+    _controller!.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_controller == null) _initController();
     return Center(
       child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: maxWidth),
-        child: SizedBox.expand(
-          child: CustomPaint(
-            painter: BarChartPainter(
-              labels: labels,
-              values: values,
-              colors: colors,
-              axisColor: Theme.of(context).colorScheme.onSurface,
-              gridColor: Theme.of(context).colorScheme.outlineVariant,
-              textColor: Theme.of(context).colorScheme.onSurfaceVariant,
+        constraints: BoxConstraints(maxWidth: widget.maxWidth),
+        child: GestureDetector(
+          onPanUpdate: (details) =>
+              setState(() => _touchPosition = details.localPosition),
+          onPanEnd: (_) => setState(() => _touchPosition = null),
+          onTapUp: (details) =>
+              setState(() => _touchPosition = details.localPosition),
+          onTapDown: (details) =>
+              setState(() => _touchPosition = details.localPosition),
+          child: SizedBox.expand(
+            child: AnimatedBuilder(
+              animation: _animation!,
+              builder: (context, child) {
+                return CustomPaint(
+                  painter: BarChartPainter(
+                    labels: widget.labels,
+                    values: widget.values,
+                    colors: widget.colors,
+                    axisColor: Theme.of(context).colorScheme.onSurface,
+                    gridColor: Theme.of(context).colorScheme.outlineVariant,
+                    textColor: Theme.of(context).colorScheme.onSurfaceVariant,
+                    touchPosition: _touchPosition,
+                    animationValue: _animation!.value,
+                  ),
+                );
+              },
             ),
           ),
         ),
@@ -130,7 +198,7 @@ class CustomBarChart extends StatelessWidget {
   }
 }
 
-class CustomDonutChart extends StatelessWidget {
+class CustomDonutChart extends StatefulWidget {
   final List<double> values;
   final List<Color> colors;
   final double maxWidth;
@@ -143,13 +211,63 @@ class CustomDonutChart extends StatelessWidget {
   });
 
   @override
+  State<CustomDonutChart> createState() => _CustomDonutChartState();
+}
+
+class _CustomDonutChartState extends State<CustomDonutChart>
+    with SingleTickerProviderStateMixin {
+  Offset? _touchPosition;
+  AnimationController? _controller;
+  Animation<double>? _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _initController();
+  }
+
+  void _initController() {
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+    _animation = CurvedAnimation(
+      parent: _controller!,
+      curve: Curves.easeOutCirc,
+    );
+    _controller!.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_controller == null) _initController();
     return Center(
       child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: maxWidth),
-        child: SizedBox.expand(
-          child: CustomPaint(
-            painter: DonutChartPainter(values: values, colors: colors),
+        constraints: BoxConstraints(maxWidth: widget.maxWidth),
+        child: GestureDetector(
+          onTapUp: (details) =>
+              setState(() => _touchPosition = details.localPosition),
+          onPanEnd: (_) => setState(() => _touchPosition = null),
+          child: SizedBox.expand(
+            child: AnimatedBuilder(
+              animation: _animation!,
+              builder: (context, child) {
+                return CustomPaint(
+                  painter: DonutChartPainter(
+                    values: widget.values,
+                    colors: widget.colors,
+                    touchPosition: _touchPosition,
+                    animationValue: _animation!.value,
+                  ),
+                );
+              },
+            ),
           ),
         ),
       ),
