@@ -29,7 +29,6 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   double? _contractedHours;
   double _consumedHours = 0.0;
   double _estimatedHours = 0.0;
-  DateTime? _lastContractDate;
   Map<String, int> _statusIdMap = {};
 
   @override
@@ -94,7 +93,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     final int userId = payload['AD_User_ID'] ?? 101;
 
     final String queryUrl =
-        "${Endpoint.baseUrl}/api/v1/models/C_Invoice?\$filter=IsSOTrx eq true and C_DocTypeTarget_ID eq 116 and AD_User_ID eq $userId and (DocStatus eq 'CO' or DocStatus eq 'DR')&\$expand=C_InvoiceLine(\$select=M_Product_ID,QtyEntered;\$filter=M_Product_ID eq 1000850)&\$select=DocumentNo";
+        "${Endpoint.order}?\$filter=IsSOTrx eq true and AD_User_ID eq $userId and (DocStatus eq 'CO' or DocStatus eq 'DR')&\$expand=C_OrderLine(\$select=M_Product_ID,QtyEntered;\$filter=M_Product_ID eq 1000850)&\$select=DocumentNo,DateOrdered,Created";
 
     try {
       final response = await http.get(
@@ -109,19 +108,10 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
         final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
         final records = jsonResponse['records'] as List;
 
-        // Ordenar para encontrar el último contrato
-        records.sort(
-          (a, b) => (b['Created'] ?? '').compareTo(a['Created'] ?? ''),
-        );
-
         double total = 0.0;
-
-        if (records.isNotEmpty) {
-          final latest = records.first;
-          _lastContractDate = DateTime.tryParse(latest['Created'] ?? '');
-
-          final lines = latest['C_InvoiceLine'] as List?;
-          if (lines != null && lines.isNotEmpty) {
+        for (var record in records) {
+          final lines = record['C_OrderLine'] as List?;
+          if (lines != null) {
             for (var line in lines) {
               total += (line['QtyEntered'] as num?)?.toDouble() ?? 0.0;
             }
@@ -145,23 +135,12 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     double estimated = 0.0;
 
     for (var req in requests) {
-      // Filtrar por fecha del último contrato para consumo
-      bool isAfterContract = true;
-      if (_lastContractDate != null) {
-        final reqDate = DateTime.tryParse(req['Created'] ?? '');
-        if (reqDate != null && reqDate.isBefore(_lastContractDate!)) {
-          isAfterContract = false;
-        }
-      }
-
       final statusName = req['R_Status_Name'] ?? '';
       final qtyPlan = (req['QtyPlan'] as num?)?.toDouble() ?? 0.0;
 
       // Lógica de Consumo Real: Solo si está en Final Close
       if (statusName == '9_Final Close' || req['R_Status_ID'] == 103) {
-        if (isAfterContract) {
-          consumed += qtyPlan;
-        }
+        consumed += qtyPlan;
       } else {
         // Lógica de Estimación (Si NO está en Final Close)
         // Sumamos lo planificado
@@ -224,6 +203,8 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
           'startTime': _extractTime(r['StartTime']),
           'endTime': _extractTime(r['EndTime']),
           'qtyPlan': r['QtyPlan']?.toString() ?? '',
+          'startDate': r['StartDate'],
+          'closeDate': r['CloseDate'],
         };
       }).toList();
       _isLoading = false;
@@ -272,10 +253,10 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
 
   Future<Map<String, dynamic>> _updateRemoteRequest(
     dynamic id,
-    String priority,
+    String? priority,
     int? statusId,
     String? statusIdentifier,
-    String summary,
+    String? summary,
     String? dateStartPlan,
     String? dateCompletePlan,
     String? startTime,
@@ -286,10 +267,10 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   ) async {
     try {
       final url = Uri.parse('${Endpoint.request}/$id');
-      final Map<String, dynamic> data = {
-        'Priority': _priorityMap[priority],
-        'Summary': summary,
-      };
+      final Map<String, dynamic> data = {};
+
+      if (priority != null) data['Priority'] = _priorityMap[priority];
+      if (summary != null) data['Summary'] = summary;
 
       if (statusId != null) {
         data['R_Status_ID'] = statusId;
@@ -336,9 +317,15 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       return {'success': true};
     } catch (e) {
       debugPrint('Error updating request: $e');
+      String errorMessage = e.toString();
+      if (errorMessage.contains('SocketException') ||
+          errorMessage.contains('Failed host lookup')) {
+        errorMessage =
+            'Error de conexión: No se puede acceder al servidor. Verifique su conexión a internet.';
+      }
       return {
         'success': false,
-        'error': e.toString(),
+        'error': errorMessage,
         'payload': 'Exception occurred',
       };
     }
@@ -610,9 +597,17 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                     int? statusIdToSend;
                     String? statusIdentifierToSend;
 
-                    if (currentStatus != req['status']) {
-                      if (_statusIdMap.containsKey(currentStatus)) {
-                        statusIdToSend = _statusIdMap[currentStatus];
+                    // Verificar si el estado realmente cambió comparando IDs para evitar
+                    // enviar R_Status_ID si ya está en ese estado (evita error 500 en registros procesados)
+                    int? targetStatusId = _statusIdMap[currentStatus];
+
+                    if (targetStatusId != null && req['statusId'] != null) {
+                      if (targetStatusId != req['statusId']) {
+                        statusIdToSend = targetStatusId;
+                      }
+                    } else if (currentStatus != req['status']) {
+                      if (targetStatusId != null) {
+                        statusIdToSend = targetStatusId;
                       } else {
                         statusIdentifierToSend = currentStatus;
                       }
@@ -644,8 +639,11 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                     String? startDateToSend;
                     String? closeDateToSend;
 
-                    if (currentStatus == '9_Final Close' ||
-                        (statusIdToSend != null && statusIdToSend == 103)) {
+                    final bool isClosing =
+                        currentStatus == '9_Final Close' ||
+                        (statusIdToSend != null && statusIdToSend == 103);
+
+                    if (isClosing) {
                       // Usamos los valores actuales de los controladores (sean nuevos o viejos)
                       if (dateStartController.text.isNotEmpty &&
                           startTimeController.text.isNotEmpty) {
@@ -660,14 +658,70 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                         closeDateToSend =
                             "${dateCompleteController.text}T${t}Z";
                       }
+
+                      // Al cerrar, el backend puede inferir los tiempos a partir de StartDate/CloseDate.
+                      // Enviar los campos de tiempo individuales (EndTime, etc.) puede causar un conflicto
+                      // de "update on processed record". Los anulamos para evitarlo.
+                      dateStartPlanToSend = null;
+                      dateCompletePlanToSend = null;
+                      startTimeToSend = null;
+                      endTimeToSend = null;
+
+                      // ESTRATEGIA DE DOS PASOS:
+                      // 1. Primero guardamos los datos (fechas, horas, resumen) sin cambiar el estado.
+                      // 2. Luego enviamos solo el cambio de estado a Cerrado.
+                      // Esto evita el error "Cannot update ... on processed record".
+
+                      // PASO 1: Guardar datos
+                      await _updateRemoteRequest(
+                        req['realId'],
+                        currentPriority,
+                        null, // No enviamos estado aún
+                        null,
+                        summaryController.text,
+                        dateStartPlanToSend,
+                        dateCompletePlanToSend,
+                        startTimeToSend,
+                        endTimeToSend,
+                        qtyPlanToSend,
+                        startDateToSend,
+                        closeDateToSend,
+                      );
+
+                      // Limpiamos variables para el PASO 2 (Solo enviar Status)
+                      currentPriority = req['level']; // Restaurar o ignorar
+                      summaryController.text =
+                          req['description']; // Restaurar o ignorar
+                      dateStartPlanToSend = null;
+                      dateCompletePlanToSend = null;
+                      startTimeToSend = null;
+                      endTimeToSend = null;
+                      qtyPlanToSend = null;
+                      startDateToSend = null;
+                      closeDateToSend = null;
+
+                      // Aseguramos que se envíe el ID de cierre
+                      statusIdToSend = 103;
+                      statusIdentifierToSend = null;
                     }
+
+                    // Evitar enviar fechas si no han cambiado para prevenir errores de "Update on processed record"
+                    if (startDateToSend == req['startDate'])
+                      startDateToSend = null;
+                    if (closeDateToSend == req['closeDate'])
+                      closeDateToSend = null;
 
                     final result = await _updateRemoteRequest(
                       req['realId'],
-                      currentPriority,
+                      isClosing
+                          ? null
+                          : currentPriority, // Si cerramos, ya enviamos esto en el paso 1
                       statusIdToSend,
                       statusIdentifierToSend,
-                      summaryController.text,
+                      isClosing
+                          ? null
+                          : summaryController
+                                .text, // Si cerramos, ya enviamos esto en el paso 1
                       dateStartPlanToSend,
                       dateCompletePlanToSend,
                       startTimeToSend,
@@ -804,8 +858,8 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
                               color: isDark
-                                  ? Colors.green.shade300
-                                  : Colors.green.shade800,
+                                  ? Colors.red.shade300
+                                  : Colors.red.shade800,
                             ),
                           ),
                           Text(
@@ -820,9 +874,12 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                           ),
                           Text(
                             'Disponibles: ${availableHours.toStringAsFixed(1)}',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
+                              color: isDark
+                                  ? Colors.green.shade300
+                                  : Colors.green.shade800,
                             ),
                           ),
                         ],
@@ -840,7 +897,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                                     if (consumedFlex > 0)
                                       Expanded(
                                         flex: consumedFlex,
-                                        child: Container(color: Colors.green),
+                                        child: Container(color: Colors.red),
                                       ),
                                     if (estimatedFlex > 0)
                                       Expanded(
@@ -850,7 +907,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                                     if (remainingFlex > 0)
                                       Expanded(
                                         flex: remainingFlex,
-                                        child: const SizedBox(),
+                                        child: Container(color: Colors.green),
                                       ),
                                   ],
                                 ),

@@ -300,28 +300,6 @@ class _CustomDrawerState extends State<CustomDrawer> {
                     },
                   ),
                 ),
-                HoverListTile(
-                  builder: (isHovered) => ListTile(
-                    leading: Icon(
-                      Icons.api,
-                      color: isHovered
-                          ? colorScheme.primary
-                          : colorScheme.onSurfaceVariant,
-                    ),
-                    title: Text(
-                      'API Prueba',
-                      style: TextStyle(
-                        color: isHovered
-                            ? colorScheme.primary
-                            : colorScheme.onSurface,
-                      ),
-                    ),
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.pushNamed(context, '/api-test');
-                    },
-                  ),
-                ),
               ],
             ),
           ),

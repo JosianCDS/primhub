@@ -51,7 +51,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
   // IDs correspondientes a los tipos de solicitud
   final Map<String, int> _requestTypeMap = {
     'Service Request': 101,
-    'Request for Quotation': 102,
+    'Request for Quotation': 100,
     'Warranty': 103,
   };
 

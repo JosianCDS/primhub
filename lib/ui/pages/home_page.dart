@@ -46,7 +46,6 @@ class _HomePageState extends State<HomePage> {
   bool _isAdmin = true;
   double? _contractedHours;
   double _consumedHours = 0.0;
-  DateTime? _lastContractDate;
 
   @override
   void initState() {
@@ -82,22 +81,9 @@ class _HomePageState extends State<HomePage> {
           req['R_Status_ID'] != 103) {
         // Si no está cerrado, no suma consumo
       } else {
-        // Filtrar consumo basado en el último contrato
-        if (_lastContractDate != null) {
-          final reqDate = DateTime.tryParse(req['Created'] ?? '');
-          if (reqDate != null && reqDate.isBefore(_lastContractDate!)) {
-            // Si es anterior al contrato, no suma al consumo actual, pero sí cuenta para stats generales si se desea
-            // Para el cálculo de horas disponibles, lo ignoramos en totalConsumed
-          } else {
-            // Lógica de consumo solo si es posterior
-            double hours = (req['QtyPlan'] as num?)?.toDouble() ?? 0.0;
-            totalConsumed += hours;
-          }
-        } else {
-          // Si no hay contrato, sumamos todo (o nada, según regla de negocio, asumimos todo)
-          double hours = (req['QtyPlan'] as num?)?.toDouble() ?? 0.0;
-          totalConsumed += hours;
-        }
+        // Lógica de consumo para todos los tickets cerrados
+        double hours = (req['QtyPlan'] as num?)?.toDouble() ?? 0.0;
+        totalConsumed += hours;
       }
 
       if (req['R_Status_Name'] == '9_Final Close' ||
@@ -170,7 +156,7 @@ class _HomePageState extends State<HomePage> {
     final int userId = payload['AD_User_ID'] ?? 101;
 
     final String queryUrl =
-        "${Endpoint.baseUrl}/api/v1/models/C_Invoice?\$filter=IsSOTrx eq true and C_DocTypeTarget_ID eq 116 and AD_User_ID eq $userId and (DocStatus eq 'CO' or DocStatus eq 'DR')&\$expand=C_InvoiceLine(\$select=M_Product_ID,QtyEntered;\$filter=M_Product_ID eq 1000850)&\$select=DocumentNo";
+        "${Endpoint.order}?\$filter=IsSOTrx eq true and AD_User_ID eq $userId and (DocStatus eq 'CO' or DocStatus eq 'DR')&\$expand=C_OrderLine(\$select=M_Product_ID,QtyEntered;\$filter=M_Product_ID eq 1000850)&\$select=DocumentNo,DateOrdered,Created";
 
     try {
       final response = await http.get(
@@ -185,19 +171,12 @@ class _HomePageState extends State<HomePage> {
         final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
         final records = jsonResponse['records'] as List;
 
-        // Ordenar para obtener el último contrato
-        records.sort(
-          (a, b) => (b['Created'] ?? '').compareTo(a['Created'] ?? ''),
-        );
-
         double total = 0.0;
-
-        if (records.isNotEmpty) {
-          final latest = records.first;
-          _lastContractDate = DateTime.tryParse(latest['Created'] ?? '');
-          final lines = latest['C_InvoiceLine'] as List?;
-          if (lines != null && lines.isNotEmpty) {
+        for (var record in records) {
+          final lines = record['C_OrderLine'] as List?;
+          if (lines != null) {
             for (var line in lines) {
+              // Usar QtyEntered como se especifica
               total += (line['QtyEntered'] as num?)?.toDouble() ?? 0.0;
             }
           }

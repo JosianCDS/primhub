@@ -21,7 +21,6 @@ class _SupportPageState extends State<SupportPage> {
   bool _isLoading = true;
   double _totalConsumedHours = 0.0;
   double? _contractedHours;
-  DateTime? _lastContractDate;
 
   @override
   void initState() {
@@ -44,14 +43,6 @@ class _SupportPageState extends State<SupportPage> {
       // Solo mostrar y sumar si está cerrado (Final Close)
       if (req['R_Status_Name'] != '9_Final Close' && req['R_Status_ID'] != 103)
         continue;
-
-      // Filtrar por fecha del último contrato
-      if (_lastContractDate != null) {
-        final reqDate = DateTime.tryParse(req['Created'] ?? '');
-        if (reqDate != null && reqDate.isBefore(_lastContractDate!)) {
-          continue;
-        }
-      }
 
       // El consumo es la cantidad planeada (QtyPlan) una vez cerrado
       double hours = (req['QtyPlan'] as num?)?.toDouble() ?? 0.0;
@@ -76,7 +67,7 @@ class _SupportPageState extends State<SupportPage> {
     final int userId = payload['AD_User_ID'] ?? 101;
 
     final String queryUrl =
-        "${Endpoint.baseUrl}/api/v1/models/C_Invoice?\$filter=IsSOTrx eq true and C_DocTypeTarget_ID eq 116 and AD_User_ID eq $userId and (DocStatus eq 'CO' or DocStatus eq 'DR')&\$expand=C_InvoiceLine(\$select=M_Product_ID,QtyEntered;\$filter=M_Product_ID eq 1000850)&\$select=DocumentNo";
+        "${Endpoint.order}?\$filter=IsSOTrx eq true and AD_User_ID eq $userId and (DocStatus eq 'CO' or DocStatus eq 'DR')&\$expand=C_OrderLine(\$select=M_Product_ID,QtyEntered;\$filter=M_Product_ID eq 1000850)&\$select=DocumentNo,DateOrdered,Created";
 
     try {
       final response = await http.get(
@@ -91,19 +82,10 @@ class _SupportPageState extends State<SupportPage> {
         final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
         final records = jsonResponse['records'] as List;
 
-        // Ordenar para encontrar el último contrato
-        records.sort(
-          (a, b) => (b['Created'] ?? '').compareTo(a['Created'] ?? ''),
-        );
-
         double total = 0.0;
-
-        if (records.isNotEmpty) {
-          final latest = records.first;
-          _lastContractDate = DateTime.tryParse(latest['Created'] ?? '');
-
-          final lines = latest['C_InvoiceLine'] as List?;
-          if (lines != null && lines.isNotEmpty) {
+        for (var record in records) {
+          final lines = record['C_OrderLine'] as List?;
+          if (lines != null) {
             for (var line in lines) {
               total += (line['QtyEntered'] as num?)?.toDouble() ?? 0.0;
             }

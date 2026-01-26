@@ -10,7 +10,6 @@ import 'package:primhub/ui/pages/marketplace.dart';
 import 'package:primhub/ui/pages/metrics.dart';
 import 'package:primhub/ui/pages/profile_page.dart';
 import 'package:primhub/ui/pages/request/my_requests.dart';
-import 'package:primhub/ui/pages/api_test_page.dart';
 import 'package:primhub/ui/pages/support.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -50,7 +49,6 @@ class MyApp extends StatelessWidget {
             '/calendar': (context) => const CalendarPage(),
             '/marketplace': (context) => const MarketplacePage(),
             '/profile': (context) => const ProfilePage(),
-            '/api-test': (context) => const ApiTestPage(),
           },
         );
       },
