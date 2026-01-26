@@ -283,18 +283,17 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               Container(
-                                height: 80,
-                                width: 80,
+                                height: 130,
+                                width: 130,
                                 decoration: BoxDecoration(
                                   color: theme.colorScheme.primary.withOpacity(
                                     0.1,
                                   ),
                                   shape: BoxShape.circle,
                                 ),
-                                child: Icon(
-                                  Icons.lock_person_rounded,
-                                  size: 40,
-                                  color: theme.colorScheme.primary,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(12.0),
+                                  child: Image.asset('assets/LogoPrimHub.png'),
                                 ),
                               ),
                               const SizedBox(height: 24),

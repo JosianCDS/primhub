@@ -10,8 +10,6 @@ class Token {
   static int? warehouseID;
 
   static String tokenType = 'Bearer';
-
-  // Getter para compatibilidad con el código existente
   static String get token {
     if (auth == null) return "";
     return "$tokenType $auth";
@@ -61,7 +59,6 @@ class CurrentLogMessage {
       'message': message,
     };
     log.add(entry);
-    // ignore: avoid_print
     print('[$level] $message');
 
     if (log.length > 1000) {

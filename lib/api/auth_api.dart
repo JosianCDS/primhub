@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:primhub/endpoint/endpoint.dart';
 
 class AuthApi {
-  // Paso 1: Login inicial con usuario y contraseña
+  // Login inicial con usuario y contraseña
   static Future<Map<String, dynamic>> loginStep1(
     String username,
     String password,
@@ -80,7 +80,7 @@ class AuthApi {
     return [];
   }
 
-  // Paso Final: Confirmar login con parámetros de sesión
+  //Confirmar login con parámetros de sesión
   static Future<Map<String, dynamic>> finalizeLogin(
     String username,
     String password,
@@ -93,13 +93,10 @@ class AuthApi {
         "parameters": contextParams,
       };
 
-      // Usamos POST como en el ejemplo de referencia
       final response = await http.post(
         Uri.parse(Endpoint.authTokens),
         headers: {
           'Content-Type': 'application/json',
-          // Nota: El ejemplo de referencia NO envía el token Bearer en este paso final,
-          // sino que re-envía las credenciales.
         },
         body: jsonEncode(body),
       );

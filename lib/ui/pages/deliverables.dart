@@ -71,7 +71,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
                     crossAxisSpacing: 16,
                     mainAxisSpacing: 16,
                     childAspectRatio:
-                        childAspectRatio, // Ajuste dinámico del tamaño vertical
+                        childAspectRatio,
                     children: [
                       _buildDeliverableCard(
                         '',

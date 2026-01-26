@@ -189,6 +189,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                       },
                     ),
                   ),
+                /*
                 HoverListTile(
                   builder: (isHovered) => ListTile(
                     leading: Icon(
@@ -211,6 +212,8 @@ class _CustomDrawerState extends State<CustomDrawer> {
                     },
                   ),
                 ),
+                */
+                /*
                 if (_userRolePref != 'SOPORTE')
                   HoverListTile(
                     builder: (isHovered) => ListTile(
@@ -234,6 +237,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                       },
                     ),
                   ),
+                */
                 HoverListTile(
                   builder: (isHovered) => ListTile(
                     leading: Icon(
@@ -256,6 +260,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                     },
                   ),
                 ),
+                /*
                 HoverListTile(
                   builder: (isHovered) => ListTile(
                     leading: Icon(
@@ -300,6 +305,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                     },
                   ),
                 ),
+                */
               ],
             ),
           ),

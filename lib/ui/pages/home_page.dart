@@ -7,7 +7,6 @@ import 'package:primhub/ui/pages/request/create_request_dialog.dart';
 import 'package:primhub/ui/pages/request/request_functions.dart';
 import 'package:primhub/ui/shared/custom_button.dart';
 import 'package:primhub/ui/shared/cardcustom.dart';
-import 'package:primhub/ui/shared/custom_chart.dart';
 import 'package:primhub/ui/shared/custom_container.dart';
 import 'package:primhub/ui/shared/custom_inputs.dart';
 import 'package:primhub/ui/shared/custom_modal.dart';
@@ -484,8 +483,7 @@ class _HomePageState extends State<HomePage> {
                       CustomButton(
                         text: 'Buscar en Manuales',
                         icon: Icons.search,
-                        onPressed: () =>
-                            Navigator.pushNamed(context, '/knowledge-base'),
+                        onPressed: null,
                         backgroundColor: Colors.grey.shade200,
                         textColor: Colors.black87,
                         borderRadius: 30,
@@ -496,6 +494,7 @@ class _HomePageState extends State<HomePage> {
               ],
             ),
             const SizedBox(height: 30),
+            /*
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: CustomContainer(
@@ -526,6 +525,7 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
             ),
+            */
             const SizedBox(height: 30),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -544,9 +544,7 @@ class _HomePageState extends State<HomePage> {
                           : Column(
                               children: _recentRequests.map((req) {
                                 return InkWell(
-                                  onTap: _isAdmin
-                                      ? () => _editRequest(req)
-                                      : null,
+                                  onTap: null,
                                   hoverColor: Colors.blue.withOpacity(0.1),
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(

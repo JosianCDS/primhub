@@ -138,12 +138,11 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       final statusName = req['R_Status_Name'] ?? '';
       final qtyPlan = (req['QtyPlan'] as num?)?.toDouble() ?? 0.0;
 
-      // Lógica de Consumo Real: Solo si está en Final Close
+      // Lógica de Consumo: Solo si está en Final Close
       if (statusName == '9_Final Close' || req['R_Status_ID'] == 103) {
         consumed += qtyPlan;
       } else {
-        // Lógica de Estimación (Si NO está en Final Close)
-        // Sumamos lo planificado
+        // Si NO está en Final Close Sumamos lo planificado
         estimated += qtyPlan;
       }
     }
@@ -462,8 +461,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                             child: CustomTextField(
                               controller: dateStartController,
                               label: 'Inicio Plan',
-                              readOnly:
-                                  true, // Siempre readonly porque usa picker, pero el tap está controlado
+                              readOnly: true,
                               hintText: 'YYYY-MM-DD',
                               prefixIcon: const Icon(Icons.calendar_today),
                             ),
@@ -644,7 +642,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                         (statusIdToSend != null && statusIdToSend == 103);
 
                     if (isClosing) {
-                      // Usamos los valores actuales de los controladores (sean nuevos o viejos)
+                      // Usamos los valores actuales de los controladores
                       if (dateStartController.text.isNotEmpty &&
                           startTimeController.text.isNotEmpty) {
                         String t = startTimeController.text;
@@ -659,15 +657,11 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                             "${dateCompleteController.text}T${t}Z";
                       }
 
-                      // Al cerrar, el backend puede inferir los tiempos a partir de StartDate/CloseDate.
-                      // Enviar los campos de tiempo individuales (EndTime, etc.) puede causar un conflicto
-                      // de "update on processed record". Los anulamos para evitarlo.
                       dateStartPlanToSend = null;
                       dateCompletePlanToSend = null;
                       startTimeToSend = null;
                       endTimeToSend = null;
 
-                      // ESTRATEGIA DE DOS PASOS:
                       // 1. Primero guardamos los datos (fechas, horas, resumen) sin cambiar el estado.
                       // 2. Luego enviamos solo el cambio de estado a Cerrado.
                       // Esto evita el error "Cannot update ... on processed record".
@@ -961,15 +955,28 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                         const SizedBox(width: 16),
                         DropdownButton<String>(
                           hint: const Text('Estado'),
-                          value: _selectedStatus,
-                          items: ['1_Open', '2_Waiting on customer', '3_Closed']
-                              .map((String value) {
-                                return DropdownMenuItem<String>(
-                                  value: value,
-                                  child: Text(value),
-                                );
-                              })
-                              .toList(),
+                          // Validar que el valor seleccionado exista en las opciones actuales para evitar errores
+                          value:
+                              (_statusIdMap.isNotEmpty &&
+                                  _selectedStatus != null &&
+                                  !_statusIdMap.containsKey(_selectedStatus))
+                              ? null
+                              : _selectedStatus,
+                          items:
+                              (_statusIdMap.isNotEmpty
+                                      ? (_statusIdMap.keys.toList()..sort())
+                                      : [
+                                          '1_Open',
+                                          '2_Waiting on customer',
+                                          '3_Closed',
+                                        ])
+                                  .map((String value) {
+                                    return DropdownMenuItem<String>(
+                                      value: value,
+                                      child: Text(value),
+                                    );
+                                  })
+                                  .toList(),
                           onChanged: (val) =>
                               setState(() => _selectedStatus = val),
                         ),
