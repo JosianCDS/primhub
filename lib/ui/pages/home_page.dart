@@ -1,8 +1,5 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:primhub/api/token.dart';
-import 'package:primhub/endpoint/endpoint.dart';
+import 'package:primhub/api/contract_api.dart';
 import 'package:primhub/ui/pages/request/create_request_dialog.dart';
 import 'package:primhub/ui/pages/request/request_functions.dart';
 import 'package:primhub/ui/shared/custom_button.dart';
@@ -12,6 +9,7 @@ import 'package:primhub/ui/shared/custom_inputs.dart';
 import 'package:primhub/ui/shared/custom_modal.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/custom_drawer.dart';
+import 'package:primhub/ui/shared/duration_formatter.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -38,6 +36,7 @@ class _HomePageState extends State<HomePage> {
   ];
 
   List<Map<String, dynamic>> _recentRequests = [];
+  List<dynamic> _allRequests = [];
   bool _isLoading = true;
   int _openRequestsCount = 0;
   int _inProgressRequestsCount = 0;
@@ -106,89 +105,62 @@ class _HomePageState extends State<HomePage> {
         _inProgressRequestsCount = others;
         _closedRequestsCount = closed;
         _consumedHours = totalConsumed;
-        _recentRequests = requests
+        _allRequests = requests
             .where(
               (r) =>
                   r['R_Status_Name'] != '9_Final Close' &&
                   r['R_Status_ID'] != 103,
             )
-            .take(3)
-            .map((r) {
-              String level = r['Priority_Name'] ?? 'Baja';
-              Color baseColor = Colors.green;
-              if (level == 'Urgente')
-                baseColor = Colors.purple;
-              else if (level == 'Alta')
-                baseColor = Colors.red;
-              else if (level == 'Media')
-                baseColor = Colors.amber.shade800;
-              else if (level == 'Menor')
-                baseColor = Colors.grey;
-
-              String formattedTime = r['Created'] ?? '';
-              try {
-                if (formattedTime.isNotEmpty) {
-                  final DateTime date = DateTime.parse(formattedTime).toLocal();
-                  formattedTime =
-                      '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-                }
-              } catch (_) {}
-
-              return {
-                'code': r['DocumentNo'] ?? r['id'].toString(),
-                'situation': r['R_RequestType_Name'] ?? 'Solicitud',
-                'time': formattedTime,
-                'level': level,
-                'levelColor': baseColor,
-                'levelBgColor': baseColor.withOpacity(0.2),
-                'status': r['R_Status_Name'] ?? '1_Open',
-              };
-            })
             .toList();
+        _applyFilters();
         _isLoading = false;
       });
     }
   }
 
+  void _applyFilters() {
+    var filtered = List<dynamic>.from(_allRequests);
+
+    _recentRequests = filtered.take(5).map((r) {
+      String level = r['Priority_Name'] ?? 'Baja';
+      Color baseColor = Colors.green;
+      if (level == 'Urgente')
+        baseColor = Colors.purple;
+      else if (level == 'Alta')
+        baseColor = Colors.red;
+      else if (level == 'Media')
+        baseColor = Colors.amber.shade800;
+      else if (level == 'Menor')
+        baseColor = Colors.grey;
+
+      String formattedTime = r['Created'] ?? '';
+      try {
+        if (formattedTime.isNotEmpty) {
+          final DateTime date = DateTime.parse(formattedTime).toLocal();
+          formattedTime =
+              '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+        }
+      } catch (_) {}
+
+      return {
+        'code': r['DocumentNo'] ?? r['id'].toString(),
+        'situation': r['R_RequestType_Name'] ?? 'Solicitud',
+        'description': r['Summary'] ?? '',
+        'time': formattedTime,
+        'level': level,
+        'levelColor': baseColor,
+        'levelBgColor': baseColor.withOpacity(0.2),
+        'status': r['R_Status_Name'] ?? '1_Open',
+      };
+    }).toList();
+  }
+
   Future<void> _loadContractedHours() async {
-    final payload = Token.decodePayload(Token.token);
-    final int userId = payload['AD_User_ID'] ?? 101;
-
-    final String queryUrl =
-        "${Endpoint.order}?\$filter=IsSOTrx eq true and AD_User_ID eq $userId and (DocStatus eq 'CO' or DocStatus eq 'DR')&\$expand=C_OrderLine(\$select=M_Product_ID,QtyEntered;\$filter=M_Product_ID eq 1000850)&\$select=DocumentNo,DateOrdered,Created";
-
-    try {
-      final response = await http.get(
-        Uri.parse(queryUrl),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': Token.token,
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
-        final records = jsonResponse['records'] as List;
-
-        double total = 0.0;
-        for (var record in records) {
-          final lines = record['C_OrderLine'] as List?;
-          if (lines != null) {
-            for (var line in lines) {
-              // Usar QtyEntered como se especifica
-              total += (line['QtyEntered'] as num?)?.toDouble() ?? 0.0;
-            }
-          }
-        }
-
-        if (mounted) {
-          setState(() {
-            _contractedHours = total;
-          });
-        }
-      }
-    } catch (e) {
-      debugPrint('Error loading contracted hours: $e');
+    final total = await ContractApi.getContractedHours();
+    if (mounted && total != null) {
+      setState(() {
+        _contractedHours = total;
+      });
     }
   }
 
@@ -334,7 +306,7 @@ class _HomePageState extends State<HomePage> {
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Text(
-                            'Horas De soporte',
+                            'Horas De soporte Disponibles',
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -344,8 +316,9 @@ class _HomePageState extends State<HomePage> {
                           Text(
                             _contractedHours == null
                                 ? '...'
-                                : (_contractedHours! - _consumedHours)
-                                      .toStringAsFixed(1),
+                                : DurationFormatter.format(
+                                    _contractedHours! - _consumedHours,
+                                  ),
                             style: Theme.of(context).textTheme.displayMedium
                                 ?.copyWith(
                                   color: const Color(0xff4F47E5),
@@ -370,7 +343,9 @@ class _HomePageState extends State<HomePage> {
                                     ? Colors.grey.shade800
                                     : Colors.grey.shade200,
                                 valueColor: AlwaysStoppedAnimation<Color>(
-                                  progress > 1.0 ? Colors.red : Colors.green,
+                                  progress > 1.0
+                                      ? Colors.red
+                                      : const Color.fromARGB(255, 200, 42, 42),
                                 ),
                                 minHeight: 8,
                                 borderRadius: BorderRadius.circular(4),
@@ -381,7 +356,7 @@ class _HomePageState extends State<HomePage> {
                       Text(
                         _contractedHours == null
                             ? 'Cargando contrato...'
-                            : 'Contrato de ${_contractedHours!.toStringAsFixed(0)} horas.',
+                            : 'Contrato de ${DurationFormatter.format(_contractedHours!)}.',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: textColor,
                           fontWeight: FontWeight.bold,
@@ -599,6 +574,18 @@ class _HomePageState extends State<HomePage> {
                                               ),
                                             ),
                                           ],
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          req['description'] ?? '',
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: isDark
+                                                ? Colors.grey[400]
+                                                : Colors.grey[700],
+                                            fontSize: 14,
+                                          ),
                                         ),
                                         const SizedBox(height: 6),
                                         Text(
