@@ -1,12 +1,12 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:primhub/api/token.dart';
-import 'package:primhub/endpoint/endpoint.dart';
+import 'package:primhub/api/contract_api.dart';
 import 'package:primhub/ui/shared/cardcustom.dart';
 import 'package:primhub/ui/shared/custom_container.dart';
 import 'package:primhub/ui/shared/custom_table.dart';
+import 'package:primhub/ui/shared/custom_inputs.dart';
+import 'package:primhub/ui/shared/custom_modal.dart';
 import '../widgets/custom_drawer.dart';
+import 'package:primhub/ui/shared/duration_formatter.dart';
 import 'request/request_functions.dart';
 
 class SupportPage extends StatefulWidget {
@@ -63,44 +63,121 @@ class _SupportPageState extends State<SupportPage> {
   }
 
   Future<void> _loadContractedHours() async {
-    final payload = Token.decodePayload(Token.token);
-    final int userId = payload['AD_User_ID'] ?? 101;
-
-    final String queryUrl =
-        "${Endpoint.order}?\$filter=IsSOTrx eq true and AD_User_ID eq $userId and (DocStatus eq 'CO' or DocStatus eq 'DR')&\$expand=C_OrderLine(\$select=M_Product_ID,QtyEntered;\$filter=M_Product_ID eq 1000850)&\$select=DocumentNo,DateOrdered,Created";
-
-    try {
-      final response = await http.get(
-        Uri.parse(queryUrl),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': Token.token,
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
-        final records = jsonResponse['records'] as List;
-
-        double total = 0.0;
-        for (var record in records) {
-          final lines = record['C_OrderLine'] as List?;
-          if (lines != null) {
-            for (var line in lines) {
-              total += (line['QtyEntered'] as num?)?.toDouble() ?? 0.0;
-            }
-          }
-        }
-
-        if (mounted) {
-          setState(() {
-            _contractedHours = total;
-          });
-        }
-      }
-    } catch (e) {
-      debugPrint('Error loading contracted hours: $e');
+    final total = await ContractApi.getContractedHours();
+    if (mounted && total != null) {
+      setState(() {
+        _contractedHours = total;
+      });
     }
+  }
+
+  void _showRequestDetails(Map<String, dynamic> record) {
+    final TextEditingController summaryController = TextEditingController(
+      text: record['Summary'] ?? '',
+    );
+    final TextEditingController dateStartController = TextEditingController(
+      text: record['DateStartPlan'] ?? '',
+    );
+    final TextEditingController dateCompleteController = TextEditingController(
+      text: record['DateCompletePlan'] ?? '',
+    );
+
+    String extractTime(String? val) {
+      if (val == null || val.isEmpty) return '';
+      String t = val;
+      if (t.contains('T')) {
+        t = t.split('T')[1];
+      }
+      return t.replaceAll('Z', '');
+    }
+
+    final TextEditingController startTimeController = TextEditingController(
+      text: extractTime(record['StartTime']),
+    );
+    final TextEditingController endTimeController = TextEditingController(
+      text: extractTime(record['EndTime']),
+    );
+
+    final double h = (record['QtyPlan'] as num?)?.toDouble() ?? 0.0;
+    final TextEditingController qtyPlanController = TextEditingController(
+      text: DurationFormatter.format(h),
+    );
+
+    showDialog(
+      context: context,
+      builder: (context) => CustomModal(
+        title: 'Detalle del Ticket ${record['DocumentNo'] ?? record['id']}',
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CustomTextField(
+                controller: summaryController,
+                label: 'Descripción / Resumen',
+                readOnly: true,
+                maxLines: 10,
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: CustomTextField(
+                      controller: dateStartController,
+                      label: 'Inicio Plan',
+                      readOnly: true,
+                      prefixIcon: const Icon(Icons.calendar_today),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: CustomTextField(
+                      controller: dateCompleteController,
+                      label: 'Fin Plan',
+                      readOnly: true,
+                      prefixIcon: const Icon(Icons.calendar_today),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: CustomTextField(
+                      controller: startTimeController,
+                      label: 'Hora Inicio',
+                      readOnly: true,
+                      prefixIcon: const Icon(Icons.access_time),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: CustomTextField(
+                      controller: endTimeController,
+                      label: 'Hora Fin',
+                      readOnly: true,
+                      prefixIcon: const Icon(Icons.access_time),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              CustomTextField(
+                controller: qtyPlanController,
+                label: 'Horas Consumidas',
+                readOnly: true,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cerrar'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -169,7 +246,9 @@ class _SupportPageState extends State<SupportPage> {
                                 Text(
                                   _contractedHours == null
                                       ? '...'
-                                      : _contractedHours!.toStringAsFixed(0),
+                                      : DurationFormatter.format(
+                                          _contractedHours!,
+                                        ),
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
                                     fontSize: 30,
@@ -211,7 +290,9 @@ class _SupportPageState extends State<SupportPage> {
                                 Text(
                                   _isLoading
                                       ? '...'
-                                      : _totalConsumedHours.toStringAsFixed(1),
+                                      : DurationFormatter.format(
+                                          _totalConsumedHours,
+                                        ),
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
                                     fontSize: 30,
@@ -253,9 +334,10 @@ class _SupportPageState extends State<SupportPage> {
                                 Text(
                                   _isLoading || _contractedHours == null
                                       ? '...'
-                                      : (_contractedHours! -
-                                                _totalConsumedHours)
-                                            .toStringAsFixed(1),
+                                      : DurationFormatter.format(
+                                          _contractedHours! -
+                                              _totalConsumedHours,
+                                        ),
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
                                     fontSize: 30,
@@ -313,15 +395,29 @@ class _SupportPageState extends State<SupportPage> {
                         DataColumn(label: Text('Horas Consumidas')),
                       ],
                       rows: _supportRecords.map((record) {
-                        final hours = record['QtyPlan']?.toString() ?? '0';
+                        final double h =
+                            (record['QtyPlan'] as num?)?.toDouble() ?? 0.0;
+                        final hours = DurationFormatter.format(h);
                         return DataRow(
+                          onSelectChanged: (value) =>
+                              _showRequestDetails(record),
                           cells: [
                             DataCell(
                               Text(
                                 record['DocumentNo'] ?? record['id'].toString(),
                               ),
                             ),
-                            DataCell(Text(record['Summary'] ?? '')),
+                            DataCell(
+                              SizedBox(
+                                width: 300,
+                                child: Text(
+                                  (record['Summary'] != null &&
+                                          record['Summary'].length > 80)
+                                      ? '${record['Summary'].substring(0, 80)}...'
+                                      : record['Summary'] ?? '',
+                                ),
+                              ),
+                            ),
                             DataCell(Text(record['DateStartPlan'] ?? '')),
                             DataCell(Text(record['DateCompletePlan'] ?? '')),
                             DataCell(Text(hours)),

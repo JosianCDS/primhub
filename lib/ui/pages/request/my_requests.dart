@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:primhub/api/token.dart';
 import 'package:primhub/endpoint/endpoint.dart';
+import 'package:primhub/api/contract_api.dart';
 import 'package:primhub/ui/pages/request/create_request_dialog.dart';
 import 'package:primhub/ui/pages/request/request_functions.dart';
 import 'package:primhub/ui/shared/custom_button.dart';
@@ -11,6 +12,7 @@ import 'package:primhub/ui/shared/custom_modal.dart';
 import 'package:primhub/ui/shared/custom_table.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../widgets/custom_drawer.dart';
+import 'package:primhub/ui/shared/duration_formatter.dart';
 
 class MyRequestsPage extends StatefulWidget {
   const MyRequestsPage({super.key});
@@ -36,6 +38,15 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     super.initState();
     _checkRole();
     _initData();
+    _searchController.addListener(() {
+      setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _checkRole() async {
@@ -89,43 +100,11 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   }
 
   Future<void> _loadContractedHours() async {
-    final payload = Token.decodePayload(Token.token);
-    final int userId = payload['AD_User_ID'] ?? 101;
-
-    final String queryUrl =
-        "${Endpoint.order}?\$filter=IsSOTrx eq true and AD_User_ID eq $userId and (DocStatus eq 'CO' or DocStatus eq 'DR')&\$expand=C_OrderLine(\$select=M_Product_ID,QtyEntered;\$filter=M_Product_ID eq 1000850)&\$select=DocumentNo,DateOrdered,Created";
-
-    try {
-      final response = await http.get(
-        Uri.parse(queryUrl),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': Token.token,
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
-        final records = jsonResponse['records'] as List;
-
-        double total = 0.0;
-        for (var record in records) {
-          final lines = record['C_OrderLine'] as List?;
-          if (lines != null) {
-            for (var line in lines) {
-              total += (line['QtyEntered'] as num?)?.toDouble() ?? 0.0;
-            }
-          }
-        }
-
-        if (mounted) {
-          setState(() {
-            _contractedHours = total;
-          });
-        }
-      }
-    } catch (e) {
-      debugPrint('Error loading contracted hours: $e');
+    final total = await ContractApi.getContractedHours();
+    if (mounted && total != null) {
+      setState(() {
+        _contractedHours = total;
+      });
     }
   }
 
@@ -212,6 +191,8 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
 
   String? _selectedLevel;
   String? _selectedStatus;
+  String? _selectedSituation;
+  final TextEditingController _searchController = TextEditingController();
 
   final Map<String, String> _priorityMap = {
     'Urgente': '1',
@@ -330,6 +311,67 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     }
   }
 
+  Future<void> _deleteRequest(dynamic id) async {
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => CustomModal(
+        title: 'Confirmar Eliminación',
+        content: const Text(
+          '¿Está seguro de que desea eliminar esta solicitud?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          CustomButton(
+            text: 'Eliminar',
+            backgroundColor: Colors.red,
+            onPressed: () => Navigator.pop(context, true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      setState(() => _isLoading = true);
+      try {
+        final response = await http.delete(
+          Uri.parse('${Endpoint.request}/$id'),
+          headers: {'Authorization': Token.token},
+        );
+
+        if (response.statusCode == 200 || response.statusCode == 204) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Solicitud eliminada correctamente'),
+              ),
+            );
+            _refreshRequest();
+          }
+        } else {
+          if (mounted) {
+            setState(() => _isLoading = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error al eliminar: ${response.body}'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
   void _editRequest(Map<String, dynamic> req) {
     String currentPriority = req['level'];
     String currentStatus = req['status'];
@@ -357,9 +399,51 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       text: req['qtyPlan'],
     );
 
+    void calculateHours() {
+      if (startTimeController.text.isNotEmpty &&
+          endTimeController.text.isNotEmpty) {
+        try {
+          DateTime startBase = dateStartController.text.isNotEmpty
+              ? DateTime.parse(dateStartController.text)
+              : DateTime.now();
+          DateTime endBase = dateCompleteController.text.isNotEmpty
+              ? DateTime.parse(dateCompleteController.text)
+              : startBase;
+
+          final sParts = startTimeController.text.split(':');
+          final eParts = endTimeController.text.split(':');
+          if (sParts.length >= 2 && eParts.length >= 2) {
+            final start = DateTime(
+              startBase.year,
+              startBase.month,
+              startBase.day,
+              int.parse(sParts[0]),
+              int.parse(sParts[1]),
+            );
+            var end = DateTime(
+              endBase.year,
+              endBase.month,
+              endBase.day,
+              int.parse(eParts[0]),
+              int.parse(eParts[1]),
+            );
+            if (end.isBefore(start)) {
+              end = end.add(const Duration(days: 1));
+              dateCompleteController.text =
+                  "${end.year}-${end.month.toString().padLeft(2, '0')}-${end.day.toString().padLeft(2, '0')}";
+            }
+            final diff = end.difference(start);
+            final hours = diff.inMinutes / 60.0;
+            qtyPlanController.text = hours.toStringAsFixed(2);
+          }
+        } catch (_) {}
+      }
+    }
+
     Future<void> selectDate(
       BuildContext context,
       TextEditingController controller,
+      StateSetter setStateDialog,
     ) async {
       final DateTime? picked = await showDatePicker(
         context: context,
@@ -370,12 +454,15 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       if (picked != null) {
         controller.text =
             "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
+        calculateHours();
+        setStateDialog(() {});
       }
     }
 
     Future<void> selectTime(
       BuildContext context,
       TextEditingController controller,
+      StateSetter setStateDialog,
     ) async {
       final TimeOfDay? picked = await showTimePicker(
         context: context,
@@ -385,6 +472,8 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
         // Formato HH:mm:ss para backend si es necesario, o HH:mm
         controller.text =
             "${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}:00";
+        calculateHours();
+        setStateDialog(() {});
       }
     }
 
@@ -392,6 +481,8 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setStateDialog) {
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+
           // Asegurar que el estado actual esté en la lista para evitar error de Dropdown
           final List<String> statusItems = _statusIdMap.isNotEmpty
               ? (_statusIdMap.keys.toList()..sort())
@@ -417,11 +508,19 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                     label: 'Descripción / Resumen',
                     readOnly: isReadOnly,
                     maxLines: 3,
-                    validator: (value) => value == null || value.isEmpty
-                        ? 'Por favor ingrese una descripción'
-                        : null,
+                    maxLength: 1500,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Por favor ingrese una descripción';
+                      }
+                      if (value.length > 1500) {
+                        return 'La descripción no puede exceder los 1500 caracteres';
+                      }
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 16),
+                  /*
                   CustomDropdown<String>(
                     label: 'Nivel de Prioridad',
                     value: currentPriority,
@@ -444,19 +543,53 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                         .toList(),
                     onChanged: isReadOnly
                         ? null
-                        : (val) {
-                            if (val != null)
-                              setStateDialog(() => currentStatus = val);
+                        : (val) async {
+                            if (val != null) {
+                              if (req['status'] == '1_Open' &&
+                                  val != '1_Open') {
+                                final bool? confirm = await showDialog<bool>(
+                                  context: context,
+                                  builder: (context) => CustomModal(
+                                    title: 'Advertencia',
+                                    content: const Text(
+                                      'Si cambia el estado de open este registro no podrá eliminarse aunque lo vuelva a colocar en open, ¿estás seguro?',
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(context, false),
+                                        child: const Text('Cancelar'),
+                                      ),
+                                      CustomButton(
+                                        text: 'Continuar',
+                                        onPressed: () =>
+                                            Navigator.pop(context, true),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                if (confirm == true) {
+                                  setStateDialog(() => currentStatus = val);
+                                }
+                              } else {
+                                setStateDialog(() => currentStatus = val);
+                              }
+                            }
                           },
                   ),
                   const SizedBox(height: 16),
+                  */
                   Row(
                     children: [
                       Expanded(
                         child: GestureDetector(
                           onTap: isReadOnly
                               ? null
-                              : () => selectDate(context, dateStartController),
+                              : () => selectDate(
+                                  context,
+                                  dateStartController,
+                                  setStateDialog,
+                                ),
                           child: AbsorbPointer(
                             child: CustomTextField(
                               controller: dateStartController,
@@ -473,8 +606,11 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                         child: GestureDetector(
                           onTap: isReadOnly
                               ? null
-                              : () =>
-                                    selectDate(context, dateCompleteController),
+                              : () => selectDate(
+                                  context,
+                                  dateCompleteController,
+                                  setStateDialog,
+                                ),
                           child: AbsorbPointer(
                             child: CustomTextField(
                               controller: dateCompleteController,
@@ -495,7 +631,11 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                         child: GestureDetector(
                           onTap: isReadOnly
                               ? null
-                              : () => selectTime(context, startTimeController),
+                              : () => selectTime(
+                                  context,
+                                  startTimeController,
+                                  setStateDialog,
+                                ),
                           child: AbsorbPointer(
                             child: CustomTextField(
                               controller: startTimeController,
@@ -512,7 +652,11 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                         child: GestureDetector(
                           onTap: isReadOnly
                               ? null
-                              : () => selectTime(context, endTimeController),
+                              : () => selectTime(
+                                  context,
+                                  endTimeController,
+                                  setStateDialog,
+                                ),
                           child: AbsorbPointer(
                             child: CustomTextField(
                               controller: endTimeController,
@@ -527,12 +671,41 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  CustomTextField(
-                    controller: qtyPlanController,
-                    label: 'Cant Plan (Horas)',
-                    readOnly: true,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? Colors.grey.shade800
+                          : Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: isDark
+                            ? Colors.grey.shade600
+                            : Colors.grey.shade300,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Horas Planificadas",
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isDark ? Colors.grey.shade400 : Colors.grey,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          DurationFormatter.format(
+                            double.tryParse(qtyPlanController.text) ?? 0.0,
+                          ),
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -548,49 +721,19 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                   text: 'Guardar',
                   isLoading: isSaving,
                   onPressed: () async {
-                    setStateDialog(() => isSaving = true);
-
-                    // Calcular QtyPlan automáticamente si hay horas definidas
-                    if (startTimeController.text.isNotEmpty &&
-                        endTimeController.text.isNotEmpty) {
-                      try {
-                        DateTime startBase = dateStartController.text.isNotEmpty
-                            ? DateTime.parse(dateStartController.text)
-                            : DateTime.now();
-                        DateTime endBase =
-                            dateCompleteController.text.isNotEmpty
-                            ? DateTime.parse(dateCompleteController.text)
-                            : startBase;
-
-                        final sParts = startTimeController.text.split(':');
-                        final eParts = endTimeController.text.split(':');
-                        if (sParts.length >= 2 && eParts.length >= 2) {
-                          final start = DateTime(
-                            startBase.year,
-                            startBase.month,
-                            startBase.day,
-                            int.parse(sParts[0]),
-                            int.parse(sParts[1]),
-                          );
-                          var end = DateTime(
-                            endBase.year,
-                            endBase.month,
-                            endBase.day,
-                            int.parse(eParts[0]),
-                            int.parse(eParts[1]),
-                          );
-                          if (end.isBefore(start)) {
-                            end = end.add(const Duration(days: 1));
-                            // Actualizar la fecha de fin visualmente y para el envío
-                            dateCompleteController.text =
-                                "${end.year}-${end.month.toString().padLeft(2, '0')}-${end.day.toString().padLeft(2, '0')}";
-                          }
-                          final diff = end.difference(start);
-                          final hours = diff.inMinutes / 60.0;
-                          qtyPlanController.text = hours.toStringAsFixed(2);
-                        }
-                      } catch (_) {}
+                    if (summaryController.text.length > 1500) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'La descripción no puede exceder los 1500 caracteres',
+                          ),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                      return;
                     }
+
+                    setStateDialog(() => isSaving = true);
 
                     int? statusIdToSend;
                     String? statusIdentifierToSend;
@@ -796,6 +939,17 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
         return false;
       if (_selectedStatus != null && alert['status'] != _selectedStatus)
         return false;
+      if (_selectedSituation != null &&
+          alert['situation'] != _selectedSituation)
+        return false;
+
+      if (_searchController.text.isNotEmpty) {
+        if (!alert['id'].toString().toLowerCase().contains(
+          _searchController.text.toLowerCase(),
+        ))
+          return false;
+      }
+
       return true;
     }).toList();
 
@@ -820,7 +974,21 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     int remainingFlex = 1000 - consumedFlex - estimatedFlex;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Mis Solicitudes De Soporte')),
+      appBar: AppBar(
+        title: const Text('Mis Solicitudes De Soporte'),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: IconButton(
+              onPressed: () {
+                setState(() => _isLoading = true);
+                _initData();
+              },
+              icon: const Icon(Icons.refresh),
+            ),
+          ),
+        ],
+      ),
       drawer: const CustomDrawer(),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
@@ -847,7 +1015,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'Consumidas: ${_consumedHours.toStringAsFixed(1)}',
+                            'Consumidas: ${DurationFormatter.format(_consumedHours)}',
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
@@ -857,7 +1025,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                             ),
                           ),
                           Text(
-                            'Estimadas: ${_estimatedHours.toStringAsFixed(1)}',
+                            'Estimadas: ${DurationFormatter.format(_estimatedHours)}',
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
@@ -867,7 +1035,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                             ),
                           ),
                           Text(
-                            'Disponibles: ${availableHours.toStringAsFixed(1)}',
+                            'Disponibles: ${DurationFormatter.format(availableHours)}',
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
@@ -928,83 +1096,117 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                 final filters = Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12.0),
+                      child: SizedBox(
+                        width: 400,
+                        child: CustomTextField(
+                          controller: _searchController,
+                          hintText: 'Buscar por número de ticket...',
+                          prefixIcon: const Icon(Icons.search),
+                        ),
+                      ),
+                    ),
                     const Text(
                       'Filtros:',
                       style: TextStyle(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8.0,
-                      runSpacing: 4.0,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        DropdownButton<String>(
-                          hint: const Text('Nivel'),
-                          value: _selectedLevel,
-                          items: ['Urgente', 'Alta', 'Media', 'Baja', 'Menor']
-                              .map((String value) {
-                                return DropdownMenuItem<String>(
-                                  value: value,
-                                  child: Text(value),
-                                );
-                              })
-                              .toList(),
-                          onChanged: (val) =>
-                              setState(() => _selectedLevel = val),
-                        ),
-                        const SizedBox(width: 16),
-                        DropdownButton<String>(
-                          hint: const Text('Estado'),
-                          // Validar que el valor seleccionado exista en las opciones actuales para evitar errores
-                          value:
-                              (_statusIdMap.isNotEmpty &&
-                                  _selectedStatus != null &&
-                                  !_statusIdMap.containsKey(_selectedStatus))
-                              ? null
-                              : _selectedStatus,
-                          items:
-                              (_statusIdMap.isNotEmpty
-                                      ? (_statusIdMap.keys.toList()..sort())
-                                      : [
-                                          '1_Open',
-                                          '2_Waiting on customer',
-                                          '3_Closed',
-                                        ])
-                                  .map((String value) {
-                                    return DropdownMenuItem<String>(
-                                      value: value,
-                                      child: Text(value),
-                                    );
-                                  })
-                                  .toList(),
-                          onChanged: (val) =>
-                              setState(() => _selectedStatus = val),
-                        ),
-                        const SizedBox(width: 16),
-                        ActionChip(
-                          avatar: Icon(
-                            _isAscending
-                                ? Icons.arrow_upward
-                                : Icons.arrow_downward,
-                            size: 16,
+                    Padding(
+                      padding: const EdgeInsets.only(left: 10.0),
+                      child: Wrap(
+                        spacing: 8.0,
+                        runSpacing: 4.0,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          DropdownButton<String>(
+                            hint: const Text('Asunto'),
+                            value: _selectedSituation,
+                            items: _requests
+                                .map((e) => e['situation'].toString())
+                                .toSet()
+                                .toList()
+                                .map((String value) {
+                                  return DropdownMenuItem<String>(
+                                    value: value,
+                                    child: Text(value),
+                                  );
+                                })
+                                .toList(),
+                            onChanged: (val) =>
+                                setState(() => _selectedSituation = val),
                           ),
-                          label: Text(
-                            _isAscending ? 'Más antiguas' : 'Más recientes',
+                          const SizedBox(width: 16),
+                          DropdownButton<String>(
+                            hint: const Text('Nivel'),
+                            value: _selectedLevel,
+                            items: ['Urgente', 'Alta', 'Media', 'Baja', 'Menor']
+                                .map((String value) {
+                                  return DropdownMenuItem<String>(
+                                    value: value,
+                                    child: Text(value),
+                                  );
+                                })
+                                .toList(),
+                            onChanged: (val) =>
+                                setState(() => _selectedLevel = val),
                           ),
-                          onPressed: () {
-                            setState(() => _isAscending = !_isAscending);
-                          },
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.filter_alt_off),
-                          onPressed: () => setState(() {
-                            _selectedLevel = null;
-                            _selectedStatus = null;
-                            _isAscending = false;
-                          }),
-                          tooltip: 'Limpiar filtros',
-                        ),
-                      ],
+                          const SizedBox(width: 16),
+                          DropdownButton<String>(
+                            hint: const Text('Estado'),
+                            // Validar que el valor seleccionado exista en las opciones actuales para evitar errores
+                            value:
+                                (_statusIdMap.isNotEmpty &&
+                                    _selectedStatus != null &&
+                                    !_statusIdMap.containsKey(_selectedStatus))
+                                ? null
+                                : _selectedStatus,
+                            items:
+                                (_statusIdMap.isNotEmpty
+                                        ? (_statusIdMap.keys.toList()..sort())
+                                        : [
+                                            '1_Open',
+                                            '2_Waiting on customer',
+                                            '3_Closed',
+                                          ])
+                                    .map((String value) {
+                                      return DropdownMenuItem<String>(
+                                        value: value,
+                                        child: Text(value),
+                                      );
+                                    })
+                                    .toList(),
+                            onChanged: (val) =>
+                                setState(() => _selectedStatus = val),
+                          ),
+                          const SizedBox(width: 16),
+                          ActionChip(
+                            avatar: Icon(
+                              _isAscending
+                                  ? Icons.arrow_upward
+                                  : Icons.arrow_downward,
+                              size: 16,
+                            ),
+                            label: Text(
+                              _isAscending ? 'Más antiguas' : 'Más recientes',
+                            ),
+                            onPressed: () {
+                              setState(() => _isAscending = !_isAscending);
+                            },
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.filter_alt_off),
+                            onPressed: () => setState(() {
+                              _selectedLevel = null;
+                              _selectedStatus = null;
+                              _selectedSituation = null;
+                              _searchController.clear();
+                              _isAscending = false;
+                            }),
+                            tooltip: 'Limpiar filtros',
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 );
@@ -1085,18 +1287,22 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                   : Card(
                       elevation: 4,
                       child: CustomTable(
-                        columns: const [
-                          DataColumn(label: Text('Ticket')),
-                          DataColumn(label: Text('Asunto')),
-                          DataColumn(label: Text('Nivel')),
-                          DataColumn(label: Text('Ultima Actualización')),
-                          DataColumn(label: Text('Inicio Plan')),
-                          DataColumn(label: Text('Fin Plan')),
-                          DataColumn(label: Text('Hora Inicio')),
-                          DataColumn(label: Text('Hora Fin')),
-                          DataColumn(label: Text('Cant. Plan')),
-                          DataColumn(label: Text('Descripción')),
-                          DataColumn(label: Text('Estado')),
+                        columns: [
+                          const DataColumn(label: Text('Ticket')),
+                          const DataColumn(label: Text('Asunto')),
+                          const DataColumn(label: Text('Nivel')),
+                          const DataColumn(label: Text('Ultima Actualización')),
+                          const DataColumn(label: Text('Fecha de Inicio')),
+                          const DataColumn(
+                            label: Text('Fecha de Finalización'),
+                          ),
+                          const DataColumn(label: Text('Hora de Inicio')),
+                          const DataColumn(label: Text('Hora de Fin')),
+                          const DataColumn(label: Text('Horas Planificadas')),
+                          const DataColumn(label: Text('Descripción')),
+                          const DataColumn(label: Text('Estado')),
+                          if (_isAdmin && !_showHistory)
+                            const DataColumn(label: Text('Acciones')),
                         ],
                         rows: filteredAlerts.map((alert) {
                           return DataRow(
@@ -1130,8 +1336,31 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                               DataCell(Text(alert['dateCompletePlan'])),
                               DataCell(Text(alert['startTime'])),
                               DataCell(Text(alert['endTime'])),
-                              DataCell(Text(alert['qtyPlan'])),
-                              DataCell(Text(alert['description'])),
+                              DataCell(
+                                Text(
+                                  DurationFormatter.format(
+                                    double.tryParse(
+                                          alert['qtyPlan'].toString(),
+                                        ) ??
+                                        0.0,
+                                  ),
+                                ),
+                              ),
+                              DataCell(
+                                SizedBox(
+                                  width: 300,
+                                  child: Text(
+                                    (alert['description']?.toString() != null &&
+                                            alert['description']
+                                                    .toString()
+                                                    .length >
+                                                80)
+                                        ? '${alert['description'].toString().substring(0, 80)}...'
+                                        : alert['description']?.toString() ??
+                                              '',
+                                  ),
+                                ),
+                              ),
                               DataCell(
                                 Row(
                                   mainAxisSize: MainAxisSize.min,
@@ -1141,6 +1370,17 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                                   ],
                                 ),
                               ),
+                              if (_isAdmin && !_showHistory)
+                                DataCell(
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.delete,
+                                      color: Colors.red,
+                                    ),
+                                    onPressed: () =>
+                                        _deleteRequest(alert['realId']),
+                                  ),
+                                ),
                             ],
                           );
                         }).toList(),

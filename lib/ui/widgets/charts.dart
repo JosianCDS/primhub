@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import '../shared/duration_formatter.dart';
 
 class AreaChartPainter extends CustomPainter {
   final List<List<double>> data;
@@ -299,7 +300,8 @@ class BarChartPainter extends CustomPainter {
           gridPaint,
         );
       textPainter.text = TextSpan(
-        text: val.toInt().toString(),
+        // Usamos un formato simple para el eje
+        text: '${val.toInt()}h',
         style: TextStyle(color: textColor, fontSize: 10),
       );
       textPainter.layout();
@@ -335,7 +337,8 @@ class BarChartPainter extends CustomPainter {
         // Verificar si el toque está dentro del área horizontal de la barra
         if (touchPosition!.dx >= x - 5 &&
             touchPosition!.dx <= x + barWidth + 5) {
-          final tooltipText = '${labels[i]}: ${values[i].toStringAsFixed(1)}';
+          final tooltipText =
+              '${labels[i]}: ${DurationFormatter.format(values[i])}';
           textPainter.text = TextSpan(
             text: tooltipText,
             style: const TextStyle(color: Colors.white, fontSize: 12),
