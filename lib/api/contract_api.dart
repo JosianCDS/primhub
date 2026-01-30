@@ -6,11 +6,19 @@ import 'package:primhub/endpoint/endpoint.dart';
 
 class ContractApi {
   static Future<double?> getContractedHours() async {
+    // Si no hay un producto definido en la ficha, no podemos buscar horas.
+    if (ProductChip.mProductID == null) {
+      debugPrint(
+        'No se encontró ID de producto en la ficha. No se pueden obtener las horas contratadas.',
+      );
+      return 0.0;
+    }
+
     final payload = Token.decodePayload(Token.token);
     final int userId = payload['AD_User_ID'] ?? 101;
 
     final String queryUrl =
-        "${Endpoint.order}?\$filter=IsSOTrx eq true and AD_User_ID eq $userId and (DocStatus eq 'CO' or DocStatus eq 'DR')&\$expand=C_OrderLine(\$select=M_Product_ID,QtyEntered;\$filter=M_Product_ID eq 1000850)&\$select=DocumentNo,DateOrdered,Created";
+        "${Endpoint.order}?\$filter=IsSOTrx eq true and AD_User_ID eq $userId and (DocStatus eq 'CO' or DocStatus eq 'DR')&\$expand=C_OrderLine(\$select=M_Product_ID,QtyEntered;\$filter=M_Product_ID eq ${ProductChip.mProductID})&\$select=DocumentNo,DateOrdered,Created";
 
     try {
       final response = await http.get(

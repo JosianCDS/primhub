@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/theme/theme.dart';
-import 'package:primhub/ui/pages/calendar.dart';
 import 'package:primhub/ui/pages/deliverables.dart';
 import 'package:primhub/ui/pages/home_page.dart';
 import 'ui/pages/login.dart';
@@ -11,6 +11,8 @@ import 'package:primhub/ui/pages/metrics.dart';
 import 'package:primhub/ui/pages/profile_page.dart';
 import 'package:primhub/ui/pages/request/my_requests.dart';
 import 'package:primhub/ui/pages/support.dart';
+import 'package:primhub/ui/pages/project_info_test.dart';
+import 'package:primhub/ui/pages/my_projects.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() async {
@@ -18,6 +20,11 @@ void main() async {
   final prefs = await SharedPreferences.getInstance();
   final isDark = prefs.getBool('is_dark_mode') ?? false;
   AppThemes.themeModeNotifier.value = isDark ? ThemeMode.dark : ThemeMode.light;
+
+  final savedUrl = prefs.getString('api_base_url');
+  if (savedUrl != null) {
+    Endpoint.baseUrl = savedUrl;
+  }
 
   runApp(const MyApp());
 }
@@ -46,9 +53,10 @@ class MyApp extends StatelessWidget {
             '/knowledge-base': (context) => const KnowledgeBasePage(),
             '/deliverables': (context) => const DeliverablesPage(),
             '/metrics': (context) => const MetricsPage(),
-            '/calendar': (context) => const CalendarPage(),
             '/marketplace': (context) => const MarketplacePage(),
             '/profile': (context) => const ProfilePage(),
+            '/project-info-test': (context) => const ProjectInfoTestPage(),
+            '/my-projects': (context) => const MyProjectsPage(),
           },
         );
       },

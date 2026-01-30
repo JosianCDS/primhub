@@ -13,6 +13,7 @@ import 'package:primhub/ui/shared/custom_table.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../widgets/custom_drawer.dart';
 import 'package:primhub/ui/shared/duration_formatter.dart';
+import '../../pages/calendar.dart';
 
 class MyRequestsPage extends StatefulWidget {
   const MyRequestsPage({super.key});
@@ -23,6 +24,7 @@ class MyRequestsPage extends StatefulWidget {
 
 class _MyRequestsPageState extends State<MyRequestsPage> {
   List<Map<String, dynamic>> _requests = [];
+  List<dynamic> _rawRequests = [];
   bool _isLoading = true;
   bool _isAscending = false;
   bool _showHistory = false;
@@ -32,6 +34,8 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   double _consumedHours = 0.0;
   double _estimatedHours = 0.0;
   Map<String, int> _statusIdMap = {};
+  int _currentPage = 0;
+  int _rowsPerPage = 25;
 
   @override
   void initState() {
@@ -39,7 +43,9 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     _checkRole();
     _initData();
     _searchController.addListener(() {
-      setState(() {});
+      setState(() {
+        _currentPage = 0;
+      });
     });
   }
 
@@ -110,6 +116,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
 
   Future<void> _refreshRequest() async {
     final requests = await fetchRequest();
+    _rawRequests = requests;
     double consumed = 0.0;
     double estimated = 0.0;
 
@@ -183,6 +190,8 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
           'qtyPlan': r['QtyPlan']?.toString() ?? '',
           'startDate': r['StartDate'],
           'closeDate': r['CloseDate'],
+          'userName': r['AD_User_Name'] ?? '',
+          'bpName': r['C_BPartner_Name'] ?? '',
         };
       }).toList();
       _isLoading = false;
@@ -192,6 +201,8 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   String? _selectedLevel;
   String? _selectedStatus;
   String? _selectedSituation;
+  String? _selectedBP;
+  String? _selectedUser;
   final TextEditingController _searchController = TextEditingController();
 
   final Map<String, String> _priorityMap = {
@@ -378,6 +389,8 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     int? statusId = req['statusId'];
     bool isReadOnly = currentStatus == '9_Final Close' || statusId == 103;
     bool isSaving = false;
+    final ScrollController modalScrollController = ScrollController();
+    final ScrollController descriptionScrollController = ScrollController();
 
     final TextEditingController summaryController = TextEditingController(
       text: req['description'],
@@ -499,28 +512,29 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
 
           return CustomModal(
             title: 'Editar Solicitud ${req['id']}',
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CustomTextField(
-                    controller: summaryController,
-                    label: 'Descripción / Resumen',
-                    readOnly: isReadOnly,
-                    maxLines: 3,
-                    maxLength: 1500,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Por favor ingrese una descripción';
-                      }
-                      if (value.length > 1500) {
-                        return 'La descripción no puede exceder los 1500 caracteres';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  /*
+            content: Scrollbar(
+              controller: modalScrollController,
+              thumbVisibility: true,
+              child: SingleChildScrollView(
+                controller: modalScrollController,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CustomTextField(
+                      controller: summaryController,
+                      scrollController: descriptionScrollController,
+                      label: 'Descripción / Resumen',
+                      readOnly: isReadOnly,
+                      maxLines: 8,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Por favor ingrese una descripción';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    /*
                   CustomDropdown<String>(
                     label: 'Nivel de Prioridad',
                     value: currentPriority,
@@ -579,136 +593,139 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                   ),
                   const SizedBox(height: 16),
                   */
-                  Row(
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: isReadOnly
-                              ? null
-                              : () => selectDate(
-                                  context,
-                                  dateStartController,
-                                  setStateDialog,
-                                ),
-                          child: AbsorbPointer(
-                            child: CustomTextField(
-                              controller: dateStartController,
-                              label: 'Inicio Plan',
-                              readOnly: true,
-                              hintText: 'YYYY-MM-DD',
-                              prefixIcon: const Icon(Icons.calendar_today),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: isReadOnly
-                              ? null
-                              : () => selectDate(
-                                  context,
-                                  dateCompleteController,
-                                  setStateDialog,
-                                ),
-                          child: AbsorbPointer(
-                            child: CustomTextField(
-                              controller: dateCompleteController,
-                              label: 'Fin Plan',
-                              readOnly: true,
-                              hintText: 'YYYY-MM-DD',
-                              prefixIcon: const Icon(Icons.calendar_today),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: isReadOnly
-                              ? null
-                              : () => selectTime(
-                                  context,
-                                  startTimeController,
-                                  setStateDialog,
-                                ),
-                          child: AbsorbPointer(
-                            child: CustomTextField(
-                              controller: startTimeController,
-                              label: 'Hora Inicio',
-                              readOnly: true,
-                              hintText: 'HH:mm:ss',
-                              prefixIcon: const Icon(Icons.access_time),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: isReadOnly
-                              ? null
-                              : () => selectTime(
-                                  context,
-                                  endTimeController,
-                                  setStateDialog,
-                                ),
-                          child: AbsorbPointer(
-                            child: CustomTextField(
-                              controller: endTimeController,
-                              label: 'Hora Fin',
-                              readOnly: true,
-                              hintText: 'HH:mm:ss',
-                              prefixIcon: const Icon(Icons.access_time),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? Colors.grey.shade800
-                          : Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: isDark
-                            ? Colors.grey.shade600
-                            : Colors.grey.shade300,
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    Row(
                       children: [
-                        Text(
-                          "Horas Planificadas",
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: isDark ? Colors.grey.shade400 : Colors.grey,
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: isReadOnly
+                                ? null
+                                : () => selectDate(
+                                    context,
+                                    dateStartController,
+                                    setStateDialog,
+                                  ),
+                            child: AbsorbPointer(
+                              child: CustomTextField(
+                                controller: dateStartController,
+                                label: 'Inicio Plan',
+                                readOnly: true,
+                                hintText: 'YYYY-MM-DD',
+                                prefixIcon: const Icon(Icons.calendar_today),
+                              ),
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          DurationFormatter.format(
-                            double.tryParse(qtyPlanController.text) ?? 0.0,
-                          ),
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: isReadOnly
+                                ? null
+                                : () => selectDate(
+                                    context,
+                                    dateCompleteController,
+                                    setStateDialog,
+                                  ),
+                            child: AbsorbPointer(
+                              child: CustomTextField(
+                                controller: dateCompleteController,
+                                label: 'Fin Plan',
+                                readOnly: true,
+                                hintText: 'YYYY-MM-DD',
+                                prefixIcon: const Icon(Icons.calendar_today),
+                              ),
+                            ),
                           ),
                         ),
                       ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: isReadOnly
+                                ? null
+                                : () => selectTime(
+                                    context,
+                                    startTimeController,
+                                    setStateDialog,
+                                  ),
+                            child: AbsorbPointer(
+                              child: CustomTextField(
+                                controller: startTimeController,
+                                label: 'Hora Inicio',
+                                readOnly: true,
+                                hintText: 'HH:mm:ss',
+                                prefixIcon: const Icon(Icons.access_time),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: isReadOnly
+                                ? null
+                                : () => selectTime(
+                                    context,
+                                    endTimeController,
+                                    setStateDialog,
+                                  ),
+                            child: AbsorbPointer(
+                              child: CustomTextField(
+                                controller: endTimeController,
+                                label: 'Hora Fin',
+                                readOnly: true,
+                                hintText: 'HH:mm:ss',
+                                prefixIcon: const Icon(Icons.access_time),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? Colors.grey.shade800
+                            : Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: isDark
+                              ? Colors.grey.shade600
+                              : Colors.grey.shade300,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Horas Planificadas",
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark
+                                  ? Colors.grey.shade400
+                                  : Colors.grey,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            DurationFormatter.format(
+                              double.tryParse(qtyPlanController.text) ?? 0.0,
+                            ),
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
             actions: [
@@ -721,18 +738,6 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                   text: 'Guardar',
                   isLoading: isSaving,
                   onPressed: () async {
-                    if (summaryController.text.length > 1500) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'La descripción no puede exceder los 1500 caracteres',
-                          ),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                      return;
-                    }
-
                     setStateDialog(() => isSaving = true);
 
                     int? statusIdToSend;
@@ -782,6 +787,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
 
                     final bool isClosing =
                         currentStatus == '9_Final Close' ||
+                        currentStatus == 'Final Close' ||
                         (statusIdToSend != null && statusIdToSend == 103);
 
                     if (isClosing) {
@@ -919,12 +925,41 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
           );
         },
       ),
-    );
+    ).then((_) {
+      modalScrollController.dispose();
+      descriptionScrollController.dispose();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bool isMobile = MediaQuery.of(context).size.width < 600;
+
+    Widget buildStatItem(
+      String label,
+      double value,
+      Color color,
+      IconData icon,
+    ) {
+      final style = TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.bold,
+        color: color,
+      );
+      if (isMobile) {
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 18, color: color),
+            const SizedBox(width: 4),
+            Text(DurationFormatter.format(value), style: style),
+          ],
+        );
+      }
+      return Text('$label: ${DurationFormatter.format(value)}', style: style);
+    }
+
     final filteredAlerts = _requests.where((alert) {
       // Lógica para separar Activas de Historial (Final Close)
       bool isClosed =
@@ -941,6 +976,9 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
         return false;
       if (_selectedSituation != null &&
           alert['situation'] != _selectedSituation)
+        return false;
+      if (_selectedBP != null && alert['bpName'] != _selectedBP) return false;
+      if (_selectedUser != null && alert['userName'] != _selectedUser)
         return false;
 
       if (_searchController.text.isNotEmpty) {
@@ -959,6 +997,22 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       return _isAscending ? timeA.compareTo(timeB) : timeB.compareTo(timeA);
     });
 
+    // Paginación
+    final int totalItems = filteredAlerts.length;
+    final int totalPages = (totalItems / _rowsPerPage).ceil();
+
+    if (_currentPage >= totalPages) {
+      _currentPage = totalPages > 0 ? totalPages - 1 : 0;
+    }
+
+    final int startIndex = _currentPage * _rowsPerPage;
+    final int endIndex = (startIndex + _rowsPerPage < totalItems)
+        ? startIndex + _rowsPerPage
+        : totalItems;
+    final paginatedAlerts = totalItems > 0
+        ? filteredAlerts.sublist(startIndex, endIndex)
+        : <Map<String, dynamic>>[];
+
     double availableHours = (_contractedHours ?? 0) - _consumedHours;
     bool isInsufficient = _estimatedHours > availableHours;
 
@@ -973,421 +1027,483 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     int estimatedFlex = (estimatedPct * 1000).toInt();
     int remainingFlex = 1000 - consumedFlex - estimatedFlex;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Mis Solicitudes De Soporte'),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8.0),
-            child: IconButton(
-              onPressed: () {
-                setState(() => _isLoading = true);
-                _initData();
-              },
-              icon: const Icon(Icons.refresh),
-            ),
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Mis Solicitudes De Soporte'),
+          bottom: TabBar(
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white70,
+            indicatorColor: Colors.white,
+            tabs: const [
+              Tab(text: 'Listado'),
+              Tab(text: 'Calendario'),
+            ],
           ),
-        ],
-      ),
-      drawer: const CustomDrawer(),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Card de Estimación de Horas
-            if (_contractedHours != null)
-              Card(
-                color: isInsufficient
-                    ? (isDark
-                          ? Colors.red.shade900.withOpacity(0.5)
-                          : Colors.red.shade50)
-                    : (isDark
-                          ? Colors.blue.shade900.withOpacity(0.5)
-                          : Colors.blue.shade50),
-                elevation: 2,
-                margin: const EdgeInsets.only(bottom: 20),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Consumidas: ${DurationFormatter.format(_consumedHours)}',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: isDark
-                                  ? Colors.red.shade300
-                                  : Colors.red.shade800,
-                            ),
-                          ),
-                          Text(
-                            'Estimadas: ${DurationFormatter.format(_estimatedHours)}',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: isDark
-                                  ? Colors.amber.shade300
-                                  : Colors.amber.shade800,
-                            ),
-                          ),
-                          Text(
-                            'Disponibles: ${DurationFormatter.format(availableHours)}',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: isDark
-                                  ? Colors.green.shade300
-                                  : Colors.green.shade800,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: Container(
-                          height: 12,
-                          color: Colors.grey.shade300,
-                          child: isInsufficient
-                              ? Container(color: Colors.red)
-                              : Row(
-                                  children: [
-                                    if (consumedFlex > 0)
-                                      Expanded(
-                                        flex: consumedFlex,
-                                        child: Container(color: Colors.red),
-                                      ),
-                                    if (estimatedFlex > 0)
-                                      Expanded(
-                                        flex: estimatedFlex,
-                                        child: Container(color: Colors.amber),
-                                      ),
-                                    if (remainingFlex > 0)
-                                      Expanded(
-                                        flex: remainingFlex,
-                                        child: Container(color: Colors.green),
-                                      ),
-                                  ],
-                                ),
-                        ),
-                      ),
-                      if (isInsufficient) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          '¡Advertencia! Las horas estimadas superan las disponibles. Deberá contratar más horas.',
-                          style: TextStyle(
-                            color: isDark
-                                ? Colors.red.shade200
-                                : Colors.red.shade800,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: IconButton(
+                onPressed: () {
+                  setState(() => _isLoading = true);
+                  _initData();
+                },
+                icon: const Icon(Icons.refresh),
               ),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final filters = Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12.0),
-                      child: SizedBox(
-                        width: 400,
-                        child: CustomTextField(
-                          controller: _searchController,
-                          hintText: 'Buscar por número de ticket...',
-                          prefixIcon: const Icon(Icons.search),
-                        ),
-                      ),
-                    ),
-                    const Text(
-                      'Filtros:',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    Padding(
-                      padding: const EdgeInsets.only(left: 10.0),
-                      child: Wrap(
-                        spacing: 8.0,
-                        runSpacing: 4.0,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          DropdownButton<String>(
-                            hint: const Text('Asunto'),
-                            value: _selectedSituation,
-                            items: _requests
-                                .map((e) => e['situation'].toString())
-                                .toSet()
-                                .toList()
-                                .map((String value) {
-                                  return DropdownMenuItem<String>(
-                                    value: value,
-                                    child: Text(value),
-                                  );
-                                })
-                                .toList(),
-                            onChanged: (val) =>
-                                setState(() => _selectedSituation = val),
-                          ),
-                          const SizedBox(width: 16),
-                          DropdownButton<String>(
-                            hint: const Text('Nivel'),
-                            value: _selectedLevel,
-                            items: ['Urgente', 'Alta', 'Media', 'Baja', 'Menor']
-                                .map((String value) {
-                                  return DropdownMenuItem<String>(
-                                    value: value,
-                                    child: Text(value),
-                                  );
-                                })
-                                .toList(),
-                            onChanged: (val) =>
-                                setState(() => _selectedLevel = val),
-                          ),
-                          const SizedBox(width: 16),
-                          DropdownButton<String>(
-                            hint: const Text('Estado'),
-                            // Validar que el valor seleccionado exista en las opciones actuales para evitar errores
-                            value:
-                                (_statusIdMap.isNotEmpty &&
-                                    _selectedStatus != null &&
-                                    !_statusIdMap.containsKey(_selectedStatus))
-                                ? null
-                                : _selectedStatus,
-                            items:
-                                (_statusIdMap.isNotEmpty
-                                        ? (_statusIdMap.keys.toList()..sort())
-                                        : [
-                                            '1_Open',
-                                            '2_Waiting on customer',
-                                            '3_Closed',
-                                          ])
-                                    .map((String value) {
-                                      return DropdownMenuItem<String>(
-                                        value: value,
-                                        child: Text(value),
-                                      );
-                                    })
-                                    .toList(),
-                            onChanged: (val) =>
-                                setState(() => _selectedStatus = val),
-                          ),
-                          const SizedBox(width: 16),
-                          ActionChip(
-                            avatar: Icon(
-                              _isAscending
-                                  ? Icons.arrow_upward
-                                  : Icons.arrow_downward,
-                              size: 16,
-                            ),
-                            label: Text(
-                              _isAscending ? 'Más antiguas' : 'Más recientes',
-                            ),
-                            onPressed: () {
-                              setState(() => _isAscending = !_isAscending);
-                            },
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.filter_alt_off),
-                            onPressed: () => setState(() {
-                              _selectedLevel = null;
-                              _selectedStatus = null;
-                              _selectedSituation = null;
-                              _searchController.clear();
-                              _isAscending = false;
-                            }),
-                            tooltip: 'Limpiar filtros',
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                );
-
-                final buttons = Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ElevatedButton.icon(
-                      onPressed: () => setState(() {
-                        _showHistory = !_showHistory;
-                        _selectedStatus = null;
-                      }),
-                      icon: Icon(
-                        _showHistory ? Icons.list : Icons.history,
-                        color: Colors.white,
-                      ),
-                      label: Text(
-                        _showHistory ? 'Ver Activas' : 'Ver Bitácora',
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF4F47E5),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    ElevatedButton.icon(
-                      onPressed: () async {
-                        final result = await showDialog(
-                          context: context,
-                          builder: (context) => const CreateRequestDialog(),
-                        );
-                        if (result == true) {
-                          _refreshRequest(); // Recargar la tabla
-                        }
-                      },
-                      icon: const Icon(Icons.add, color: Colors.white),
-                      label: const Text(
-                        'Solicitud',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF4F47E5),
-                      ),
-                    ),
-                  ],
-                );
-
-                if (constraints.maxWidth < 800) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      filters,
-                      const SizedBox(height: 16),
-                      SizedBox(width: double.infinity, child: buttons),
-                    ],
-                  );
-                } else {
-                  return Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Expanded(child: filters),
-                      const SizedBox(width: 16),
-                      buttons,
-                    ],
-                  );
-                }
-              },
-            ),
-            const SizedBox(height: 20),
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 1000),
-              child: _isLoading
-                  ? const Padding(
-                      padding: EdgeInsets.all(50.0),
-                      child: Center(child: CircularProgressIndicator()),
-                    )
-                  : Card(
-                      elevation: 4,
-                      child: CustomTable(
-                        columns: [
-                          const DataColumn(label: Text('Ticket')),
-                          const DataColumn(label: Text('Asunto')),
-                          const DataColumn(label: Text('Nivel')),
-                          const DataColumn(label: Text('Ultima Actualización')),
-                          const DataColumn(label: Text('Fecha de Inicio')),
-                          const DataColumn(
-                            label: Text('Fecha de Finalización'),
-                          ),
-                          const DataColumn(label: Text('Hora de Inicio')),
-                          const DataColumn(label: Text('Hora de Fin')),
-                          const DataColumn(label: Text('Horas Planificadas')),
-                          const DataColumn(label: Text('Descripción')),
-                          const DataColumn(label: Text('Estado')),
-                          if (_isAdmin && !_showHistory)
-                            const DataColumn(label: Text('Acciones')),
-                        ],
-                        rows: filteredAlerts.map((alert) {
-                          return DataRow(
-                            onSelectChanged: _isAdmin
-                                ? (value) => _editRequest(alert)
-                                : null,
-                            cells: [
-                              DataCell(Text(alert['id'])),
-                              DataCell(Text(alert['situation'])),
-                              DataCell(
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: alert['levelBgColor'],
-                                    borderRadius: BorderRadius.circular(30),
-                                  ),
-                                  child: Text(
-                                    alert['level'],
-                                    style: TextStyle(
-                                      color: alert['levelColor'],
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              DataCell(Text(alert['time'] ?? '')),
-                              DataCell(Text(alert['dateStartPlan'])),
-                              DataCell(Text(alert['dateCompletePlan'])),
-                              DataCell(Text(alert['startTime'])),
-                              DataCell(Text(alert['endTime'])),
-                              DataCell(
-                                Text(
-                                  DurationFormatter.format(
-                                    double.tryParse(
-                                          alert['qtyPlan'].toString(),
-                                        ) ??
-                                        0.0,
-                                  ),
-                                ),
-                              ),
-                              DataCell(
-                                SizedBox(
-                                  width: 300,
-                                  child: Text(
-                                    (alert['description']?.toString() != null &&
-                                            alert['description']
-                                                    .toString()
-                                                    .length >
-                                                80)
-                                        ? '${alert['description'].toString().substring(0, 80)}...'
-                                        : alert['description']?.toString() ??
-                                              '',
-                                  ),
-                                ),
-                              ),
-                              DataCell(
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const SizedBox(width: 8),
-                                    Text(alert['status']),
-                                  ],
-                                ),
-                              ),
-                              if (_isAdmin && !_showHistory)
-                                DataCell(
-                                  IconButton(
-                                    icon: const Icon(
-                                      Icons.delete,
-                                      color: Colors.red,
-                                    ),
-                                    onPressed: () =>
-                                        _deleteRequest(alert['realId']),
-                                  ),
-                                ),
-                            ],
-                          );
-                        }).toList(),
-                      ),
-                    ),
             ),
           ],
+        ),
+        drawer: const CustomDrawer(),
+        body: SafeArea(
+          child: TabBarView(
+            children: [
+              SingleChildScrollView(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Card de Estimación de Horas
+                    if (_contractedHours != null)
+                      Card(
+                        color: isInsufficient
+                            ? (isDark
+                                  ? Colors.red.shade900.withOpacity(0.5)
+                                  : Colors.red.shade50)
+                            : (isDark
+                                  ? Colors.blue.shade900.withOpacity(0.5)
+                                  : Colors.blue.shade50),
+                        elevation: 2,
+                        margin: const EdgeInsets.only(bottom: 20),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            children: [
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  buildStatItem(
+                                    'Consumidas',
+                                    _consumedHours,
+                                    isDark
+                                        ? Colors.red.shade300
+                                        : Colors.red.shade800,
+                                    Icons.timelapse,
+                                  ),
+                                  buildStatItem(
+                                    'Estimadas',
+                                    _estimatedHours,
+                                    isDark
+                                        ? Colors.amber.shade300
+                                        : Colors.amber.shade800,
+                                    Icons.watch_later_outlined,
+                                  ),
+                                  buildStatItem(
+                                    'Disponibles',
+                                    availableHours,
+                                    isDark
+                                        ? Colors.green.shade300
+                                        : Colors.green.shade800,
+                                    Icons.check_circle_outline,
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: Container(
+                                  height: 12,
+                                  color: Colors.grey.shade300,
+                                  child: isInsufficient
+                                      ? Container(color: Colors.red)
+                                      : Row(
+                                          children: [
+                                            if (consumedFlex > 0)
+                                              Expanded(
+                                                flex: consumedFlex,
+                                                child: Container(
+                                                  color: Colors.red,
+                                                ),
+                                              ),
+                                            if (estimatedFlex > 0)
+                                              Expanded(
+                                                flex: estimatedFlex,
+                                                child: Container(
+                                                  color: Colors.amber,
+                                                ),
+                                              ),
+                                            if (remainingFlex > 0)
+                                              Expanded(
+                                                flex: remainingFlex,
+                                                child: Container(
+                                                  color: Colors.green,
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                ),
+                              ),
+                              if (isInsufficient) ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  '¡Advertencia! Las horas estimadas superan las disponibles. Deberá contratar más horas.',
+                                  style: TextStyle(
+                                    color: isDark
+                                        ? Colors.red.shade200
+                                        : Colors.red.shade800,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final filters = Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 12.0),
+                              child: SizedBox(
+                                width: 400,
+                                child: CustomTextField(
+                                  controller: _searchController,
+                                  hintText: 'Buscar por número de ticket...',
+                                  prefixIcon: const Icon(Icons.search),
+                                ),
+                              ),
+                            ),
+                            const Text(
+                              'Filtros:',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 8),
+                            Padding(
+                              padding: const EdgeInsets.only(left: 10.0),
+                              child: Wrap(
+                                spacing: 8.0,
+                                runSpacing: 4.0,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  DropdownButton<String>(
+                                    hint: const Text('Asunto'),
+                                    value: _selectedSituation,
+                                    items: _requests
+                                        .map((e) => e['situation'].toString())
+                                        .toSet()
+                                        .toList()
+                                        .map((String value) {
+                                          return DropdownMenuItem<String>(
+                                            value: value,
+                                            child: Text(value),
+                                          );
+                                        })
+                                        .toList(),
+                                    onChanged: (val) => setState(() {
+                                      _selectedSituation = val;
+                                      _currentPage = 0;
+                                    }),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  DropdownButton<String>(
+                                    hint: const Text('Usuario'),
+                                    value: _selectedUser,
+                                    items: _requests
+                                        .map((e) => e['userName'].toString())
+                                        .where((e) => e.isNotEmpty)
+                                        .toSet()
+                                        .toList()
+                                        .map((String value) {
+                                          return DropdownMenuItem<String>(
+                                            value: value,
+                                            child: Text(value),
+                                          );
+                                        })
+                                        .toList(),
+                                    onChanged: (val) => setState(() {
+                                      _selectedUser = val;
+                                      _currentPage = 0;
+                                    }),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  DropdownButton<String>(
+                                    hint: const Text('Nivel'),
+                                    value: _selectedLevel,
+                                    items:
+                                        [
+                                          'Urgente',
+                                          'Alta',
+                                          'Media',
+                                          'Baja',
+                                          'Menor',
+                                        ].map((String value) {
+                                          return DropdownMenuItem<String>(
+                                            value: value,
+                                            child: Text(value),
+                                          );
+                                        }).toList(),
+                                    onChanged: (val) => setState(() {
+                                      _selectedLevel = val;
+                                      _currentPage = 0;
+                                    }),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  DropdownButton<String>(
+                                    hint: const Text('Estado'),
+                                    value:
+                                        (_statusIdMap.isNotEmpty &&
+                                            _selectedStatus != null &&
+                                            !_statusIdMap.containsKey(
+                                              _selectedStatus,
+                                            ))
+                                        ? null
+                                        : _selectedStatus,
+                                    items:
+                                        (_statusIdMap.isNotEmpty
+                                                ? (_statusIdMap.keys.toList()
+                                                    ..sort())
+                                                : [
+                                                    '1_Open',
+                                                    '2_Waiting on customer',
+                                                    '3_Closed',
+                                                  ])
+                                            .map((String value) {
+                                              return DropdownMenuItem<String>(
+                                                value: value,
+                                                child: Text(value),
+                                              );
+                                            })
+                                            .toList(),
+                                    onChanged: (val) => setState(() {
+                                      _selectedStatus = val;
+                                      _currentPage = 0;
+                                    }),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  ActionChip(
+                                    avatar: Icon(
+                                      _isAscending
+                                          ? Icons.arrow_upward
+                                          : Icons.arrow_downward,
+                                      size: 16,
+                                    ),
+                                    label: Text(
+                                      _isAscending
+                                          ? 'Más antiguas'
+                                          : 'Más recientes',
+                                    ),
+                                    onPressed: () {
+                                      setState(() {
+                                        _isAscending = !_isAscending;
+                                        _currentPage = 0;
+                                      });
+                                    },
+                                  ),
+                                  const SizedBox(width: 16),
+                                  DropdownButton<int>(
+                                    value: _rowsPerPage,
+                                    items: [25, 50, 100].map((int value) {
+                                      return DropdownMenuItem<int>(
+                                        value: value,
+                                        child: Text('$value filas'),
+                                      );
+                                    }).toList(),
+                                    onChanged: (val) => setState(() {
+                                      _rowsPerPage = val!;
+                                      _currentPage = 0;
+                                    }),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.filter_alt_off),
+                                    onPressed: () => setState(() {
+                                      _selectedLevel = null;
+                                      _selectedStatus = null;
+                                      _selectedSituation = null;
+                                      _selectedBP = null;
+                                      _selectedUser = null;
+                                      _searchController.clear();
+                                      _isAscending = false;
+                                      _currentPage = 0;
+                                    }),
+                                    tooltip: 'Limpiar filtros',
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        );
+
+                        final buttons = Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ElevatedButton.icon(
+                              onPressed: () => setState(() {
+                                _showHistory = !_showHistory;
+                                _selectedStatus = null;
+                              }),
+                              icon: Icon(
+                                _showHistory ? Icons.list : Icons.history,
+                                color: Colors.white,
+                              ),
+                              label: Text(
+                                _showHistory ? 'Ver Activas' : 'Ver Bitácora',
+                                style: const TextStyle(color: Colors.white),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF4F47E5),
+                              ),
+                            ),
+                          ],
+                        );
+
+                        if (constraints.maxWidth < 800) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              filters,
+                              const SizedBox(height: 16),
+                              SizedBox(width: double.infinity, child: buttons),
+                            ],
+                          );
+                        } else {
+                          return Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Expanded(child: filters),
+                              const SizedBox(width: 16),
+                              buttons,
+                            ],
+                          );
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 20),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 1000),
+                      child: _isLoading
+                          ? const Padding(
+                              padding: EdgeInsets.all(50.0),
+                              child: Center(child: CircularProgressIndicator()),
+                            )
+                          : Card(
+                              elevation: 4,
+                              child: CustomTable(
+                                columns: [
+                                  const DataColumn(label: Text('Ticket')),
+                                  const DataColumn(label: Text('Asunto')),
+                                  const DataColumn(label: Text('Tercero')),
+                                  const DataColumn(label: Text('Usuario')),
+                                  const DataColumn(label: Text('Nivel')),
+                                  const DataColumn(
+                                    label: Text('Ultima Actualización'),
+                                  ),
+                                  const DataColumn(label: Text('Descripción')),
+                                  const DataColumn(label: Text('Estado')),
+                                ],
+                                rows: paginatedAlerts.map((alert) {
+                                  return DataRow(
+                                    onSelectChanged: _isAdmin
+                                        ? (value) => _editRequest(alert)
+                                        : null,
+                                    cells: [
+                                      DataCell(Text(alert['id'])),
+                                      DataCell(Text(alert['situation'])),
+                                      DataCell(
+                                        Text(alert['bpName']?.toString() ?? ''),
+                                      ),
+                                      DataCell(
+                                        Text(
+                                          alert['userName']?.toString() ?? '',
+                                        ),
+                                      ),
+                                      DataCell(
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 6,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: alert['levelBgColor'],
+                                            borderRadius: BorderRadius.circular(
+                                              30,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            alert['level'],
+                                            style: TextStyle(
+                                              color: alert['levelColor'],
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      DataCell(Text(alert['time'] ?? '')),
+                                      DataCell(
+                                        SizedBox(
+                                          width: 300,
+                                          child: Text(() {
+                                            final text =
+                                                alert['description']
+                                                    ?.toString() ??
+                                                '';
+                                            return text.length > 70
+                                                ? '${text.substring(0, 70)}...'
+                                                : text;
+                                          }()),
+                                        ),
+                                      ),
+                                      DataCell(
+                                        Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const SizedBox(width: 8),
+                                            Text(alert['status']),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                }).toList(),
+                              ),
+                            ),
+                    ),
+                    if (totalPages > 1)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 16.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.chevron_left),
+                              onPressed: _currentPage > 0
+                                  ? () => setState(() => _currentPage--)
+                                  : null,
+                            ),
+                            Text(
+                              'Página ${_currentPage + 1} de $totalPages (${totalItems} registros)',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.chevron_right),
+                              onPressed: _currentPage < totalPages - 1
+                                  ? () => setState(() => _currentPage++)
+                                  : null,
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              CalendarTab(requests: _rawRequests),
+            ],
+          ),
         ),
       ),
     );

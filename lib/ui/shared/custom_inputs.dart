@@ -15,6 +15,7 @@ class CustomTextField extends StatelessWidget {
   final Color? fillColor;
   final bool readOnly;
   final int? maxLength;
+  final ScrollController? scrollController;
 
   const CustomTextField({
     super.key,
@@ -32,17 +33,18 @@ class CustomTextField extends StatelessWidget {
     this.fillColor,
     this.readOnly = false,
     this.maxLength,
+    this.scrollController,
   });
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return SizedBox(
-      width: width ?? double.infinity,
-      height: height,
+    final field = ScrollConfiguration(
+      behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
       child: TextFormField(
         controller: controller,
+        scrollController: scrollController,
         maxLines: maxLines,
         obscureText: obscureText,
         validator: validator,
@@ -71,6 +73,18 @@ class CustomTextField extends StatelessWidget {
           alignLabelWithHint: maxLines > 1,
         ),
       ),
+    );
+
+    return SizedBox(
+      width: width ?? double.infinity,
+      height: height,
+      child: scrollController != null
+          ? Scrollbar(
+              controller: scrollController,
+              thumbVisibility: true,
+              child: field,
+            )
+          : field,
     );
   }
 }

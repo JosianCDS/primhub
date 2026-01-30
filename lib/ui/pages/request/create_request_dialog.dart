@@ -395,7 +395,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                         child: AbsorbPointer(
                           child: CustomTextField(
                             controller: _dateCompleteController,
-                            label: 'Fin Plan',
+                            label: 'Fecha Final',
                             hintText: 'YYYY-MM-DD',
                             prefixIcon: const Icon(Icons.calendar_today),
                           ),
@@ -413,7 +413,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                         child: AbsorbPointer(
                           child: CustomTextField(
                             controller: _startTimeController,
-                            label: 'Hora Inicio',
+                            label: 'Hora de Inicio',
                             hintText: 'HH:mm:ss',
                             prefixIcon: const Icon(Icons.access_time),
                           ),
@@ -427,7 +427,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                         child: AbsorbPointer(
                           child: CustomTextField(
                             controller: _endTimeController,
-                            label: 'Hora Fin',
+                            label: 'Hora de Finalización',
                             hintText: 'HH:mm:ss',
                             prefixIcon: const Icon(Icons.access_time),
                           ),
@@ -478,13 +478,9 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                 controller: _summaryController,
                 label: 'Descripción / Resumen',
                 maxLines: 4,
-                maxLength: 1500,
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Por favor ingrese una descripción';
-                  }
-                  if (value.length > 1500) {
-                    return 'La descripción no puede exceder los 1500 caracteres';
                   }
                   return null;
                 },

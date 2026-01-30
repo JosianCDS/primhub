@@ -66,7 +66,7 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
       _isLoading = true;
     });
 
-    final roles = await AuthApi.getRoles(clientId, _tempToken!);
+    final roles = await getRoles(clientId, _tempToken!);
 
     if (mounted) {
       setState(() {
@@ -87,7 +87,7 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
       _isLoading = true;
     });
 
-    final orgs = await AuthApi.getOrgs(_selectedClientId!, roleId, _tempToken!);
+    final orgs = await getOrgs(_selectedClientId!, roleId, _tempToken!);
 
     if (mounted) {
       setState(() {
@@ -106,7 +106,7 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
       _isLoading = true;
     });
 
-    final warehouses = await AuthApi.getWarehouses(
+    final warehouses = await getWarehouses(
       _selectedClientId!,
       _selectedRoleId!,
       orgId,
@@ -160,7 +160,7 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
       params["warehouseId"] = _selectedWarehouseId;
     }
 
-    final response = await AuthApi.finalizeLogin(
+    final response = await finalizeLogin(
       _username!,
       _password!,
       params,
@@ -168,17 +168,16 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
 
     if (mounted) {
       setState(() => _isLoading = false);
-      if (response.containsKey('error')) {
+      if (response == false) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(response['error']),
+            content: Text('Credenciales Incorrectas.'),
             backgroundColor: Colors.red,
           ),
         );
       } else {
-        Token.auth = response['token'];
-        Token.refreshToken = response['refresh_token'];
         CurrentLogMessage.add("Login exitoso. Token guardado.");
+
         Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
       }
     }

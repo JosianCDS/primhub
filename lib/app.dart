@@ -6,11 +6,12 @@ import 'ui/pages/deliverables.dart';
 import 'ui/pages/metrics.dart';
 import 'ui/pages/home_page.dart';
 import 'ui/pages/support.dart';
-import 'ui/pages/calendar.dart';
 import 'ui/pages/marketplace.dart';
 import 'ui/pages/profile_page.dart';
 import 'ui/pages/login.dart';
 import 'ui/pages/login_selection_page.dart';
+import 'ui/pages/project_info_test.dart';
+import 'ui/pages/my_projects.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class MainApp extends StatefulWidget {
@@ -80,11 +81,12 @@ class _MainAppState extends State<MainApp> {
             '/knowledge-base': (context) => const KnowledgeBasePage(),
             '/deliverables': (context) => const DeliverablesPage(),
             '/metrics': (context) => const MetricsPage(),
-            '/calendar': (context) => const CalendarPage(),
             '/marketplace': (context) => const MarketplacePage(),
             '/profile': (context) => const ProfilePage(),
             '/login': (context) => const LoginPage(),
             '/login-selection': (context) => const LoginSelectionPage(),
+            '/project-info-test': (context) => const ProjectInfoTestPage(),
+            '/my-projects': (context) => const MyProjectsPage(),
           },
         );
       },
