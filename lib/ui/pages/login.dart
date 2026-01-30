@@ -1,7 +1,13 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:flutter/material.dart';
+import 'package:http/http.dart';
 import 'package:primhub/api/auth_api.dart';
 import 'package:primhub/api/token.dart';
+import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/ui/shared/custom_button.dart';
+import 'package:primhub/ui/shared/custom_inputs.dart';
+import 'package:primhub/ui/shared/custom_modal.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginPage extends StatefulWidget {
@@ -74,7 +80,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     final password = _passController.text.trim();
 
     // 1. Login Inicial (Step 1)
-    final responseStep1 = await AuthApi.loginStep1(username, password);
+    final responseStep1 = await loginStep1(username, password);
 
     if (responseStep1.containsKey('error')) {
       _showError(responseStep1['error']);
@@ -99,19 +105,15 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
       // Lógica de auto-ingreso si hay un solo camino (1 Cliente -> 1 Rol -> 1 Org)
       if (clients.length == 1) {
         final client = clients[0];
-        final roles = await AuthApi.getRoles(client['id'], tempToken);
+        final roles = await getRoles(client['id'], tempToken);
 
         if (roles.length == 1) {
           final role = roles[0];
-          final orgs = await AuthApi.getOrgs(
-            client['id'],
-            role['id'],
-            tempToken,
-          );
+          final orgs = await getOrgs(client['id'], role['id'], tempToken);
 
           if (orgs.length == 1) {
             final org = orgs[0];
-            final warehouses = await AuthApi.getWarehouses(
+            final warehouses = await getWarehouses(
               client['id'],
               role['id'],
               org['id'],
@@ -137,23 +139,27 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
               };
               if (warehouseId != null) params["warehouseId"] = warehouseId;
 
-              final responseFinal = await AuthApi.finalizeLogin(
+              final responseFinal = await finalizeLogin(
                 username,
                 password,
                 params,
               );
 
-              if (!responseFinal.containsKey('error')) {
-                Token.auth = responseFinal['token'];
-                Token.refreshToken = responseFinal['refresh_token'];
-
+              if (responseFinal == false) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Credenciales Incorrectas.'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              } else {
                 if (mounted) {
                   setState(() => _isLoading = false);
                   CurrentLogMessage.add("Login exitoso (Auto).");
                   Navigator.pushReplacementNamed(context, '/');
                 }
-                return;
               }
+              return;
             }
           }
         }
@@ -197,11 +203,69 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     }
   }
 
+  void _showChangeUrlDialog() {
+    final TextEditingController urlController = TextEditingController(
+      text: Endpoint.baseUrl,
+    );
+
+    showDialog(
+      context: context,
+      builder: (context) => CustomModal(
+        title: 'Configurar URL del Servidor',
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Ingrese la URL base del servidor (ej. https://api.midominio.com)',
+            ),
+            const SizedBox(height: 16),
+            CustomTextField(
+              controller: urlController,
+              label: 'Base URL',
+              hintText: 'https://...',
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          CustomButton(
+            text: 'Guardar',
+            onPressed: () async {
+              final newUrl = urlController.text.trim();
+              if (newUrl.isNotEmpty) {
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setString('api_base_url', newUrl);
+                setState(() {
+                  Endpoint.baseUrl = newUrl;
+                });
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('URL actualizada correctamente'),
+                    ),
+                  );
+                }
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return Scaffold(
+      floatingActionButton: FloatingActionButton(
+        onPressed: _showChangeUrlDialog,
+        child: const Icon(Icons.settings),
+      ),
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(

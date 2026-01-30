@@ -18,6 +18,8 @@ class _CustomDrawerState extends State<CustomDrawer> {
   String _role = '';
   String _client = '';
   String _userRolePref = 'ADMIN';
+  bool _hasSupport = false;
+  bool _hasProject = false;
 
   @override
   void initState() {
@@ -28,6 +30,8 @@ class _CustomDrawerState extends State<CustomDrawer> {
   void _loadUserInfo() async {
     final prefs = await SharedPreferences.getInstance();
     _userRolePref = prefs.getString('user_role') ?? 'ADMIN';
+    _hasSupport = prefs.getBool('has_support') ?? false;
+    _hasProject = prefs.getBool('has_project') ?? false;
     try {
       final payload = Token.decodePayload(Token.token);
       setState(() {
@@ -84,113 +88,114 @@ class _CustomDrawerState extends State<CustomDrawer> {
     return Drawer(
       backgroundColor: theme.drawerTheme.backgroundColor ?? colorScheme.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-      child: Column(
-        children: [
-          Expanded(
-            child: ListView(
-              padding: EdgeInsets.zero,
-              children: [
-                DrawerHeader(
-                  decoration: BoxDecoration(
-                    color:
-                        theme.drawerTheme.backgroundColor ??
-                        colorScheme.surface,
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: colorScheme.primary,
-                          borderRadius: BorderRadius.circular(8),
+      child: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: ListView(
+                padding: EdgeInsets.zero,
+                children: [
+                  DrawerHeader(
+                    decoration: BoxDecoration(
+                      color:
+                          theme.drawerTheme.backgroundColor ??
+                          colorScheme.surface,
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: colorScheme.primary,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            Icons.attachment,
+                            color: colorScheme.onPrimary,
+                          ),
                         ),
-                        child: Icon(
-                          Icons.attachment,
-                          color: colorScheme.onPrimary,
+                        const SizedBox(width: 16),
+                        Text(
+                          _client.isNotEmpty ? _client : 'Tu Empresa',
+                          style: TextStyle(
+                            color: colorScheme.onSurface,
+                            fontSize: 24,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 16),
-                      Text(
-                        _client.isNotEmpty ? _client : 'Tu Empresa',
-                        style: TextStyle(
-                          color: colorScheme.onSurface,
-                          fontSize: 24,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (_userRolePref != 'PROYECTO')
-                  HoverListTile(
-                    builder: (isHovered) => ListTile(
-                      leading: Icon(
-                        Icons.home,
-                        color: isHovered
-                            ? colorScheme.primary
-                            : colorScheme.onSurfaceVariant,
-                      ),
-                      title: Text(
-                        'Inicio',
-                        style: TextStyle(
-                          color: isHovered
-                              ? colorScheme.primary
-                              : colorScheme.onSurface,
-                        ),
-                      ),
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.pushNamed(context, '/');
-                      },
+                      ],
                     ),
                   ),
-                if (_userRolePref != 'PROYECTO')
-                  HoverListTile(
-                    builder: (isHovered) => ListTile(
-                      leading: Icon(
-                        Icons.schedule,
-                        color: isHovered
-                            ? colorScheme.primary
-                            : colorScheme.onSurfaceVariant,
-                      ),
-                      title: Text(
-                        'Horas de Soporte',
-                        style: TextStyle(
+                  if (_userRolePref != 'PROYECTO')
+                    HoverListTile(
+                      builder: (isHovered) => ListTile(
+                        leading: Icon(
+                          Icons.home,
                           color: isHovered
                               ? colorScheme.primary
-                              : colorScheme.onSurface,
+                              : colorScheme.onSurfaceVariant,
                         ),
+                        title: Text(
+                          'Inicio',
+                          style: TextStyle(
+                            color: isHovered
+                                ? colorScheme.primary
+                                : colorScheme.onSurface,
+                          ),
+                        ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.pushNamed(context, '/');
+                        },
                       ),
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.pushNamed(context, '/support');
-                      },
                     ),
-                  ),
-                if (_userRolePref != 'PROYECTO')
-                  HoverListTile(
-                    builder: (isHovered) => ListTile(
-                      leading: Icon(
-                        Icons.help_outline,
-                        color: isHovered
-                            ? colorScheme.primary
-                            : colorScheme.onSurfaceVariant,
-                      ),
-                      title: Text(
-                        'Mis Solicitudes',
-                        style: TextStyle(
+                  if (_hasSupport)
+                    HoverListTile(
+                      builder: (isHovered) => ListTile(
+                        leading: Icon(
+                          Icons.schedule,
                           color: isHovered
                               ? colorScheme.primary
-                              : colorScheme.onSurface,
+                              : colorScheme.onSurfaceVariant,
                         ),
+                        title: Text(
+                          'Horas de Soporte',
+                          style: TextStyle(
+                            color: isHovered
+                                ? colorScheme.primary
+                                : colorScheme.onSurface,
+                          ),
+                        ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.pushNamed(context, '/support');
+                        },
                       ),
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.pushNamed(context, '/my-requests');
-                      },
                     ),
-                  ),
+                  if (_hasSupport)
+                    HoverListTile(
+                      builder: (isHovered) => ListTile(
+                        leading: Icon(
+                          Icons.help_outline,
+                          color: isHovered
+                              ? colorScheme.primary
+                              : colorScheme.onSurfaceVariant,
+                        ),
+                        title: Text(
+                          'Mis Solicitudes',
+                          style: TextStyle(
+                            color: isHovered
+                                ? colorScheme.primary
+                                : colorScheme.onSurface,
+                          ),
+                        ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.pushNamed(context, '/my-requests');
+                        },
+                      ),
+                    ),
 
-                /*
+                  /*
                 HoverListTile(
                   builder: (isHovered) => ListTile(
                     leading: Icon(
@@ -214,26 +219,40 @@ class _CustomDrawerState extends State<CustomDrawer> {
                   ),
                 ),
                 */
+                  if (_hasProject)
+                    HoverListTile(
+                      builder: (isHovered) => ListTile(
+                        leading: Icon(
+                          Icons.folder,
+                          color: isHovered
+                              ? colorScheme.primary
+                              : colorScheme.onSurfaceVariant,
+                        ),
+                        title: Text(
+                          'Mis Proyectos',
+                          style: TextStyle(
+                            color: isHovered
+                                ? colorScheme.primary
+                                : colorScheme.onSurface,
+                          ),
+                        ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.pushNamed(context, '/deliverables');
+                        },
+                      ),
+                    ),
 
-
-
-
-
-
-
-
-                /*
-                if (_userRolePref != 'SOPORTE')
                   HoverListTile(
                     builder: (isHovered) => ListTile(
                       leading: Icon(
-                        Icons.folder,
+                        Icons.bar_chart,
                         color: isHovered
                             ? colorScheme.primary
                             : colorScheme.onSurfaceVariant,
                       ),
                       title: Text(
-                        'Entregables/Seguimiento',
+                        'Indicadores (BI)',
                         style: TextStyle(
                           color: isHovered
                               ? colorScheme.primary
@@ -242,163 +261,133 @@ class _CustomDrawerState extends State<CustomDrawer> {
                       ),
                       onTap: () {
                         Navigator.pop(context);
-                        Navigator.pushNamed(context, '/deliverables');
+                        Navigator.pushNamed(context, '/metrics');
                       },
                     ),
                   ),
-*/
 
-
-
-
-
-
-
-
-                HoverListTile(
-                  builder: (isHovered) => ListTile(
-                    leading: Icon(
-                      Icons.bar_chart,
-                      color: isHovered
-                          ? colorScheme.primary
-                          : colorScheme.onSurfaceVariant,
-                    ),
-                    title: Text(
-                      'Indicadores (BI)',
-                      style: TextStyle(
+                  HoverListTile(
+                    builder: (isHovered) => ListTile(
+                      leading: Icon(
+                        Icons.store,
                         color: isHovered
                             ? colorScheme.primary
-                            : colorScheme.onSurface,
+                            : colorScheme.onSurfaceVariant,
                       ),
+                      title: Text(
+                        'Marketplace',
+                        style: TextStyle(
+                          color: isHovered
+                              ? colorScheme.primary
+                              : colorScheme.onSurface,
+                        ),
+                      ),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.pushNamed(context, '/marketplace');
+                      },
                     ),
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.pushNamed(context, '/metrics');
-                    },
                   ),
-                ),
-
-                /*
-                HoverListTile(
-                  builder: (isHovered) => ListTile(
-                    leading: Icon(
-                      Icons.calendar_today,
-                      color: isHovered
-                          ? colorScheme.primary
-                          : colorScheme.onSurfaceVariant,
-                    ),
-                    title: Text(
-                      'Calendario',
-                      style: TextStyle(
+                  HoverListTile(
+                    builder: (isHovered) => ListTile(
+                      leading: Icon(
+                        Icons.info_outline,
                         color: isHovered
                             ? colorScheme.primary
-                            : colorScheme.onSurface,
+                            : colorScheme.onSurfaceVariant,
                       ),
-                    ),
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.pushNamed(context, '/calendar');
-                    },
-                  ),
-                ),
-                HoverListTile(
-                  builder: (isHovered) => ListTile(
-                    leading: Icon(
-                      Icons.store,
-                      color: isHovered
-                          ? colorScheme.primary
-                          : colorScheme.onSurfaceVariant,
-                    ),
-                    title: Text(
-                      'Marketplace',
-                      style: TextStyle(
-                        color: isHovered
-                            ? colorScheme.primary
-                            : colorScheme.onSurface,
+                      title: Text(
+                        'Prueba Info Proyecto',
+                        style: TextStyle(
+                          color: isHovered
+                              ? colorScheme.primary
+                              : colorScheme.onSurface,
+                        ),
                       ),
-                    ),
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.pushNamed(context, '/marketplace');
-                    },
-                  ),
-                ),
-                */
-              ],
-            ),
-          ),
-          const Divider(),
-          HoverListTile(
-            builder: (isHovered) => ListTile(
-              contentPadding: EdgeInsets.symmetric(
-                vertical: isMobile ? 8.0 : 20.0,
-                horizontal: 16.0,
-              ),
-              leading: CircleAvatar(
-                radius: isMobile ? 20 : 30,
-                child: Icon(Icons.person, size: isMobile ? 24 : 40),
-              ),
-              title: Text(
-                _username.isNotEmpty ? _username : 'Nombre',
-                style: TextStyle(
-                  fontSize: isMobile ? 16 : 22,
-                  color: isHovered
-                      ? colorScheme.primary
-                      : colorScheme.onSurface,
-                ),
-              ),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _role.isNotEmpty ? _role : 'Rol',
-                    style: TextStyle(
-                      fontSize: isMobile ? 12 : 16,
-                      color: isHovered
-                          ? colorScheme.primary
-                          : colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Ver perfil',
-                    style: TextStyle(
-                      fontSize: isMobile ? 11 : 14,
-                      color: isHovered
-                          ? colorScheme.primary.withOpacity(0.8)
-                          : colorScheme.onSurface.withOpacity(0.6),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.pushNamed(context, '/project-info-test');
+                      },
                     ),
                   ),
                 ],
               ),
-
-              onTap: () {
-                Navigator.pop(context); // Cierra el menú
-                Navigator.pushNamed(context, '/profile');
-              },
             ),
-          ),
-          HoverListTile(
-            builder: (isHovered) => ListTile(
-              leading: Icon(
-                Icons.logout,
-                color: isHovered
-                    ? colorScheme.error
-                    : colorScheme.onSurfaceVariant,
-              ),
-              title: Text(
-                'Cerrar sesión',
-                style: TextStyle(
-                  color: isHovered ? colorScheme.error : colorScheme.onSurface,
+            const Divider(),
+            HoverListTile(
+              builder: (isHovered) => ListTile(
+                contentPadding: EdgeInsets.symmetric(
+                  vertical: isMobile ? 8.0 : 20.0,
+                  horizontal: 16.0,
                 ),
+                leading: CircleAvatar(
+                  radius: isMobile ? 20 : 30,
+                  child: Icon(Icons.person, size: isMobile ? 24 : 40),
+                ),
+                title: Text(
+                  _username.isNotEmpty ? _username : 'Nombre',
+                  style: TextStyle(
+                    fontSize: isMobile ? 16 : 22,
+                    color: isHovered
+                        ? colorScheme.primary
+                        : colorScheme.onSurface,
+                  ),
+                ),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _role.isNotEmpty ? _role : 'Rol',
+                      style: TextStyle(
+                        fontSize: isMobile ? 12 : 16,
+                        color: isHovered
+                            ? colorScheme.primary
+                            : colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Ver perfil',
+                      style: TextStyle(
+                        fontSize: isMobile ? 11 : 14,
+                        color: isHovered
+                            ? colorScheme.primary.withOpacity(0.8)
+                            : colorScheme.onSurface.withOpacity(0.6),
+                      ),
+                    ),
+                  ],
+                ),
+
+                onTap: () {
+                  Navigator.pop(context); // Cierra el menú
+                  Navigator.pushNamed(context, '/profile');
+                },
               ),
-              onTap: () {
-                Navigator.pop(context); // Cierra el menú
-                _showLogoutDialog(context);
-              },
             ),
-          ),
-        ],
+            HoverListTile(
+              builder: (isHovered) => ListTile(
+                leading: Icon(
+                  Icons.logout,
+                  color: isHovered
+                      ? colorScheme.error
+                      : colorScheme.onSurfaceVariant,
+                ),
+                title: Text(
+                  'Cerrar sesión',
+                  style: TextStyle(
+                    color: isHovered
+                        ? colorScheme.error
+                        : colorScheme.onSurface,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(context); // Cierra el menú
+                  _showLogoutDialog(context);
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

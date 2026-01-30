@@ -23,7 +23,7 @@ class _MetricsPageState extends State<MetricsPage> {
   List<List<double>> _lineData = [[], []];
 
   // Filtros
-  int _selectedMonths = 3;
+  int _selectedYear = DateTime.now().year;
   String? _selectedPriority;
   bool _showResolved = true;
   bool _showUnresolved = true;
@@ -48,16 +48,11 @@ class _MetricsPageState extends State<MetricsPage> {
       // Mapa para contar tipos de solicitud
       final Map<String, double> typeCounts = {};
 
-      // Calcular fecha de corte
-      final cutoffDate = DateTime.now().subtract(
-        Duration(days: 30 * _selectedMonths),
-      );
-
       for (var req in requests) {
         // 1. Filtro de Fecha (Created)
         if (req['Created'] == null) continue;
         final created = DateTime.parse(req['Created']);
-        if (created.isBefore(cutoffDate)) continue;
+        if (created.year != _selectedYear) continue;
 
         // 2. Filtro de Prioridad
         final priority = req['Priority_Name'] ?? 'Media';
@@ -114,11 +109,10 @@ class _MetricsPageState extends State<MetricsPage> {
         colorIndex++;
       });
 
-      // Lógica para Gráfico de Líneas (Últimos 3 meses)
-      final now = DateTime.now();
+      // Lógica para Gráfico de Líneas (Meses del año seleccionado)
       final List<DateTime> months = [];
-      for (int i = _selectedMonths - 1; i >= 0; i--) {
-        months.add(DateTime(now.year, now.month - i, 1));
+      for (int i = 1; i <= 12; i++) {
+        months.add(DateTime(_selectedYear, i, 1));
       }
 
       final Map<String, int> receivedCounts = {};
@@ -210,39 +204,41 @@ class _MetricsPageState extends State<MetricsPage> {
     return Scaffold(
       appBar: AppBar(title: const Text('Indicadores de Negocio (BI)')),
       drawer: const CustomDrawer(),
-      body: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // --- Barra Lateral de Filtros (Dashboard) ---
-          if (isLargeScreen)
-            Container(
-              width: 280,
-              decoration: BoxDecoration(
-                color: theme.cardColor,
-                border: Border(right: BorderSide(color: theme.dividerColor)),
-              ),
-              child: _buildFilters(context),
-            ),
-
-          // --- Contenido Principal (Mosaico) ---
-          Expanded(
-            child: Column(
-              children: [
-                if (!isLargeScreen)
-                  ExpansionTile(
-                    title: const Text("Filtros"),
-                    children: [_buildFilters(context)],
-                  ),
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(16.0),
-                    child: _buildDashboardGrid(context, isLargeScreen),
-                  ),
+      body: SafeArea(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // --- Barra Lateral de Filtros (Dashboard) ---
+            if (isLargeScreen)
+              Container(
+                width: 280,
+                decoration: BoxDecoration(
+                  color: theme.cardColor,
+                  border: Border(right: BorderSide(color: theme.dividerColor)),
                 ),
-              ],
+                child: _buildFilters(context),
+              ),
+
+            // --- Contenido Principal (Mosaico) ---
+            Expanded(
+              child: Column(
+                children: [
+                  if (!isLargeScreen)
+                    ExpansionTile(
+                      title: const Text("Filtros"),
+                      children: [_buildFilters(context)],
+                    ),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(16.0),
+                      child: _buildDashboardGrid(context, isLargeScreen),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -257,21 +253,17 @@ class _MetricsPageState extends State<MetricsPage> {
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 20),
-        const Text(
-          "Periodo de Tiempo",
-          style: TextStyle(fontWeight: FontWeight.w600),
-        ),
+        const Text("Año", style: TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
         CustomDropdown<int>(
-          value: _selectedMonths,
-          items: const [
-            DropdownMenuItem(value: 1, child: Text("Último Mes")),
-            DropdownMenuItem(value: 2, child: Text("Últimos 2 Meses")),
-            DropdownMenuItem(value: 3, child: Text("Últimos 3 Meses")),
-          ],
+          value: _selectedYear,
+          items: List.generate(5, (index) {
+            final year = DateTime.now().year - index;
+            return DropdownMenuItem(value: year, child: Text(year.toString()));
+          }),
           onChanged: (val) {
             if (val != null) {
-              setState(() => _selectedMonths = val);
+              setState(() => _selectedYear = val);
               _loadMetrics();
             }
           },

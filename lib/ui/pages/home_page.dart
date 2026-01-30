@@ -1,4 +1,8 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:primhub/endpoint/endpoint.dart';
+import 'package:primhub/api/token.dart';
 import 'package:primhub/api/contract_api.dart';
 import 'package:primhub/ui/pages/request/create_request_dialog.dart';
 import 'package:primhub/ui/pages/request/request_functions.dart';
@@ -45,14 +49,37 @@ class _HomePageState extends State<HomePage> {
   double? _contractedHours;
   double _consumedHours = 0.0;
 
+  // State for validation card
+  bool _validationLoading = true;
+  bool _hasSupport = false;
+  bool _hasProject = false;
+  int? _cBPartnerID;
+  String? _partnerName;
+  String? _projectPartnerName;
+  String? _projectDateContract;
+  String? _projectDateFinish;
+  int _projectCount = 0;
+  String _username = '';
+
   @override
   void initState() {
     super.initState();
     _checkRole();
     _initData();
+    _loadCurrentUser();
+  }
+
+  void _loadCurrentUser() {
+    try {
+      final payload = Token.decodePayload(Token.token);
+      setState(() {
+        _username = payload['sub'] ?? '';
+      });
+    } catch (_) {}
   }
 
   Future<void> _initData() async {
+    await _loadValidationData();
     await _loadContractedHours();
     await _loadRecentRequests();
   }
@@ -63,6 +90,74 @@ class _HomePageState extends State<HomePage> {
       setState(
         () => _isAdmin = (prefs.getString('user_role') ?? 'ADMIN') == 'ADMIN',
       );
+  }
+
+  Future<void> _loadValidationData() async {
+    if (mounted) setState(() => _validationLoading = true);
+    final prefs = await SharedPreferences.getInstance();
+
+    int? cBPartnerID = User.cBPartnerID;
+    String? partnerName;
+    String? projectPartnerName;
+
+    if (cBPartnerID != null) {
+      try {
+        // 1. Obtener Nombre del Tercero
+        final pResponse = await http.get(
+          Uri.parse(
+            '${Endpoint.cBPartner}?\$filter=C_BPartner_ID eq $cBPartnerID',
+          ),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': Token.token,
+          },
+        );
+        if (pResponse.statusCode == 200) {
+          final data = json.decode(utf8.decode(pResponse.bodyBytes));
+          if (data['records'] != null && (data['records'] as List).isNotEmpty) {
+            partnerName = data['records'][0]['Name'];
+          }
+        }
+
+        // 2. Obtener Nombre del Tercero en el Proyecto (si existe alguno)
+        final projResponse = await http.get(
+          Uri.parse(
+            '${Endpoint.project}?\$filter=C_BPartner_ID eq $cBPartnerID',
+          ),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': Token.token,
+          },
+        );
+        if (projResponse.statusCode == 200) {
+          final data = json.decode(utf8.decode(projResponse.bodyBytes));
+          if (data['records'] != null && (data['records'] as List).isNotEmpty) {
+            projectPartnerName =
+                data['records'][0]['C_BPartner_ID']?['identifier'];
+            // Tomamos datos del primer proyecto encontrado para las cards
+            _projectDateContract = data['records'][0]['DateContract'];
+            _projectDateFinish = data['records'][0]['DateFinish'];
+            _projectCount = (data['records'] as List).length;
+          }
+        }
+      } catch (e) {
+        debugPrint('Error fetching validation names: $e');
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _hasSupport = prefs.getBool('has_support') ?? false;
+        _hasProject = prefs.getBool('has_project') ?? false;
+        _cBPartnerID = cBPartnerID;
+        _partnerName = partnerName;
+        _projectPartnerName = projectPartnerName;
+        _projectDateContract = _projectDateContract;
+        _projectDateFinish = _projectDateFinish;
+        _projectCount = _projectCount;
+        _validationLoading = false;
+      });
+    }
   }
 
   Future<void> _loadRecentRequests() async {
@@ -256,6 +351,310 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Widget _buildValidationStep(String title, String subtitle, bool success) {
+    return ListTile(
+      leading: Icon(
+        success ? Icons.check_circle : Icons.cancel,
+        color: success ? Colors.green : Colors.red,
+      ),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+      subtitle: Text(subtitle),
+      dense: true,
+      contentPadding: EdgeInsets.zero,
+    );
+  }
+
+  Widget _buildSupportHoursCard(bool isDark, Color textColor, double progress) {
+    return CardCustom(
+      hover: true,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: const BoxDecoration(
+              color: Color.fromRGBO(223, 231, 255, 1),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.access_time,
+              color: Color.fromRGBO(79, 71, 229, 1),
+              size: 36,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                'Horas De soporte Disponibles',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
+                ),
+              ),
+              Text(
+                _contractedHours == null
+                    ? '...'
+                    : DurationFormatter.format(
+                        _contractedHours! - _consumedHours,
+                      ),
+                style: Theme.of(context).textTheme.displayMedium?.copyWith(
+                  color: const Color(0xff4F47E5),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0),
+            child: TweenAnimationBuilder<double>(
+              tween: Tween<double>(begin: 0, end: progress.clamp(0.0, 1.0)),
+              duration: const Duration(seconds: 2),
+              builder: (context, value, _) => LinearProgressIndicator(
+                value: value,
+                backgroundColor: isDark
+                    ? Colors.grey.shade800
+                    : Colors.grey.shade200,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  progress > 1.0
+                      ? Colors.red
+                      : const Color.fromARGB(255, 200, 42, 42),
+                ),
+                minHeight: 8,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            _contractedHours == null
+                ? 'Cargando contrato...'
+                : 'Contrato de ${DurationFormatter.format(_contractedHours!)}.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: textColor,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'renovacion: 31/12/2026',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: textColor,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Frecuencia: ${ProductChip.frecuencyID ?? 'No definida'}',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: textColor,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Producto Contratado: ${ProductChip.mProductID ?? 'N/A'}',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: textColor,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSupportRequestsCard(bool isDark, Color textColor) {
+    return CardCustom(
+      hover: true,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: const BoxDecoration(
+              color: Color.fromRGBO(254, 244, 199, 1),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.sync,
+              color: Color.fromRGBO(217, 119, 8, 1),
+              size: 36,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                'Solicitudes ya atendidas',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
+                ),
+              ),
+              Text(
+                '$_closedRequestsCount',
+                style: Theme.of(context).textTheme.displayMedium?.copyWith(
+                  color: const Color(0xffD97708),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Text(
+            '$_inProgressRequestsCount están en revisión/progreso.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: textColor,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProjectDurationCard(bool isDark, Color textColor) {
+    String title = 'Días Transcurridos';
+    String value = '0';
+    String subtitle = 'Sin fecha de contrato';
+
+    if (_projectDateContract != null) {
+      DateTime start = DateTime.parse(_projectDateContract!);
+      DateTime end = DateTime.now();
+      bool isClosed = false;
+
+      if (_projectDateFinish != null && _projectDateFinish!.isNotEmpty) {
+        end = DateTime.parse(_projectDateFinish!);
+        isClosed = true;
+      }
+
+      int days = end.difference(start).inDays;
+      value = days.toString();
+
+      if (isClosed) {
+        title = 'Proyecto Cerrado';
+        subtitle =
+            'Del ${start.day}/${start.month}/${start.year} al ${end.day}/${end.month}/${end.year}';
+      } else {
+        subtitle = 'Desde ${start.day}/${start.month}/${start.year}';
+      }
+    }
+
+    return CardCustom(
+      hover: true,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: const BoxDecoration(
+              color: Color.fromRGBO(223, 231, 255, 1),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.calendar_today,
+              color: Color.fromRGBO(79, 71, 229, 1),
+              size: 36,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
+                ),
+              ),
+              Text(
+                value,
+                style: Theme.of(context).textTheme.displayMedium?.copyWith(
+                  color: const Color(0xff4F47E5),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            subtitle,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: textColor,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProjectDeliverablesCard(bool isDark, Color textColor) {
+    return CardCustom(
+      hover: true,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: const BoxDecoration(
+              color: Color.fromRGBO(254, 244, 199, 1),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.folder_special,
+              color: Color.fromRGBO(217, 119, 8, 1),
+              size: 36,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                'Entregables ya Creados',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
+                ),
+              ),
+              Text(
+                '$_projectCount',
+                style: Theme.of(context).textTheme.displayMedium?.copyWith(
+                  color: const Color(0xffD97708),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Proyectos activos asociados.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: textColor,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -266,180 +665,43 @@ class _HomePageState extends State<HomePage> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Mi Aplicación')),
+      appBar: AppBar(title: const Text('PrimHub')),
 
       drawer: const CustomDrawer(),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            const SizedBox(height: 20),
-            const Text(
-              'Bienvenido a PrimHub',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 20),
-            Wrap(
-              spacing: 20,
-              runSpacing: 20,
-              alignment: WrapAlignment.spaceEvenly,
-              children: [
-                CardCustom(
-                  hover: true,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: const BoxDecoration(
-                          color: Color.fromRGBO(223, 231, 255, 1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.access_time,
-                          color: Color.fromRGBO(79, 71, 229, 1),
-                          size: 36,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Text(
-                            'Horas De soporte Disponibles',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: textColor,
-                            ),
-                          ),
-                          Text(
-                            _contractedHours == null
-                                ? '...'
-                                : DurationFormatter.format(
-                                    _contractedHours! - _consumedHours,
-                                  ),
-                            style: Theme.of(context).textTheme.displayMedium
-                                ?.copyWith(
-                                  color: const Color(0xff4F47E5),
-                                  fontWeight: FontWeight.bold,
-                                ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                        child: TweenAnimationBuilder<double>(
-                          tween: Tween<double>(
-                            begin: 0,
-                            end: progress.clamp(0.0, 1.0),
-                          ),
-                          duration: const Duration(seconds: 2),
-                          builder: (context, value, _) =>
-                              LinearProgressIndicator(
-                                value: value,
-                                backgroundColor: isDark
-                                    ? Colors.grey.shade800
-                                    : Colors.grey.shade200,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  progress > 1.0
-                                      ? Colors.red
-                                      : const Color.fromARGB(255, 200, 42, 42),
-                                ),
-                                minHeight: 8,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        _contractedHours == null
-                            ? 'Cargando contrato...'
-                            : 'Contrato de ${DurationFormatter.format(_contractedHours!)}.',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: textColor,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'renovacion: 31/12/2026',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: textColor,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              const SizedBox(height: 20),
+              Text(
+                'Bienvenido/a $_username',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
                 ),
-
-                CardCustom(
-                  hover: true,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: const BoxDecoration(
-                          color: Color.fromRGBO(254, 244, 199, 1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.sync,
-                          color: Color.fromRGBO(217, 119, 8, 1),
-                          size: 36,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Text(
-                            'Solicitudes ya atendidas',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: textColor,
-                            ),
+              ),
+              const SizedBox(height: 20),
+              Wrap(
+                spacing: 20,
+                runSpacing: 20,
+                alignment: WrapAlignment.spaceEvenly,
+                children: [
+                  CardCustom(
+                    hover: true,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          'Accesos Rápidos',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: textColor,
                           ),
-                          Text(
-                            '$_closedRequestsCount',
-                            style: Theme.of(context).textTheme.displayMedium
-                                ?.copyWith(
-                                  color: const Color(0xffD97708),
-                                  fontWeight: FontWeight.bold,
-                                ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                      Text(
-                        '$_inProgressRequestsCount están en revisión/progreso.',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: textColor,
-                          fontWeight: FontWeight.bold,
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                    ],
-                  ),
-                ),
-                CardCustom(
-                  hover: true,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Accesos Rápidos',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: textColor,
-                        ),
-                      ),
-                      const SizedBox(height: 40),
+                        const SizedBox(height: 40),
+                        /*
                       CustomButton(
                         text: 'Crear Nueva Solicitud',
                         icon: Icons.add_circle_outline,
@@ -455,21 +717,30 @@ class _HomePageState extends State<HomePage> {
                         borderRadius: 30,
                       ),
                       const SizedBox(height: 20),
-                      CustomButton(
-                        text: 'Buscar en Manuales',
-                        icon: Icons.search,
-                        onPressed: null,
-                        backgroundColor: Colors.grey.shade200,
-                        textColor: Colors.black87,
-                        borderRadius: 30,
-                      ),
-                    ],
+                      */
+                        CustomButton(
+                          text: 'Buscar en Manuales',
+                          icon: Icons.search,
+                          onPressed: null,
+                          backgroundColor: Colors.grey.shade200,
+                          textColor: Colors.black87,
+                          borderRadius: 30,
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 30),
-            /*
+                  if (_hasSupport) ...[
+                    _buildSupportHoursCard(isDark, textColor, progress),
+                    _buildSupportRequestsCard(isDark, textColor),
+                  ],
+                  if (_hasProject) ...[
+                    _buildProjectDurationCard(isDark, textColor),
+                    _buildProjectDeliverablesCard(isDark, textColor),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 30),
+              /*
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: CustomContainer(
@@ -501,121 +772,124 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
             */
-            const SizedBox(height: 30),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: CustomContainer(
-                title: 'Solicitudes Recientes',
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 1000),
-                      child: _isLoading
-                          ? const Padding(
-                              padding: EdgeInsets.all(50.0),
-                              child: Center(child: CircularProgressIndicator()),
-                            )
-                          : Column(
-                              children: _recentRequests.map((req) {
-                                return InkWell(
-                                  onTap: null,
-                                  hoverColor: Colors.blue.withOpacity(0.1),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 12.0,
-                                      horizontal: 8.0,
-                                    ),
-                                    decoration: const BoxDecoration(
-                                      border: Border(
-                                        bottom: BorderSide(
-                                          color: Colors.black12,
+              const SizedBox(height: 30),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: CustomContainer(
+                  title: 'Solicitudes Recientes',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 1000),
+                        child: _isLoading
+                            ? const Padding(
+                                padding: EdgeInsets.all(50.0),
+                                child: Center(
+                                  child: CircularProgressIndicator(),
+                                ),
+                              )
+                            : Column(
+                                children: _recentRequests.map((req) {
+                                  return InkWell(
+                                    onTap: null,
+                                    hoverColor: Colors.blue.withOpacity(0.1),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 12.0,
+                                        horizontal: 8.0,
+                                      ),
+                                      decoration: const BoxDecoration(
+                                        border: Border(
+                                          bottom: BorderSide(
+                                            color: Colors.black12,
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            Text(
-                                              '${req['code']}: ',
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 15,
-                                              ),
-                                            ),
-                                            Text(
-                                              '${req['situation']} ',
-                                              style: const TextStyle(
-                                                fontSize: 15,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 10,
-                                                    vertical: 4,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color: req['levelBgColor'],
-                                                borderRadius:
-                                                    BorderRadius.circular(30),
-                                              ),
-                                              child: Text(
-                                                req['level'],
-                                                style: TextStyle(
-                                                  color: req['levelColor'],
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Text(
+                                                '${req['code']}: ',
+                                                style: const TextStyle(
                                                   fontWeight: FontWeight.bold,
-                                                  fontSize: 12,
+                                                  fontSize: 15,
                                                 ),
                                               ),
+                                              Text(
+                                                '${req['situation']} ',
+                                                style: const TextStyle(
+                                                  fontSize: 15,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 10,
+                                                      vertical: 4,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: req['levelBgColor'],
+                                                  borderRadius:
+                                                      BorderRadius.circular(30),
+                                                ),
+                                                child: Text(
+                                                  req['level'],
+                                                  style: TextStyle(
+                                                    color: req['levelColor'],
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            req['description'] ?? '',
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              color: isDark
+                                                  ? Colors.grey[400]
+                                                  : Colors.grey[700],
+                                              fontSize: 14,
                                             ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 6),
-                                        Text(
-                                          req['description'] ?? '',
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            color: isDark
-                                                ? Colors.grey[400]
-                                                : Colors.grey[700],
-                                            fontSize: 14,
                                           ),
-                                        ),
-                                        const SizedBox(height: 6),
-                                        Text(
-                                          req['time'],
-                                          style: TextStyle(
-                                            color: Colors.grey[600],
-                                            fontSize: 13,
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            req['time'],
+                                            style: TextStyle(
+                                              color: Colors.grey[600],
+                                              fontSize: 13,
+                                            ),
                                           ),
-                                        ),
-                                      ],
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                );
-                              }).toList(),
-                            ),
-                    ),
-                    const SizedBox(height: 20),
-                    Center(
-                      child: CustomButton(
-                        text: 'Ver todas las solicitudes',
-                        onPressed: () =>
-                            Navigator.pushNamed(context, '/my-requests'),
+                                  );
+                                }).toList(),
+                              ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 20),
+                      Center(
+                        child: CustomButton(
+                          text: 'Ver todas las solicitudes',
+                          onPressed: () =>
+                              Navigator.pushNamed(context, '/my-requests'),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 20),
-          ],
+              const SizedBox(height: 20),
+            ],
+          ),
         ),
       ),
     );

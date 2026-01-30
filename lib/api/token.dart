@@ -70,3 +70,17 @@ class CurrentLogMessage {
 class AppInfo {
   static String? appVersion;
 }
+
+class User {
+  static String? name;
+  static String? email;
+  static int? cBPartnerID;
+  static int? userID;
+}
+
+class ProductChip {
+  static int? mProductID;
+  static int? iD;
+  static String? frecuencyID;
+  static String? frecuencyName;
+}

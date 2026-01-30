@@ -2,16 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:primhub/ui/shared/custom_inputs.dart';
 import 'package:primhub/ui/shared/custom_modal.dart';
 import '../shared/custom_button.dart';
-import '../widgets/custom_drawer.dart';
 
-class CalendarPage extends StatefulWidget {
-  const CalendarPage({super.key});
+class CalendarTab extends StatefulWidget {
+  final List<dynamic> requests;
+  const CalendarTab({super.key, required this.requests});
 
   @override
-  State<CalendarPage> createState() => _CalendarPageState();
+  State<CalendarTab> createState() => _CalendarTabState();
 }
 
-class _CalendarPageState extends State<CalendarPage> {
+class _CalendarTabState extends State<CalendarTab> {
   final List<Map<String, dynamic>> _events = [
     {'date': DateTime(2025, 11, 15), 'description': 'Entrega hito 3'},
     {
@@ -207,6 +207,26 @@ class _CalendarPageState extends State<CalendarPage> {
         .where((e) => DateUtils.isSameDay(e['date'] as DateTime, date))
         .toList();
 
+    final requestsForDay = widget.requests.where((req) {
+      if (req['DateStartPlan'] == null) return false;
+      try {
+        DateTime start = DateTime.parse(req['DateStartPlan']);
+        DateTime end = req['DateCompletePlan'] != null
+            ? DateTime.parse(req['DateCompletePlan'])
+            : start;
+
+        // Normalizar fechas (sin hora)
+        start = DateTime(start.year, start.month, start.day);
+        end = DateTime(end.year, end.month, end.day);
+        final current = DateTime(date.year, date.month, date.day);
+
+        return (current.isAfter(start) || current.isAtSameMomentAs(start)) &&
+            (current.isBefore(end) || current.isAtSameMomentAs(end));
+      } catch (e) {
+        return false;
+      }
+    }).toList();
+
     showDialog(
       context: context,
       builder: (context) {
@@ -216,7 +236,7 @@ class _CalendarPageState extends State<CalendarPage> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (eventsForDay.isEmpty)
+              if (eventsForDay.isEmpty && requestsForDay.isEmpty)
                 const Text(
                   'No hay eventos programados para este día.\n\nAquí se muestra una descripción más extensa del día seleccionado, permitiendo ver notas o recordatorios adicionales.',
                 ),
@@ -249,6 +269,25 @@ class _CalendarPageState extends State<CalendarPage> {
                     ),
                   );
                 }),
+              if (requestsForDay.isNotEmpty) ...[
+                const Divider(),
+                const Text(
+                  'Solicitudes:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                ...requestsForDay.map((req) {
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(req['Summary'] ?? 'Sin asunto'),
+                    subtitle: Text(req['DocumentNo'] ?? ''),
+                    leading: const Icon(Icons.assignment, color: Colors.blue),
+                    trailing: Text(
+                      req['R_Status_Name'] ?? '',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  );
+                }),
+              ],
             ],
           ),
           actions: [
@@ -267,159 +306,87 @@ class _CalendarPageState extends State<CalendarPage> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Calendario'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: _addEvent,
-            tooltip: 'Agregar evento',
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Calendario',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 10),
+          Card(
+            elevation: 4,
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.chevron_left),
+                        onPressed: () => setState(
+                          () => _focusedMonth = DateTime(
+                            _focusedMonth.year,
+                            _focusedMonth.month - 1,
+                          ),
+                        ),
+                      ),
+                      InkWell(
+                        onTap: () => _selectMonthYear(context),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12.0,
+                            vertical: 8.0,
+                          ),
+                          child: Text(
+                            '${_getMonthName(_focusedMonth.month)} ${_focusedMonth.year}',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.chevron_right),
+                        onPressed: () => setState(
+                          () => _focusedMonth = DateTime(
+                            _focusedMonth.year,
+                            _focusedMonth.month + 1,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+                        .map(
+                          (day) => Expanded(
+                            child: Center(
+                              child: Text(
+                                day,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                  const SizedBox(height: 10),
+                  _buildCalendarGrid(),
+                ],
+              ),
+            ),
           ),
         ],
-      ),
-      drawer: const CustomDrawer(),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Card(
-              elevation: 4,
-              color: isDark
-                  ? colorScheme.surfaceContainerHighest
-                  : const Color(0xFFE3F2FD),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Próximos Eventos',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    ..._events.map((event) {
-                      final date = event['date'] as DateTime;
-                      final dateStr =
-                          '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year.toString().substring(2)}';
-
-                      String description = event['description'];
-                      if (description.length > 20) {
-                        description = '${description.substring(0, 20)}...';
-                      }
-
-                      return InkWell(
-                        onTap: () => _editEvent(context, event),
-                        hoverColor: colorScheme.primary.withOpacity(0.1),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4.0),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '• ',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: colorScheme.onSurface,
-                                ),
-                              ),
-                              Expanded(
-                                child: Text(
-                                  '$dateStr: $description',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    color: colorScheme.onSurface,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 30),
-            Card(
-              elevation: 4,
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.chevron_left),
-                          onPressed: () => setState(
-                            () => _focusedMonth = DateTime(
-                              _focusedMonth.year,
-                              _focusedMonth.month - 1,
-                            ),
-                          ),
-                        ),
-                        InkWell(
-                          onTap: () => _selectMonthYear(context),
-                          borderRadius: BorderRadius.circular(8),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12.0,
-                              vertical: 8.0,
-                            ),
-                            child: Text(
-                              '${_getMonthName(_focusedMonth.month)} ${_focusedMonth.year}',
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.chevron_right),
-                          onPressed: () => setState(
-                            () => _focusedMonth = DateTime(
-                              _focusedMonth.year,
-                              _focusedMonth.month + 1,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children:
-                          ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
-                              .map(
-                                (day) => Expanded(
-                                  child: Center(
-                                    child: Text(
-                                      day,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              )
-                              .toList(),
-                    ),
-                    const SizedBox(height: 10),
-                    _buildCalendarGrid(),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -435,13 +402,14 @@ class _CalendarPageState extends State<CalendarPage> {
       1,
     );
     final weekdayOffset = firstDayOfMonth.weekday - 1;
+    final isMobile = MediaQuery.of(context).size.width < 600;
 
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 7,
-        childAspectRatio: 1.0,
+        childAspectRatio: isMobile ? 0.5 : 1.0,
       ),
       itemCount: daysInMonth + weekdayOffset,
       itemBuilder: (context, index) {
@@ -457,26 +425,102 @@ class _CalendarPageState extends State<CalendarPage> {
           (e) => DateUtils.isSameDay(e['date'] as DateTime, currentDayDate),
         );
 
+        // Filtrar solicitudes que cubren este día
+        final dayRequests = widget.requests.where((req) {
+          if (req['DateStartPlan'] == null) return false;
+          try {
+            DateTime start = DateTime.parse(req['DateStartPlan']);
+            DateTime end = req['DateCompletePlan'] != null
+                ? DateTime.parse(req['DateCompletePlan'])
+                : start;
+
+            start = DateTime(start.year, start.month, start.day);
+            end = DateTime(end.year, end.month, end.day);
+            final current = DateTime(
+              currentDayDate.year,
+              currentDayDate.month,
+              currentDayDate.day,
+            );
+
+            return (current.isAfter(start) ||
+                    current.isAtSameMomentAs(start)) &&
+                (current.isBefore(end) || current.isAtSameMomentAs(end));
+          } catch (e) {
+            return false;
+          }
+        }).toList();
+
+        // Ordenar para mantener consistencia visual entre días
+        dayRequests.sort(
+          (a, b) =>
+              (a['DateStartPlan'] ?? '').compareTo(b['DateStartPlan'] ?? ''),
+        );
+
         return InkWell(
           onTap: () => _showDayDetails(context, currentDayDate),
           hoverColor: Colors.blue.withOpacity(0.1),
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(day.toString()),
-                if (hasEvent)
-                  Container(
-                    margin: const EdgeInsets.only(top: 4),
-                    width: 6,
-                    height: 6,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(child: Text(day.toString())),
+              if (hasEvent)
+                Center(
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 2),
+                    width: 4,
+                    height: 4,
                     decoration: const BoxDecoration(
                       color: Colors.green,
                       shape: BoxShape.circle,
                     ),
                   ),
-              ],
-            ),
+                ),
+              ...dayRequests.take(3).map((req) {
+                DateTime start = DateTime.parse(req['DateStartPlan']);
+                DateTime end = req['DateCompletePlan'] != null
+                    ? DateTime.parse(req['DateCompletePlan'])
+                    : start;
+                start = DateTime(start.year, start.month, start.day);
+                end = DateTime(end.year, end.month, end.day);
+                final current = DateTime(
+                  currentDayDate.year,
+                  currentDayDate.month,
+                  currentDayDate.day,
+                );
+
+                bool isStart = current.isAtSameMomentAs(start);
+                bool isEnd = current.isAtSameMomentAs(end);
+
+                return Container(
+                  margin: EdgeInsets.only(
+                    top: 2,
+                    left: isStart ? 4 : 0,
+                    right: isEnd ? 4 : 0,
+                  ),
+                  height: 14,
+                  alignment: Alignment.centerLeft,
+                  padding: const EdgeInsets.only(left: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.7),
+                    borderRadius: BorderRadius.horizontal(
+                      left: isStart ? const Radius.circular(4) : Radius.zero,
+                      right: isEnd ? const Radius.circular(4) : Radius.zero,
+                    ),
+                  ),
+                  child: Text(
+                    req['Summary'] ?? '',
+                    style: const TextStyle(fontSize: 8, color: Colors.white),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                );
+              }),
+              if (dayRequests.length > 3)
+                const Center(
+                  child: Text('...', style: TextStyle(fontSize: 8, height: 1)),
+                ),
+            ],
           ),
         );
       },

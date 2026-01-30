@@ -87,135 +87,140 @@ class _ProfilePageState extends State<ProfilePage> {
     return Scaffold(
       appBar: AppBar(title: const Text('Perfil de Usuario')),
       drawer: const CustomDrawer(),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            const SizedBox(height: 20),
-            Center(
-              child: Stack(
-                children: [
-                  GestureDetector(
-                    onTap: () => _showChangePhotoDialog(context),
-                    child: CircleAvatar(
-                      radius: 50,
-                      backgroundColor: const Color(0xFF4F47E5),
-                      child: Text(
-                        username.isNotEmpty ? username[0].toUpperCase() : 'U',
-                        style: const TextStyle(
-                          fontSize: 40,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: GestureDetector(
-                      onTap: () => _showChangePhotoDialog(context),
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: const BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(blurRadius: 2, color: Colors.black26),
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.camera_alt,
-                          color: Color(0xFF4F47E5),
-                          size: 20,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              username,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            Text(
-              roleName,
-              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-            ),
-            const SizedBox(height: 32),
-            Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              const SizedBox(height: 20),
+              Center(
+                child: Stack(
                   children: [
-                    _buildInfoTile(
-                      Icons.business,
-                      'Empresa / Cliente',
-                      clientName,
+                    GestureDetector(
+                      onTap: () => _showChangePhotoDialog(context),
+                      child: CircleAvatar(
+                        radius: 50,
+                        backgroundColor: const Color(0xFF4F47E5),
+                        child: Text(
+                          username.isNotEmpty ? username[0].toUpperCase() : 'U',
+                          style: const TextStyle(
+                            fontSize: 40,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
                     ),
-                    const Divider(),
-                    _buildInfoTile(Icons.store, 'Socio de Negocio', bPartner),
-                    const Divider(),
-                    _buildInfoTile(Icons.domain, 'Organización', orgName),
-                    const Divider(),
-                    _buildInfoTile(Icons.email, 'Correo Electrónico', email),
-                    const Divider(),
-                    _buildInfoTile(
-                      Icons.badge,
-                      'ID de Usuario',
-                      userId.toString(),
-                    ),
-                    const Divider(),
-                    _buildInfoTile(Icons.language, 'Idioma', language),
-                    const Divider(),
-                    _buildInfoTile(
-                      Icons.security,
-                      'ID de Rol',
-                      roleId.toString(),
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: GestureDetector(
+                        onTap: () => _showChangePhotoDialog(context),
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(blurRadius: 2, color: Colors.black26),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.camera_alt,
+                            color: Color(0xFF4F47E5),
+                            size: 20,
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-            Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+              const SizedBox(height: 16),
+              Text(
+                username,
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-              child: ValueListenableBuilder<ThemeMode>(
-                valueListenable: AppThemes.themeModeNotifier,
-                builder: (context, mode, child) {
-                  return SwitchListTile(
-                    secondary: const Icon(
-                      Icons.dark_mode,
-                      color: Color(0xFF4F47E5),
-                    ),
-                    title: const Text(
-                      'Modo Oscuro',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
+              Text(
+                roleName,
+                style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+              ),
+              const SizedBox(height: 32),
+              Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    children: [
+                      _buildInfoTile(
+                        Icons.business,
+                        'Empresa / Cliente',
+                        clientName,
                       ),
-                    ),
-                    value: mode == ThemeMode.dark,
-                    onChanged: (bool value) async {
-                      final prefs = await SharedPreferences.getInstance();
-                      await prefs.setBool('is_dark_mode', value);
-                      AppThemes.themeModeNotifier.value = value
-                          ? ThemeMode.dark
-                          : ThemeMode.light;
-                    },
-                  );
-                },
+                      const Divider(),
+                      _buildInfoTile(Icons.store, 'Socio de Negocio', bPartner),
+                      const Divider(),
+                      _buildInfoTile(Icons.domain, 'Organización', orgName),
+                      const Divider(),
+                      _buildInfoTile(Icons.email, 'Correo Electrónico', email),
+                      const Divider(),
+                      _buildInfoTile(
+                        Icons.badge,
+                        'ID de Usuario',
+                        userId.toString(),
+                      ),
+                      const Divider(),
+                      _buildInfoTile(Icons.language, 'Idioma', language),
+                      const Divider(),
+                      _buildInfoTile(
+                        Icons.security,
+                        'ID de Rol',
+                        roleId.toString(),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: ValueListenableBuilder<ThemeMode>(
+                  valueListenable: AppThemes.themeModeNotifier,
+                  builder: (context, mode, child) {
+                    return SwitchListTile(
+                      secondary: const Icon(
+                        Icons.dark_mode,
+                        color: Color(0xFF4F47E5),
+                      ),
+                      title: const Text(
+                        'Modo Oscuro',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      value: mode == ThemeMode.dark,
+                      onChanged: (bool value) async {
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setBool('is_dark_mode', value);
+                        AppThemes.themeModeNotifier.value = value
+                            ? ThemeMode.dark
+                            : ThemeMode.light;
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
