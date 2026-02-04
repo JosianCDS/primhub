@@ -12,6 +12,8 @@ dependencies:
   google_fonts: ^7.0.2
   http: ^1.6.0
   shared_preferences: ^2.5.4
+  toastification: ^3.0.3
+  universal_html: ^2.3.0
 
 dev_dependencies:
   flutter_test:
