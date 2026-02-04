@@ -1,0 +1,5 @@
+storePassword=Alex_2101
+keyPassword=Alex_2101
+keyAlias=upload
+storeFile=/home/alexander/upload-keystore.jks
+

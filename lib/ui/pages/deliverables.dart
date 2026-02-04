@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:primhub/ImagesManagment/downloadAttachments.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/ui/shared/custom_inputs.dart';
@@ -20,89 +21,12 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
   List<String> _currentPath = ['Mis Proyectos'];
   bool _showingFiles = false;
 
-  // Datos de ejemplo para simular un sistema de archivos
-  final Map<String, dynamic> _fileSystem = {
-    'Entregables': {
-      'Manuales de Usuario': {
-        'type': 'folder',
-        'color': Colors.amber,
-        'children': {
-          'manual_cms.pdf': {
-            'type': 'file',
-            'size': '2.1 MB',
-            'color': Colors.red,
-            'status': 'Entregado',
-          },
-          'manual_plataforma.pdf': {
-            'type': 'file',
-            'size': '1.5 MB',
-            'color': Colors.red,
-            'status': 'En revisión',
-          },
-          'guia_rapida.docx': {
-            'type': 'file',
-            'size': '800 KB',
-            'color': Colors.blue,
-            'status': 'Pendiente',
-          },
-        },
-      },
-      'Codigo_Fuente.zip': {
-        'type': 'file',
-        'size': '150 MB',
-        'color': Colors.orange,
-        'status': 'Entregado',
-      },
-      'Especificaciones': {
-        'type': 'folder',
-        'color': Colors.amber,
-        'children': {
-          'requerimientos_v1.pdf': {
-            'type': 'file',
-            'size': '2.5 MB',
-            'color': Colors.red,
-            'status': 'Pendiente',
-          },
-          'diagrama_flujo.png': {
-            'type': 'file',
-            'size': '1.2 MB',
-            'color': Colors.purple,
-            'status': 'Pendiente',
-          },
-        },
-      },
-      'Reporte_Financiero.xlsx': {
-        'type': 'file',
-        'size': '850 KB',
-        'color': Colors.green,
-        'status': 'En revisión',
-      },
-    },
-    'Seguimiento': {
-      'Minutas de Sesiones': {
-        'type': 'folder',
-        'color': Colors.purple,
-        'children': {
-          'minuta_2023_01_10.pdf': {
-            'type': 'file',
-            'size': '500 KB',
-            'color': Colors.red,
-            'status': 'Entregado',
-          },
-        },
-      },
-      'Asistencia.pdf': {
-        'type': 'file',
-        'size': '1.8 MB',
-        'color': Colors.red,
-        'status': 'Entregado',
-      },
-    },
-  };
-
   // State for Projects Tab
   List<dynamic> _projects = [];
+  List<dynamic> _documents = [];
+  Map<String, dynamic>? _selectedProject;
   bool _isLoadingProjects = false;
+  bool _isLoadingDocuments = false;
   String? _projectsErrorMessage;
   bool _projectsLoaded = false;
 
@@ -130,8 +54,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
 
     String baseUrl =
         '${Endpoint.project}?\$filter=C_BPartner_ID eq ${User.cBPartnerID}';
-    String url =
-        '$baseUrl&\$expand=C_ProjectPhase(\$expand=C_ProjectTask),C_ProjectTask';
+    String url = '$baseUrl&\$expand=C_ProjectPhase(\$expand=C_ProjectTask)';
 
     try {
       var response = await http.get(
@@ -179,6 +102,43 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
           _projectsErrorMessage = 'Error de conexión. Verifique su internet.';
         });
       }
+    }
+  }
+
+  Future<void> _fetchDocuments(String type) async {
+    if (_selectedProject == null) return;
+    setState(() {
+      _isLoadingDocuments = true;
+      _documents = [];
+    });
+
+    final projectId = _selectedProject!['id'];
+    // Type: ET = Entregable, SG = Seguimiento
+    final typeCode = type == 'Entregables' ? 'ET' : 'SG';
+
+    try {
+      final response = await http.get(
+        Uri.parse(
+          '${Endpoint.primDocuments}?\$filter=C_Project_ID eq $projectId and Type eq \'$typeCode\'&\$expand=PRIM_Documents_Related',
+        ),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': Token.token,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(utf8.decode(response.bodyBytes));
+        if (mounted) {
+          setState(() {
+            _documents = data['records'];
+            _isLoadingDocuments = false;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching documents: $e');
+      if (mounted) setState(() => _isLoadingDocuments = false);
     }
   }
 
@@ -271,7 +231,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
           onTap: isLast
               ? null
               : () {
-                  if (_currentPath[i] == 'Mis Proyectos') {
+                  if (i <= 1) {
                     setState(() {
                       _showingFiles = false;
                     });
@@ -321,25 +281,41 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
     double childAspectRatio,
     int charLimit,
   ) {
-    dynamic currentLevel = _fileSystem;
-    for (String part in _currentPath) {
-      if (part == 'Mis Proyectos') continue;
+    if (_isLoadingDocuments) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-      if (currentLevel is Map && currentLevel.containsKey(part)) {
-        currentLevel = currentLevel[part];
-        if (currentLevel is Map && currentLevel['type'] == 'folder') {
-          currentLevel = currentLevel['children'];
-        }
-      } else {
-        return const Center(child: Text("Ruta no encontrada."));
+    List<dynamic> currentItems = _documents;
+
+    // Navegación simple: Si estamos en una subcarpeta (path > 3), buscamos en los hijos
+    // Estructura: Mis Proyectos -> Proyecto -> Entregables -> [Carpeta]
+    if (_currentPath.length > 3) {
+      final folderName = _currentPath.last;
+      final folder = _documents.firstWhere(
+        (doc) => doc['Name'] == folderName && doc['IsSummary'] == true,
+        orElse: () => null,
+      );
+
+      if (folder != null) {
+        currentItems = folder['PRIM_Documents_Related'] ?? [];
       }
     }
 
-    if (currentLevel is! Map) {
-      return const Center(child: Text("Contenido no válido."));
+    if (currentItems.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.folder_open, size: 48, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              "No hay documentos.",
+              style: TextStyle(color: Colors.grey[600]),
+            ),
+          ],
+        ),
+      );
     }
-
-    final items = currentLevel.entries.toList();
 
     return GridView.builder(
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -348,25 +324,22 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
         mainAxisSpacing: 20,
         childAspectRatio: childAspectRatio,
       ),
-      itemCount: items.length,
+      itemCount: currentItems.length,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemBuilder: (context, index) {
-        final item = items[index];
-        final name = item.key;
-        final details = item.value as Map<String, dynamic>;
-        final isFolder = details['type'] == 'folder';
+        final item = currentItems[index];
+        final name = item['Name'] ?? 'Sin Nombre';
+        final isFolder = item['IsSummary'] == true;
 
         String size = '';
         if (isFolder) {
-          final children = details['children'] as Map<String, dynamic>;
+          final children = item['PRIM_Documents_Related'] as List? ?? [];
           size = '${children.length} archivo${children.length != 1 ? 's' : ''}';
-        } else {
-          size = details['size'] ?? '';
         }
 
         String extension = '';
-        if (!isFolder) {
+        if (!isFolder && name.contains('.')) {
           extension = name.split('.').last.toUpperCase();
         }
 
@@ -374,10 +347,10 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
           extension,
           name,
           size,
-          details['color'] ?? Colors.grey,
+          isFolder ? Colors.amber : Colors.blue,
           charLimit,
           isFolder: isFolder,
-          details: details,
+          details: item,
         );
       },
     );
@@ -392,7 +365,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
     bool isFolder = false,
     required Map<String, dynamic> details,
   }) {
-    final status = details['status'] ?? 'Pendiente';
+    final status = _extractStatus(details['Status']);
     final bool isMobile = MediaQuery.of(context).size.width < 600;
     final statusColor = _getStatusColor(status);
 
@@ -404,9 +377,12 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
               _currentPath.add(name);
             });
           } else {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text('Descargando $name...')));
+            downloadAttachment(
+              context: context,
+              recordID: 1000001,
+              tableName: Endpoint.primDocumentsRelated,
+              fileName: 'Imagen1',
+            );
           }
         },
         borderRadius: BorderRadius.circular(12),
@@ -438,13 +414,10 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
                       ),
                       child: isFolder
                           ? Icon(Icons.folder, color: color, size: 28)
-                          : Text(
-                              extension,
-                              style: TextStyle(
-                                color: color,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 18,
-                              ),
+                          : Icon(
+                              _getFileIcon(extension),
+                              color: color,
+                              size: 28,
                             ),
                     ),
                     const SizedBox(height: 12),
@@ -500,7 +473,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
 
   Widget _buildFileStatusChip(Map<String, dynamic> details) {
     final bool isMobile = MediaQuery.of(context).size.width < 600;
-    final status = details['status'] ?? 'Pendiente';
+    final status = _extractStatus(details['Status']);
     final statusColor = _getStatusColor(status);
 
     IconData statusIcon;
@@ -537,16 +510,18 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
 
   Widget _buildFolderStatusChip(Map<String, dynamic> details) {
     final bool isMobile = MediaQuery.of(context).size.width < 600;
-    final Map<String, dynamic> children = details['children'] ?? {};
-    final pendingCount = children.values
+    final List<dynamic> children = details['PRIM_Documents_Related'] ?? [];
+    final pendingCount = children
         .where(
           (child) =>
-              child is Map &&
-              (child['status'] == 'Pendiente' || child['status'] == null),
+              child is Map && _extractStatus(child['Status']) == 'Pendiente',
         )
         .length;
-    final reviewCount = children.values
-        .where((child) => child is Map && child['status'] == 'En revisión')
+    final reviewCount = children
+        .where(
+          (child) =>
+              child is Map && _extractStatus(child['Status']) == 'En revisión',
+        )
         .length;
 
     if (pendingCount == 0 && reviewCount == 0) {
@@ -637,7 +612,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
     String name,
     Map<String, dynamic> details,
   ) {
-    final status = details['status'] ?? 'Pendiente';
+    final status = _extractStatus(details['Status']);
     final statusColor = _getStatusColor(status);
 
     showDialog(
@@ -652,20 +627,30 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
               children: [
                 _buildPropertyRow(
                   'Descripción',
-                  details['description'] ?? 'No disponible',
+                  _extractIdentifier(
+                    details['Description'],
+                    defaultValue: 'No disponible',
+                  ),
                 ),
                 _buildPropertyRow(
                   'Tipo',
-                  details['fileType'] ?? 'No disponible',
-                ),
-                _buildPropertyRow('Versión', details['version'] ?? 'N/A'),
-                _buildPropertyRow(
-                  'Fecha de entrega',
-                  details['deliveryDate'] ?? 'No definida',
+                  details['Type'] == 'ET' ? 'Entregable' : 'Seguimiento',
                 ),
                 _buildPropertyRow(
-                  'Responsable',
-                  details['owner'] ?? 'No asignado',
+                  'Extensión',
+                  _extractIdentifier(details['Extension']),
+                ),
+                _buildPropertyRow(
+                  'Versión',
+                  _extractIdentifier(details['VersionNo']),
+                ),
+                _buildPropertyRow('Creado', _formatDate(details['Created'])),
+                _buildPropertyRow(
+                  'Creado Por',
+                  _extractIdentifier(
+                    details['CreatedBy'],
+                    defaultValue: 'Sistema',
+                  ),
                 ),
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -723,6 +708,60 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
         ],
       ),
     );
+  }
+
+  String _extractStatus(dynamic val) {
+    if (val == null) return 'Pendiente';
+    if (val is String) return val;
+    if (val is Map) {
+      return val['identifier']?.toString() ??
+          val['name']?.toString() ??
+          'Pendiente';
+    }
+    return 'Pendiente';
+  }
+
+  String _extractIdentifier(dynamic val, {String defaultValue = 'N/A'}) {
+    if (val == null) return defaultValue;
+    if (val is String) return val.isEmpty ? defaultValue : val;
+    if (val is Map) {
+      return val['identifier']?.toString() ??
+          val['name']?.toString() ??
+          defaultValue;
+    }
+    return val.toString();
+  }
+
+  String _formatDate(String? dateStr) {
+    if (dateStr == null) return 'No definida';
+    try {
+      final DateTime date = DateTime.parse(dateStr).toLocal();
+      return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+    } catch (_) {
+      return dateStr;
+    }
+  }
+
+  IconData _getFileIcon(String extension) {
+    switch (extension.toUpperCase()) {
+      case 'PDF':
+        return Icons.picture_as_pdf;
+      case 'DOC':
+      case 'DOCX':
+        return Icons.description;
+      case 'XLS':
+      case 'XLSX':
+      case 'CSV':
+        return Icons.table_chart;
+      case 'JPG':
+      case 'JPEG':
+      case 'PNG':
+        return Icons.image;
+      case 'TXT':
+        return Icons.text_snippet;
+      default:
+        return Icons.insert_drive_file;
+    }
   }
 
   Color _getStatusColor(String status) {
@@ -818,7 +857,13 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
               setState(() {
-                _currentPath = ['Mis Proyectos', 'Entregables'];
+                _selectedProject = project;
+                _currentPath = [
+                  'Mis Proyectos',
+                  project['Name'] ?? 'Proyecto',
+                  'Entregables',
+                ];
+                _fetchDocuments('Entregables');
                 _showingFiles = true;
               });
             },
@@ -829,7 +874,13 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
               setState(() {
-                _currentPath = ['Mis Proyectos', 'Seguimiento'];
+                _selectedProject = project;
+                _currentPath = [
+                  'Mis Proyectos',
+                  project['Name'] ?? 'Proyecto',
+                  'Seguimiento',
+                ];
+                _fetchDocuments('Seguimiento');
                 _showingFiles = true;
               });
             },

@@ -56,8 +56,7 @@ class _HomePageState extends State<HomePage> {
   int? _cBPartnerID;
   String? _partnerName;
   String? _projectPartnerName;
-  String? _projectDateContract;
-  String? _projectDateFinish;
+  List<dynamic> _projects = [];
   int _projectCount = 0;
   String _username = '';
 
@@ -134,9 +133,7 @@ class _HomePageState extends State<HomePage> {
           if (data['records'] != null && (data['records'] as List).isNotEmpty) {
             projectPartnerName =
                 data['records'][0]['C_BPartner_ID']?['identifier'];
-            // Tomamos datos del primer proyecto encontrado para las cards
-            _projectDateContract = data['records'][0]['DateContract'];
-            _projectDateFinish = data['records'][0]['DateFinish'];
+            _projects = data['records'];
             _projectCount = (data['records'] as List).length;
           }
         }
@@ -152,8 +149,7 @@ class _HomePageState extends State<HomePage> {
         _cBPartnerID = cBPartnerID;
         _partnerName = partnerName;
         _projectPartnerName = projectPartnerName;
-        _projectDateContract = _projectDateContract;
-        _projectDateFinish = _projectDateFinish;
+        _projects = _projects;
         _projectCount = _projectCount;
         _validationLoading = false;
       });
@@ -522,18 +518,25 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildProjectDurationCard(bool isDark, Color textColor) {
+  Widget _buildProjectDurationCard(
+    bool isDark,
+    Color textColor,
+    Map<String, dynamic> project,
+  ) {
     String title = 'Días Transcurridos';
     String value = '0';
     String subtitle = 'Sin fecha de contrato';
+    String projectName = project['Name'] ?? 'Proyecto';
+    String? dateContract = project['DateContract'];
+    String? dateFinish = project['DateFinish'];
 
-    if (_projectDateContract != null) {
-      DateTime start = DateTime.parse(_projectDateContract!);
+    if (dateContract != null) {
+      DateTime start = DateTime.parse(dateContract);
       DateTime end = DateTime.now();
       bool isClosed = false;
 
-      if (_projectDateFinish != null && _projectDateFinish!.isNotEmpty) {
-        end = DateTime.parse(_projectDateFinish!);
+      if (dateFinish != null && dateFinish.isNotEmpty) {
+        end = DateTime.parse(dateFinish);
         isClosed = true;
       }
 
@@ -571,6 +574,21 @@ class _HomePageState extends State<HomePage> {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                child: Text(
+                  projectName,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: textColor.withOpacity(0.7),
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(height: 4),
               Text(
                 title,
                 style: TextStyle(
@@ -734,7 +752,10 @@ class _HomePageState extends State<HomePage> {
                     _buildSupportRequestsCard(isDark, textColor),
                   ],
                   if (_hasProject) ...[
-                    _buildProjectDurationCard(isDark, textColor),
+                    ..._projects.map(
+                      (proj) =>
+                          _buildProjectDurationCard(isDark, textColor, proj),
+                    ),
                     _buildProjectDeliverablesCard(isDark, textColor),
                   ],
                 ],
