@@ -170,7 +170,7 @@ Future<void> getProductChip() async {
   try {
     final response = await get(
       Uri.parse(
-        '${Endpoint.productChip}?\$filter=C_BPartner_ID eq ${User.cBPartnerID}&\$orderBy=Created desc',
+        '${Endpoint.productChip}?\$filter=C_BPartner_ID eq ${User.cBPartnerID} and M_Product_ID eq 1000831&\$orderBy=Created desc',
       ),
       headers: {
         'Content-Type': 'application/json',

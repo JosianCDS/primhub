@@ -14,11 +14,13 @@ class ContractApi {
       return 0.0;
     }
 
-    final payload = Token.decodePayload(Token.token);
-    final int userId = payload['AD_User_ID'] ?? 101;
+    if (User.cBPartnerID == null) {
+      debugPrint('No se encontró el ID del socio de negocio (C_BPartner_ID).');
+      return 0.0;
+    }
 
     final String queryUrl =
-        "${Endpoint.order}?\$filter=IsSOTrx eq true and AD_User_ID eq $userId and (DocStatus eq 'CO' or DocStatus eq 'DR')&\$expand=C_OrderLine(\$select=M_Product_ID,QtyEntered;\$filter=M_Product_ID eq ${ProductChip.mProductID})&\$select=DocumentNo,DateOrdered,Created";
+        "${Endpoint.order}?\$filter=IsSOTrx eq true and C_BPartner_ID eq ${User.cBPartnerID} and (DocStatus eq 'CO' or DocStatus eq 'CL' or DocStatus eq 'DR')&\$expand=C_OrderLine(\$select=M_Product_ID,QtyEntered;\$filter=M_Product_ID eq ${ProductChip.mProductID})&\$select=DocumentNo,DateOrdered,Created";
 
     try {
       final response = await http.get(

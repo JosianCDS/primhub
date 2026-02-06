@@ -13,9 +13,9 @@ class Endpoint {
   static String authOrgs = "$baseUrl/api/v1/auth/organizations";
   static String authWarehouses = "$baseUrl/api/v1/auth/warehouses";
   static String authLogout = "$baseUrl/api/v1/auth/logout";
- static String primDocumentsRelated = "$baseUrl/api/v1/models/PRIM_Documents_Related";
+  static String primDocumentsRelated =
+      "$baseUrl/api/v1/models/PRIM_Documents_Related";
 }
-
 
 class PostMedia {
   final int recordID;

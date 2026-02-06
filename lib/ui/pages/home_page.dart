@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:go_router/go_router.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/api/contract_api.dart';
@@ -682,44 +683,73 @@ class _HomePageState extends State<HomePage> {
       progress = _consumedHours / _contractedHours!;
     }
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('PrimHub')),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
 
-      drawer: const CustomDrawer(),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              const SizedBox(height: 20),
-              Text(
-                'Bienvenido/a $_username',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                ),
+        final bool? shouldLogout = await showDialog<bool>(
+          context: context,
+          builder: (context) => CustomModal(
+            title: 'Cerrar Sesión',
+            content: const Text('¿Seguro que quieres cerrar sesión?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancelar'),
               ),
-              const SizedBox(height: 20),
-              Wrap(
-                spacing: 20,
-                runSpacing: 20,
-                alignment: WrapAlignment.spaceEvenly,
-                children: [
-                  CardCustom(
-                    hover: true,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'Accesos Rápidos',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: textColor,
+              CustomButton(
+                text: 'Sí, salir',
+                backgroundColor: Colors.red,
+                onPressed: () => Navigator.pop(context, true),
+              ),
+            ],
+          ),
+        );
+
+        if (shouldLogout == true) {
+          Token.clear();
+          if (context.mounted) context.go('/login');
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(title: const Text('PrimHub')),
+
+        drawer: const CustomDrawer(),
+        body: SafeArea(
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                const SizedBox(height: 20),
+                Text(
+                  'Bienvenido/a $_username',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Wrap(
+                  spacing: 20,
+                  runSpacing: 20,
+                  alignment: WrapAlignment.spaceEvenly,
+                  children: [
+                    CardCustom(
+                      hover: true,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'Accesos Rápidos',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: textColor,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 40),
-                        /*
+                          const SizedBox(height: 40),
+                          /*
                       CustomButton(
                         text: 'Crear Nueva Solicitud',
                         icon: Icons.add_circle_outline,
@@ -736,32 +766,32 @@ class _HomePageState extends State<HomePage> {
                       ),
                       const SizedBox(height: 20),
                       */
-                        CustomButton(
-                          text: 'Buscar en Manuales',
-                          icon: Icons.search,
-                          onPressed: null,
-                          backgroundColor: Colors.grey.shade200,
-                          textColor: Colors.black87,
-                          borderRadius: 30,
-                        ),
-                      ],
+                          CustomButton(
+                            text: 'Buscar en Manuales',
+                            icon: Icons.search,
+                            onPressed: null,
+                            backgroundColor: Colors.grey.shade200,
+                            textColor: Colors.black87,
+                            borderRadius: 30,
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  if (_hasSupport) ...[
-                    _buildSupportHoursCard(isDark, textColor, progress),
-                    _buildSupportRequestsCard(isDark, textColor),
+                    if (_hasSupport) ...[
+                      _buildSupportHoursCard(isDark, textColor, progress),
+                      _buildSupportRequestsCard(isDark, textColor),
+                    ],
+                    if (_hasProject) ...[
+                      ..._projects.map(
+                        (proj) =>
+                            _buildProjectDurationCard(isDark, textColor, proj),
+                      ),
+                      _buildProjectDeliverablesCard(isDark, textColor),
+                    ],
                   ],
-                  if (_hasProject) ...[
-                    ..._projects.map(
-                      (proj) =>
-                          _buildProjectDurationCard(isDark, textColor, proj),
-                    ),
-                    _buildProjectDeliverablesCard(isDark, textColor),
-                  ],
-                ],
-              ),
-              const SizedBox(height: 30),
-              /*
+                ),
+                const SizedBox(height: 30),
+                /*
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: CustomContainer(
@@ -793,123 +823,126 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
             */
-              const SizedBox(height: 30),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: CustomContainer(
-                  title: 'Solicitudes Recientes',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 1000),
-                        child: _isLoading
-                            ? const Padding(
-                                padding: EdgeInsets.all(50.0),
-                                child: Center(
-                                  child: CircularProgressIndicator(),
-                                ),
-                              )
-                            : Column(
-                                children: _recentRequests.map((req) {
-                                  return InkWell(
-                                    onTap: null,
-                                    hoverColor: Colors.blue.withOpacity(0.1),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 12.0,
-                                        horizontal: 8.0,
-                                      ),
-                                      decoration: const BoxDecoration(
-                                        border: Border(
-                                          bottom: BorderSide(
-                                            color: Colors.black12,
+                const SizedBox(height: 30),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: CustomContainer(
+                    title: 'Solicitudes Recientes',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 1000),
+                          child: _isLoading
+                              ? const Padding(
+                                  padding: EdgeInsets.all(50.0),
+                                  child: Center(
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                )
+                              : Column(
+                                  children: _recentRequests.map((req) {
+                                    return InkWell(
+                                      onTap: null,
+                                      hoverColor: Colors.blue.withOpacity(0.1),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 12.0,
+                                          horizontal: 8.0,
+                                        ),
+                                        decoration: const BoxDecoration(
+                                          border: Border(
+                                            bottom: BorderSide(
+                                              color: Colors.black12,
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              Text(
-                                                '${req['code']}: ',
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 15,
-                                                ),
-                                              ),
-                                              Text(
-                                                '${req['situation']} ',
-                                                style: const TextStyle(
-                                                  fontSize: 15,
-                                                ),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 10,
-                                                      vertical: 4,
-                                                    ),
-                                                decoration: BoxDecoration(
-                                                  color: req['levelBgColor'],
-                                                  borderRadius:
-                                                      BorderRadius.circular(30),
-                                                ),
-                                                child: Text(
-                                                  req['level'],
-                                                  style: TextStyle(
-                                                    color: req['levelColor'],
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                Text(
+                                                  '${req['code']}: ',
+                                                  style: const TextStyle(
                                                     fontWeight: FontWeight.bold,
-                                                    fontSize: 12,
+                                                    fontSize: 15,
                                                   ),
                                                 ),
+                                                Text(
+                                                  '${req['situation']} ',
+                                                  style: const TextStyle(
+                                                    fontSize: 15,
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Container(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 10,
+                                                        vertical: 4,
+                                                      ),
+                                                  decoration: BoxDecoration(
+                                                    color: req['levelBgColor'],
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          30,
+                                                        ),
+                                                  ),
+                                                  child: Text(
+                                                    req['level'],
+                                                    style: TextStyle(
+                                                      color: req['levelColor'],
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      fontSize: 12,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 6),
+                                            Text(
+                                              req['description'] ?? '',
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                color: isDark
+                                                    ? Colors.grey[400]
+                                                    : Colors.grey[700],
+                                                fontSize: 14,
                                               ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 6),
-                                          Text(
-                                            req['description'] ?? '',
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              color: isDark
-                                                  ? Colors.grey[400]
-                                                  : Colors.grey[700],
-                                              fontSize: 14,
                                             ),
-                                          ),
-                                          const SizedBox(height: 6),
-                                          Text(
-                                            req['time'],
-                                            style: TextStyle(
-                                              color: Colors.grey[600],
-                                              fontSize: 13,
+                                            const SizedBox(height: 6),
+                                            Text(
+                                              req['time'],
+                                              style: TextStyle(
+                                                color: Colors.grey[600],
+                                                fontSize: 13,
+                                              ),
                                             ),
-                                          ),
-                                        ],
+                                          ],
+                                        ),
                                       ),
-                                    ),
-                                  );
-                                }).toList(),
-                              ),
-                      ),
-                      const SizedBox(height: 20),
-                      Center(
-                        child: CustomButton(
-                          text: 'Ver todas las solicitudes',
-                          onPressed: () =>
-                              Navigator.pushNamed(context, '/my-requests'),
+                                    );
+                                  }).toList(),
+                                ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 20),
+                        Center(
+                          child: CustomButton(
+                            text: 'Ver todas las solicitudes',
+                            onPressed: () => context.push('/my-requests'),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 20),
-            ],
+                const SizedBox(height: 20),
+              ],
+            ),
           ),
         ),
       ),
