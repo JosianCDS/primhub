@@ -1,93 +1,90 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:primhub/api/token.dart';
 import 'package:primhub/theme/theme.dart';
-import 'ui/pages/request/my_requests.dart';
-import 'ui/pages/knowledge_base.dart';
-import 'ui/pages/deliverables.dart';
-import 'ui/pages/metrics.dart';
-import 'ui/pages/home_page.dart';
-import 'ui/pages/support.dart';
-import 'ui/pages/marketplace.dart';
-import 'ui/pages/profile_page.dart';
-import 'ui/pages/login.dart';
-import 'ui/pages/login_selection_page.dart';
-import 'ui/pages/project_info_test.dart';
-import 'ui/pages/my_projects.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:primhub/ui/pages/deliverables.dart';
+import 'package:primhub/ui/pages/home_page.dart';
+import 'package:primhub/ui/pages/knowledge_base.dart';
+import 'package:primhub/ui/pages/login.dart';
+import 'package:primhub/ui/pages/login_selection_page.dart';
+import 'package:primhub/ui/pages/marketplace.dart';
+import 'package:primhub/ui/pages/metrics.dart';
+import 'package:primhub/ui/pages/my_projects.dart';
+import 'package:primhub/ui/pages/profile_page.dart';
+import 'package:primhub/ui/pages/request/my_requests.dart';
+import 'package:primhub/ui/pages/support.dart';
 
-class MainApp extends StatefulWidget {
+final _router = GoRouter(
+  initialLocation: '/login',
+  redirect: (context, state) {
+    final bool isLoggedIn = Token.auth != null;
+    final bool isLoggingIn =
+        state.uri.path == '/login' || state.uri.path == '/login-selection';
+
+    if (!isLoggedIn && !isLoggingIn) {
+      return '/login';
+    }
+    if (isLoggedIn && isLoggingIn) {
+      return '/';
+    }
+    return null;
+  },
+  routes: [
+    GoRoute(path: '/', builder: (context, state) => const HomePage()),
+    GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
+    GoRoute(
+      path: '/login-selection',
+      pageBuilder: (context, state) => MaterialPage(
+        key: state.pageKey,
+        child: const LoginSelectionPage(),
+        arguments: state.extra,
+      ),
+    ),
+    GoRoute(path: '/support', builder: (context, state) => const SupportPage()),
+    GoRoute(
+      path: '/my-requests',
+      pageBuilder: (context, state) => MaterialPage(
+        key: state.pageKey,
+        child: const MyRequestsPage(),
+        arguments: state.extra,
+      ),
+    ),
+    GoRoute(
+      path: '/knowledge-base',
+      builder: (context, state) => const KnowledgeBasePage(),
+    ),
+    GoRoute(
+      path: '/deliverables',
+      builder: (context, state) => const DeliverablesPage(),
+    ),
+    GoRoute(path: '/metrics', builder: (context, state) => const MetricsPage()),
+    GoRoute(
+      path: '/marketplace',
+      builder: (context, state) => const MarketplacePage(),
+    ),
+    GoRoute(path: '/profile', builder: (context, state) => const ProfilePage()),
+    GoRoute(
+      path: '/my-projects',
+      builder: (context, state) => const MyProjectsPage(),
+    ),
+  ],
+);
+
+class MainApp extends StatelessWidget {
   const MainApp({super.key});
-
-  @override
-  State<MainApp> createState() => _MainAppState();
-}
-
-class ThemeManager {
-  static late _MainAppState themeNotifier;
-}
-
-class _MainAppState extends State<MainApp> {
-  @override
-  void initState() {
-    super.initState();
-    ThemeManager.themeNotifier = this;
-    _loadThemePreference();
-    AppThemes.themeModeNotifier.addListener(_saveThemePreference);
-  }
-
-  @override
-  void dispose() {
-    AppThemes.themeModeNotifier.removeListener(_saveThemePreference);
-    super.dispose();
-  }
-
-  Future<void> toggleTheme() async {
-    AppThemes.themeModeNotifier.value =
-        AppThemes.themeModeNotifier.value == ThemeMode.dark
-        ? ThemeMode.light
-        : ThemeMode.dark;
-  }
-
-  Future<void> _loadThemePreference() async {
-    final prefs = await SharedPreferences.getInstance();
-    final isDarkMode = prefs.getBool('isDarkMode') ?? false;
-    AppThemes.themeModeNotifier.value = isDarkMode
-        ? ThemeMode.dark
-        : ThemeMode.light;
-  }
-
-  Future<void> _saveThemePreference() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(
-      'isDarkMode',
-      AppThemes.themeModeNotifier.value == ThemeMode.dark,
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: AppThemes.themeModeNotifier,
       builder: (context, themeMode, child) {
-        return MaterialApp(
+        return MaterialApp.router(
+          routerConfig: _router,
+          title: 'PrimHub',
           debugShowCheckedModeBanner: false,
-          initialRoute: '/',
           theme: AppThemes.lightTheme,
           darkTheme: AppThemes.darkTheme,
           themeMode: themeMode,
-          routes: {
-            '/': (context) => const HomePage(),
-            '/support': (context) => const SupportPage(),
-            '/my-requests': (context) => const MyRequestsPage(),
-            '/knowledge-base': (context) => const KnowledgeBasePage(),
-            '/deliverables': (context) => const DeliverablesPage(),
-            '/metrics': (context) => const MetricsPage(),
-            '/marketplace': (context) => const MarketplacePage(),
-            '/profile': (context) => const ProfilePage(),
-            '/login': (context) => const LoginPage(),
-            '/login-selection': (context) => const LoginSelectionPage(),
-            '/project-info-test': (context) => const ProjectInfoTestPage(),
-            '/my-projects': (context) => const MyProjectsPage(),
-          },
         );
       },
     );

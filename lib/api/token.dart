@@ -9,6 +9,16 @@ class Token {
   static int? organitation;
   static int? warehouseID;
 
+  static void clear() {
+    preAuth = null;
+    auth = null;
+    refreshToken = null;
+    client = null;
+    rol = null;
+    organitation = null;
+    warehouseID = null;
+  }
+
   static String tokenType = 'Bearer';
   static String get token {
     if (auth == null) return "";

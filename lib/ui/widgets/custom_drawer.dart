@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import '../../api/token.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../shared/custom_modal.dart';
@@ -65,11 +66,8 @@ class _CustomDrawerState extends State<CustomDrawer> {
             CustomButton(
               text: 'Sí, salir',
               onPressed: () {
-                Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  '/login',
-                  (route) => false,
-                );
+                Token.clear();
+                context.go('/login');
               },
               backgroundColor: Colors.red,
             ),
@@ -144,7 +142,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                         ),
                         onTap: () {
                           Navigator.pop(context);
-                          Navigator.pushNamed(context, '/');
+                          context.push('/');
                         },
                       ),
                     ),
@@ -167,7 +165,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                         ),
                         onTap: () {
                           Navigator.pop(context);
-                          Navigator.pushNamed(context, '/support');
+                          context.push('/support');
                         },
                       ),
                     ),
@@ -190,7 +188,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                         ),
                         onTap: () {
                           Navigator.pop(context);
-                          Navigator.pushNamed(context, '/my-requests');
+                          context.push('/my-requests');
                         },
                       ),
                     ),
@@ -214,7 +212,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                     ),
                     onTap: () {
                       Navigator.pop(context);
-                      Navigator.pushNamed(context, '/knowledge-base');
+                      context.push('/knowledge-base');
                     },
                   ),
                 ),
@@ -238,7 +236,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                         ),
                         onTap: () {
                           Navigator.pop(context);
-                          Navigator.pushNamed(context, '/deliverables');
+                          context.push('/deliverables');
                         },
                       ),
                     ),
@@ -261,11 +259,11 @@ class _CustomDrawerState extends State<CustomDrawer> {
                       ),
                       onTap: () {
                         Navigator.pop(context);
-                        Navigator.pushNamed(context, '/metrics');
+                        context.push('/metrics');
                       },
                     ),
                   ),
-
+                  /*
                   HoverListTile(
                     builder: (isHovered) => ListTile(
                       leading: Icon(
@@ -284,32 +282,11 @@ class _CustomDrawerState extends State<CustomDrawer> {
                       ),
                       onTap: () {
                         Navigator.pop(context);
-                        Navigator.pushNamed(context, '/marketplace');
+                        context.push('/marketplace');
                       },
                     ),
                   ),
-                  HoverListTile(
-                    builder: (isHovered) => ListTile(
-                      leading: Icon(
-                        Icons.info_outline,
-                        color: isHovered
-                            ? colorScheme.primary
-                            : colorScheme.onSurfaceVariant,
-                      ),
-                      title: Text(
-                        'Prueba Info Proyecto',
-                        style: TextStyle(
-                          color: isHovered
-                              ? colorScheme.primary
-                              : colorScheme.onSurface,
-                        ),
-                      ),
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.pushNamed(context, '/project-info-test');
-                      },
-                    ),
-                  ),
+                  */
                 ],
               ),
             ),
@@ -360,7 +337,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
 
                 onTap: () {
                   Navigator.pop(context); // Cierra el menú
-                  Navigator.pushNamed(context, '/profile');
+                  context.push('/profile');
                 },
               ),
             ),

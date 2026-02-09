@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:primhub/api/auth_api.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/ui/shared/custom_button.dart';
@@ -160,11 +161,7 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
       params["warehouseId"] = _selectedWarehouseId;
     }
 
-    final response = await finalizeLogin(
-      _username!,
-      _password!,
-      params,
-    );
+    final response = await finalizeLogin(_username!, _password!, params);
 
     if (mounted) {
       setState(() => _isLoading = false);
@@ -178,7 +175,7 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
       } else {
         CurrentLogMessage.add("Login exitoso. Token guardado.");
 
-        Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
+        context.go('/');
       }
     }
   }
@@ -188,6 +185,15 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
     final theme = Theme.of(context);
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: theme.colorScheme.onSurface),
+          onPressed: () => context.pop(),
+        ),
+      ),
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(

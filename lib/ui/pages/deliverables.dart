@@ -286,6 +286,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
     }
 
     List<dynamic> currentItems = _documents;
+    String tableName = Endpoint.primDocuments;
 
     // Navegación simple: Si estamos en una subcarpeta (path > 3), buscamos en los hijos
     // Estructura: Mis Proyectos -> Proyecto -> Entregables -> [Carpeta]
@@ -298,6 +299,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
 
       if (folder != null) {
         currentItems = folder['PRIM_Documents_Related'] ?? [];
+        tableName = Endpoint.primDocumentsRelated;
       }
     }
 
@@ -351,6 +353,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
           charLimit,
           isFolder: isFolder,
           details: item,
+          tableName: tableName,
         );
       },
     );
@@ -364,6 +367,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
     int charLimit, {
     bool isFolder = false,
     required Map<String, dynamic> details,
+    required String tableName,
   }) {
     final status = _extractStatus(details['Status']);
     final bool isMobile = MediaQuery.of(context).size.width < 600;
@@ -379,9 +383,9 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
           } else {
             downloadAttachment(
               context: context,
-              recordID: 1000001,
-              tableName: Endpoint.primDocumentsRelated,
-              fileName: 'Imagen1',
+              recordID: details['id'],
+              tableName: tableName,
+              fileName: name,
             );
           }
         },
@@ -615,6 +619,14 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
     final status = _extractStatus(details['Status']);
     final statusColor = _getStatusColor(status);
 
+    dynamic typeVal = details['Type'];
+    String typeCode = '';
+    if (typeVal is Map) {
+      typeCode = typeVal['id']?.toString() ?? '';
+    } else if (typeVal != null) {
+      typeCode = typeVal.toString();
+    }
+
     showDialog(
       context: context,
       builder: (context) {
@@ -634,7 +646,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
                 ),
                 _buildPropertyRow(
                   'Tipo',
-                  details['Type'] == 'ET' ? 'Entregable' : 'Seguimiento',
+                  typeCode == 'ET' ? 'Entregable' : 'Seguimiento',
                 ),
                 _buildPropertyRow(
                   'Extensión',

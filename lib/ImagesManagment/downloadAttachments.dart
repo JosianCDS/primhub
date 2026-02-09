@@ -2,7 +2,7 @@ import 'dart:typed_data';
 import 'package:http/http.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/ui/shared/customToast.dart';
-import 'package:universal_html/html.dart';
+import 'package:universal_html/html.dart' as html;
 import 'package:flutter/material.dart';
 
 Future<void> downloadAttachment({
@@ -11,41 +11,82 @@ Future<void> downloadAttachment({
   required String tableName,
   required String fileName,
 }) async {
-  String token = Token.auth!;
+  final String token = Token.token;
 
   try {
-    print('$tableName/$recordID/attachments/$fileName');
-
-    final response = await get(
-      Uri.parse('$tableName/$recordID/attachments'),
-      headers: {'Content-Type': 'application/json', 'Authorization': token},
+    final Uri url = Uri.parse(
+      '$tableName/$recordID/attachments/${Uri.encodeComponent(fileName)}',
     );
 
-    if (response.statusCode == 200) {
-      // Expecting plain Base64 response, not JSON
+    final Response response = await get(
+      url,
+      headers: {'Authorization': token, 'Accept': '*/*'},
+    );
 
-      final Uint8List decodedBytes = response.bodyBytes;
-      final blob = Blob([decodedBytes]);
-      final url = Url.createObjectUrlFromBlob(blob);
+    // 🔎 DEBUG CRUDO
+    debugPrint('================ ATTACHMENT DEBUG ================');
+    debugPrint('URL: $url');
+    debugPrint('STATUS: ${response.statusCode}');
+    debugPrint('HEADERS: ${response.headers}');
+    debugPrint('BYTES LENGTH: ${response.bodyBytes.length}');
 
-      // ignore: unused_local_variable
-      final anchor = AnchorElement(href: url)
-        ..setAttribute("download", fileName)
-        ..click();
-      Url.revokeObjectUrl(url);
+    // Si el body parece texto, lo mostramos (limitado)
+    try {
+      final String rawBody = String.fromCharCodes(response.bodyBytes);
+      debugPrint(
+        'RAW BODY (first 500 chars):\n'
+        '${rawBody.substring(0, rawBody.length > 500 ? 500 : rawBody.length)}',
+      );
+    } catch (_) {
+      debugPrint('RAW BODY: <binary>');
+    }
+
+    debugPrint('=================================================');
+
+    if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
+      _triggerWebDownloadFromBytes(response.bodyBytes, fileName);
+
+      if (context.mounted) {
+        ToastMessage.show(
+          context: context,
+          message: "Descarga iniciada: $fileName",
+          type: ToastType.success,
+        );
+      }
     } else {
+      throw Exception(
+        'HTTP ${response.statusCode} | '
+        'Content-Type: ${response.headers['content-type']} | '
+        'Bytes: ${response.bodyBytes.length}',
+      );
+    }
+  } catch (e, stack) {
+    debugPrint('❌ DOWNLOAD ERROR: $e');
+    debugPrint('📌 STACKTRACE:\n$stack');
+
+    if (context.mounted) {
       ToastMessage.show(
         context: context,
-        message: "Error al obtener el archivo adjunto",
+        message:
+            "Error descargando archivo\n"
+            "${e.toString().substring(0, e.toString().length > 120 ? 120 : e.toString().length)}",
         type: ToastType.failure,
       );
     }
+  }
+}
+
+void _triggerWebDownloadFromBytes(Uint8List bytes, String fileName) {
+  try {
+    final html.Blob blob = html.Blob([bytes]);
+    final String url = html.Url.createObjectUrlFromBlob(blob);
+
+    html.AnchorElement(href: url)
+      ..setAttribute('download', fileName)
+      ..click();
+
+    html.Url.revokeObjectUrl(url);
   } catch (e) {
-    ToastMessage.show(
-      context: context,
-      message: "Error al procesar la descarga del archivo",
-      type: ToastType.failure,
-    );
-    debugPrint("Error: $e");
+    debugPrint("Error creando descarga: $e");
   }
 }

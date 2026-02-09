@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart';
+import 'package:go_router/go_router.dart';
 import 'package:primhub/api/auth_api.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/endpoint/endpoint.dart';
@@ -156,7 +157,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                 if (mounted) {
                   setState(() => _isLoading = false);
                   CurrentLogMessage.add("Login exitoso (Auto).");
-                  Navigator.pushReplacementNamed(context, '/');
+                  context.go('/');
                 }
               }
               return;
@@ -167,10 +168,9 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
 
       if (mounted) {
         setState(() => _isLoading = false);
-        Navigator.pushNamed(
-          context,
+        context.push(
           '/login-selection',
-          arguments: {
+          extra: {
             'token': tempToken,
             'clients': clients,
             'username': username,
@@ -190,7 +190,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
       });
 
       CurrentLogMessage.add("Login exitoso. Token guardado.");
-      Navigator.pushReplacementNamed(context, '/');
+      context.go('/');
     }
   }
 
@@ -481,6 +481,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                         borderRadius: 12,
                                       ),
                               ),
+                              /*
                               const SizedBox(height: 16),
                               TextButton(
                                 onPressed: () {},
@@ -492,6 +493,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                   ),
                                 ),
                               ),
+                              */
                             ],
                           ),
                         ),
