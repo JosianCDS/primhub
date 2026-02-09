@@ -60,6 +60,8 @@ class _HomePageState extends State<HomePage> {
   List<dynamic> _projects = [];
   int _projectCount = 0;
   String _username = '';
+  int _etCount = 0;
+  int _sgCount = 0;
 
   @override
   void initState() {
@@ -82,6 +84,7 @@ class _HomePageState extends State<HomePage> {
     await _loadValidationData();
     await _loadContractedHours();
     await _loadRecentRequests();
+    await _loadDocumentStats();
   }
 
   Future<void> _checkRole() async {
@@ -135,7 +138,6 @@ class _HomePageState extends State<HomePage> {
             projectPartnerName =
                 data['records'][0]['C_BPartner_ID']?['identifier'];
             _projects = data['records'];
-            _projectCount = (data['records'] as List).length;
           }
         }
       } catch (e) {
@@ -146,12 +148,11 @@ class _HomePageState extends State<HomePage> {
     if (mounted) {
       setState(() {
         _hasSupport = prefs.getBool('has_support') ?? false;
-        _hasProject = prefs.getBool('has_project') ?? false;
+        _hasProject = _projects.isNotEmpty;
         _cBPartnerID = cBPartnerID;
         _partnerName = partnerName;
         _projectPartnerName = projectPartnerName;
-        _projects = _projects;
-        _projectCount = _projectCount;
+        _projectCount = _projects.length;
         _validationLoading = false;
       });
     }
@@ -206,6 +207,85 @@ class _HomePageState extends State<HomePage> {
             .toList();
         _applyFilters();
         _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _loadDocumentStats() async {
+    if (_projects.isEmpty) return;
+
+    int totalEt = 0;
+    int totalSg = 0;
+
+    List<Future<void>> futures = [];
+
+    for (var project in _projects) {
+      futures.add(() async {
+        try {
+          final projectId = project['id'];
+          final response = await http.get(
+            Uri.parse(
+              '${Endpoint.primDocuments}?\$filter=C_Project_ID eq $projectId&\$expand=PRIM_Documents_Related',
+            ),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': Token.token,
+            },
+          );
+
+          if (response.statusCode == 200) {
+            final data = json.decode(utf8.decode(response.bodyBytes));
+            final records = data['records'] as List;
+
+            void countRecursive(List<dynamic> docs, String? inheritedType) {
+              for (var doc in docs) {
+                dynamic typeVal = doc['Type'];
+                String typeCode = '';
+
+                if (typeVal is Map) {
+                  typeCode = typeVal['id']?.toString() ?? '';
+                } else if (typeVal != null) {
+                  typeCode = typeVal.toString();
+                }
+
+                // Si el documento no tiene tipo, hereda del padre (carpeta)
+                if (typeCode.isEmpty && inheritedType != null) {
+                  typeCode = inheritedType;
+                }
+
+                final isFolder = doc['IsSummary'] == true;
+
+                // Contamos solo si es un archivo (no carpeta)
+                if (!isFolder) {
+                  if (typeCode == 'ET') totalEt++;
+                  if (typeCode == 'SG') totalSg++;
+                }
+
+                // Recursión para hijos
+                final children = doc['PRIM_Documents_Related'] as List? ?? [];
+                if (children.isNotEmpty) {
+                  countRecursive(
+                    children,
+                    typeCode.isNotEmpty ? typeCode : inheritedType,
+                  );
+                }
+              }
+            }
+
+            countRecursive(records, null);
+          }
+        } catch (e) {
+          debugPrint('Error loading document stats for project: $e');
+        }
+      }());
+    }
+
+    await Future.wait(futures);
+
+    if (mounted) {
+      setState(() {
+        _etCount = totalEt;
+        _sgCount = totalSg;
       });
     }
   }
@@ -645,19 +725,65 @@ class _HomePageState extends State<HomePage> {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Text(
-                'Entregables ya Creados',
+                'Documentos',
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                   color: textColor,
                 ),
               ),
-              Text(
-                '$_projectCount',
-                style: Theme.of(context).textTheme.displayMedium?.copyWith(
-                  color: const Color(0xffD97708),
-                  fontWeight: FontWeight.bold,
-                ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  Column(
+                    children: [
+                      Text(
+                        '$_etCount',
+                        style: Theme.of(context).textTheme.displayMedium
+                            ?.copyWith(
+                              color: const Color(0xffD97708),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 24,
+                            ),
+                      ),
+                      Text(
+                        'Entregables',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: textColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Container(
+                    height: 30,
+                    width: 1,
+                    color: Colors.grey.withOpacity(0.3),
+                  ),
+                  Column(
+                    children: [
+                      Text(
+                        '$_sgCount',
+                        style: Theme.of(context).textTheme.displayMedium
+                            ?.copyWith(
+                              color: const Color(0xffD97708),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 24,
+                            ),
+                      ),
+                      Text(
+                        'Seguimiento',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: textColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ],
           ),
@@ -735,6 +861,7 @@ class _HomePageState extends State<HomePage> {
                   runSpacing: 20,
                   alignment: WrapAlignment.spaceEvenly,
                   children: [
+                    /*
                     CardCustom(
                       hover: true,
                       child: Column(
@@ -777,6 +904,7 @@ class _HomePageState extends State<HomePage> {
                         ],
                       ),
                     ),
+                    */
                     if (_hasSupport) ...[
                       _buildSupportHoursCard(isDark, textColor, progress),
                       _buildSupportRequestsCard(isDark, textColor),

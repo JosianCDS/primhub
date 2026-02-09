@@ -619,6 +619,14 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
     final status = _extractStatus(details['Status']);
     final statusColor = _getStatusColor(status);
 
+    dynamic typeVal = details['Type'];
+    String typeCode = '';
+    if (typeVal is Map) {
+      typeCode = typeVal['id']?.toString() ?? '';
+    } else if (typeVal != null) {
+      typeCode = typeVal.toString();
+    }
+
     showDialog(
       context: context,
       builder: (context) {
@@ -638,7 +646,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
                 ),
                 _buildPropertyRow(
                   'Tipo',
-                  details['Type'] == 'ET' ? 'Entregable' : 'Seguimiento',
+                  typeCode == 'ET' ? 'Entregable' : 'Seguimiento',
                 ),
                 _buildPropertyRow(
                   'Extensión',

@@ -1,9 +1,8 @@
-import 'dart:convert';
 import 'dart:typed_data';
 import 'package:http/http.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/ui/shared/customToast.dart';
-import 'package:universal_html/html.dart';
+import 'package:universal_html/html.dart' as html;
 import 'package:flutter/material.dart';
 
 Future<void> downloadAttachment({
@@ -12,79 +11,82 @@ Future<void> downloadAttachment({
   required String tableName,
   required String fileName,
 }) async {
-  String token = Token.auth!;
+  final String token = Token.token;
 
   try {
-    // Usamos la URL directa con el nombre del archivo, codificando caracteres especiales
-    final url = Uri.parse(
+    final Uri url = Uri.parse(
       '$tableName/$recordID/attachments/${Uri.encodeComponent(fileName)}',
     );
 
-    final response = await get(
+    final Response response = await get(
       url,
-      headers: {'Content-Type': 'application/json', 'Authorization': token},
+      headers: {'Authorization': token, 'Accept': '*/*'},
     );
 
-    if (response.statusCode == 200) {
-      String base64Data = "";
+    // 🔎 DEBUG CRUDO
+    debugPrint('================ ATTACHMENT DEBUG ================');
+    debugPrint('URL: $url');
+    debugPrint('STATUS: ${response.statusCode}');
+    debugPrint('HEADERS: ${response.headers}');
+    debugPrint('BYTES LENGTH: ${response.bodyBytes.length}');
 
-      // Intentamos parsear como JSON (estándar iDempiere) o usamos el body directo
-      try {
-        final dynamic decoded = jsonDecode(utf8.decode(response.bodyBytes));
-        if (decoded is Map && decoded.containsKey('data')) {
-          base64Data = decoded['data'];
-        } else if (decoded is String) {
-          base64Data = decoded;
-        } else {
-          base64Data = response.body;
-        }
-      } catch (_) {
-        // Si falla el JSON, asumimos que es raw text/base64
-        base64Data = response.body;
-      }
+    // Si el body parece texto, lo mostramos (limitado)
+    try {
+      final String rawBody = String.fromCharCodes(response.bodyBytes);
+      debugPrint(
+        'RAW BODY (first 500 chars):\n'
+        '${rawBody.substring(0, rawBody.length > 500 ? 500 : rawBody.length)}',
+      );
+    } catch (_) {
+      debugPrint('RAW BODY: <binary>');
+    }
 
-      if (base64Data.isNotEmpty) {
-        _triggerWebDownload(base64Data, fileName);
+    debugPrint('=================================================');
 
-        if (context.mounted) {
-          ToastMessage.show(
-            context: context,
-            message: "Descarga iniciada: $fileName",
-            type: ToastType.success,
-          );
-        }
-      } else {
-        throw Exception("El contenido del archivo está vacío.");
+    if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
+      _triggerWebDownloadFromBytes(response.bodyBytes, fileName);
+
+      if (context.mounted) {
+        ToastMessage.show(
+          context: context,
+          message: "Descarga iniciada: $fileName",
+          type: ToastType.success,
+        );
       }
     } else {
-      throw Exception('Error al descargar contenido (${response.statusCode})');
+      throw Exception(
+        'HTTP ${response.statusCode} | '
+        'Content-Type: ${response.headers['content-type']} | '
+        'Bytes: ${response.bodyBytes.length}',
+      );
     }
-  } catch (e) {
-    debugPrint("Error en downloadAttachment: $e");
+  } catch (e, stack) {
+    debugPrint('❌ DOWNLOAD ERROR: $e');
+    debugPrint('📌 STACKTRACE:\n$stack');
+
     if (context.mounted) {
       ToastMessage.show(
         context: context,
-        message: "Error al descargar el archivo.",
+        message:
+            "Error descargando archivo\n"
+            "${e.toString().substring(0, e.toString().length > 120 ? 120 : e.toString().length)}",
         type: ToastType.failure,
       );
     }
   }
 }
 
-void _triggerWebDownload(String base64Data, String fileName) {
+void _triggerWebDownloadFromBytes(Uint8List bytes, String fileName) {
   try {
-    final Uint8List bytes = base64Decode(
-      base64Data.replaceAll(RegExp(r'\s+'), ''),
-    );
-    final blob = Blob([bytes]);
-    final url = Url.createObjectUrlFromBlob(blob);
+    final html.Blob blob = html.Blob([bytes]);
+    final String url = html.Url.createObjectUrlFromBlob(blob);
 
-    // ignore: unused_local_variable
-    final anchor = AnchorElement(href: url)
-      ..setAttribute("download", fileName)
+    html.AnchorElement(href: url)
+      ..setAttribute('download', fileName)
       ..click();
-    Url.revokeObjectUrl(url);
+
+    html.Url.revokeObjectUrl(url);
   } catch (e) {
-    debugPrint("Error decodificando Base64 para descarga: $e");
+    debugPrint("Error creando descarga: $e");
   }
 }
