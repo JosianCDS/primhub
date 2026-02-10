@@ -157,9 +157,29 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
         leading: _showingFiles
             ? IconButton(
                 icon: const Icon(Icons.arrow_back),
-                onPressed: () => setState(() => _showingFiles = false),
+                onPressed: () {
+                  setState(() {
+                    if (_currentPath.length > 3) {
+                      _currentPath.removeLast();
+                    } else {
+                      _showingFiles = false;
+                    }
+                  });
+                },
               )
             : null,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              if (_showingFiles) {
+                _fetchDocuments(_currentPath[2]);
+              } else {
+                _fetchProjects();
+              }
+            },
+          ),
+        ],
       ),
       drawer: _showingFiles ? null : const CustomDrawer(),
       body: SafeArea(

@@ -54,11 +54,21 @@ Future<void> downloadAttachment({
         );
       }
     } else {
-      throw Exception(
-        'HTTP ${response.statusCode} | '
-        'Content-Type: ${response.headers['content-type']} | '
-        'Bytes: ${response.bodyBytes.length}',
-      );
+      if (response.statusCode == 404 || response.bodyBytes.isEmpty) {
+        if (context.mounted) {
+          ToastMessage.show(
+            context: context,
+            message: "No hay un archivo adjunto o no se ha encontrado.",
+            type: ToastType.failure,
+          );
+        }
+      } else {
+        throw Exception(
+          'HTTP ${response.statusCode} | '
+          'Content-Type: ${response.headers['content-type']} | '
+          'Bytes: ${response.bodyBytes.length}',
+        );
+      }
     }
   } catch (e, stack) {
     debugPrint('❌ DOWNLOAD ERROR: $e');

@@ -839,8 +839,21 @@ class _HomePageState extends State<HomePage> {
         }
       },
       child: Scaffold(
-        appBar: AppBar(title: const Text('PrimHub')),
-
+        appBar: AppBar(
+          title: const Text('PrimHub'),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: () {
+                setState(() {
+                  _isLoading = true;
+                  _validationLoading = true;
+                });
+                _initData();
+              },
+            ),
+          ],
+        ),
         drawer: const CustomDrawer(),
         body: SafeArea(
           child: SingleChildScrollView(

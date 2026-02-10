@@ -202,7 +202,18 @@ class _MetricsPageState extends State<MetricsPage> {
     final isLargeScreen = MediaQuery.of(context).size.width >= 900;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Indicadores de Negocio (BI)')),
+      appBar: AppBar(
+        title: const Text('Indicadores de Negocio (BI)'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              setState(() => _isLoading = true);
+              _loadMetrics();
+            },
+          ),
+        ],
+      ),
       drawer: const CustomDrawer(),
       body: SafeArea(
         child: Row(
