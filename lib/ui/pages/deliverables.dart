@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:primhub/ImagesManagment/downloadAttachments.dart';
 import 'package:primhub/api/token.dart';
@@ -12,6 +13,7 @@ import '../shared/custom_button.dart';
 import '../widgets/custom_drawer.dart';
 import '../shared/hover_widgets.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
+import 'package:file_picker/file_picker.dart';
 
 class DeliverablesPage extends StatefulWidget {
   const DeliverablesPage({super.key});
@@ -32,11 +34,23 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
   bool _isLoadingDocuments = false;
   String? _projectsErrorMessage;
   bool _projectsLoaded = false;
+  final TextEditingController _searchController = TextEditingController();
+  bool _expandAll = false;
+  int _expansionKey = 0;
 
   @override
   void initState() {
     super.initState();
     _fetchProjects();
+    _searchController.addListener(() {
+      setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchProjects() async {
@@ -45,19 +59,8 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
       _projectsErrorMessage = null;
     });
 
-    if (User.cBPartnerID == null) {
-      if (mounted) {
-        setState(() {
-          _isLoadingProjects = false;
-          _projectsErrorMessage = 'No se pudo identificar el socio de negocio.';
-        });
-      }
-      return;
-    }
-
-    String baseUrl =
-        '${Endpoint.project}?\$filter=C_BPartner_ID eq ${User.cBPartnerID}';
-    String url = '$baseUrl&\$expand=C_ProjectPhase(\$expand=C_ProjectTask)';
+    String url =
+        '${Endpoint.project}?\$expand=C_ProjectPhase(\$expand=C_ProjectTask)';
 
     try {
       var response = await http.get(
@@ -70,7 +73,6 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
 
       if (response.statusCode == 500 &&
           response.body.contains('C_ProjectTask')) {
-        url = '$baseUrl&\$expand=C_ProjectPhase(\$expand=C_ProjectTask)';
         response = await http.get(
           Uri.parse(url),
           headers: {
@@ -151,17 +153,13 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
     final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // Lógica para subir archivo (Placeholder)
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Funcionalidad de subida en construcción'),
-            ),
-          );
-        },
-        child: const Icon(Icons.upload_file),
-      ),
+      floatingActionButton: _showingFiles
+          ? FloatingActionButton(
+              onPressed: _uploadFile,
+              tooltip: 'Subir Archivo',
+              child: const Icon(Icons.upload_file),
+            )
+          : null,
       appBar: AppBar(
         title: const Text(
           'Mis Proyectos',
@@ -191,6 +189,12 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
               )
             : null,
         actions: [
+          if (_showingFiles)
+            IconButton(
+              icon: const Icon(Icons.create_new_folder),
+              tooltip: 'Crear Carpeta',
+              onPressed: _createFolderDialog,
+            ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
@@ -327,7 +331,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    List<dynamic> currentItems = _documents;
+    List<dynamic> currentItems = List.from(_documents);
     String tableName = Endpoint.primDocuments;
 
     // Navegación simple: Si estamos en una subcarpeta (path > 3), buscamos en los hijos
@@ -335,15 +339,32 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
     if (_currentPath.length > 3) {
       final folderName = _currentPath.last;
       final folder = _documents.firstWhere(
-        (doc) => doc['Name'] == folderName && doc['IsSummary'] == true,
+        (doc) =>
+            doc['Name'] == folderName &&
+            (doc['IsSummary'] == true || doc['IsSummary'] == 'Y'),
         orElse: () => null,
       );
 
       if (folder != null) {
-        currentItems = folder['PRIM_Documents_Related'] ?? [];
+        currentItems = List.from(folder['PRIM_Documents_Related'] ?? []);
         tableName = Endpoint.primDocumentsRelated;
       }
     }
+
+    // Ordenar: Carpetas primero, luego archivos. Ambos por fecha de creación ascendente.
+    currentItems.sort((a, b) {
+      final isFolderA = a['IsSummary'] == true || a['IsSummary'] == 'Y';
+      final isFolderB = b['IsSummary'] == true || b['IsSummary'] == 'Y';
+
+      if (isFolderA && !isFolderB) return -1;
+      if (!isFolderA && isFolderB) return 1;
+
+      final dateA = DateTime.tryParse(a['Created'] ?? '') ?? DateTime(0);
+      final dateB = DateTime.tryParse(b['Created'] ?? '') ?? DateTime(0);
+
+      // Ordenar por fecha de creación, los más antiguos primero
+      return dateA.compareTo(dateB);
+    });
 
     if (currentItems.isEmpty) {
       return Center(
@@ -374,7 +395,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
       itemBuilder: (context, index) {
         final item = currentItems[index];
         final name = item['Name'] ?? 'Sin Nombre';
-        final isFolder = item['IsSummary'] == true;
+        final isFolder = item['IsSummary'] == true || item['IsSummary'] == 'Y';
 
         String size = '';
         if (isFolder) {
@@ -501,7 +522,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
                   color: Colors.grey[500],
                   tooltip: 'Ver propiedades',
                   onPressed: () {
-                    _showPropertiesDialog(context, name, details);
+                    _showPropertiesDialog(context, name, details, tableName);
                   },
                 ),
               ),
@@ -648,13 +669,99 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
     );
   }
 
+  Future<bool> _updateDocumentRemote(
+    int id,
+    Map<String, dynamic> originalDetails,
+    String description,
+    String version,
+    String status,
+    bool isFolder,
+  ) async {
+    // try {
+    final url = Uri.parse('${Endpoint.primDocuments}/$id');
+
+    dynamic prepareValue(dynamic val) {
+      if (val is Map && val.containsKey('id')) {
+        return {'id': val['id']};
+      }
+      return val;
+    }
+
+    final body = <String, dynamic>{
+      'Description': description,
+      'VersionNo': version,
+    };
+
+    if (originalDetails['Name'] != null) body['Name'] = originalDetails['Name'];
+    if (originalDetails['C_Project_ID'] != null)
+      body['C_Project_ID'] = prepareValue(originalDetails['C_Project_ID']);
+    if (originalDetails['Type'] != null)
+      body['Type'] = prepareValue(originalDetails['Type']);
+    if (originalDetails['IsSummary'] != null)
+      body['IsSummary'] = originalDetails['IsSummary'];
+    if (originalDetails['Extension'] != null)
+      body['Extension'] = originalDetails['Extension'];
+    if (originalDetails['Parent_ID'] != null)
+      body['Parent_ID'] = prepareValue(originalDetails['Parent_ID']);
+
+    if (!isFolder) {
+      // Map display status to backend code
+      const statusCodes = {
+        'Pendiente': 'PD',
+        'En revisión': 'IR',
+        'Entregado': 'DL',
+      };
+      body['Status'] = statusCodes[status] ?? status;
+    } else {
+      if (originalDetails['Status'] != null) {
+        body['Status'] = prepareValue(originalDetails['Status']);
+      }
+    }
+
+    final response = await http.put(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': Token.token,
+      },
+      body: jsonEncode(body),
+    );
+
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      debugPrint('Update Error ${response.statusCode}: ${response.body}');
+    }
+
+    return response.statusCode == 200 || response.statusCode == 201;
+    // } catch (e) {
+    //   debugPrint('Update exception: $e');
+    //   return false;
+    // }
+  }
+
   void _showPropertiesDialog(
     BuildContext context,
     String name,
     Map<String, dynamic> details,
+    String tableName,
   ) {
     final status = _extractStatus(details['Status']);
-    final statusColor = _getStatusColor(status);
+    final bool isFolder =
+        details['IsSummary'] == true || details['IsSummary'] == 'Y';
+
+    final TextEditingController nameController = TextEditingController(
+      text: details['Name'],
+    );
+    final TextEditingController descController = TextEditingController(
+      text: details['Description']?.toString() ?? '',
+    );
+    final TextEditingController versionController = TextEditingController(
+      text: details['VersionNo']?.toString() ?? '',
+    );
+    final TextEditingController statusController = TextEditingController(
+      text: status,
+    );
+    String currentStatus = status;
+    bool isSaving = false;
 
     dynamic typeVal = details['Type'];
     String typeCode = '';
@@ -664,80 +771,148 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
       typeCode = typeVal.toString();
     }
 
+    final List<String> statuses = ['Pendiente', 'En revisión', 'Entregado'];
+    if (!statuses.contains(currentStatus)) {
+      statuses.add(currentStatus);
+    }
+
     showDialog(
       context: context,
       builder: (context) {
-        return CustomModal(
-          title: 'Propiedades: ${name.split('.').first}',
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildPropertyRow(
-                  'Descripción',
-                  _extractIdentifier(
-                    details['Description'],
-                    defaultValue: 'No disponible',
-                  ),
-                ),
-                _buildPropertyRow(
-                  'Tipo',
-                  typeCode == 'ET' ? 'Entregable' : 'Seguimiento',
-                ),
-                _buildPropertyRow(
-                  'Extensión',
-                  _extractIdentifier(details['Extension']),
-                ),
-                _buildPropertyRow(
-                  'Versión',
-                  _extractIdentifier(details['VersionNo']),
-                ),
-                _buildPropertyRow('Creado', _formatDate(details['Created'])),
-                _buildPropertyRow(
-                  'Creado Por',
-                  _extractIdentifier(
-                    details['CreatedBy'],
-                    defaultValue: 'Sistema',
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8.0),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Estado: ',
-                        style: TextStyle(color: Colors.grey[600], fontSize: 12),
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return CustomModal(
+              title: 'Editar Propiedades',
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    CustomTextField(
+                      controller: nameController,
+                      label: 'Nombre',
+                      readOnly: true,
+                    ),
+                    const SizedBox(height: 16),
+                    CustomTextField(
+                      controller: descController,
+                      label: 'Descripción',
+                      maxLines: 3,
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: CustomTextField(
+                            controller: versionController,
+                            label: 'Versión',
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: isFolder
+                              ? CustomTextField(
+                                  controller: statusController,
+                                  label: 'Estado',
+                                  readOnly: true,
+                                )
+                              : CustomDropdown<String>(
+                                  value: currentStatus,
+                                  label: 'Estado',
+                                  items: statuses
+                                      .map(
+                                        (s) => DropdownMenuItem(
+                                          value: s,
+                                          child: Text(s),
+                                        ),
+                                      )
+                                      .toList(),
+                                  onChanged: (val) {
+                                    if (val != null) {
+                                      setStateDialog(() => currentStatus = val);
+                                    }
+                                  },
+                                ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    _buildPropertyRow(
+                      'Tipo',
+                      typeCode == 'ET' ? 'Entregable' : 'Seguimiento',
+                    ),
+                    _buildPropertyRow(
+                      'Extensión',
+                      _extractIdentifier(details['Extension']),
+                    ),
+                    _buildPropertyRow(
+                      'Creado',
+                      _formatDate(details['Created']),
+                    ),
+                    _buildPropertyRow(
+                      'Creado Por',
+                      _extractIdentifier(
+                        details['CreatedBy'],
+                        defaultValue: 'Sistema',
                       ),
-                      const SizedBox(width: 8),
-                      Chip(
-                        label: Text(
-                          status,
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                        backgroundColor: statusColor,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 2,
-                        ),
-                        labelStyle: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.delete, color: Colors.red),
+                  onPressed: () => _deleteFile(details['id'], tableName, name),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancelar'),
+                ),
+                CustomButton(
+                  text: 'Guardar',
+                  isLoading: isSaving,
+                  onPressed: () async {
+                    setStateDialog(() => isSaving = true);
+                    final success = await _updateDocumentRemote(
+                      details['id'],
+                      details,
+                      descController.text,
+                      versionController.text,
+                      currentStatus,
+                      isFolder,
+                    );
+                    setStateDialog(() => isSaving = false);
+
+                    if (success) {
+                      if (context.mounted) {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Documento actualizado correctamente',
+                            ),
+                          ),
+                        );
+                        // Refrescar lista
+                        if (_currentPath.length > 2) {
+                          _fetchDocuments(_currentPath[2]);
+                        }
+                      }
+                    } else {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Error al actualizar documento'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    }
+                  },
                 ),
               ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cerrar'),
-            ),
-          ],
+            );
+          },
         );
       },
     );
@@ -793,6 +968,10 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
           ),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.delete, color: Colors.red),
+            onPressed: () => _deleteFile(details['id'], tableName, name),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Cerrar'),
@@ -812,6 +991,259 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
         ],
       ),
     );
+  }
+
+  Future<void> _uploadFile() async {
+    if (_selectedProject == null || _currentPath.length < 3) return;
+
+    // Determinar tipo y contexto
+    String typeStr = _currentPath[2];
+    String typeCode = typeStr == 'Entregables' ? 'ET' : 'SG';
+    int projectId = _selectedProject!['id'];
+
+    // Seleccionar archivo
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      withData: true,
+    );
+
+    if (result == null || result.files.isEmpty) return;
+
+    final PlatformFile file = result.files.first;
+    final Uint8List? fileBytes = file.bytes;
+    final String fileName = file.name;
+    final String extension = fileName.contains('.')
+        ? fileName.split('.').last
+        : '';
+
+    if (fileBytes == null) return;
+
+    setState(() => _isLoadingDocuments = true);
+
+    try {
+      // 1. Crear Registro del Documento
+      final createUrl = Uri.parse(Endpoint.primDocuments);
+      final Map<String, dynamic> payload = {
+        'Name': fileName,
+        'C_Project_ID': projectId,
+        'Type': typeCode,
+        'Extension': extension,
+      };
+
+      // Si estamos en una subcarpeta, intentar vincular (Lógica simplificada)
+      if (_currentPath.length > 3) {
+        final folderName = _currentPath.last;
+        final folder = _documents.firstWhere(
+          (doc) => doc['Name'] == folderName && doc['IsSummary'] == true,
+          orElse: () => null,
+        );
+        if (folder != null) {
+          // Asumiendo que el backend soporta Parent_ID o similar para anidar
+          payload['Parent_ID'] = folder['id'];
+        }
+      }
+
+      final createResponse = await http.post(
+        createUrl,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': Token.token,
+        },
+        body: jsonEncode(payload),
+      );
+
+      if (createResponse.statusCode == 200 ||
+          createResponse.statusCode == 201) {
+        final newRecord = jsonDecode(createResponse.body);
+        final newRecordId = newRecord['id'];
+
+        // 2. Subir Adjunto
+        final attachUrl = Uri.parse(
+          '${Endpoint.primDocuments}/$newRecordId/attachments',
+        );
+
+        final String base64File = base64Encode(fileBytes);
+
+        final attachResponse = await http.post(
+          attachUrl,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': Token.token,
+          },
+          body: jsonEncode({'name': fileName, 'data': base64File}),
+        );
+
+        if (attachResponse.statusCode >= 200 &&
+            attachResponse.statusCode < 300) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Archivo subido correctamente')),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Registro creado, pero error al subir adjunto: ${attachResponse.statusCode}',
+              ),
+            ),
+          );
+        }
+      } else {
+        debugPrint('Error create: ${createResponse.body}');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Error al crear registro: ${createResponse.statusCode}',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+    } finally {
+      _fetchDocuments(typeStr);
+    }
+  }
+
+  Future<void> _createFolderDialog() async {
+    final TextEditingController controller = TextEditingController();
+    final bool? create = await showDialog<bool>(
+      context: context,
+      builder: (context) => CustomModal(
+        title: 'Nueva Carpeta',
+        content: CustomTextField(
+          controller: controller,
+          label: 'Nombre de la carpeta',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          CustomButton(
+            text: 'Crear',
+            onPressed: () => Navigator.pop(context, true),
+          ),
+        ],
+      ),
+    );
+
+    if (create == true && controller.text.isNotEmpty) {
+      _createFolder(controller.text);
+    }
+  }
+
+  Future<void> _createFolder(String name) async {
+    if (_selectedProject == null) return;
+    setState(() => _isLoadingDocuments = true);
+
+    String typeStr = _currentPath[2];
+    String typeCode = typeStr == 'Entregables' ? 'ET' : 'SG';
+    int projectId = _selectedProject!['id'];
+
+    try {
+      final createUrl = Uri.parse(Endpoint.primDocuments);
+      final Map<String, dynamic> payload = {
+        'Name': name,
+        'C_Project_ID': projectId,
+        'Type': typeCode,
+        'IsSummary': true,
+      };
+
+      if (_currentPath.length > 3) {
+        final folderName = _currentPath.last;
+        final folder = _documents.firstWhere(
+          (doc) => doc['Name'] == folderName && doc['IsSummary'] == true,
+          orElse: () => null,
+        );
+        if (folder != null) {
+          payload['Parent_ID'] = folder['id'];
+        }
+      }
+
+      final response = await http.post(
+        createUrl,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': Token.token,
+        },
+        body: jsonEncode(payload),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Carpeta creada correctamente')),
+        );
+      } else {
+        debugPrint('Error create folder: ${response.body}');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al crear carpeta: ${response.statusCode}'),
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+    } finally {
+      _fetchDocuments(typeStr);
+    }
+  }
+
+  Future<void> _deleteFile(int id, String tableName, String name) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => CustomModal(
+        title: 'Eliminar Archivo',
+        content: Text('¿Estás seguro de que deseas eliminar "$name"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          CustomButton(
+            text: 'Eliminar',
+            backgroundColor: Colors.red,
+            onPressed: () => Navigator.pop(context, true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      // Cerrar el diálogo de previsualización
+      Navigator.pop(context);
+
+      setState(() => _isLoadingDocuments = true);
+      try {
+        final response = await http.delete(
+          Uri.parse('$tableName/$id'),
+          headers: {'Authorization': Token.token},
+        );
+
+        if (response.statusCode == 200 || response.statusCode == 204) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Archivo eliminado correctamente')),
+          );
+          if (_currentPath.length > 2) {
+            _fetchDocuments(_currentPath[2]);
+          }
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error al eliminar: ${response.statusCode}'),
+            ),
+          );
+          setState(() => _isLoadingDocuments = false);
+        }
+      } catch (e) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        setState(() => _isLoadingDocuments = false);
+      }
+    }
   }
 
   Widget _buildPreviewWidget(
@@ -1024,12 +1456,61 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
       return const Center(child: Text('No tienes proyectos activos.'));
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: _projects.length,
-      itemBuilder: (context, index) {
-        return _buildProjectCard(_projects[index]);
-      },
+    final filteredProjects = _projects.where((project) {
+      final name = (project['Name'] ?? '').toString().toLowerCase();
+      final search = _searchController.text.toLowerCase();
+      return name.contains(search);
+    }).toList();
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              CustomTextField(
+                controller: _searchController,
+                hintText: 'Buscar proyecto...',
+                prefixIcon: const Icon(Icons.search),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton.icon(
+                    onPressed: () => setState(() {
+                      _expandAll = true;
+                      _expansionKey++;
+                    }),
+                    icon: const Icon(Icons.unfold_more),
+                    label: const Text('Expandir todo'),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton.icon(
+                    onPressed: () => setState(() {
+                      _expandAll = false;
+                      _expansionKey++;
+                    }),
+                    icon: const Icon(Icons.unfold_less),
+                    label: const Text('Contraer todo'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: filteredProjects.isEmpty
+              ? const Center(child: Text('No se encontraron proyectos.'))
+              : ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: filteredProjects.length,
+                  itemBuilder: (context, index) {
+                    return _buildProjectCard(filteredProjects[index]);
+                  },
+                ),
+        ),
+      ],
     );
   }
 
@@ -1044,7 +1525,8 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
       margin: const EdgeInsets.only(bottom: 16),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ExpansionTile(
-        initiallyExpanded: true,
+        key: Key('${project['id']}-$_expansionKey'),
+        initiallyExpanded: _expandAll,
         leading: CircleAvatar(
           backgroundColor: Theme.of(context).colorScheme.primary,
           child: const Icon(Icons.assignment, color: Colors.white),
