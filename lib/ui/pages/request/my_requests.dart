@@ -36,6 +36,8 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   Map<String, int> _statusIdMap = {};
   int _currentPage = 0;
   int _rowsPerPage = 25;
+  int? _selectedYear = 2026; // Filtro de año por defecto
+  String? _selectedBP; // Filtro de Tercero
 
   @override
   void initState() {
@@ -59,7 +61,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     final prefs = await SharedPreferences.getInstance();
     if (mounted)
       setState(
-        () => _isAdmin = (prefs.getString('user_role') ?? 'ADMIN') == 'ADMIN',
+        () => _isAdmin = (prefs.getString('user_role') ?? 'Usuario') == 'Admin',
       );
   }
 
@@ -201,7 +203,6 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   String? _selectedLevel;
   String? _selectedStatus;
   String? _selectedSituation;
-  String? _selectedBP;
   String? _selectedUser;
   final TextEditingController _searchController = TextEditingController();
 
@@ -408,50 +409,17 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     final TextEditingController endTimeController = TextEditingController(
       text: req['endTime'],
     );
-    final TextEditingController qtyPlanController = TextEditingController(
-      text: req['qtyPlan'],
+
+    // Inicializar horas y minutos desde qtyPlan
+    double initialQty =
+        double.tryParse(req['qtyPlan']?.toString() ?? '0') ?? 0.0;
+    int initialHours = initialQty.floor();
+    int initialMinutes = ((initialQty - initialHours) * 60).round();
+
+    final TextEditingController hoursController = TextEditingController(
+      text: initialHours.toString(),
     );
-
-    void calculateHours() {
-      if (startTimeController.text.isNotEmpty &&
-          endTimeController.text.isNotEmpty) {
-        try {
-          DateTime startBase = dateStartController.text.isNotEmpty
-              ? DateTime.parse(dateStartController.text)
-              : DateTime.now();
-          DateTime endBase = dateCompleteController.text.isNotEmpty
-              ? DateTime.parse(dateCompleteController.text)
-              : startBase;
-
-          final sParts = startTimeController.text.split(':');
-          final eParts = endTimeController.text.split(':');
-          if (sParts.length >= 2 && eParts.length >= 2) {
-            final start = DateTime(
-              startBase.year,
-              startBase.month,
-              startBase.day,
-              int.parse(sParts[0]),
-              int.parse(sParts[1]),
-            );
-            var end = DateTime(
-              endBase.year,
-              endBase.month,
-              endBase.day,
-              int.parse(eParts[0]),
-              int.parse(eParts[1]),
-            );
-            if (end.isBefore(start)) {
-              end = end.add(const Duration(days: 1));
-              dateCompleteController.text =
-                  "${end.year}-${end.month.toString().padLeft(2, '0')}-${end.day.toString().padLeft(2, '0')}";
-            }
-            final diff = end.difference(start);
-            final hours = diff.inMinutes / 60.0;
-            qtyPlanController.text = hours.toStringAsFixed(2);
-          }
-        } catch (_) {}
-      }
-    }
+    int selectedMinutes = initialMinutes;
 
     Future<void> selectDate(
       BuildContext context,
@@ -467,7 +435,6 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       if (picked != null) {
         controller.text =
             "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
-        calculateHours();
         setStateDialog(() {});
       }
     }
@@ -485,7 +452,6 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
         // Formato HH:mm:ss para backend si es necesario, o HH:mm
         controller.text =
             "${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}:00";
-        calculateHours();
         setStateDialog(() {});
       }
     }
@@ -685,50 +651,51 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? Colors.grey.shade800
-                            : Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: isDark
-                              ? Colors.grey.shade600
-                              : Colors.grey.shade300,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: CustomTextField(
+                            controller: hoursController,
+                            label: 'Horas',
+                            readOnly: isReadOnly,
+                            keyboardType: TextInputType.number,
+                          ),
                         ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "Horas Planificadas",
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: isDark
-                                  ? Colors.grey.shade400
-                                  : Colors.grey,
-                            ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: CustomDropdown<int>(
+                            label: 'Minutos',
+                            value: selectedMinutes,
+                            items: List.generate(60, (index) {
+                              return DropdownMenuItem(
+                                value: index,
+                                child: Text(index.toString().padLeft(2, '0')),
+                              );
+                            }),
+                            onChanged: isReadOnly
+                                ? null
+                                : (val) => setStateDialog(
+                                    () => selectedMinutes = val!,
+                                  ),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            DurationFormatter.format(
-                              double.tryParse(qtyPlanController.text) ?? 0.0,
-                            ),
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
             ),
             actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _deleteRequest(req['realId']);
+                },
+                child: const Text(
+                  'Eliminar',
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
               TextButton(
                 onPressed: () => Navigator.pop(context),
                 child: Text(isReadOnly ? 'Cerrar' : 'Cancelar'),
@@ -776,10 +743,17 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                         endTimeController.text != req['endTime']
                         ? endTimeController.text
                         : null;
-                    double? qtyPlanToSend =
-                        qtyPlanController.text != req['qtyPlan']
-                        ? double.tryParse(qtyPlanController.text)
-                        : null;
+
+                    double currentQty =
+                        double.tryParse(req['qtyPlan']?.toString() ?? '0') ??
+                        0.0;
+                    double inputHours =
+                        double.tryParse(hoursController.text) ?? 0.0;
+                    double inputTotal = inputHours + (selectedMinutes / 60.0);
+                    double? qtyPlanToSend;
+                    if ((inputTotal - currentQty).abs() > 0.001) {
+                      qtyPlanToSend = inputTotal;
+                    }
 
                     // Si el estado es Final Close, preparamos StartDate y CloseDate
                     String? startDateToSend;
@@ -974,6 +948,19 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
         return false;
       if (_selectedStatus != null && alert['status'] != _selectedStatus)
         return false;
+      if (_selectedBP != null && alert['bpName'] != _selectedBP) return false;
+
+      // Filtro de Año
+      if (_selectedYear != null &&
+          alert['time'] != null &&
+          alert['time'].toString().isNotEmpty) {
+        try {
+          // El formato es YYYY-MM-DD HH:mm
+          final yearStr = alert['time'].toString().substring(0, 4);
+          if (int.parse(yearStr) != _selectedYear) return false;
+        } catch (_) {}
+      }
+
       if (_selectedSituation != null &&
           alert['situation'] != _selectedSituation)
         return false;
@@ -1188,6 +1175,62 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                                 runSpacing: 4.0,
                                 crossAxisAlignment: WrapCrossAlignment.center,
                                 children: [
+                                  DropdownButton<int?>(
+                                    hint: const Text('Año'),
+                                    value: _selectedYear,
+                                    items: [
+                                      const DropdownMenuItem<int?>(
+                                        value: null,
+                                        child: Text(
+                                          'Limpiar',
+                                          style: TextStyle(color: Colors.red),
+                                        ),
+                                      ),
+                                      ...List.generate(
+                                        10,
+                                        (index) => 2024 + index,
+                                      ).map((int value) {
+                                        return DropdownMenuItem<int?>(
+                                          value: value,
+                                          child: Text(value.toString()),
+                                        );
+                                      }),
+                                    ],
+                                    onChanged: (val) => setState(() {
+                                      _selectedYear = val;
+                                      _currentPage = 0;
+                                    }),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  DropdownButton<String?>(
+                                    hint: const Text('Tercero'),
+                                    value: _selectedBP,
+                                    items: [
+                                      const DropdownMenuItem<String?>(
+                                        value: null,
+                                        child: Text(
+                                          'Limpiar',
+                                          style: TextStyle(color: Colors.red),
+                                        ),
+                                      ),
+                                      ..._requests
+                                          .map((e) => e['bpName'].toString())
+                                          .where((e) => e.isNotEmpty)
+                                          .toSet()
+                                          .toList()
+                                          .map((String value) {
+                                            return DropdownMenuItem<String?>(
+                                              value: value,
+                                              child: Text(value),
+                                            );
+                                          }),
+                                    ],
+                                    onChanged: (val) => setState(() {
+                                      _selectedBP = val;
+                                      _currentPage = 0;
+                                    }),
+                                  ),
+                                  const SizedBox(width: 16),
                                   DropdownButton<String>(
                                     hint: const Text('Asunto'),
                                     value: _selectedSituation,
@@ -1322,7 +1365,6 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                                       _selectedLevel = null;
                                       _selectedStatus = null;
                                       _selectedSituation = null;
-                                      _selectedBP = null;
                                       _selectedUser = null;
                                       _searchController.clear();
                                       _isAscending = false;
@@ -1339,6 +1381,27 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                         final buttons = Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
+                            ElevatedButton.icon(
+                              onPressed: () async {
+                                final result = await showDialog(
+                                  context: context,
+                                  builder: (context) =>
+                                      const CreateRequestDialog(),
+                                );
+                                if (result == true) {
+                                  _initData();
+                                }
+                              },
+                              icon: const Icon(Icons.add, color: Colors.white),
+                              label: const Text(
+                                'Agregar registro',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF4F47E5),
+                              ),
+                            ),
+                            const SizedBox(width: 16),
                             ElevatedButton.icon(
                               onPressed: () => setState(() {
                                 _showHistory = !_showHistory;
@@ -1406,9 +1469,8 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                                 ],
                                 rows: paginatedAlerts.map((alert) {
                                   return DataRow(
-                                    onSelectChanged: _isAdmin
-                                        ? (value) => _editRequest(alert)
-                                        : null,
+                                    onSelectChanged: (value) =>
+                                        _editRequest(alert),
                                     cells: [
                                       DataCell(Text(alert['id'])),
                                       DataCell(Text(alert['situation'])),
