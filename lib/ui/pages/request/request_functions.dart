@@ -41,7 +41,7 @@ Future<List<Map<String, dynamic>>> fetchRequest() async {
       // Solicitamos por bloques usando $skip para avanzar
       final response = await get(
         Uri.parse(
-          '${Endpoint.request}?\$filter=C_BPartner_ID eq ${User.cBPartnerID}&\$skip=$skip&\$top=$pageSize&\$limit=$pageSize',
+          '${Endpoint.request}?\$skip=$skip&\$top=$pageSize&\$limit=$pageSize',
         ),
         headers: {
           'Content-Type': 'application/json; charset=UTF-8',

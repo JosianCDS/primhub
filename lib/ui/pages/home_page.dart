@@ -60,8 +60,10 @@ class _HomePageState extends State<HomePage> {
   List<dynamic> _projects = [];
   int _projectCount = 0;
   String _username = '';
-  int _etCount = 0;
-  int _sgCount = 0;
+  // Mapa para guardar estadísticas por ID de proyecto: {projectId: {'et': 0, 'sg': 0}}
+  Map<int, Map<String, int>> _projectStats = {};
+  // Lista de IDs de proyectos seleccionados para visualizar
+  List<int> _selectedProjectIds = [];
 
   @override
   void initState() {
@@ -98,35 +100,40 @@ class _HomePageState extends State<HomePage> {
   Future<void> _loadValidationData() async {
     if (mounted) setState(() => _validationLoading = true);
     final prefs = await SharedPreferences.getInstance();
+    final String role = prefs.getString('user_role') ?? 'Usuario';
+    final bool isAdmin = role == 'Admin';
 
     int? cBPartnerID = User.cBPartnerID;
     String? partnerName;
     String? projectPartnerName;
 
-    if (cBPartnerID != null) {
+    if (cBPartnerID != null || isAdmin) {
       try {
         // 1. Obtener Nombre del Tercero
-        final pResponse = await http.get(
-          Uri.parse(
-            '${Endpoint.cBPartner}?\$filter=C_BPartner_ID eq $cBPartnerID',
-          ),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': Token.token,
-          },
-        );
-        if (pResponse.statusCode == 200) {
-          final data = json.decode(utf8.decode(pResponse.bodyBytes));
-          if (data['records'] != null && (data['records'] as List).isNotEmpty) {
-            partnerName = data['records'][0]['Name'];
+        if (cBPartnerID != null) {
+          final pResponse = await http.get(
+            Uri.parse(
+              '${Endpoint.cBPartner}?\$filter=C_BPartner_ID eq $cBPartnerID',
+            ),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': Token.token,
+            },
+          );
+          if (pResponse.statusCode == 200) {
+            final data = json.decode(utf8.decode(pResponse.bodyBytes));
+            if (data['records'] != null &&
+                (data['records'] as List).isNotEmpty) {
+              partnerName = data['records'][0]['Name'];
+            }
           }
         }
 
         // 2. Obtener Nombre del Tercero en el Proyecto (si existe alguno)
+        String projectUrl = Endpoint.project;
+
         final projResponse = await http.get(
-          Uri.parse(
-            '${Endpoint.project}?\$filter=C_BPartner_ID eq $cBPartnerID',
-          ),
+          Uri.parse(projectUrl),
           headers: {
             'Content-Type': 'application/json',
             'Authorization': Token.token,
@@ -138,6 +145,10 @@ class _HomePageState extends State<HomePage> {
             projectPartnerName =
                 data['records'][0]['C_BPartner_ID']?['identifier'];
             _projects = data['records'];
+            // Por defecto seleccionamos todos los proyectos al cargar
+            _selectedProjectIds = _projects
+                .map<int>((p) => p['id'] as int)
+                .toList();
           }
         }
       } catch (e) {
@@ -214,8 +225,7 @@ class _HomePageState extends State<HomePage> {
   Future<void> _loadDocumentStats() async {
     if (_projects.isEmpty) return;
 
-    int totalEt = 0;
-    int totalSg = 0;
+    Map<int, Map<String, int>> stats = {};
 
     List<Future<void>> futures = [];
 
@@ -223,6 +233,9 @@ class _HomePageState extends State<HomePage> {
       futures.add(() async {
         try {
           final projectId = project['id'];
+          int pEt = 0;
+          int pSg = 0;
+
           final response = await http.get(
             Uri.parse(
               '${Endpoint.primDocuments}?\$filter=C_Project_ID eq $projectId&\$expand=PRIM_Documents_Related',
@@ -257,8 +270,8 @@ class _HomePageState extends State<HomePage> {
 
                 // Contamos solo si es un archivo (no carpeta)
                 if (!isFolder) {
-                  if (typeCode == 'ET') totalEt++;
-                  if (typeCode == 'SG') totalSg++;
+                  if (typeCode == 'ET') pEt++;
+                  if (typeCode == 'SG') pSg++;
                 }
 
                 // Recursión para hijos
@@ -273,6 +286,7 @@ class _HomePageState extends State<HomePage> {
             }
 
             countRecursive(records, null);
+            stats[projectId] = {'et': pEt, 'sg': pSg};
           }
         } catch (e) {
           debugPrint('Error loading document stats for project: $e');
@@ -284,8 +298,7 @@ class _HomePageState extends State<HomePage> {
 
     if (mounted) {
       setState(() {
-        _etCount = totalEt;
-        _sgCount = totalSg;
+        _projectStats = stats;
       });
     }
   }
@@ -701,7 +714,15 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildProjectDeliverablesCard(bool isDark, Color textColor) {
+  Widget _buildProjectDeliverablesCard(
+    bool isDark,
+    Color textColor,
+    int projectId,
+  ) {
+    final stats = _projectStats[projectId] ?? {'et': 0, 'sg': 0};
+    final et = stats['et'] ?? 0;
+    final sg = stats['sg'] ?? 0;
+
     return CardCustom(
       hover: true,
       child: Column(
@@ -739,7 +760,7 @@ class _HomePageState extends State<HomePage> {
                   Column(
                     children: [
                       Text(
-                        '$_etCount',
+                        '$et',
                         style: Theme.of(context).textTheme.displayMedium
                             ?.copyWith(
                               color: const Color(0xffD97708),
@@ -765,7 +786,7 @@ class _HomePageState extends State<HomePage> {
                   Column(
                     children: [
                       Text(
-                        '$_sgCount',
+                        '$sg',
                         style: Theme.of(context).textTheme.displayMedium
                             ?.copyWith(
                               color: const Color(0xffD97708),
@@ -789,7 +810,7 @@ class _HomePageState extends State<HomePage> {
           ),
           const SizedBox(height: 20),
           Text(
-            'Proyectos activos asociados.',
+            'Documentos del proyecto.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: textColor,
               fontWeight: FontWeight.bold,
@@ -869,68 +890,103 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                Wrap(
-                  spacing: 20,
-                  runSpacing: 20,
-                  alignment: WrapAlignment.spaceEvenly,
-                  children: [
-                    /*
-                    CardCustom(
-                      hover: true,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            'Accesos Rápidos',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: textColor,
-                            ),
-                          ),
-                          const SizedBox(height: 40),
-                          /*
-                      CustomButton(
-                        text: 'Crear Nueva Solicitud',
-                        icon: Icons.add_circle_outline,
-                        onPressed: () async {
-                          final result = await showDialog(
-                            context: context,
-                            builder: (context) => const CreateRequestDialog(),
+                // Selector de Proyectos
+                if (_projects.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: CustomContainer(
+                      title: 'Seleccionar Proyectos a Visualizar',
+                      child: Wrap(
+                        spacing: 8.0,
+                        runSpacing: 8.0,
+                        children: _projects.map((proj) {
+                          final isSelected = _selectedProjectIds.contains(
+                            proj['id'],
                           );
-                          if (result == true) {
-                            _loadRecentRequests(); // Recargar lista si se creó exitosamente
-                          }
-                        },
-                        borderRadius: 30,
-                      ),
-                      const SizedBox(height: 20),
-                      */
-                          CustomButton(
-                            text: 'Buscar en Manuales',
-                            icon: Icons.search,
-                            onPressed: null,
-                            backgroundColor: Colors.grey.shade200,
-                            textColor: Colors.black87,
-                            borderRadius: 30,
-                          ),
-                        ],
+                          return FilterChip(
+                            label: Text(proj['Name'] ?? 'Proyecto'),
+                            selected: isSelected,
+                            onSelected: (bool selected) {
+                              setState(() {
+                                if (selected) {
+                                  _selectedProjectIds.add(proj['id']);
+                                } else {
+                                  _selectedProjectIds.remove(proj['id']);
+                                }
+                              });
+                            },
+                          );
+                        }).toList(),
                       ),
                     ),
-                    */
-                    if (_hasSupport) ...[
+                  ),
+                const SizedBox(height: 20),
+                if (_hasSupport) ...[
+                  Wrap(
+                    spacing: 20,
+                    runSpacing: 20,
+                    alignment: WrapAlignment.center,
+                    children: [
                       _buildSupportHoursCard(isDark, textColor, progress),
                       _buildSupportRequestsCard(isDark, textColor),
                     ],
-                    if (_hasProject) ...[
-                      ..._projects.map(
-                        (proj) =>
-                            _buildProjectDurationCard(isDark, textColor, proj),
-                      ),
-                      _buildProjectDeliverablesCard(isDark, textColor),
-                    ],
-                  ],
-                ),
+                  ),
+                ],
+                if (_hasSupport &&
+                    _hasProject &&
+                    _selectedProjectIds.isNotEmpty) ...[
+                  const SizedBox(height: 30),
+                  const Divider(indent: 20, endIndent: 20),
+                  const SizedBox(height: 30),
+                ],
+                if (_hasProject)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        int columns = constraints.maxWidth < 900 ? 2 : 4;
+                        double spacing = 20;
+                        double itemWidth =
+                            (constraints.maxWidth - (spacing * (columns - 1))) /
+                            columns;
+
+                        if (itemWidth <= 0) itemWidth = 100;
+
+                        final activeProjects = _projects
+                            .where((p) => _selectedProjectIds.contains(p['id']))
+                            .toList();
+
+                        if (activeProjects.isEmpty)
+                          return const SizedBox.shrink();
+
+                        return Wrap(
+                          spacing: spacing,
+                          runSpacing: spacing,
+                          alignment: WrapAlignment.start,
+                          children: activeProjects.expand((proj) {
+                            return [
+                              SizedBox(
+                                width: itemWidth,
+                                child: _buildProjectDurationCard(
+                                  isDark,
+                                  textColor,
+                                  proj,
+                                ),
+                              ),
+                              SizedBox(
+                                width: itemWidth,
+                                child: _buildProjectDeliverablesCard(
+                                  isDark,
+                                  textColor,
+                                  proj['id'],
+                                ),
+                              ),
+                            ];
+                          }).toList(),
+                        );
+                      },
+                    ),
+                  ),
                 const SizedBox(height: 30),
                 /*
             Padding(

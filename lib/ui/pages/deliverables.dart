@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:primhub/ImagesManagment/downloadAttachments.dart';
@@ -9,6 +11,7 @@ import 'package:primhub/ui/shared/custom_modal.dart';
 import '../shared/custom_button.dart';
 import '../widgets/custom_drawer.dart';
 import '../shared/hover_widgets.dart';
+import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 class DeliverablesPage extends StatefulWidget {
   const DeliverablesPage({super.key});
@@ -148,6 +151,17 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
     final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          // Lógica para subir archivo (Placeholder)
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Funcionalidad de subida en construcción'),
+            ),
+          );
+        },
+        child: const Icon(Icons.upload_file),
+      ),
       appBar: AppBar(
         title: const Text(
           'Mis Proyectos',
@@ -158,9 +172,17 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
             ? IconButton(
                 icon: const Icon(Icons.arrow_back),
                 onPressed: () {
+                  // Si la ruta actual tiene más de 2 elementos (ej. ['Mis Proyectos', 'Proyecto X', 'Entregables']),
+                  // podemos retroceder un nivel.
                   setState(() {
-                    if (_currentPath.length > 3) {
+                    if (_currentPath.length > 2) {
                       _currentPath.removeLast();
+                      // Si al retroceder nos quedamos con menos de 3 elementos en la ruta,
+                      // significa que hemos salido de la vista de 'Entregables'/'Seguimiento',
+                      // por lo que volvemos a la lista de proyectos.
+                      if (_currentPath.length < 3) {
+                        _showingFiles = false;
+                      }
                     } else {
                       _showingFiles = false;
                     }
@@ -401,12 +423,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
               _currentPath.add(name);
             });
           } else {
-            downloadAttachment(
-              context: context,
-              recordID: details['id'],
-              tableName: tableName,
-              fileName: name,
-            );
+            _previewFile(details, tableName, name);
           }
         },
         borderRadius: BorderRadius.circular(12),
@@ -724,6 +741,184 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
         );
       },
     );
+  }
+
+  void _previewFile(
+    Map<String, dynamic> details,
+    String tableName,
+    String name,
+  ) {
+    final extension = name.split('.').last.toLowerCase();
+    final isImage = [
+      'jpg',
+      'jpeg',
+      'png',
+      'gif',
+      'webp',
+      'bmp',
+    ].contains(extension);
+    final isPdf = extension == 'pdf';
+
+    showDialog(
+      context: context,
+      builder: (context) => CustomModal(
+        title: name,
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isImage || isPdf)
+                FutureBuilder<Uint8List?>(
+                  future: _fetchImage(tableName, details['id'], name),
+                  builder: (context, snapshot) {
+                    return _buildPreviewWidget(
+                      snapshot,
+                      isImage,
+                      isPdf,
+                      name,
+                      details,
+                      tableName,
+                    );
+                  },
+                )
+              else
+                _buildNoPreviewWidget(extension),
+              const SizedBox(height: 20),
+              _buildPropertyRow('Estado', _extractStatus(details['Status'])),
+              _buildPropertyRow(
+                'Versión',
+                _extractIdentifier(details['VersionNo']),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cerrar'),
+          ),
+          CustomButton(
+            text: 'Descargar',
+            icon: Icons.download,
+            onPressed: () {
+              downloadAttachment(
+                context: context,
+                recordID: details['id'],
+                tableName: tableName,
+                fileName: name,
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPreviewWidget(
+    AsyncSnapshot<Uint8List?> snapshot,
+    bool isImage,
+    bool isPdf,
+    String name,
+    Map<String, dynamic> details,
+    String tableName,
+  ) {
+    if (snapshot.connectionState == ConnectionState.waiting) {
+      return const SizedBox(
+        height: 200,
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (snapshot.hasData && snapshot.data != null) {
+      if (isImage) {
+        return ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 400),
+          child: Image.memory(snapshot.data!, fit: BoxFit.contain),
+        );
+      } else if (isPdf) {
+        if (!kIsWeb && defaultTargetPlatform == TargetPlatform.linux) {
+          return Container(
+            height: 200,
+            alignment: Alignment.center,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.picture_as_pdf, size: 48, color: Colors.red),
+                const SizedBox(height: 16),
+                const Text(
+                  'Vista previa no disponible en Linux',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    downloadAttachment(
+                      context: context,
+                      recordID: details['id'],
+                      tableName: tableName,
+                      fileName: name,
+                    );
+                  },
+                  icon: const Icon(Icons.open_in_new),
+                  label: const Text('Abrir externamente'),
+                ),
+              ],
+            ),
+          );
+        }
+        return SizedBox(height: 500, child: SfPdfViewer.memory(snapshot.data!));
+      }
+    }
+    return Container(
+      height: 200,
+      color: Colors.grey.shade200,
+      child: const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.broken_image, size: 50, color: Colors.grey),
+            SizedBox(height: 8),
+            Text('No se pudo cargar la previsualización'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNoPreviewWidget(String extension) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        children: [
+          Icon(_getFileIcon(extension), size: 80, color: Colors.grey),
+          const SizedBox(height: 16),
+          const Text(
+            'Previsualización no disponible para este tipo de archivo.',
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<Uint8List?> _fetchImage(
+    String tableName,
+    int recordId,
+    String fileName,
+  ) async {
+    try {
+      final url =
+          '$tableName/$recordId/attachments/${Uri.encodeComponent(fileName)}';
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {'Authorization': Token.token},
+      );
+      if (response.statusCode == 200) {
+        return response.bodyBytes;
+      }
+    } catch (e) {
+      debugPrint('Error fetching image preview: $e');
+    }
+    return null;
   }
 
   Widget _buildPropertyRow(String title, String value) {

@@ -27,7 +27,8 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
   final TextEditingController _dateCompleteController = TextEditingController();
   final TextEditingController _startTimeController = TextEditingController();
   final TextEditingController _endTimeController = TextEditingController();
-  final TextEditingController _qtyPlanController = TextEditingController();
+  final TextEditingController _hoursController = TextEditingController();
+  int _selectedMinutes = 0;
 
   String _selectedPriority = 'Media';
   String _selectedType = 'Service Request';
@@ -105,48 +106,6 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     'Warranty': 103,
   };
 
-  void _calculateHours() {
-    if (_startTimeController.text.isNotEmpty &&
-        _endTimeController.text.isNotEmpty) {
-      try {
-        DateTime startBase = _dateStartController.text.isNotEmpty
-            ? DateTime.parse(_dateStartController.text)
-            : DateTime.now();
-        DateTime endBase = _dateCompleteController.text.isNotEmpty
-            ? DateTime.parse(_dateCompleteController.text)
-            : startBase;
-
-        final sParts = _startTimeController.text.split(':');
-        final eParts = _endTimeController.text.split(':');
-        if (sParts.length >= 2 && eParts.length >= 2) {
-          final start = DateTime(
-            startBase.year,
-            startBase.month,
-            startBase.day,
-            int.parse(sParts[0]),
-            int.parse(sParts[1]),
-          );
-          var end = DateTime(
-            endBase.year,
-            endBase.month,
-            endBase.day,
-            int.parse(eParts[0]),
-            int.parse(eParts[1]),
-          );
-          if (end.isBefore(start)) {
-            end = end.add(const Duration(days: 1));
-            _dateCompleteController.text =
-                "${end.year}-${end.month.toString().padLeft(2, '0')}-${end.day.toString().padLeft(2, '0')}";
-          }
-          final diff = end.difference(start);
-          final hours = diff.inMinutes / 60.0;
-          _qtyPlanController.text = hours.toStringAsFixed(2);
-          setState(() {});
-        }
-      } catch (_) {}
-    }
-  }
-
   Future<void> _selectDate(
     BuildContext context,
     TextEditingController controller,
@@ -160,7 +119,6 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     if (picked != null) {
       controller.text =
           "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
-      _calculateHours();
     }
   }
 
@@ -175,7 +133,6 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     if (picked != null) {
       controller.text =
           "${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}:00";
-      _calculateHours();
     }
   }
 
@@ -234,8 +191,10 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
         if (_endTimeController.text.isNotEmpty) {
           data['EndTime'] = _ensureIsoTime(_endTimeController.text);
         }
-        if (_qtyPlanController.text.isNotEmpty) {
-          data['QtyPlan'] = double.tryParse(_qtyPlanController.text);
+        double h = double.tryParse(_hoursController.text) ?? 0.0;
+        double m = _selectedMinutes.toDouble();
+        if (h > 0 || m > 0) {
+          data['QtyPlan'] = h + (m / 60.0);
         }
       }
 
@@ -437,40 +396,32 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: isDark ? Colors.grey.shade800 : Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: isDark
-                          ? Colors.grey.shade600
-                          : Colors.grey.shade300,
+                Row(
+                  children: [
+                    Expanded(
+                      child: CustomTextField(
+                        controller: _hoursController,
+                        label: 'Horas',
+                        hintText: '0',
+                        keyboardType: TextInputType.number,
+                      ),
                     ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "Horas Planificadas",
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: isDark ? Colors.grey.shade400 : Colors.grey,
-                        ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: CustomDropdown<int>(
+                        label: 'Minutos',
+                        value: _selectedMinutes,
+                        items: List.generate(60, (index) {
+                          return DropdownMenuItem(
+                            value: index,
+                            child: Text(index.toString().padLeft(2, '0')),
+                          );
+                        }),
+                        onChanged: (val) =>
+                            setState(() => _selectedMinutes = val!),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        DurationFormatter.format(
-                          double.tryParse(_qtyPlanController.text) ?? 0.0,
-                        ),
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 16),
               ],
