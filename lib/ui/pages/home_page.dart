@@ -145,10 +145,8 @@ class _HomePageState extends State<HomePage> {
             projectPartnerName =
                 data['records'][0]['C_BPartner_ID']?['identifier'];
             _projects = data['records'];
-            // Por defecto seleccionamos todos los proyectos al cargar
-            _selectedProjectIds = _projects
-                .map<int>((p) => p['id'] as int)
-                .toList();
+            // Por defecto no seleccionamos ningún proyecto
+            _selectedProjectIds = [];
           }
         }
       } catch (e) {
