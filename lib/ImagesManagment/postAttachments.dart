@@ -10,7 +10,7 @@ Future<bool> postAttachments({
   required Map<String, String> convertedFile,
 }) async {
   try {
-    String token = Token.auth!;
+    String token = Token.token;
     final Map<String, dynamic> data = {
       "name": convertedFile['title'],
       "data": convertedFile['base64'],
