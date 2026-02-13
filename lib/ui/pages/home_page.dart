@@ -18,6 +18,7 @@ import 'package:primhub/ui/shared/duration_formatter.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
+  static List<int> savedSelectedProjectIds = [];
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -68,6 +69,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    _selectedProjectIds = List.from(HomePage.savedSelectedProjectIds);
     _checkRole();
     _initData();
     _loadCurrentUser();
@@ -145,8 +147,6 @@ class _HomePageState extends State<HomePage> {
             projectPartnerName =
                 data['records'][0]['C_BPartner_ID']?['identifier'];
             _projects = data['records'];
-            // Por defecto no seleccionamos ningún proyecto
-            _selectedProjectIds = [];
           }
         }
       } catch (e) {
@@ -233,6 +233,7 @@ class _HomePageState extends State<HomePage> {
           final projectId = project['id'];
           int pEt = 0;
           int pSg = 0;
+          int pGn = 0;
 
           final response = await http.get(
             Uri.parse(
@@ -270,6 +271,7 @@ class _HomePageState extends State<HomePage> {
                 if (!isFolder) {
                   if (typeCode == 'ET') pEt++;
                   if (typeCode == 'SG') pSg++;
+                  if (typeCode == 'GN') pGn++;
                 }
 
                 // Recursión para hijos
@@ -284,7 +286,7 @@ class _HomePageState extends State<HomePage> {
             }
 
             countRecursive(records, null);
-            stats[projectId] = {'et': pEt, 'sg': pSg};
+            stats[projectId] = {'et': pEt, 'sg': pSg, 'gn': pGn};
           }
         } catch (e) {
           debugPrint('Error loading document stats for project: $e');
@@ -453,159 +455,167 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildSupportHoursCard(bool isDark, Color textColor, double progress) {
-    return CardCustom(
-      hover: true,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(
-              color: Color.fromRGBO(223, 231, 255, 1),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.access_time,
-              color: Color.fromRGBO(79, 71, 229, 1),
-              size: 36,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Text(
-                'Horas De soporte Disponibles',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: textColor,
-                ),
+    return InkWell(
+      onTap: () => context.push('/support'),
+      borderRadius: BorderRadius.circular(12),
+      child: CardCustom(
+        hover: true,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: const BoxDecoration(
+                color: Color.fromRGBO(223, 231, 255, 1),
+                shape: BoxShape.circle,
               ),
-              Text(
-                _contractedHours == null
-                    ? '...'
-                    : DurationFormatter.format(
-                        _contractedHours! - _consumedHours,
-                      ),
-                style: Theme.of(context).textTheme.displayMedium?.copyWith(
-                  color: const Color(0xff4F47E5),
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0),
-            child: TweenAnimationBuilder<double>(
-              tween: Tween<double>(begin: 0, end: progress.clamp(0.0, 1.0)),
-              duration: const Duration(seconds: 2),
-              builder: (context, value, _) => LinearProgressIndicator(
-                value: value,
-                backgroundColor: isDark
-                    ? Colors.grey.shade800
-                    : Colors.grey.shade200,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  progress > 1.0
-                      ? Colors.red
-                      : const Color.fromARGB(255, 200, 42, 42),
-                ),
-                minHeight: 8,
-                borderRadius: BorderRadius.circular(4),
+              child: const Icon(
+                Icons.access_time,
+                color: Color.fromRGBO(79, 71, 229, 1),
+                size: 36,
               ),
             ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            _contractedHours == null
-                ? 'Cargando contrato...'
-                : 'Contrato de ${DurationFormatter.format(_contractedHours!)}.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: textColor,
-              fontWeight: FontWeight.bold,
+            const SizedBox(height: 16),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(
+                  'Horas De soporte Disponibles',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: textColor,
+                  ),
+                ),
+                Text(
+                  _contractedHours == null
+                      ? '...'
+                      : DurationFormatter.format(
+                          _contractedHours! - _consumedHours,
+                        ),
+                  style: Theme.of(context).textTheme.displayMedium?.copyWith(
+                    color: const Color(0xff4F47E5),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'renovacion: 31/12/2026',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: textColor,
-              fontWeight: FontWeight.bold,
+            const SizedBox(height: 10),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0),
+              child: TweenAnimationBuilder<double>(
+                tween: Tween<double>(begin: 0, end: progress.clamp(0.0, 1.0)),
+                duration: const Duration(seconds: 2),
+                builder: (context, value, _) => LinearProgressIndicator(
+                  value: value,
+                  backgroundColor: isDark
+                      ? Colors.grey.shade800
+                      : Colors.grey.shade200,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    progress > 1.0
+                        ? Colors.red
+                        : const Color.fromARGB(255, 200, 42, 42),
+                  ),
+                  minHeight: 8,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Frecuencia: ${ProductChip.frecuencyID ?? 'No definida'}',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: textColor,
-              fontWeight: FontWeight.bold,
+            const SizedBox(height: 10),
+            Text(
+              _contractedHours == null
+                  ? 'Cargando contrato...'
+                  : 'Contrato de ${DurationFormatter.format(_contractedHours!)}.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: textColor,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Producto Contratado: ${ProductChip.mProductID ?? 'N/A'}',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: textColor,
-              fontWeight: FontWeight.bold,
+            const SizedBox(height: 4),
+            Text(
+              'renovacion: 31/12/2026',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: textColor,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 8),
+            Text(
+              'Frecuencia: ${ProductChip.frecuencyID ?? 'No definida'}',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: textColor,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Producto Contratado: ${ProductChip.mProductID ?? 'N/A'}',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: textColor,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildSupportRequestsCard(bool isDark, Color textColor) {
-    return CardCustom(
-      hover: true,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(
-              color: Color.fromRGBO(254, 244, 199, 1),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.sync,
-              color: Color.fromRGBO(217, 119, 8, 1),
-              size: 36,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Text(
-                'Solicitudes ya atendidas',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: textColor,
-                ),
+    return InkWell(
+      onTap: () => context.push('/my-requests'),
+      borderRadius: BorderRadius.circular(12),
+      child: CardCustom(
+        hover: true,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: const BoxDecoration(
+                color: Color.fromRGBO(254, 244, 199, 1),
+                shape: BoxShape.circle,
               ),
-              Text(
-                '$_closedRequestsCount',
-                style: Theme.of(context).textTheme.displayMedium?.copyWith(
-                  color: const Color(0xffD97708),
-                  fontWeight: FontWeight.bold,
-                ),
+              child: const Icon(
+                Icons.sync,
+                color: Color.fromRGBO(217, 119, 8, 1),
+                size: 36,
               ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Text(
-            '$_inProgressRequestsCount están en revisión/progreso.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: textColor,
-              fontWeight: FontWeight.bold,
             ),
-          ),
-          const SizedBox(height: 4),
-        ],
+            const SizedBox(height: 16),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(
+                  'Solicitudes ya atendidas',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: textColor,
+                  ),
+                ),
+                Text(
+                  '$_closedRequestsCount',
+                  style: Theme.of(context).textTheme.displayMedium?.copyWith(
+                    color: const Color(0xffD97708),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            Text(
+              '$_inProgressRequestsCount están en revisión/progreso.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: textColor,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 4),
+          ],
+        ),
       ),
     );
   }
@@ -644,70 +654,77 @@ class _HomePageState extends State<HomePage> {
       }
     }
 
-    return CardCustom(
-      hover: true,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(
-              color: Color.fromRGBO(223, 231, 255, 1),
-              shape: BoxShape.circle,
+    return InkWell(
+      onTap: () => context.push(
+        '/deliverables',
+        extra: {'projectId': project['id'], 'view': 'projects'},
+      ),
+      borderRadius: BorderRadius.circular(12),
+      child: CardCustom(
+        hover: true,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: const BoxDecoration(
+                color: Color.fromRGBO(223, 231, 255, 1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.calendar_today,
+                color: Color.fromRGBO(79, 71, 229, 1),
+                size: 36,
+              ),
             ),
-            child: const Icon(
-              Icons.calendar_today,
-              color: Color.fromRGBO(79, 71, 229, 1),
-              size: 36,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                child: Text(
-                  projectName,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: textColor.withOpacity(0.7),
+            const SizedBox(height: 16),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                  child: Text(
+                    projectName,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: textColor.withOpacity(0.7),
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: textColor,
+                const SizedBox(height: 4),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: textColor,
+                  ),
                 ),
-              ),
-              Text(
-                value,
-                style: Theme.of(context).textTheme.displayMedium?.copyWith(
-                  color: const Color(0xff4F47E5),
-                  fontWeight: FontWeight.bold,
+                Text(
+                  value,
+                  style: Theme.of(context).textTheme.displayMedium?.copyWith(
+                    color: const Color(0xff4F47E5),
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            subtitle,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: textColor,
-              fontWeight: FontWeight.bold,
+              ],
             ),
-          ),
-        ],
+            const SizedBox(height: 10),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: textColor,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -717,9 +734,10 @@ class _HomePageState extends State<HomePage> {
     Color textColor,
     int projectId,
   ) {
-    final stats = _projectStats[projectId] ?? {'et': 0, 'sg': 0};
+    final stats = _projectStats[projectId] ?? {'et': 0, 'sg': 0, 'gn': 0};
     final et = stats['et'] ?? 0;
     final sg = stats['sg'] ?? 0;
+    final gn = stats['gn'] ?? 0;
 
     return CardCustom(
       hover: true,
@@ -755,52 +773,108 @@ class _HomePageState extends State<HomePage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  Column(
-                    children: [
-                      Text(
-                        '$et',
-                        style: Theme.of(context).textTheme.displayMedium
-                            ?.copyWith(
-                              color: const Color(0xffD97708),
+                  InkWell(
+                    onTap: () => context.push(
+                      '/deliverables',
+                      extra: {'projectId': projectId, 'view': 'Entregables'},
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Column(
+                        children: [
+                          Text(
+                            '$et',
+                            style: Theme.of(context).textTheme.displayMedium
+                                ?.copyWith(
+                                  color: const Color(0xffD97708),
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 24,
+                                ),
+                          ),
+                          Text(
+                            'Entregables',
+                            style: TextStyle(
+                              fontSize: 12,
                               fontWeight: FontWeight.bold,
-                              fontSize: 24,
+                              color: textColor,
                             ),
+                          ),
+                        ],
                       ),
-                      Text(
-                        'Entregables',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: textColor,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                   Container(
                     height: 30,
                     width: 1,
                     color: Colors.grey.withOpacity(0.3),
                   ),
-                  Column(
-                    children: [
-                      Text(
-                        '$sg',
-                        style: Theme.of(context).textTheme.displayMedium
-                            ?.copyWith(
-                              color: const Color(0xffD97708),
+                  InkWell(
+                    onTap: () => context.push(
+                      '/deliverables',
+                      extra: {'projectId': projectId, 'view': 'Seguimiento'},
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Column(
+                        children: [
+                          Text(
+                            '$sg',
+                            style: Theme.of(context).textTheme.displayMedium
+                                ?.copyWith(
+                                  color: const Color(0xffD97708),
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 24,
+                                ),
+                          ),
+                          Text(
+                            'Seguimiento',
+                            style: TextStyle(
+                              fontSize: 12,
                               fontWeight: FontWeight.bold,
-                              fontSize: 24,
+                              color: textColor,
                             ),
+                          ),
+                        ],
                       ),
-                      Text(
-                        'Seguimiento',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: textColor,
-                        ),
+                    ),
+                  ),
+                  Container(
+                    height: 30,
+                    width: 1,
+                    color: Colors.grey.withOpacity(0.3),
+                  ),
+                  InkWell(
+                    onTap: () => context.push(
+                      '/deliverables',
+                      extra: {'projectId': projectId, 'view': 'General'},
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Column(
+                        children: [
+                          Text(
+                            '$gn',
+                            style: Theme.of(context).textTheme.displayMedium
+                                ?.copyWith(
+                                  color: const Color(0xffD97708),
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 24,
+                                ),
+                          ),
+                          Text(
+                            'General',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: textColor,
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ],
               ),
@@ -911,6 +985,9 @@ class _HomePageState extends State<HomePage> {
                                 } else {
                                   _selectedProjectIds.remove(proj['id']);
                                 }
+                                HomePage.savedSelectedProjectIds = List.from(
+                                  _selectedProjectIds,
+                                );
                               });
                             },
                           );
@@ -960,7 +1037,7 @@ class _HomePageState extends State<HomePage> {
                         return Wrap(
                           spacing: spacing,
                           runSpacing: spacing,
-                          alignment: WrapAlignment.start,
+                          alignment: WrapAlignment.center,
                           children: activeProjects.expand((proj) {
                             return [
                               SizedBox(
