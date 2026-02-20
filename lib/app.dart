@@ -2,14 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/theme/theme.dart';
-import 'package:primhub/ui/pages/deliverables.dart';
+import 'package:primhub/ui/pages/Projects/deliverables.dart';
 import 'package:primhub/ui/pages/home_page.dart';
 import 'package:primhub/ui/pages/knowledge_base.dart';
-import 'package:primhub/ui/pages/login.dart';
-import 'package:primhub/ui/pages/login_selection_page.dart';
+import 'package:primhub/ui/pages/Login/login.dart';
+import 'package:primhub/ui/pages/Login/login_selection_page.dart';
 import 'package:primhub/ui/pages/marketplace.dart';
 import 'package:primhub/ui/pages/metrics.dart';
-import 'package:primhub/ui/pages/my_projects.dart';
 import 'package:primhub/ui/pages/profile_page.dart';
 import 'package:primhub/ui/pages/request/my_requests.dart';
 import 'package:primhub/ui/pages/support.dart';
@@ -63,10 +62,6 @@ final _router = GoRouter(
       builder: (context, state) => const MarketplacePage(),
     ),
     GoRoute(path: '/profile', builder: (context, state) => const ProfilePage()),
-    GoRoute(
-      path: '/my-projects',
-      builder: (context, state) => const MyProjectsPage(),
-    ),
   ],
 );
 

@@ -1,7 +1,6 @@
 // ignore_for_file: use_build_context_synchronously
 
 import 'package:flutter/material.dart';
-import 'package:http/http.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/auth_api.dart';
 import 'package:primhub/api/token.dart';

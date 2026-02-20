@@ -78,6 +78,7 @@ Future<List<Map<String, dynamic>>> fetchRequest() async {
               'AD_User_Name': record['AD_User_ID']?['identifier'],
               'C_BPartner_Name': record['C_BPartner_ID']?['identifier'],
               'identifier1': record['r status'],
+              'Record_UU': record['Record_UU'],
             };
           }).toList();
 

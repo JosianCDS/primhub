@@ -123,6 +123,11 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     double estimated = 0.0;
 
     for (var req in requests) {
+      // Si la solicitud está asociada a un registro (ej. Tarea de Proyecto) mediante Record_UU,
+      // no la mostramos en el listado general.
+      if (req['Record_UU'] != null && req['Record_UU'].toString().isNotEmpty)
+        continue;
+
       final statusName = req['R_Status_Name'] ?? '';
       final qtyPlan = (req['QtyPlan'] as num?)?.toDouble() ?? 0.0;
 
