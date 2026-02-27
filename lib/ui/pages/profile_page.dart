@@ -176,12 +176,6 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                       const Divider(),
                       _buildInfoTile(Icons.language, 'Idioma', language),
-                      const Divider(),
-                      _buildInfoTile(
-                        Icons.security,
-                        'ID de Rol',
-                        roleId.toString(),
-                      ),
                     ],
                   ),
                 ),

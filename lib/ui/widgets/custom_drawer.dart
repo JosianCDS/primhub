@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../../api/token.dart';
+import '../../api/access_control.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../shared/custom_modal.dart';
 import '../shared/custom_button.dart';
@@ -146,7 +147,9 @@ class _CustomDrawerState extends State<CustomDrawer> {
                         },
                       ),
                     ),
-                  if (_hasSupport)
+                  if (_hasSupport ||
+                      AccessControl.isSupport ||
+                      AccessControl.isAdmin)
                     HoverListTile(
                       builder: (isHovered) => ListTile(
                         leading: Icon(
@@ -169,7 +172,9 @@ class _CustomDrawerState extends State<CustomDrawer> {
                         },
                       ),
                     ),
-                  if (_hasSupport)
+                  if (_hasSupport ||
+                      AccessControl.isSupport ||
+                      AccessControl.isAdmin)
                     HoverListTile(
                       builder: (isHovered) => ListTile(
                         leading: Icon(
@@ -217,7 +222,9 @@ class _CustomDrawerState extends State<CustomDrawer> {
                   ),
                 ),
                 */
-                  if (_hasProject)
+                  if (_hasProject ||
+                      AccessControl.isProject ||
+                      AccessControl.isAdmin)
                     HoverListTile(
                       builder: (isHovered) => ListTile(
                         leading: Icon(

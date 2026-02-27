@@ -23,6 +23,7 @@ Future<bool> postAttachments({
     );
 
     if (response.statusCode == 200 || response.statusCode == 201) {
+      _updateStatus(tableName, recordID, 'Pendiente');
       return true;
     } else {
       debugPrint(
@@ -34,5 +35,24 @@ Future<bool> postAttachments({
     debugPrint('Error al subir el archivo: $e');
 
     return false;
+  }
+}
+
+Future<void> _updateStatus(
+  String tableName,
+  int recordID,
+  String status,
+) async {
+  try {
+    final url = Uri.parse(
+      '${Endpoint.baseUrl}/api/v1/models/$tableName/$recordID',
+    );
+    await put(
+      url,
+      headers: {'Content-Type': 'application/json', 'Authorization': Token.token},
+      body: jsonEncode({'Status': status}),
+    );
+  } catch (e) {
+    debugPrint('Error updating status to $status: $e');
   }
 }

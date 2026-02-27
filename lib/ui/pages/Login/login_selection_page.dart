@@ -148,6 +148,11 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
 
     Token.client = _selectedClientId;
     Token.rol = _selectedRoleId;
+    final selectedRole = _roles.firstWhere(
+      (r) => r['id'] == _selectedRoleId,
+      orElse: () => null,
+    );
+    Token.roleUU = selectedRole?['uuid'] ?? selectedRole?['UUID'];
     Token.organitation = _selectedOrgId;
     Token.warehouseID = _selectedWarehouseId;
 

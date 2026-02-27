@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:primhub/ImagesManagment/downloadAttachments.dart';
 import 'package:primhub/ImagesManagment/postAttachments.dart';
 import 'package:primhub/api/token.dart';
+import 'package:primhub/api/access_control.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/ui/shared/custom_button.dart';
 import 'package:primhub/ui/shared/custom_inputs.dart';
@@ -20,12 +21,14 @@ class ProjectFileManager extends StatefulWidget {
   final Map<String, dynamic> project;
   final String viewType; // 'Entregables', 'Seguimiento', 'General'
   final VoidCallback onExit;
+  final ValueChanged<bool>? onRootChanged;
 
   const ProjectFileManager({
     super.key,
     required this.project,
     required this.viewType,
     required this.onExit,
+    this.onRootChanged,
   });
 
   @override
@@ -37,6 +40,9 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
   List<dynamic> _documents = [];
   bool _isLoadingDocuments = false;
   bool _isDragging = false;
+  final TextEditingController _searchController = TextEditingController();
+  List<Map<String, dynamic>> _searchResults = [];
+  int? _downloadingId;
 
   @override
   void initState() {
@@ -48,6 +54,17 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
       widget.viewType,
     ];
     _fetchDocuments();
+    _searchController.addListener(_performSearch);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _notifyRootChanged() {
+    widget.onRootChanged?.call(isRoot());
   }
 
   /// Método público para refrescar desde el padre
@@ -62,6 +79,7 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
     if (_currentPath.length > 3) {
       setState(() {
         _currentPath.removeLast();
+        _notifyRootChanged();
       });
       return true;
     }
@@ -168,7 +186,52 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
     }
   }
 
+  void _performSearch() {
+    final query = _searchController.text.toLowerCase();
+    if (query.isEmpty) {
+      if (_searchResults.isNotEmpty) {
+        setState(() {
+          _searchResults = [];
+        });
+      }
+      return;
+    }
+
+    final List<Map<String, dynamic>> results = [];
+
+    void search(List<dynamic> docs, List<String> path) {
+      for (final doc in docs) {
+        final docName = (doc['Name'] as String? ?? '').toLowerCase();
+        final isFolder = doc['IsSummary'] == true || doc['IsSummary'] == 'Y';
+
+        if (!isFolder && docName.contains(query)) {
+          results.add({'doc': doc, 'path': List<String>.from(path)});
+        }
+
+        if (isFolder) {
+          final children = doc['PRIM_Documents_Related'] as List? ?? [];
+          if (children.isNotEmpty) {
+            search(children, [...path, doc['Name'] as String]);
+          }
+        }
+      }
+    }
+
+    // Inicia la búsqueda desde los documentos raíz del tipo de vista actual
+    search(_documents, _currentPath.sublist(0, 3));
+
+    setState(() => _searchResults = results);
+  }
+
   Future<void> pickAndUploadFile() async {
+    if (!AccessControl.canManageFiles) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No tienes permisos para subir archivos.'),
+        ),
+      );
+      return;
+    }
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       withData: true,
     );
@@ -190,8 +253,16 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
   }
 
   Future<void> _uploadFileBytes(String fileName, Uint8List fileBytes) async {
+    if (!AccessControl.canManageFiles) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No tienes permisos para subir archivos.'),
+        ),
+      );
+      return;
+    }
     final String extension = fileName.contains('.')
-        ? fileName.split('.').last
+        ? fileName.split('.').last.toLowerCase()
         : '';
 
     setState(() => _isLoadingDocuments = true);
@@ -285,6 +356,14 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
   }
 
   Future<void> createFolderDialog() async {
+    if (!AccessControl.canManageFiles) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No tienes permisos para crear carpetas.'),
+        ),
+      );
+      return;
+    }
     final TextEditingController controller = TextEditingController();
     final bool? create = await showDialog<bool>(
       context: context,
@@ -313,6 +392,14 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
   }
 
   Future<void> _createFolder(String name) async {
+    if (!AccessControl.canManageFiles) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No tienes permisos para crear carpetas.'),
+        ),
+      );
+      return;
+    }
     setState(() => _isLoadingDocuments = true);
 
     String typeCode = widget.viewType == 'Entregables'
@@ -327,6 +414,7 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
         'name': name,
         'C_Project_ID': {'id': projectId},
         'Type': typeCode,
+        'IsSummary': true,
       };
 
       if (_currentPath.length > 3) {
@@ -373,6 +461,14 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
   }
 
   Future<void> _deleteFile(int id, String tableName, String name) async {
+    if (!AccessControl.canManageFiles) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No tienes permisos para eliminar archivos.'),
+        ),
+      );
+      return;
+    }
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => CustomModal(
@@ -436,6 +532,7 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
 
     return DropTarget(
       onDragDone: (details) async {
+        if (!AccessControl.canManageFiles) return;
         for (final file in details.files) {
           final bytes = await file.readAsBytes();
           await _uploadFileBytes(file.name, bytes);
@@ -445,46 +542,137 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
       onDragExited: (details) => setState(() => _isDragging = false),
       child: Container(
         color: _isDragging ? theme.colorScheme.primary.withOpacity(0.1) : null,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            double containerWidth = constraints.maxWidth > 800
-                ? 800
-                : constraints.maxWidth;
-            int crossAxisCount = 2;
-            double childAspectRatio = 0.75;
-            int charLimit = containerWidth < 600 ? 12 : 25;
-
-            return SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 800),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (_currentPath.length > 1) ...[
-                        Padding(
-                          padding: const EdgeInsets.only(
-                            bottom: 16.0,
-                            left: 8.0,
-                            right: 8.0,
-                          ),
-                          child: _buildBreadcrumbs(context),
-                        ),
-                      ],
-                      _buildContentGrid(
-                        crossAxisCount,
-                        childAspectRatio,
-                        charLimit,
-                      ),
-                    ],
-                  ),
-                ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              child: CustomTextField(
+                controller: _searchController,
+                hintText: 'Buscar documento...',
+                prefixIcon: const Icon(Icons.search),
               ),
-            );
-          },
+            ),
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  double containerWidth = constraints.maxWidth > 800
+                      ? 800
+                      : constraints.maxWidth;
+                  int crossAxisCount = 2;
+                  double childAspectRatio = 0.75;
+                  int charLimit = containerWidth < 600 ? 12 : 25;
+
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 800),
+                        child: _searchController.text.isNotEmpty
+                            ? _buildSearchResults()
+                            : Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (_currentPath.length > 1) ...[
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 16.0,
+                                        left: 8.0,
+                                        right: 8.0,
+                                      ),
+                                      child: _buildBreadcrumbs(context),
+                                    ),
+                                  ],
+                                  _buildContentGrid(
+                                    crossAxisCount,
+                                    childAspectRatio,
+                                    charLimit,
+                                  ),
+                                ],
+                              ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
+    );
+  }
+
+  Widget _buildSearchResults() {
+    if (_isLoadingDocuments) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_searchResults.isEmpty) {
+      return const Center(child: Text('No se encontraron documentos.'));
+    }
+
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: _searchResults.length,
+      itemBuilder: (context, index) {
+        final result = _searchResults[index];
+        final doc = result['doc'] as Map<String, dynamic>;
+        final path = result['path'] as List<String>;
+        final docName = doc['Name'] as String? ?? 'Sin Nombre';
+
+        final relativePath = path.length > 3
+            ? path.sublist(3).join(' / ')
+            : 'Principal';
+
+        return Card(
+          margin: const EdgeInsets.only(bottom: 8),
+          child: ListTile(
+            leading: Icon(
+              _getFileIcon(
+                _extractIdentifier(doc['Extension'], defaultValue: ''),
+              ),
+            ),
+            title: Text(docName),
+            subtitle: Text('Ubicación: $relativePath'),
+            trailing: AccessControl.canDownloadFiles
+                ? (_downloadingId == doc['id']
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : IconButton(
+                          icon: const Icon(Icons.download),
+                          onPressed: () async {
+                            final tableName = path.length > 3
+                                ? Endpoint.primDocumentsRelated
+                                : Endpoint.primDocuments;
+                            setState(() => _downloadingId = doc['id']);
+                            await downloadAttachment(
+                              context: context,
+                              recordID: doc['id'],
+                              tableName: tableName,
+                              fileName: docName,
+                              onStatusChanged: () async {
+                                await _fetchDocuments();
+                                if (_searchController.text.isNotEmpty) {
+                                  _performSearch();
+                                }
+                              },
+                            );
+                            if (mounted) setState(() => _downloadingId = null);
+                          },
+                        ))
+                : null,
+            onTap: () {
+              setState(() {
+                _currentPath = path;
+                _searchController.clear();
+                _notifyRootChanged();
+              });
+            },
+          ),
+        );
+      },
     );
   }
 
@@ -503,6 +691,7 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
                   } else {
                     setState(() {
                       _currentPath = _currentPath.sublist(0, i + 1);
+                      _notifyRootChanged();
                     });
                   }
                 },
@@ -631,8 +820,9 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
         }
 
         String extension = '';
-        if (!isFolder && name.contains('.')) {
-          extension = name.split('.').last.toUpperCase();
+        extension = _extractIdentifier(item['Extension'], defaultValue: '');
+        if (extension.isEmpty && !isFolder && name.contains('.')) {
+          extension = name.split('.').last;
         }
 
         return _buildDeliverableCard(
@@ -665,6 +855,7 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
           if (isFolder) {
             setState(() {
               _currentPath.add(name);
+              _notifyRootChanged();
             });
           } else {
             _previewFile(details, tableName, name);
@@ -740,14 +931,21 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
               Positioned(
                 top: 0,
                 right: 0,
-                child: IconButton(
-                  icon: const Icon(Icons.info_outline),
-                  color: Colors.grey[500],
-                  tooltip: 'Ver propiedades',
-                  onPressed: () {
-                    _showPropertiesDialog(context, name, details, tableName);
-                  },
-                ),
+                child: AccessControl.canManageFiles
+                    ? IconButton(
+                        icon: const Icon(Icons.info_outline),
+                        color: Colors.grey[500],
+                        tooltip: 'Ver propiedades',
+                        onPressed: () {
+                          _showPropertiesDialog(
+                            context,
+                            name,
+                            details,
+                            tableName,
+                          );
+                        },
+                      )
+                    : const SizedBox(),
               ),
             ],
           ),
@@ -774,88 +972,198 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
       'bmp',
     ].contains(extension);
     final isPdf = extension == 'pdf';
+    final isCsv = extension == 'csv';
+    final isText = ['txt', 'json', 'xml', 'md', 'log'].contains(extension);
+
+    bool isDownloading = false;
 
     showDialog(
       context: context,
-      builder: (context) => CustomModal(
-        title: name,
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (isImage || isPdf)
-                FutureBuilder<Uint8List?>(
-                  future: _fetchImage(tableName, details['id'], name),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const SizedBox(
-                        height: 200,
-                        child: Center(child: CircularProgressIndicator()),
-                      );
-                    }
-                    if (snapshot.hasData && snapshot.data != null) {
-                      if (isImage) {
-                        return ConstrainedBox(
-                          constraints: const BoxConstraints(maxHeight: 400),
-                          child: Image.memory(
-                            snapshot.data!,
-                            fit: BoxFit.contain,
-                          ),
-                        );
-                      } else if (isPdf) {
-                        if (!kIsWeb &&
-                            defaultTargetPlatform == TargetPlatform.linux) {
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return CustomModal(
+              title: name,
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (isImage || isPdf || isText || isCsv)
+                      FutureBuilder<Uint8List?>(
+                        future: _fetchImage(tableName, details['id'], name),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return const SizedBox(
+                              height: 200,
+                              child: Center(child: CircularProgressIndicator()),
+                            );
+                          }
+                          if (snapshot.hasData && snapshot.data != null) {
+                            if (isImage) {
+                              return ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxHeight: 400,
+                                ),
+                                child: Image.memory(
+                                  snapshot.data!,
+                                  fit: BoxFit.contain,
+                                ),
+                              );
+                            } else if (isPdf) {
+                              if (!kIsWeb &&
+                                  defaultTargetPlatform ==
+                                      TargetPlatform.linux) {
+                                return const Text(
+                                  'Vista previa no disponible en Linux',
+                                );
+                              }
+                              return SizedBox(
+                                height: 500,
+                                child: SfPdfViewer.memory(snapshot.data!),
+                              );
+                            } else if (isCsv) {
+                              return _buildCsvPreview(snapshot.data!);
+                            } else if (isText) {
+                              String textContent;
+                              try {
+                                textContent = utf8.decode(
+                                  snapshot.data!,
+                                  allowMalformed: true,
+                                );
+                              } catch (e) {
+                                textContent =
+                                    "Error al decodificar el archivo.";
+                              }
+                              return Container(
+                                height: 400,
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[50],
+                                  border: Border.all(color: Colors.grey[300]!),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: SingleChildScrollView(
+                                  child: SelectableText(textContent),
+                                ),
+                              );
+                            }
+                          }
                           return const Text(
-                            'Vista previa no disponible en Linux',
+                            'No se pudo cargar la previsualización',
                           );
-                        }
-                        return SizedBox(
-                          height: 500,
-                          child: SfPdfViewer.memory(snapshot.data!),
-                        );
-                      }
-                    }
-                    return const Text('No se pudo cargar la previsualización');
-                  },
-                )
-              else
-                _buildNoPreviewWidget(extension),
-              const SizedBox(height: 20),
-              _buildPropertyRow('Estado', _extractStatus(details['Status'])),
-              _buildPropertyRow(
-                'Versión',
-                _extractIdentifier(details['VersionNo']),
+                        },
+                      )
+                    else
+                      _buildNoPreviewWidget(extension),
+                    const SizedBox(height: 20),
+                    _buildPropertyRow(
+                      'Estado',
+                      _extractStatus(details['Status']),
+                    ),
+                    _buildPropertyRow(
+                      'Versión',
+                      _extractIdentifier(details['VersionNo']),
+                    ),
+                  ],
+                ),
               ),
-            ],
+              actions: [
+                if (AccessControl.canManageFiles)
+                  IconButton(
+                    icon: const Icon(Icons.delete, color: Colors.red),
+                    onPressed: () {
+                      Navigator.pop(context); // Cerrar preview
+                      _deleteFile(details['id'], tableName, name);
+                    },
+                  ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cerrar'),
+                ),
+                CustomButton(
+                  text: 'Descargar',
+                  icon: Icons.download,
+                  isLoading: isDownloading,
+                  onPressed: !AccessControl.canDownloadFiles
+                      ? null
+                      : () async {
+                          setStateDialog(() => isDownloading = true);
+                          await downloadAttachment(
+                            context: context,
+                            recordID: details['id'],
+                            tableName: tableName,
+                            fileName: name,
+                            onStatusChanged: () {
+                              _fetchDocuments();
+                              if (AccessControl.isProject) {
+                                details['Status'] = 'Entregado';
+                                setStateDialog(() {});
+                              }
+                            },
+                          );
+                          if (context.mounted) {
+                            setStateDialog(() => isDownloading = false);
+                          }
+                        },
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildCsvPreview(Uint8List data) {
+    try {
+      String content = utf8.decode(data, allowMalformed: true);
+      List<String> lines = content.split('\n');
+      if (lines.isEmpty) return const Text('Archivo vacío');
+
+      List<List<String>> rows = lines
+          .where((l) => l.trim().isNotEmpty)
+          .map((line) => line.split(','))
+          .toList();
+
+      if (rows.isEmpty) return const Text('Archivo vacío');
+
+      return Container(
+        height: 400,
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.grey[50],
+          border: Border.all(color: Colors.grey[300]!),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.vertical,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: DataTable(
+              columns: rows.first
+                  .map((e) => DataColumn(label: Text(e.trim())))
+                  .toList(),
+              rows: rows.skip(1).map((row) {
+                final cells = row.take(rows.first.length).toList();
+                while (cells.length < rows.first.length) {
+                  cells.add('');
+                }
+                return DataRow(
+                  cells: cells
+                      .map((cell) => DataCell(Text(cell.trim())))
+                      .toList(),
+                );
+              }).toList(),
+            ),
           ),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.delete, color: Colors.red),
-            onPressed: () {
-              Navigator.pop(context); // Cerrar preview
-              _deleteFile(details['id'], tableName, name);
-            },
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cerrar'),
-          ),
-          CustomButton(
-            text: 'Descargar',
-            icon: Icons.download,
-            onPressed: () {
-              downloadAttachment(
-                context: context,
-                recordID: details['id'],
-                tableName: tableName,
-                fileName: name,
-              );
-            },
-          ),
-        ],
-      ),
-    );
+      );
+    } catch (e) {
+      return const Text('Error al visualizar CSV');
+    }
   }
 
   Future<Uint8List?> _fetchImage(
@@ -999,13 +1307,14 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
                 ),
               ),
               actions: [
-                IconButton(
-                  icon: const Icon(Icons.delete, color: Colors.red),
-                  onPressed: () {
-                    Navigator.pop(context);
-                    _deleteFile(details['id'], tableName, name);
-                  },
-                ),
+                if (AccessControl.canManageFiles)
+                  IconButton(
+                    icon: const Icon(Icons.delete, color: Colors.red),
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _deleteFile(details['id'], tableName, name);
+                    },
+                  ),
                 TextButton(
                   onPressed: () => Navigator.pop(context),
                   child: const Text('Cancelar'),
@@ -1013,24 +1322,26 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
                 CustomButton(
                   text: 'Guardar',
                   isLoading: isSaving,
-                  onPressed: () async {
-                    setStateDialog(() => isSaving = true);
-                    final success = await _updateDocumentRemote(
-                      details['id'],
-                      details,
-                      descController.text,
-                      versionController.text,
-                      currentStatus,
-                      isFolder,
-                    );
-                    setStateDialog(() => isSaving = false);
-                    if (success) {
-                      if (context.mounted) {
-                        Navigator.pop(context);
-                        _fetchDocuments();
-                      }
-                    }
-                  },
+                  onPressed: !AccessControl.canManageFiles
+                      ? null
+                      : () async {
+                          setStateDialog(() => isSaving = true);
+                          final success = await _updateDocumentRemote(
+                            details['id'],
+                            details,
+                            descController.text,
+                            versionController.text,
+                            currentStatus,
+                            isFolder,
+                          );
+                          setStateDialog(() => isSaving = false);
+                          if (success) {
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                              _fetchDocuments();
+                            }
+                          }
+                        },
                 ),
               ],
             );
@@ -1048,6 +1359,7 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
     String status,
     bool isFolder,
   ) async {
+    if (!AccessControl.canManageFiles) return false;
     final url = Uri.parse('${Endpoint.primDocuments}/$id');
     dynamic prepareValue(dynamic val) {
       if (val is Map && val.containsKey('id')) return {'id': val['id']};
@@ -1184,11 +1496,18 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
-          Icon(_getFileIcon(extension), size: 80, color: Colors.grey),
+          Icon(_getFileIcon(extension), size: 64, color: Colors.grey[400]),
           const SizedBox(height: 16),
-          const Text(
-            'Previsualización no disponible.',
+          Text(
+            'Previsualización no disponible para .$extension',
             textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Descargue el archivo para visualizarlo.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey),
           ),
         ],
       ),
@@ -1242,22 +1561,37 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
   }
 
   IconData _getFileIcon(String extension) {
-    switch (extension.toUpperCase()) {
-      case 'PDF':
+    switch (extension.toLowerCase()) {
+      case 'pdf':
         return Icons.picture_as_pdf;
-      case 'DOC':
-      case 'DOCX':
+      case 'doc':
+      case 'docx':
         return Icons.description;
-      case 'XLS':
-      case 'XLSX':
-      case 'CSV':
-        return Icons.table_chart;
-      case 'JPG':
-      case 'JPEG':
-      case 'PNG':
+      case 'xls':
+      case 'xlsx':
+      case 'csv':
+        return Icons.grid_on;
+      case 'ppt':
+      case 'pptx':
+        return Icons.slideshow;
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+      case 'gif':
+      case 'webp':
+      case 'bmp':
         return Icons.image;
-      case 'TXT':
+      case 'txt':
+      case 'json':
+      case 'xml':
+      case 'md':
         return Icons.text_snippet;
+      case 'zip':
+      case 'rar':
+      case '7z':
+      case 'tar':
+      case 'gz':
+        return Icons.folder_zip;
       default:
         return Icons.insert_drive_file;
     }

@@ -3,14 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/ui/shared/custom_inputs.dart';
+import 'package:primhub/api/access_control.dart';
 import 'package:primhub/ui/shared/custom_modal.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../shared/custom_button.dart';
 import '../../../api/token.dart';
-import 'package:primhub/ui/shared/duration_formatter.dart';
 
 class CreateRequestDialog extends StatefulWidget {
-  const CreateRequestDialog({super.key});
+  final String? linkedRecordUU;
+  const CreateRequestDialog({super.key, this.linkedRecordUU});
 
   @override
   State<CreateRequestDialog> createState() => _CreateRequestDialogState();
@@ -20,9 +21,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
   final _formKey = GlobalKey<FormState>();
   bool _isSubmitting = false;
 
-  // Controladores y variables del formulario
   final TextEditingController _summaryController = TextEditingController();
-  // Controladores para Service Request
   final TextEditingController _dateStartController = TextEditingController();
   final TextEditingController _dateCompleteController = TextEditingController();
   final TextEditingController _startTimeController = TextEditingController();
@@ -35,21 +34,17 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
   String _selectedStatus = '1_Open';
   Map<String, int> _statusIdMap = {};
   bool _isLoadingStatuses = true;
-  bool _isAdmin = true;
 
   @override
   void initState() {
     super.initState();
-    _checkRole();
     _fetchStatuses();
-  }
-
-  Future<void> _checkRole() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (mounted)
-      setState(
-        () => _isAdmin = (prefs.getString('user_role') ?? 'ADMIN') == 'ADMIN',
-      );
+    // Inicializar fechas con el día de hoy para evitar strings vacíos
+    final now = DateTime.now();
+    final todayStr =
+        "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+    _dateStartController.text = todayStr;
+    _dateCompleteController.text = todayStr;
   }
 
   Future<void> _fetchStatuses() async {
@@ -69,9 +64,6 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
           setState(() {
             _statusIdMap = {for (var r in records) r['Name']: r['id']};
             _isLoadingStatuses = false;
-
-            // Si el estado seleccionado por defecto no existe en el mapa cargado,
-            // seleccionar el primero disponible para evitar errores de envío.
             if (!_statusIdMap.containsKey(_selectedStatus) &&
                 _statusIdMap.isNotEmpty) {
               _selectedStatus = _statusIdMap.keys.firstWhere(
@@ -90,7 +82,6 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     }
   }
 
-  // Mapeo de valores para el backend
   final Map<String, String> _priorityMap = {
     'Urgente': '1',
     'Alta': '3',
@@ -99,7 +90,6 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     'Menor': '9',
   };
 
-  // IDs correspondientes a los tipos de solicitud
   final Map<String, int> _requestTypeMap = {
     'Service Request': 101,
     'Request for Quotation': 100,
@@ -117,8 +107,10 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
       lastDate: DateTime(2101),
     );
     if (picked != null) {
-      controller.text =
-          "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
+      setState(() {
+        controller.text =
+            "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
+      });
     }
   }
 
@@ -131,36 +123,40 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
       initialTime: TimeOfDay.now(),
     );
     if (picked != null) {
-      controller.text =
-          "${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}:00";
+      setState(() {
+        controller.text =
+            "${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}:00";
+      });
     }
+  }
+
+  // --- CORRECCIÓN LÓGICA DE FECHAS ---
+  String _combineDateAndTime(String date, String time) {
+    if (date.isEmpty) {
+      date =
+          "${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}";
+    }
+    String cleanTime = time.isEmpty ? "00:00:00" : time;
+    // Si el tiempo ya trae una Z o una T, lo limpiamos para estandarizar
+    cleanTime = cleanTime.replaceAll('Z', '');
+    if (cleanTime.contains('T')) cleanTime = cleanTime.split('T')[1];
+
+    return "${date}T${cleanTime}Z";
   }
 
   Future<void> _submitForm() async {
     if (!_formKey.currentState!.validate()) return;
-
+    if (!AccessControl.canCreateRequests) return;
     if (_isLoadingStatuses) return;
-    if (_statusIdMap.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'No se han cargado los estados. Verifique su conexión e intente nuevamente.',
-          ),
-        ),
-      );
-      _fetchStatuses();
-      return;
-    }
 
     setState(() => _isSubmitting = true);
 
     try {
       final url = Uri.parse(Endpoint.request);
-
-      final payload = Token.decodePayload(Token.token);
-      int clientId = Token.client ?? payload['AD_Client_ID'] ?? 11;
-      int orgId = Token.organitation ?? payload['AD_Org_ID'] ?? 11;
-      int userId = payload['AD_User_ID'] ?? 101;
+      final payloadToken = Token.decodePayload(Token.token);
+      int clientId = Token.client ?? payloadToken['AD_Client_ID'] ?? 11;
+      int orgId = Token.organitation ?? payloadToken['AD_Org_ID'] ?? 11;
+      int userId = payloadToken['AD_User_ID'] ?? 101;
       if (orgId == 0) orgId = 11;
 
       final Map<String, dynamic> data = {
@@ -171,26 +167,28 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
         'AD_Org_ID': orgId,
         'AD_User_ID': userId,
         'SalesRep_ID': userId,
-        'R_Status_ID': _statusIdMap.containsKey(_selectedStatus)
-            ? _statusIdMap[_selectedStatus]
-            : {'identifier': _selectedStatus},
+        'R_Status_ID': _statusIdMap[_selectedStatus] ?? 100,
       };
 
+      if (widget.linkedRecordUU != null) {
+        data['Record_UU'] = widget.linkedRecordUU;
+      }
+
       if (_selectedType == 'Service Request') {
-        if (_dateStartController.text.isNotEmpty) {
-          data['DateStartPlan'] = _ensureIsoDate(_dateStartController.text);
-        }
-        if (_dateCompleteController.text.isNotEmpty) {
-          data['DateCompletePlan'] = _ensureIsoDate(
-            _dateCompleteController.text,
-          );
-        }
-        if (_startTimeController.text.isNotEmpty) {
-          data['StartTime'] = _ensureIsoTime(_startTimeController.text);
-        }
-        if (_endTimeController.text.isNotEmpty) {
-          data['EndTime'] = _ensureIsoTime(_endTimeController.text);
-        }
+        // Corregimos el envío de fechas y horas combinándolas
+        String startDate = _dateStartController.text;
+        String endDate = _dateCompleteController.text;
+
+        data['DateStartPlan'] = "${startDate}T00:00:00Z";
+        data['DateCompletePlan'] = "${endDate}T00:00:00Z";
+
+        // CORRECCIÓN ERROR 400: Enviar DateTime completo en lugar de solo Time
+        data['StartTime'] = _combineDateAndTime(
+          startDate,
+          _startTimeController.text,
+        );
+        data['EndTime'] = _combineDateAndTime(endDate, _endTimeController.text);
+
         double h = double.tryParse(_hoursController.text) ?? 0.0;
         double m = _selectedMinutes.toDouble();
         if (h > 0 || m > 0) {
@@ -199,8 +197,6 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
       }
 
       final body = jsonEncode(data);
-
-      debugPrint('Payload enviado: $body');
 
       final response = await http.post(
         url,
@@ -222,9 +218,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(
-                'Error ${response.statusCode}: ${response.body}\nPayload: $body',
-              ),
+              content: Text('Error ${response.statusCode}: ${response.body}'),
               backgroundColor: Colors.red,
             ),
           );
@@ -233,10 +227,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al crear solicitud: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -244,36 +235,8 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     }
   }
 
-  String _ensureIsoDate(String val) {
-    if (val.isEmpty) return "";
-    if (val.contains('T')) return val;
-    if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(val)) {
-      return "${val}T00:00:00Z";
-    }
-    return val;
-  }
-
-  String _ensureIsoTime(String time) {
-    if (time.isEmpty) return "";
-    String timePart = time;
-    if (time.contains('T')) {
-      timePart = time.split('T')[1];
-    }
-    if (timePart.length == 5) timePart = "$timePart:00";
-    if (!timePart.endsWith('Z')) timePart = "${timePart}Z";
-    return timePart;
-  }
-
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final statusItems = _statusIdMap.isNotEmpty
-        ? (_statusIdMap.keys.toList()..sort())
-        : ['1_Open', '2_Waiting on customer', '3_Closed'];
-    if (!statusItems.contains(_selectedStatus)) {
-      statusItems.add(_selectedStatus);
-    }
-
     return CustomModal(
       title: 'Nueva Solicitud de Soporte',
       width: 500,
@@ -292,45 +255,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                 onChanged: (val) => setState(() => _selectedType = val!),
               ),
               const SizedBox(height: 16),
-              /*
-              _isLoadingStatuses
-                  ? const Center(child: CircularProgressIndicator())
-                  : CustomDropdown<String>(
-                      value: _selectedStatus,
-                      label: 'Estado',
-                      items: statusItems
-                          .map(
-                            (t) => DropdownMenuItem(value: t, child: Text(t)),
-                          )
-                          .toList(),
-                      onChanged: (val) =>
-                          setState(() => _selectedStatus = val!),
-                    ),
-              if (_selectedStatus != '1_Open')
-                Padding(
-                  padding: const EdgeInsets.only(top: 8.0, bottom: 8.0),
-                  child: Text(
-                    'Si el estado no es open este registro no podrá eliminarse.',
-                    style: TextStyle(
-                      color: isDark ? Colors.red.shade300 : Colors.red,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-              const SizedBox(height: 16),
-              */
               if (_selectedType == 'Service Request') ...[
-                /*
-                CustomDropdown<String>(
-                  label: 'Nivel de Prioridad',
-                  value: _selectedPriority,
-                  items: ['Urgente', 'Alta', 'Media', 'Baja', 'Menor']
-                      .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                      .toList(),
-                  onChanged: (val) => setState(() => _selectedPriority = val!),
-                ),
-                const SizedBox(height: 16),
-                */
                 Row(
                   children: [
                     Expanded(
@@ -430,9 +355,8 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                 label: 'Descripción / Resumen',
                 maxLines: 4,
                 validator: (value) {
-                  if (value == null || value.isEmpty) {
+                  if (value == null || value.isEmpty)
                     return 'Por favor ingrese una descripción';
-                  }
                   return null;
                 },
               ),

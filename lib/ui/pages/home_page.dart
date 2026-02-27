@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:go_router/go_router.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/api/token.dart';
+import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/contract_api.dart';
 import 'package:primhub/ui/pages/request/create_request_dialog.dart';
 import 'package:primhub/ui/pages/request/request_functions.dart';
@@ -12,6 +13,7 @@ import 'package:primhub/ui/shared/cardcustom.dart';
 import 'package:primhub/ui/shared/custom_container.dart';
 import 'package:primhub/ui/shared/custom_inputs.dart';
 import 'package:primhub/ui/shared/custom_modal.dart';
+import 'package:primhub/ui/shared/custom_table.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/custom_drawer.dart';
 import 'package:primhub/ui/shared/duration_formatter.dart';
@@ -306,6 +308,12 @@ class _HomePageState extends State<HomePage> {
   void _applyFilters() {
     var filtered = List<dynamic>.from(_allRequests);
 
+    // Filter out requests linked to a project task (Record_UU is present)
+    filtered = filtered.where((r) {
+      final recordUU = r['Record_UU'];
+      return recordUU == null || recordUU.toString().isEmpty;
+    }).toList();
+
     _recentRequests = filtered.take(5).map((r) {
       String level = r['Priority_Name'] ?? 'Baja';
       Color baseColor = Colors.green;
@@ -336,6 +344,8 @@ class _HomePageState extends State<HomePage> {
         'levelColor': baseColor,
         'levelBgColor': baseColor.withOpacity(0.2),
         'status': r['R_Status_Name'] ?? '1_Open',
+        'bpName': r['C_BPartner_Name'] ?? '',
+        'userName': r['AD_User_Name'] ?? '',
       };
     }).toList();
   }
@@ -549,13 +559,6 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
             const SizedBox(height: 4),
-            Text(
-              'Producto Contratado: ${ProductChip.mProductID ?? 'N/A'}',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: textColor,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
           ],
         ),
       ),
@@ -893,6 +896,108 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  void _showMultiSelectProjects(BuildContext context) async {
+    final List<int> tempSelectedProjectIds = List.from(_selectedProjectIds);
+
+    // Ordenar proyectos alfabéticamente por nombre
+    List<dynamic> sortedProjects = List.from(_projects);
+    sortedProjects.sort((a, b) => (a['Name'] ?? '').compareTo(b['Name'] ?? ''));
+
+    await showDialog<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return CustomModal(
+          title: 'Seleccionar Proyectos',
+          width: 500,
+          content: StatefulBuilder(
+            builder: (BuildContext context, StateSetter setState) {
+              return SizedBox(
+                height: 300, // Give it a fixed height to be scrollable
+                child: SingleChildScrollView(
+                  child: ListBody(
+                    children: sortedProjects.map((project) {
+                      final bool isSelected = tempSelectedProjectIds.contains(
+                        project['id'],
+                      );
+                      return CheckboxListTile(
+                        title: Text(project['Name'] ?? 'Proyecto sin nombre'),
+                        value: isSelected,
+                        onChanged: (bool? value) {
+                          setState(() {
+                            if (value == true) {
+                              tempSelectedProjectIds.add(project['id']);
+                            } else {
+                              tempSelectedProjectIds.remove(project['id']);
+                            }
+                          });
+                        },
+                      );
+                    }).toList(),
+                  ),
+                ),
+              );
+            },
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancelar'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            CustomButton(
+              text: 'Aceptar',
+              onPressed: () {
+                setState(() {
+                  _selectedProjectIds = tempSelectedProjectIds;
+                  HomePage.savedSelectedProjectIds = List.from(
+                    _selectedProjectIds,
+                  );
+                });
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildMultiSelectDropdown(BuildContext context) {
+    String displayText;
+    if (_selectedProjectIds.isEmpty) {
+      displayText = 'Ningún proyecto seleccionado';
+    } else if (_selectedProjectIds.length == 1) {
+      final project = _projects.firstWhere(
+        (p) => p['id'] == _selectedProjectIds.first,
+        orElse: () => {'Name': 'Proyecto no encontrado'},
+      );
+      displayText = project['Name'] ?? 'Proyecto sin nombre';
+    } else {
+      displayText = '${_selectedProjectIds.length} proyectos seleccionados';
+    }
+
+    return InkWell(
+      onTap: () => _showMultiSelectProjects(context),
+      child: InputDecorator(
+        decoration: InputDecoration(
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0)),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 16,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: <Widget>[
+            Expanded(child: Text(displayText, overflow: TextOverflow.ellipsis)),
+            const Icon(Icons.arrow_drop_down, color: Colors.grey),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -967,32 +1072,8 @@ class _HomePageState extends State<HomePage> {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
                     child: CustomContainer(
-                      title: 'Seleccionar Proyectos a Visualizar',
-                      child: Wrap(
-                        spacing: 8.0,
-                        runSpacing: 8.0,
-                        children: _projects.map((proj) {
-                          final isSelected = _selectedProjectIds.contains(
-                            proj['id'],
-                          );
-                          return FilterChip(
-                            label: Text(proj['Name'] ?? 'Proyecto'),
-                            selected: isSelected,
-                            onSelected: (bool selected) {
-                              setState(() {
-                                if (selected) {
-                                  _selectedProjectIds.add(proj['id']);
-                                } else {
-                                  _selectedProjectIds.remove(proj['id']);
-                                }
-                                HomePage.savedSelectedProjectIds = List.from(
-                                  _selectedProjectIds,
-                                );
-                              });
-                            },
-                          );
-                        }).toList(),
-                      ),
+                      title: 'Proyectos a Visualizar',
+                      child: _buildMultiSelectDropdown(context),
                     ),
                   ),
                 const SizedBox(height: 20),
@@ -1095,123 +1176,95 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
             */
-                const SizedBox(height: 30),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: CustomContainer(
-                    title: 'Solicitudes Recientes',
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 1000),
-                          child: _isLoading
-                              ? const Padding(
-                                  padding: EdgeInsets.all(50.0),
-                                  child: Center(
-                                    child: CircularProgressIndicator(),
-                                  ),
-                                )
-                              : Column(
-                                  children: _recentRequests.map((req) {
-                                    return InkWell(
-                                      onTap: null,
-                                      hoverColor: Colors.blue.withOpacity(0.1),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 12.0,
-                                          horizontal: 8.0,
-                                        ),
-                                        decoration: const BoxDecoration(
-                                          border: Border(
-                                            bottom: BorderSide(
-                                              color: Colors.black12,
+                if (!AccessControl.isProject) const SizedBox(height: 30),
+                if (!AccessControl.isProject)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: CustomContainer(
+                      title: 'Solicitudes Recientes',
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 1000),
+                            child: _isLoading
+                                ? const Padding(
+                                    padding: EdgeInsets.all(50.0),
+                                    child: Center(
+                                      child: CircularProgressIndicator(),
+                                    ),
+                                  )
+                                : CustomTable(
+                                    columns: const [
+                                      DataColumn(label: Text('Ticket')),
+                                      DataColumn(label: Text('Asunto')),
+                                      DataColumn(label: Text('Tercero')),
+                                      DataColumn(label: Text('Usuario')),
+                                      DataColumn(label: Text('Nivel')),
+                                      DataColumn(
+                                        label: Text('Ultima Actualización'),
+                                      ),
+                                      DataColumn(label: Text('Descripción')),
+                                      DataColumn(label: Text('Estado')),
+                                    ],
+                                    rows: _recentRequests.map((req) {
+                                      return DataRow(
+                                        onSelectChanged: (value) =>
+                                            _editRequest(req),
+                                        cells: [
+                                          DataCell(Text(req['code'])),
+                                          DataCell(Text(req['situation'])),
+                                          DataCell(Text(req['bpName'])),
+                                          DataCell(Text(req['userName'])),
+                                          DataCell(
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 12,
+                                                    vertical: 6,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: req['levelBgColor'],
+                                                borderRadius:
+                                                    BorderRadius.circular(30),
+                                              ),
+                                              child: Text(
+                                                req['level'],
+                                                style: TextStyle(
+                                                  color: req['levelColor'],
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
                                             ),
                                           ),
-                                        ),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Row(
-                                              children: [
-                                                Text(
-                                                  '${req['code']}: ',
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 15,
-                                                  ),
-                                                ),
-                                                Text(
-                                                  '${req['situation']} ',
-                                                  style: const TextStyle(
-                                                    fontSize: 15,
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 8),
-                                                Container(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 10,
-                                                        vertical: 4,
-                                                      ),
-                                                  decoration: BoxDecoration(
-                                                    color: req['levelBgColor'],
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          30,
-                                                        ),
-                                                  ),
-                                                  child: Text(
-                                                    req['level'],
-                                                    style: TextStyle(
-                                                      color: req['levelColor'],
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                      fontSize: 12,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 6),
-                                            Text(
-                                              req['description'] ?? '',
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: TextStyle(
-                                                color: isDark
-                                                    ? Colors.grey[400]
-                                                    : Colors.grey[700],
-                                                fontSize: 14,
+                                          DataCell(Text(req['time'])),
+                                          DataCell(
+                                            SizedBox(
+                                              width: 300,
+                                              child: Text(
+                                                req['description'].length > 70
+                                                    ? '${req['description'].substring(0, 70)}...'
+                                                    : req['description'],
                                               ),
                                             ),
-                                            const SizedBox(height: 6),
-                                            Text(
-                                              req['time'],
-                                              style: TextStyle(
-                                                color: Colors.grey[600],
-                                                fontSize: 13,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    );
-                                  }).toList(),
-                                ),
-                        ),
-                        const SizedBox(height: 20),
-                        Center(
-                          child: CustomButton(
-                            text: 'Ver todas las solicitudes',
-                            onPressed: () => context.push('/my-requests'),
+                                          ),
+                                          DataCell(Text(req['status'])),
+                                        ],
+                                      );
+                                    }).toList(),
+                                  ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 20),
+                          Center(
+                            child: CustomButton(
+                              text: 'Ver todas las solicitudes',
+                              onPressed: () => context.push('/my-requests'),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
                 const SizedBox(height: 20),
               ],
             ),

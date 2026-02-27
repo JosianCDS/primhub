@@ -19,6 +19,13 @@ Future<Map<String, dynamic>> loginStep1(
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     }
+    // Manejar respuestas HTML (como errores 404/500 del servidor web)
+    if (response.body.toLowerCase().contains('<html')) {
+      return {
+        'error':
+            'Error ${response.statusCode}: Servicio no disponible o ruta incorrecta.',
+      };
+    }
     return {'error': 'Error ${response.statusCode}: ${response.body}'};
   } catch (e) {
     return {'error': e.toString()};
@@ -134,6 +141,9 @@ Future<Map<String, dynamic>> refreshToken(String refreshToken) async {
     );
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
+    }
+    if (response.body.toLowerCase().contains('<html')) {
+      return {'error': 'Error ${response.statusCode}: Servicio no disponible.'};
     }
     return {'error': 'Error ${response.statusCode}: ${response.body}'};
   } catch (e) {

@@ -1,14 +1,16 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:go_router/go_router.dart';
 import 'package:primhub/api/auth_api.dart';
+import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/endpoint/endpoint.dart';
+import 'package:primhub/ui/pages/Projects/projects_logic.dart';
 import 'package:primhub/ui/pages/Projects/project_file_manager.dart';
+import 'package:primhub/ui/pages/request/create_request_dialog.dart';
+import 'package:primhub/ui/pages/request/edit_request_dialog.dart';
 import 'package:primhub/ui/shared/custom_inputs.dart';
 import 'package:primhub/ui/shared/custom_modal.dart';
-import 'package:primhub/ui/pages/request/request_functions.dart';
 import '../../shared/custom_button.dart';
 import '../../widgets/custom_drawer.dart';
 
@@ -21,12 +23,12 @@ class DeliverablesPage extends StatefulWidget {
 
 class _DeliverablesPageState extends State<DeliverablesPage> {
   bool _showingFiles = false;
+  bool _isFileManagerRoot = true;
   // Key para acceder a los métodos del ProjectFileManager (refresh, upload, etc.)
   final GlobalKey<ProjectFileManagerState> _fileManagerKey = GlobalKey();
 
   // State for Projects Tab
   List<dynamic> _projects = [];
-  List<Map<String, dynamic>> _requests = [];
   Map<String, dynamic>? _selectedProject;
   bool _isLoadingProjects = false;
   String? _projectsErrorMessage;
@@ -34,7 +36,6 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
   final TextEditingController _searchController = TextEditingController();
   bool _expandAll = false;
   int _expansionKey = 0;
-  Map<String, dynamic>? _pendingArgs;
   int? _targetExpandedProjectId;
   bool _isInit = true;
   List<dynamic> _bPartners = [];
@@ -42,12 +43,21 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
   List<dynamic> _projectTypes = [];
   bool _isLoadingProjectTypes = false;
   String _currentViewType = ''; // 'Entregables', 'Seguimiento', 'General'
+  final ProjectsLogic _logic = ProjectsLogic();
+  Map<String, int> _statusIdMap = {};
+  final Map<String, String> _priorityMap = {
+    'Urgente': '1',
+    'Alta': '3',
+    'Media': '5',
+    'Baja': '7',
+    'Menor': '9',
+  };
 
   @override
   void initState() {
     super.initState();
-    _fetchRequestsData();
-    _fetchProjects();
+    _loadProjects();
+    _fetchStatuses();
     _searchController.addListener(() {
       setState(() {});
     });
@@ -59,8 +69,10 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
     if (_isInit) {
       final args =
           ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-      if (args != null) {
-        _pendingArgs = args;
+      if (args != null && _projects.isNotEmpty) {
+        _applyPendingArgs(args);
+      } else if (args != null) {
+        // Si los proyectos aún no se han cargado, espera a que se carguen.
       }
       _isInit = false;
     }
@@ -72,80 +84,51 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
     super.dispose();
   }
 
-  Future<void> _fetchRequestsData() async {
-    try {
-      final reqs = await fetchRequest();
-      if (mounted) {
-        setState(() {
-          _requests = reqs;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error fetching requests for projects: $e');
-    }
-  }
-
-  Future<void> _fetchProjects() async {
+  Future<void> _loadProjects() async {
     setState(() {
       _isLoadingProjects = true;
       _projectsErrorMessage = null;
     });
-
-    String url =
-        '${Endpoint.project}?\$expand=C_ProjectPhase(\$expand=C_ProjectTask)';
-
     try {
-      var response = await http.get(
-        Uri.parse(url),
+      final projects = await _logic.fetchProjects(context);
+      if (mounted) {
+        setState(() {
+          _projects = projects;
+          _isLoadingProjects = false;
+          _projectsLoaded = true;
+          final args =
+              ModalRoute.of(context)?.settings.arguments
+                  as Map<String, dynamic>?;
+          if (args != null) {
+            _applyPendingArgs(args);
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingProjects = false;
+          _projectsErrorMessage = e.toString();
+        });
+      }
+    }
+  }
+
+  Future<void> _fetchStatuses() async {
+    try {
+      final response = await http.get(
+        Uri.parse('${Endpoint.baseUrl}/api/v1/models/R_Status'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': Token.token,
         },
       );
-
-      if (response.statusCode == 401) {
-        final refreshed = await _tryRefreshToken();
-        if (refreshed) {
-          response = await http.get(
-            Uri.parse(url),
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': Token.token,
-            },
-          );
-        } else {
-          if (mounted) {
-            setState(() => _isLoadingProjects = false);
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Sesión expirada. Por favor inicie sesión nuevamente.',
-                ),
-                backgroundColor: Colors.red,
-              ),
-            );
-            context.go('/login');
-          }
-          return;
-        }
-      }
-
       if (response.statusCode == 200) {
-        final data = json.decode(utf8.decode(response.bodyBytes));
+        final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
+        final records = jsonResponse['records'] as List;
         if (mounted) {
           setState(() {
-            _projects = data['records'];
-            _isLoadingProjects = false;
-            _projectsLoaded = true;
-          });
-          _applyPendingArgs();
-        }
-      } else {
-        if (mounted) {
-          setState(() {
-            _isLoadingProjects = false;
-            _projectsErrorMessage =
-                'Error al cargar proyectos: ${response.statusCode}';
+            _statusIdMap = {for (var r in records) r['Name']: r['id']};
           });
         }
       }
@@ -153,29 +136,15 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
       if (mounted) {
         setState(() {
           _isLoadingProjects = false;
-          _projectsErrorMessage = 'Error de conexión. Verifique su internet.';
+          _projectsErrorMessage = e.toString();
         });
       }
     }
   }
 
-  Future<bool> _tryRefreshToken() async {
-    if (Token.refreshToken == null) return false;
-    final response = await refreshToken(Token.refreshToken!);
-    if (response.containsKey('token')) {
-      Token.auth = response['token'];
-      if (response.containsKey('refresh_token')) {
-        Token.refreshToken = response['refresh_token'];
-      }
-      return true;
-    }
-    return false;
-  }
-
-  void _applyPendingArgs() {
-    if (_pendingArgs == null) return;
-    final projectId = _pendingArgs!['projectId'];
-    final view = _pendingArgs!['view'];
+  void _applyPendingArgs(Map<String, dynamic> args) {
+    final projectId = args['projectId'];
+    final view = args['view'];
 
     // Usar toString() para asegurar comparación correcta entre int y String si fuera necesario
     final project = _projects.firstWhere(
@@ -200,49 +169,29 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
         _showingFiles = true;
       });
     }
-    _pendingArgs = null;
   }
 
   Future<void> _fetchBPartners() async {
     if (_bPartners.isNotEmpty) return;
     setState(() => _isLoadingBPartners = true);
-    try {
-      final response = await http.get(
-        Uri.parse(
-          '${Endpoint.cBPartner}?\$select=id,Name,Value&\$orderby=Name',
-        ),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': Token.token,
-        },
-      );
-      if (response.statusCode == 200) {
-        final data = json.decode(utf8.decode(response.bodyBytes));
-        setState(() => _bPartners = data['records']);
-      }
-    } catch (_) {}
+    _bPartners = await _logic.fetchBPartners();
     setState(() => _isLoadingBPartners = false);
   }
 
   Future<void> _fetchProjectTypes() async {
     if (_projectTypes.isNotEmpty) return;
     setState(() => _isLoadingProjectTypes = true);
-    try {
-      final response = await http.get(
-        Uri.parse(
-          '${Endpoint.baseUrl}/api/v1/models/C_ProjectType?\$select=id,Name&\$orderby=Name',
-        ),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': Token.token,
-        },
-      );
-      if (response.statusCode == 200) {
-        final data = json.decode(utf8.decode(response.bodyBytes));
-        setState(() => _projectTypes = data['records']);
-      }
-    } catch (_) {}
+    _projectTypes = await _logic.fetchProjectTypes();
     setState(() => _isLoadingProjectTypes = false);
+  }
+
+  void _onShowFiles(Map<String, dynamic> project, String viewType) {
+    setState(() {
+      _selectedProject = project;
+      _currentViewType = viewType;
+      _showingFiles = true;
+      _isFileManagerRoot = true;
+    });
   }
 
   void _exitFileManager() {
@@ -259,18 +208,14 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
     final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      floatingActionButton: _showingFiles
+      floatingActionButton: _showingFiles && AccessControl.canManageFiles
           ? FloatingActionButton(
               onPressed: () =>
                   _fileManagerKey.currentState?.pickAndUploadFile(),
               tooltip: 'Subir Archivo',
               child: const Icon(Icons.upload_file),
             )
-          : FloatingActionButton(
-              onPressed: _createProjectDialog,
-              tooltip: 'Crear Proyecto',
-              child: const Icon(Icons.add),
-            ),
+          : null,
       appBar: AppBar(
         title: const Text(
           'Mis Proyectos',
@@ -292,7 +237,21 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
               )
             : null,
         actions: [
-          if (_showingFiles)
+          if (!_showingFiles)
+            IconButton(
+              icon: Icon(_expandAll ? Icons.unfold_less : Icons.unfold_more),
+              tooltip: _expandAll ? 'Contraer todo' : 'Expandir todo',
+              onPressed: () {
+                setState(() {
+                  _expandAll = !_expandAll;
+                  if (!_expandAll) _targetExpandedProjectId = null;
+                  _expansionKey++;
+                });
+              },
+            ),
+          if (_showingFiles &&
+              _isFileManagerRoot &&
+              AccessControl.canManageFiles)
             IconButton(
               icon: const Icon(Icons.create_new_folder),
               tooltip: 'Crear Carpeta',
@@ -318,7 +277,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
               if (_showingFiles) {
                 _fileManagerKey.currentState?.refresh();
               } else {
-                _fetchProjects();
+                _loadProjects();
               }
             },
           ),
@@ -340,6 +299,11 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
                         project: _selectedProject!,
                         viewType: _currentViewType,
                         onExit: _exitFileManager,
+                        onRootChanged: (isRoot) {
+                          if (_isFileManagerRoot != isRoot) {
+                            setState(() => _isFileManagerRoot = isRoot);
+                          }
+                        },
                       )
                     : _buildProjectsView(),
               ),
@@ -663,50 +627,24 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
     setState(() => _isLoadingProjects = true);
 
     try {
-      final createUrl = Uri.parse(Endpoint.project);
-      final Map<String, dynamic> payload = {
-        'Value': value,
-        'Name': name,
-        'Description': description,
-      };
-
-      if (bpId != null) {
-        payload['C_BPartner_ID'] = {'id': bpId};
-      }
-      if (dateContract.isNotEmpty) {
-        payload['DateContract'] = dateContract.contains('T')
-            ? dateContract
-            : '${dateContract}T00:00:00Z';
-      }
-      if (dateFinish.isNotEmpty) {
-        payload['DateFinish'] = dateFinish.contains('T')
-            ? dateFinish
-            : '${dateFinish}T00:00:00Z';
-      }
-      if (projectTypeId != null) {
-        payload['C_ProjectType_ID'] = {'id': projectTypeId};
-      }
-
-      final response = await http.post(
-        createUrl,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': Token.token,
-        },
-        body: jsonEncode(payload),
+      final success = await _logic.createProject(
+        value: value,
+        name: name,
+        description: description,
+        bpId: bpId,
+        dateContract: dateContract,
+        dateFinish: dateFinish,
+        projectTypeId: projectTypeId,
       );
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
+      if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Proyecto creado correctamente')),
         );
-        _fetchProjects();
+        _loadProjects();
       } else {
-        debugPrint('Error create project: ${response.body}');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al crear proyecto: ${response.statusCode}'),
-          ),
+          const SnackBar(content: Text('Error al crear proyecto')),
         );
         setState(() => _isLoadingProjects = false);
       }
@@ -763,29 +701,13 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
   ) async {
     setState(() => _isLoadingProjects = true);
     try {
-      final url = Uri.parse('${Endpoint.baseUrl}/api/v1/models/C_ProjectPhase');
-      final body = {
-        'C_Project_ID': {'id': projectId},
-        'Name': name,
-        'Description': description,
-        'IsActive': true,
-      };
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': Token.token,
-        },
-        body: jsonEncode(body),
-      );
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        _fetchProjects();
+      final success = await _logic.createPhase(projectId, name, description);
+      if (success) {
+        _loadProjects();
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al crear fase: ${response.statusCode}'),
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Error al crear fase')));
         setState(() => _isLoadingProjects = false);
       }
     } catch (e) {
@@ -834,142 +756,17 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
   Future<void> _createTask(int phaseId, String name, String description) async {
     setState(() => _isLoadingProjects = true);
     try {
-      final url = Uri.parse('${Endpoint.baseUrl}/api/v1/models/C_ProjectTask');
-      final body = {
-        'C_ProjectPhase_ID': {'id': phaseId},
-        'Name': name,
-        'Description': description,
-        'IsActive': true,
-      };
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': Token.token,
-        },
-        body: jsonEncode(body),
-      );
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        _fetchProjects();
+      final success = await _logic.createTask(phaseId, name, description);
+      if (success) {
+        _loadProjects();
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al crear tarea: ${response.statusCode}'),
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Error al crear tarea')));
         setState(() => _isLoadingProjects = false);
       }
     } catch (e) {
       setState(() => _isLoadingProjects = false);
-    }
-  }
-
-  Future<void> _toggleComplete(
-    String type,
-    int id,
-    bool currentStatus,
-    Map<String, dynamic>? parent,
-  ) async {
-    setState(() => _isLoadingProjects = true);
-    try {
-      String endpoint = '';
-      if (type == 'project') endpoint = Endpoint.project;
-      if (type == 'phase')
-        endpoint = '${Endpoint.baseUrl}/api/v1/models/C_ProjectPhase';
-      if (type == 'task')
-        endpoint = '${Endpoint.baseUrl}/api/v1/models/C_ProjectTask';
-
-      final url = Uri.parse('$endpoint/$id');
-      // Assuming IsComplete is the field. Some systems use 'Processed' or a Status ID.
-      // Using IsComplete based on context usage.
-      final body = {'IsComplete': !currentStatus};
-
-      final response = await http.put(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': Token.token,
-        },
-        body: jsonEncode(body),
-      );
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        // Logic for cascading checks
-        if (type == 'task' && !currentStatus == true && parent != null) {
-          // Task marked as complete. Check if all tasks in phase are complete.
-          // We need to refresh data first to get latest state or check locally.
-          // For simplicity and correctness, we refresh and then check logic or do it optimistically.
-          // Let's refresh to be safe, then check parent.
-          await _fetchProjects();
-          // Find the updated task and its phase
-          // This logic is complex to do perfectly without backend triggers, but we can try.
-          // A simpler approach requested: "si esta check todas las tareas de una fase se pone en check la fase"
-          // We can do this by checking the local state of siblings *before* refresh or after.
-          // Let's do it after refresh.
-          _checkCascadingCompletion();
-        } else if (type == 'phase' && !currentStatus == true) {
-          await _fetchProjects();
-          _checkCascadingCompletion();
-        } else {
-          _fetchProjects();
-        }
-      } else {
-        setState(() => _isLoadingProjects = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al actualizar: ${response.statusCode}'),
-          ),
-        );
-      }
-    } catch (e) {
-      setState(() => _isLoadingProjects = false);
-    }
-  }
-
-  void _checkCascadingCompletion() {
-    // Iterate projects to check if phases/projects need update
-    // This runs after _fetchProjects so _projects has latest data
-    for (var proj in _projects) {
-      bool projChanged = false;
-      bool allPhasesComplete = true;
-      List phases = proj['C_ProjectPhase'] ?? [];
-
-      if (phases.isEmpty) allPhasesComplete = false;
-
-      for (var phase in phases) {
-        bool phaseChanged = false;
-        bool allTasksComplete = true;
-        List tasks = phase['C_ProjectTask'] ?? [];
-
-        if (tasks.isEmpty) allTasksComplete = false;
-
-        for (var task in tasks) {
-          if (task['IsComplete'] != true) {
-            allTasksComplete = false;
-            break;
-          }
-        }
-
-        if (tasks.isNotEmpty &&
-            allTasksComplete &&
-            phase['IsComplete'] != true) {
-          // Update Phase
-          _toggleComplete('phase', phase['id'], false, null); // false -> true
-          phaseChanged = true;
-        }
-
-        if (phase['IsComplete'] != true && !phaseChanged) {
-          allPhasesComplete = false;
-        }
-      }
-
-      if (phases.isNotEmpty &&
-          allPhasesComplete &&
-          proj['IsComplete'] != true) {
-        // Update Project (Assuming IsComplete exists on Project, or maybe ProjectStatus)
-        // If Project uses IsComplete:
-        // _toggleComplete('project', proj['id'], false, null);
-      }
     }
   }
 
@@ -1021,30 +818,29 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
     );
 
     if (save == true) {
-      // Reuse create logic or make generic update. For brevity, generic update here:
       setState(() => _isLoadingProjects = true);
       try {
-        String endpoint = type == 'project'
-            ? Endpoint.project
-            : type == 'phase'
-            ? '${Endpoint.baseUrl}/api/v1/models/C_ProjectPhase'
-            : '${Endpoint.baseUrl}/api/v1/models/C_ProjectTask';
-        await http.put(
-          Uri.parse('$endpoint/$id'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': Token.token,
-          },
-          body: jsonEncode({
-            'Name': nameController.text,
-            'Description': descController.text,
-          }),
+        final success = await _logic.updateItem(
+          type,
+          id,
+          nameController.text,
+          descController.text,
         );
-        _fetchProjects();
+        if (success) {
+          _loadProjects();
+        } else {
+          setState(() => _isLoadingProjects = false);
+        }
       } catch (_) {
         setState(() => _isLoadingProjects = false);
       }
     }
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchRequestsForTask(
+    String? taskUU,
+  ) async {
+    return await _logic.fetchRequestsForTask(taskUU);
   }
 
   Widget _buildProjectsView() {
@@ -1052,358 +848,589 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
       return const Center(child: CircularProgressIndicator());
     }
     if (_projectsErrorMessage != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Text(
-            _projectsErrorMessage!,
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.red),
-          ),
-        ),
-      );
+      return Center(child: Text('Error: $_projectsErrorMessage'));
     }
     if (_projects.isEmpty) {
-      return const Center(child: Text('No tienes proyectos activos.'));
+      return const Center(child: Text('No hay proyectos.'));
     }
 
     final filteredProjects = _projects.where((project) {
-      final name = (project['Name'] ?? '').toString().toLowerCase();
-      final search = _searchController.text.toLowerCase();
-      return name.contains(search);
+      final projectName = (project['Name'] as String? ?? '').toLowerCase();
+      final searchQuery = _searchController.text.toLowerCase();
+      return projectName.contains(searchQuery);
     }).toList();
 
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              CustomTextField(
-                controller: _searchController,
-                hintText: 'Buscar proyecto...',
-                prefixIcon: const Icon(Icons.search),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton.icon(
-                    onPressed: () => setState(() {
-                      _expandAll = true;
-                      _expansionKey++;
-                    }),
-                    icon: const Icon(Icons.unfold_more),
-                    label: const Text('Expandir todo'),
-                  ),
-                  const SizedBox(width: 8),
-                  TextButton.icon(
-                    onPressed: () => setState(() {
-                      _expandAll = false;
-                      _expansionKey++;
-                    }),
-                    icon: const Icon(Icons.unfold_less),
-                    label: const Text('Contraer todo'),
-                  ),
-                ],
-              ),
-            ],
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          child: CustomTextField(
+            controller: _searchController,
+            hintText: 'Buscar proyecto...',
+            prefixIcon: const Icon(Icons.search),
           ),
         ),
         Expanded(
-          child: filteredProjects.isEmpty
-              ? const Center(child: Text('No se encontraron proyectos.'))
-              : ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: filteredProjects.length,
-                  itemBuilder: (context, index) {
-                    return _buildProjectCard(filteredProjects[index]);
-                  },
-                ),
+          child: ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: filteredProjects.length,
+            itemBuilder: (context, index) {
+              return _buildProjectItem(filteredProjects[index]);
+            },
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildProjectCard(Map<String, dynamic> project) {
+  Widget _buildProjectItem(Map<String, dynamic> project) {
     final phases = project['C_ProjectPhase'] as List? ?? [];
     final directTasks = project['C_ProjectTask'] as List? ?? [];
-    final String name = project['Name'] ?? 'Proyecto sin nombre';
-    final String description = project['Description'] ?? '';
-    final bool isComplete =
-        project['IsComplete'] == true; // Assuming project has IsComplete
+    final bool isExpanded =
+        _expandAll || _targetExpandedProjectId == project['id'];
 
     return Card(
-      elevation: 4,
       margin: const EdgeInsets.only(bottom: 16),
+      elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ExpansionTile(
-        key: Key('${project['id']}-$_expansionKey'),
-        initiallyExpanded:
-            _expandAll || (project['id'] == _targetExpandedProjectId),
-        leading: CircleAvatar(
-          backgroundColor: isComplete
-              ? Colors.green
-              : Theme.of(context).colorScheme.primary,
-          child: Icon(
-            isComplete ? Icons.check : Icons.assignment,
-            color: Colors.white,
-          ),
-        ),
+        key: Key('project-${project['id']}-$_expansionKey'),
+        initiallyExpanded: isExpanded,
+        leading: const Icon(Icons.folder, color: Color(0xFF4F47E5)),
         title: Row(
           children: [
             Expanded(
               child: Text(
-                name,
+                project['Name'] ?? 'Sin Nombre',
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 16,
                 ),
               ),
             ),
-            IconButton(
-              icon: const Icon(Icons.folder, size: 20),
-              tooltip: 'Entregables',
-              onPressed: () {
-                setState(() {
-                  _selectedProject = project;
-                  _currentViewType = 'Entregables';
-                  _showingFiles = true;
-                });
-              },
-            ),
-            IconButton(
-              icon: const Icon(Icons.timeline, size: 20),
-              tooltip: 'Seguimiento',
-              onPressed: () {
-                setState(() {
-                  _selectedProject = project;
-                  _currentViewType = 'Seguimiento';
-                  _showingFiles = true;
-                });
-              },
-            ),
-            IconButton(
-              icon: const Icon(Icons.description, size: 20),
-              tooltip: 'General',
-              onPressed: () {
-                setState(() {
-                  _selectedProject = project;
-                  _currentViewType = 'General';
-                  _showingFiles = true;
-                });
-              },
-            ),
-            IconButton(
-              icon: const Icon(Icons.edit, size: 20),
-              onPressed: () =>
-                  _editItemDialog('project', project['id'], name, description),
-              tooltip: 'Editar Proyecto',
+            if (phases.isNotEmpty) ...[
+              const Icon(Icons.layers_outlined, size: 16, color: Colors.grey),
+              const SizedBox(width: 4),
+              Text(
+                '${phases.length}',
+                style: const TextStyle(fontSize: 14, color: Colors.grey),
+              ),
+              const SizedBox(width: 8),
+            ],
+          ],
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (project['Description'] != null)
+              Text(
+                project['Description'],
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            const SizedBox(height: 8),
+            // Botones de acción para las diferentes vistas
+            Row(
+              mainAxisAlignment: MainAxisAlignment.start,
+              children: [
+                _buildActionButton(
+                  Icons.folder_open,
+                  'Entregables',
+                  Colors.orange,
+                  () => _onShowFiles(project, 'Entregables'),
+                ),
+                const SizedBox(width: 16),
+                _buildActionButton(
+                  Icons.assignment,
+                  'Seguimiento',
+                  Colors.blue,
+                  () => _onShowFiles(project, 'Seguimiento'),
+                ),
+                const SizedBox(width: 16),
+                _buildActionButton(
+                  Icons.assignment_add,
+                  'General',
+                  Colors.grey,
+                  () => _onShowFiles(project, 'General'),
+                ),
+              ],
             ),
           ],
         ),
-        subtitle: description.isNotEmpty
-            ? Text(description, maxLines: 2, overflow: TextOverflow.ellipsis)
-            : null,
         children: [
-          if (phases.isNotEmpty)
-            ...phases.map((phase) => _buildPhaseItem(phase, project)),
-          if (directTasks.isNotEmpty)
-            ...directTasks.map((task) => _buildTaskItem(task, null)),
-          if (phases.isEmpty && directTasks.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(24.0),
-              child: Text(
-                'No hay detalles de fases o tareas disponibles.',
-                style: TextStyle(
-                  fontStyle: FontStyle.italic,
-                  color: Colors.grey,
-                ),
-              ),
-            ),
           Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: CustomButton(
-              text: 'Agregar Fase',
-              icon: Icons.add,
-              onPressed: () => _createPhaseDialog(project['id']),
-              width: double.infinity,
-              backgroundColor: Colors.grey.shade200,
-              textColor: Colors.black87,
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 8.0,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                if (AccessControl.canCreateProjectItems)
+                  TextButton.icon(
+                    icon: const Icon(Icons.add),
+                    label: const Text('Nueva Fase'),
+                    onPressed: () => _createPhaseDialog(project['id']),
+                  ),
+                if (AccessControl.canEditProject)
+                  IconButton(
+                    icon: const Icon(Icons.edit, size: 20),
+                    tooltip: 'Editar Proyecto',
+                    onPressed: () => _editItemDialog(
+                      'project',
+                      project['id'],
+                      project['Name'],
+                      project['Description'] ?? '',
+                    ),
+                  ),
+              ],
             ),
           ),
-          const SizedBox(height: 8),
+          const Divider(),
+          if (phases.isEmpty && directTasks.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Text('No hay fases ni tareas registradas.'),
+            ),
+          ...phases.map((phase) => _buildPhaseItem(phase)),
+          ...directTasks.map((task) => _buildTaskItem(task)),
         ],
       ),
     );
   }
 
-  Widget _buildPhaseItem(
-    Map<String, dynamic> phase,
-    Map<String, dynamic> project,
+  Widget _buildActionButton(
+    IconData icon,
+    String label,
+    Color color,
+    VoidCallback onPressed,
   ) {
-    final tasks = phase['C_ProjectTask'] as List? ?? [];
-    final bool isComplete = phase['IsComplete'] == true;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
-      child: Card(
-        elevation: 0,
-        color: Theme.of(
-          context,
-        ).colorScheme.surfaceContainerHighest.withOpacity(0.3),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-          side: BorderSide(color: Colors.grey.withOpacity(0.2)),
+    return InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 24),
+            Text(label, style: TextStyle(fontSize: 10, color: color)),
+          ],
         ),
-        child: ExpansionTile(
-          leading: Icon(
-            isComplete ? Icons.check_circle : Icons.flag,
-            color: isComplete ? Colors.green : Colors.grey,
+      ),
+    );
+  }
+
+  Widget _buildPhaseItem(Map<String, dynamic> phase) {
+    final tasks = phase['C_ProjectTask'] as List? ?? [];
+    return ExpansionTile(
+      key: Key('phase-${phase['id']}-$_expansionKey'),
+      initiallyExpanded: _expandAll,
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(
+              phase['Name'] ?? 'Fase',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
           ),
+          if (tasks.isNotEmpty) ...[
+            const Icon(Icons.task_outlined, size: 16, color: Colors.grey),
+            const SizedBox(width: 4),
+            Text('${tasks.length}', style: const TextStyle(color: Colors.grey)),
+          ],
+        ],
+      ),
+      subtitle: Text(
+        phase['Description'] ?? '',
+        style: const TextStyle(fontSize: 12),
+      ),
+      leading: const Icon(Icons.flag_outlined),
+      trailing: AccessControl.canEditProject
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.add_task, size: 20),
+                  tooltip: 'Nueva Tarea',
+                  onPressed: () => _createTaskDialog(phase['id']),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.edit, size: 20),
+                  onPressed: () => _editItemDialog(
+                    'phase',
+                    phase['id'],
+                    phase['Name'],
+                    phase['Description'] ?? '',
+                  ),
+                ),
+              ],
+            )
+          : null,
+      children: tasks.map((task) => _buildTaskItem(task)).toList(),
+    );
+  }
+
+  Widget _buildTaskItem(Map<String, dynamic> task) {
+    final taskId = task['id'];
+    final taskName = task['Name'] ?? 'Tarea sin nombre';
+    final rawUU =
+        task['UUID'] ?? task['uuid'] ?? task['Record_UU'] ?? task['uid'];
+    String? taskUU;
+    if (rawUU is String) taskUU = rawUU;
+
+    if (taskUU == null) {
+      print(
+        'DEBUG: Task $taskId ($taskName) has no UUID. Available keys: ${task.keys.toList()}',
+      );
+    }
+
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: _fetchRequestsForTask(taskUU),
+      builder: (context, snapshot) {
+        final requests = snapshot.data ?? [];
+        final countText = snapshot.connectionState == ConnectionState.waiting
+            ? '...'
+            : '${requests.length}';
+
+        return ExpansionTile(
+          key: Key('task-${taskId}-$_expansionKey'),
+          initiallyExpanded: _expandAll,
+          leading: const Icon(Icons.task_alt_outlined, size: 20),
           title: Row(
             children: [
               Expanded(
                 child: Text(
-                  phase['Name'] ?? 'Fase',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                  ),
+                  taskName,
+                  style: const TextStyle(fontWeight: FontWeight.w500),
                 ),
               ),
-              IconButton(
-                icon: const Icon(Icons.edit, size: 18),
-                onPressed: () => _editItemDialog(
-                  'phase',
-                  phase['id'],
-                  phase['Name'] ?? '',
-                  phase['Description'] ?? '',
+              if (requests.isNotEmpty) ...[
+                const Icon(
+                  Icons.description_outlined,
+                  size: 16,
+                  color: Colors.grey,
                 ),
-              ),
+                const SizedBox(width: 4),
+                Text(
+                  countText,
+                  style: const TextStyle(fontSize: 13, color: Colors.grey),
+                ),
+              ],
             ],
           ),
-          subtitle: Text('${tasks.length} Tareas'),
+          subtitle: task['Description'] != null
+              ? Text(
+                  task['Description'],
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                )
+              : null,
+          trailing:
+              (AccessControl.canCreateRequests || AccessControl.canEditProject)
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (AccessControl.canCreateRequests)
+                      IconButton(
+                        icon: const Icon(Icons.add_comment_outlined, size: 20),
+                        tooltip: 'Crear Solicitud',
+                        onPressed: () async {
+                          final result = await showDialog(
+                            context: context,
+                            builder: (context) =>
+                                CreateRequestDialog(linkedRecordUU: taskUU),
+                          );
+                          if (result == true) {
+                            setState(() => _expansionKey++);
+                          }
+                        },
+                      ),
+                    if (AccessControl.canEditProject)
+                      IconButton(
+                        icon: const Icon(Icons.edit, size: 18),
+                        onPressed: () => _editItemDialog(
+                          'task',
+                          taskId,
+                          taskName,
+                          task['Description'] ?? '',
+                        ),
+                      ),
+                  ],
+                )
+              : null,
           children: [
-            ...tasks
-                .map((task) => _buildTaskItem(task, phase, isNested: true))
-                .toList(),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: TextButton.icon(
-                icon: const Icon(Icons.add, size: 16),
-                label: const Text('Agregar Tarea'),
-                onPressed: () => _createTaskDialog(phase['id']),
+            if (snapshot.connectionState == ConnectionState.waiting)
+              const Padding(
+                padding: EdgeInsets.all(8.0),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (requests.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: _buildRequestsTable(requests),
+              )
+            else
+              const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text(
+                  'No hay solicitudes relacionadas.',
+                  style: TextStyle(color: Colors.grey),
+                ),
               ),
-            ),
           ],
-        ),
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildTaskItem(
-    Map<String, dynamic> task,
-    Map<String, dynamic>? phase, {
-    bool isNested = false,
-  }) {
-    final bool isComplete = task['IsComplete'] == true;
-    final String taskUUID = task['UUID'] ?? '';
-
-    // Buscar solicitudes relacionadas por UUID
-    final relatedRequests = _requests.where((r) {
-      return r['Record_UU'] != null &&
-          r['Record_UU'].toString() == taskUUID &&
-          taskUUID.isNotEmpty;
-    }).toList();
-
-    if (relatedRequests.isNotEmpty) {
-      return ExpansionTile(
-        tilePadding: EdgeInsets.only(left: isNested ? 16.0 : 16.0, right: 16.0),
-        leading: Icon(
-          isComplete ? Icons.check_circle : Icons.circle_outlined,
-          size: 18,
-          color: isComplete ? Colors.green : Colors.blueGrey,
+  Future<void> _deleteRequest(dynamic id) async {
+    if (!AccessControl.canManageRequests) return;
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => CustomModal(
+        title: 'Confirmar Eliminación',
+        content: const Text(
+          '¿Está seguro de que desea eliminar esta solicitud?',
         ),
-        title: Text(
-          task['Name'] ?? 'Tarea',
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-        ),
-        subtitle: task['Description'] != null
-            ? Text(
-                task['Description'],
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 11),
-              )
-            : null,
-        children: relatedRequests.map((req) => _buildRequestItem(req)).toList(),
-      );
-    }
-
-    return ListTile(
-      contentPadding: EdgeInsets.only(
-        left: isNested ? 16.0 : 16.0,
-        right: 16.0,
-      ),
-      leading: Icon(
-        isComplete ? Icons.check_circle : Icons.circle_outlined,
-        size: 18,
-        color: isComplete ? Colors.green : Colors.blueGrey,
-      ),
-      title: Text(
-        task['Name'] ?? 'Tarea',
-        style: const TextStyle(fontSize: 13),
-      ),
-      subtitle: task['Description'] != null
-          ? Text(
-              task['Description'],
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 11),
-            )
-          : null,
-      dense: true,
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            icon: const Icon(Icons.edit, size: 16),
-            onPressed: () => _editItemDialog(
-              'task',
-              task['id'],
-              task['Name'] ?? '',
-              task['Description'] ?? '',
-            ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          CustomButton(
+            text: 'Eliminar',
+            backgroundColor: Colors.red,
+            onPressed: () => Navigator.pop(context, true),
           ),
         ],
       ),
     );
+
+    if (confirm == true) {
+      try {
+        final response = await http.delete(
+          Uri.parse('${Endpoint.request}/$id'),
+          headers: {'Authorization': Token.token},
+        );
+        if (response.statusCode == 200 || response.statusCode == 204) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Solicitud eliminada correctamente'),
+              ),
+            );
+            setState(() => _expansionKey++);
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Error al eliminar: ${response.body}')),
+            );
+          }
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        }
+      }
+    }
   }
 
-  Widget _buildRequestItem(Map<String, dynamic> req) {
-    final bool isClosed =
-        req['R_Status_Name'] == '9_Final Close' || req['R_Status_ID'] == 103;
+  void _editRequest(Map<String, dynamic> req) {
+    String level = _extractValue(req['Priority']);
+    if (level == 'N/A') level = 'Media';
+    String status = _extractValue(req['Status']);
+    if (status == 'N/A') status = '1_Open';
 
-    return ListTile(
-      contentPadding: const EdgeInsets.only(left: 32.0, right: 16.0),
-      leading: const Icon(
-        Icons.confirmation_number_outlined,
-        size: 16,
-        color: Colors.indigo,
+    int? statusId;
+    if (req['Status'] is Map) statusId = req['Status']['id'];
+
+    Color baseColor = Colors.green;
+    if (level == 'Urgente')
+      baseColor = Colors.purple;
+    else if (level == 'Alta')
+      baseColor = Colors.red;
+    else if (level == 'Media')
+      baseColor = Colors.amber.shade800;
+    else if (level == 'Menor')
+      baseColor = Colors.grey;
+
+    final mappedReq = {
+      'id': req['DocumentNo'] ?? req['id'].toString(),
+      'realId': req['id'],
+      'situation': _extractValue(req['R_RequestType_ID']),
+      'description': req['Summary'] ?? '',
+      'level': level,
+      'status': status,
+      'statusId': statusId,
+      'time': req['Created'] ?? '',
+      'levelColor': baseColor,
+      'levelBgColor': baseColor.withOpacity(0.2),
+      'statusColor': Colors.grey,
+      'dateStartPlan': req['DateStartPlan'] ?? '',
+      'dateCompletePlan': req['DateCompletePlan'] ?? '',
+      'startTime': req['StartTime'] ?? '',
+      'endTime': req['EndTime'] ?? '',
+      'qtyPlan': req['QtyPlan']?.toString() ?? '',
+      'startDate': req['StartDate'],
+      'closeDate': req['CloseDate'],
+      'userName': _extractValue(req['AD_User_ID']),
+      'bpName': _extractValue(req['C_BPartner_ID']),
+    };
+
+    showDialog(
+      context: context,
+      builder: (context) => EditRequestDialog(
+        request: mappedReq,
+        statusIdMap: _statusIdMap,
+        priorityMap: _priorityMap,
+        onSave: () {
+          setState(() => _expansionKey++);
+        },
+        onDelete: () => _deleteRequest(req['id']),
       ),
-      title: Text(
-        req['Summary'] ?? 'Solicitud',
-        style: const TextStyle(fontSize: 12),
+    );
+  }
+
+  String _extractValue(dynamic val) {
+    if (val == null) return 'N/A';
+    if (val is String) return val;
+    if (val is Map)
+      return val['identifier']?.toString() ?? val['name']?.toString() ?? 'N/A';
+    return val.toString();
+  }
+
+  Widget _buildRequestsTable(List<Map<String, dynamic>> requests) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: DataTable(
+        showCheckboxColumn: false,
+        headingRowHeight: 30,
+        dataRowMinHeight: 30,
+        dataRowMaxHeight: 40,
+        columns: const [
+          DataColumn(label: Text('Ticket')),
+          DataColumn(label: Text('Resumen')),
+          DataColumn(label: Text('Estado')),
+          DataColumn(label: Text('Prioridad')),
+          DataColumn(label: Text('Fecha Fin Plan')),
+        ],
+        rows: requests.map((req) {
+          return DataRow(
+            onSelectChanged: (selected) {
+              if (selected == true) {
+                if (AccessControl.canManageRequests) {
+                  _editRequest(req);
+                } else if (AccessControl.canViewRequestDetails) {
+                  _showRequestDetails(req);
+                }
+              }
+            },
+            cells: [
+              DataCell(Text(req['id'].toString())),
+              DataCell(
+                Text(() {
+                  final text = _extractValue(req['Summary']);
+                  return text.length > 35
+                      ? '${text.substring(0, 35)}...'
+                      : text;
+                }()),
+              ),
+              DataCell(Text(_extractValue(req['Status']))),
+              DataCell(Text(_extractValue(req['Priority']))),
+              DataCell(
+                Text(req['DateCompletePlan']?.toString().split('T')[0] ?? ''),
+              ),
+            ],
+          );
+        }).toList(),
       ),
-      subtitle: Text(
-        '${req['DocumentNo']} - ${req['R_Status_Name']}',
-        style: const TextStyle(fontSize: 10),
+    );
+  }
+
+  void _showRequestDetails(Map<String, dynamic> req) {
+    final summary = req['Summary'] ?? '';
+    final status = _extractValue(req['Status'] ?? req['R_Status_ID']);
+    final priority = _extractValue(req['Priority']);
+    final dateStart = req['DateStartPlan']?.toString().split('T')[0] ?? '';
+    final dateComplete =
+        req['DateCompletePlan']?.toString().split('T')[0] ?? '';
+    final qtyPlan = req['QtyPlan']?.toString() ?? '0';
+
+    showDialog(
+      context: context,
+      builder: (context) => CustomModal(
+        title: 'Detalle Solicitud ${req['DocumentNo'] ?? req['id']}',
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CustomTextField(
+                controller: TextEditingController(text: summary),
+                label: 'Resumen',
+                readOnly: true,
+                maxLines: 4,
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: CustomTextField(
+                      controller: TextEditingController(text: status),
+                      label: 'Estado',
+                      readOnly: true,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: CustomTextField(
+                      controller: TextEditingController(text: priority),
+                      label: 'Prioridad',
+                      readOnly: true,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: CustomTextField(
+                      controller: TextEditingController(text: dateStart),
+                      label: 'Fecha Inicio',
+                      readOnly: true,
+                      prefixIcon: const Icon(Icons.calendar_today),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: CustomTextField(
+                      controller: TextEditingController(text: dateComplete),
+                      label: 'Fecha Fin',
+                      readOnly: true,
+                      prefixIcon: const Icon(Icons.calendar_today),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              CustomTextField(
+                controller: TextEditingController(text: qtyPlan),
+                label: 'Horas Planificadas',
+                readOnly: true,
+                prefixIcon: const Icon(Icons.timer),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cerrar'),
+          ),
+        ],
       ),
-      trailing: isClosed
-          ? const Icon(Icons.check_circle, size: 18, color: Colors.green)
-          : const Icon(Icons.pending_actions, size: 18, color: Colors.orange),
-      dense: true,
     );
   }
 }
