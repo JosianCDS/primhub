@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:primhub/api/token.dart';
 import 'package:primhub/endpoint/endpoint.dart';
+import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/contract_api.dart';
+import 'package:primhub/ui/pages/request/edit_request_dialog.dart';
 import 'package:primhub/ui/pages/request/create_request_dialog.dart';
 import 'package:primhub/ui/pages/request/request_functions.dart';
 import 'package:primhub/ui/shared/custom_button.dart';
@@ -13,7 +15,7 @@ import 'package:primhub/ui/shared/custom_table.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../widgets/custom_drawer.dart';
 import 'package:primhub/ui/shared/duration_formatter.dart';
-import '../../pages/calendar.dart';
+import 'calendar.dart';
 
 class MyRequestsPage extends StatefulWidget {
   const MyRequestsPage({super.key});
@@ -117,12 +119,36 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   }
 
   Future<void> _refreshRequest() async {
-    final requests = await fetchRequest();
-    _rawRequests = requests;
+    String? filter;
+    if (AccessControl.limitToCurrentYear) {
+      final currentYear = DateTime.now().year;
+      // Filtro OData para el año actual
+      filter =
+          "Created ge '$currentYear-01-01T00:00:00Z' and Created le '$currentYear-12-31T23:59:59Z'";
+    }
+    final requests = await fetchRequest(filter: filter);
+    // Usar DateCompletePlan como fecha principal para el calendario si existe
+    _rawRequests = requests.map((req) {
+      final newReq = Map<String, dynamic>.from(req);
+      if (newReq['DateCompletePlan'] != null &&
+          newReq['DateCompletePlan'].toString().isNotEmpty) {
+        newReq['DateStartPlan'] = newReq['DateCompletePlan'];
+      }
+      return newReq;
+    }).toList();
+
     double consumed = 0.0;
     double estimated = 0.0;
 
-    for (var req in requests) {
+    // Filter out requests that are linked to a project task
+    final visibleRequests = requests
+        .where(
+          (req) =>
+              req['Record_UU'] == null || req['Record_UU'].toString().isEmpty,
+        )
+        .toList();
+
+    for (var req in visibleRequests) {
       final statusName = req['R_Status_Name'] ?? '';
       final qtyPlan = (req['QtyPlan'] as num?)?.toDouble() ?? 0.0;
 
@@ -139,7 +165,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       _consumedHours = consumed;
       _estimatedHours = estimated;
 
-      _requests = requests.map((r) {
+      _requests = visibleRequests.map((r) {
         String level = r['Priority_Name'] ?? 'Baja';
         String status = r['R_Status_Name'] ?? '';
         int? statusId = r['R_Status_ID'];
@@ -324,6 +350,14 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   }
 
   Future<void> _deleteRequest(dynamic id) async {
+    if (!AccessControl.canManageRequests) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No tienes permisos para eliminar solicitudes.'),
+        ),
+      );
+      return;
+    }
     final bool? confirm = await showDialog<bool>(
       context: context,
       builder: (context) => CustomModal(
@@ -384,525 +418,21 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     }
   }
 
-  void _editRequest(Map<String, dynamic> req) {
-    String currentPriority = req['level'];
-    String currentStatus = req['status'];
-    int? statusId = req['statusId'];
-    bool isReadOnly = currentStatus == '9_Final Close' || statusId == 103;
-    bool isSaving = false;
-    final ScrollController modalScrollController = ScrollController();
-    final ScrollController descriptionScrollController = ScrollController();
-
-    final TextEditingController summaryController = TextEditingController(
-      text: req['description'],
-    );
-    // Controladores para nuevos campos
-    final TextEditingController dateStartController = TextEditingController(
-      text: req['dateStartPlan'],
-    );
-    final TextEditingController dateCompleteController = TextEditingController(
-      text: req['dateCompletePlan'],
-    );
-    final TextEditingController startTimeController = TextEditingController(
-      text: req['startTime'],
-    );
-    final TextEditingController endTimeController = TextEditingController(
-      text: req['endTime'],
-    );
-
-    // Inicializar horas y minutos desde qtyPlan
-    double initialQty =
-        double.tryParse(req['qtyPlan']?.toString() ?? '0') ?? 0.0;
-    int initialHours = initialQty.floor();
-    int initialMinutes = ((initialQty - initialHours) * 60).round();
-
-    final TextEditingController hoursController = TextEditingController(
-      text: initialHours.toString(),
-    );
-    int selectedMinutes = initialMinutes;
-
-    Future<void> selectDate(
-      BuildContext context,
-      TextEditingController controller,
-      StateSetter setStateDialog,
-    ) async {
-      final DateTime? picked = await showDatePicker(
-        context: context,
-        initialDate: DateTime.now(),
-        firstDate: DateTime(2000),
-        lastDate: DateTime(2101),
-      );
-      if (picked != null) {
-        controller.text =
-            "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
-        setStateDialog(() {});
-      }
+  void _editRequest(Map<String, dynamic> req) async {
+    if (!AccessControl.canManageRequests) {
+      // Si no tiene permisos, no abre el diálogo de edición
+      return;
     }
-
-    Future<void> selectTime(
-      BuildContext context,
-      TextEditingController controller,
-      StateSetter setStateDialog,
-    ) async {
-      final TimeOfDay? picked = await showTimePicker(
-        context: context,
-        initialTime: TimeOfDay.now(),
-      );
-      if (picked != null) {
-        // Formato HH:mm:ss para backend si es necesario, o HH:mm
-        controller.text =
-            "${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}:00";
-        setStateDialog(() {});
-      }
-    }
-
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setStateDialog) {
-          final isDark = Theme.of(context).brightness == Brightness.dark;
-
-          // Asegurar que el estado actual esté en la lista para evitar error de Dropdown
-          final List<String> statusItems = _statusIdMap.isNotEmpty
-              ? (_statusIdMap.keys.toList()..sort())
-              : [
-                  '1_Open',
-                  '2_Waiting on customer',
-                  '3_Closed',
-                  '9_Final Close',
-                ];
-          if (currentStatus.isNotEmpty &&
-              !statusItems.contains(currentStatus)) {
-            statusItems.add(currentStatus);
-          }
-
-          return CustomModal(
-            title: 'Editar Solicitud ${req['id']}',
-            content: Scrollbar(
-              controller: modalScrollController,
-              thumbVisibility: true,
-              child: SingleChildScrollView(
-                controller: modalScrollController,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CustomTextField(
-                      controller: summaryController,
-                      scrollController: descriptionScrollController,
-                      label: 'Descripción / Resumen',
-                      readOnly: isReadOnly,
-                      maxLines: 8,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Por favor ingrese una descripción';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    /*
-                  CustomDropdown<String>(
-                    label: 'Nivel de Prioridad',
-                    value: currentPriority,
-                    items: ['Urgente', 'Alta', 'Media', 'Baja', 'Menor']
-                        .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                        .toList(),
-                    onChanged: isReadOnly
-                        ? null
-                        : (val) {
-                            if (val != null)
-                              setStateDialog(() => currentPriority = val);
-                          },
-                  ),
-                  const SizedBox(height: 16),
-                  CustomDropdown<String>(
-                    label: 'Estado',
-                    value: currentStatus,
-                    items: statusItems
-                        .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                        .toList(),
-                    onChanged: isReadOnly
-                        ? null
-                        : (val) async {
-                            if (val != null) {
-                              if (req['status'] == '1_Open' &&
-                                  val != '1_Open') {
-                                final bool? confirm = await showDialog<bool>(
-                                  context: context,
-                                  builder: (context) => CustomModal(
-                                    title: 'Advertencia',
-                                    content: const Text(
-                                      'Si cambia el estado de open este registro no podrá eliminarse aunque lo vuelva a colocar en open, ¿estás seguro?',
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () =>
-                                            Navigator.pop(context, false),
-                                        child: const Text('Cancelar'),
-                                      ),
-                                      CustomButton(
-                                        text: 'Continuar',
-                                        onPressed: () =>
-                                            Navigator.pop(context, true),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                                if (confirm == true) {
-                                  setStateDialog(() => currentStatus = val);
-                                }
-                              } else {
-                                setStateDialog(() => currentStatus = val);
-                              }
-                            }
-                          },
-                  ),
-                  const SizedBox(height: 16),
-                  */
-                    Row(
-                      children: [
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: isReadOnly
-                                ? null
-                                : () => selectDate(
-                                    context,
-                                    dateStartController,
-                                    setStateDialog,
-                                  ),
-                            child: AbsorbPointer(
-                              child: CustomTextField(
-                                controller: dateStartController,
-                                label: 'Inicio Plan',
-                                readOnly: true,
-                                hintText: 'YYYY-MM-DD',
-                                prefixIcon: const Icon(Icons.calendar_today),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: isReadOnly
-                                ? null
-                                : () => selectDate(
-                                    context,
-                                    dateCompleteController,
-                                    setStateDialog,
-                                  ),
-                            child: AbsorbPointer(
-                              child: CustomTextField(
-                                controller: dateCompleteController,
-                                label: 'Fin Plan',
-                                readOnly: true,
-                                hintText: 'YYYY-MM-DD',
-                                prefixIcon: const Icon(Icons.calendar_today),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: isReadOnly
-                                ? null
-                                : () => selectTime(
-                                    context,
-                                    startTimeController,
-                                    setStateDialog,
-                                  ),
-                            child: AbsorbPointer(
-                              child: CustomTextField(
-                                controller: startTimeController,
-                                label: 'Hora Inicio',
-                                readOnly: true,
-                                hintText: 'HH:mm:ss',
-                                prefixIcon: const Icon(Icons.access_time),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: isReadOnly
-                                ? null
-                                : () => selectTime(
-                                    context,
-                                    endTimeController,
-                                    setStateDialog,
-                                  ),
-                            child: AbsorbPointer(
-                              child: CustomTextField(
-                                controller: endTimeController,
-                                label: 'Hora Fin',
-                                readOnly: true,
-                                hintText: 'HH:mm:ss',
-                                prefixIcon: const Icon(Icons.access_time),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: CustomTextField(
-                            controller: hoursController,
-                            label: 'Horas',
-                            readOnly: isReadOnly,
-                            keyboardType: TextInputType.number,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: CustomDropdown<int>(
-                            label: 'Minutos',
-                            value: selectedMinutes,
-                            items: List.generate(60, (index) {
-                              return DropdownMenuItem(
-                                value: index,
-                                child: Text(index.toString().padLeft(2, '0')),
-                              );
-                            }),
-                            onChanged: isReadOnly
-                                ? null
-                                : (val) => setStateDialog(
-                                    () => selectedMinutes = val!,
-                                  ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  _deleteRequest(req['realId']);
-                },
-                child: const Text(
-                  'Eliminar',
-                  style: TextStyle(color: Colors.red),
-                ),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text(isReadOnly ? 'Cerrar' : 'Cancelar'),
-              ),
-              if (!isReadOnly)
-                CustomButton(
-                  text: 'Guardar',
-                  isLoading: isSaving,
-                  onPressed: () async {
-                    setStateDialog(() => isSaving = true);
-
-                    int? statusIdToSend;
-                    String? statusIdentifierToSend;
-
-                    // Verificar si el estado realmente cambió comparando IDs para evitar
-                    // enviar R_Status_ID si ya está en ese estado (evita error 500 en registros procesados)
-                    int? targetStatusId = _statusIdMap[currentStatus];
-
-                    if (targetStatusId != null && req['statusId'] != null) {
-                      if (targetStatusId != req['statusId']) {
-                        statusIdToSend = targetStatusId;
-                      }
-                    } else if (currentStatus != req['status']) {
-                      if (targetStatusId != null) {
-                        statusIdToSend = targetStatusId;
-                      } else {
-                        statusIdentifierToSend = currentStatus;
-                      }
-                    }
-
-                    // Solo enviar campos si han cambiado respecto al valor original
-                    String? dateStartPlanToSend =
-                        dateStartController.text != req['dateStartPlan']
-                        ? dateStartController.text
-                        : null;
-                    String? dateCompletePlanToSend =
-                        dateCompleteController.text != req['dateCompletePlan']
-                        ? dateCompleteController.text
-                        : null;
-                    String? startTimeToSend =
-                        startTimeController.text != req['startTime']
-                        ? startTimeController.text
-                        : null;
-                    String? endTimeToSend =
-                        endTimeController.text != req['endTime']
-                        ? endTimeController.text
-                        : null;
-
-                    double currentQty =
-                        double.tryParse(req['qtyPlan']?.toString() ?? '0') ??
-                        0.0;
-                    double inputHours =
-                        double.tryParse(hoursController.text) ?? 0.0;
-                    double inputTotal = inputHours + (selectedMinutes / 60.0);
-                    double? qtyPlanToSend;
-                    if ((inputTotal - currentQty).abs() > 0.001) {
-                      qtyPlanToSend = inputTotal;
-                    }
-
-                    // Si el estado es Final Close, preparamos StartDate y CloseDate
-                    String? startDateToSend;
-                    String? closeDateToSend;
-
-                    final bool isClosing =
-                        currentStatus == '9_Final Close' ||
-                        currentStatus == 'Final Close' ||
-                        (statusIdToSend != null && statusIdToSend == 103);
-
-                    if (isClosing) {
-                      // Usamos los valores actuales de los controladores
-                      if (dateStartController.text.isNotEmpty &&
-                          startTimeController.text.isNotEmpty) {
-                        String t = startTimeController.text;
-                        if (t.length == 5) t = "$t:00";
-                        startDateToSend = "${dateStartController.text}T${t}Z";
-                      }
-                      if (dateCompleteController.text.isNotEmpty &&
-                          endTimeController.text.isNotEmpty) {
-                        String t = endTimeController.text;
-                        if (t.length == 5) t = "$t:00";
-                        closeDateToSend =
-                            "${dateCompleteController.text}T${t}Z";
-                      }
-
-                      dateStartPlanToSend = null;
-                      dateCompletePlanToSend = null;
-                      startTimeToSend = null;
-                      endTimeToSend = null;
-
-                      // 1. Primero guardamos los datos (fechas, horas, resumen) sin cambiar el estado.
-                      // 2. Luego enviamos solo el cambio de estado a Cerrado.
-                      // Esto evita el error "Cannot update ... on processed record".
-
-                      // PASO 1: Guardar datos
-                      await _updateRemoteRequest(
-                        req['realId'],
-                        currentPriority,
-                        null, // No enviamos estado aún
-                        null,
-                        summaryController.text,
-                        dateStartPlanToSend,
-                        dateCompletePlanToSend,
-                        startTimeToSend,
-                        endTimeToSend,
-                        qtyPlanToSend,
-                        startDateToSend,
-                        closeDateToSend,
-                      );
-
-                      // Limpiamos variables para el PASO 2 (Solo enviar Status)
-                      currentPriority = req['level']; // Restaurar o ignorar
-                      summaryController.text =
-                          req['description']; // Restaurar o ignorar
-                      dateStartPlanToSend = null;
-                      dateCompletePlanToSend = null;
-                      startTimeToSend = null;
-                      endTimeToSend = null;
-                      qtyPlanToSend = null;
-                      startDateToSend = null;
-                      closeDateToSend = null;
-
-                      // Aseguramos que se envíe el ID de cierre
-                      statusIdToSend = 103;
-                      statusIdentifierToSend = null;
-                    }
-
-                    // Evitar enviar fechas si no han cambiado para prevenir errores de "Update on processed record"
-                    if (startDateToSend == req['startDate'])
-                      startDateToSend = null;
-                    if (closeDateToSend == req['closeDate'])
-                      closeDateToSend = null;
-
-                    final result = await _updateRemoteRequest(
-                      req['realId'],
-                      isClosing
-                          ? null
-                          : currentPriority, // Si cerramos, ya enviamos esto en el paso 1
-                      statusIdToSend,
-                      statusIdentifierToSend,
-                      isClosing
-                          ? null
-                          : summaryController
-                                .text, // Si cerramos, ya enviamos esto en el paso 1
-                      dateStartPlanToSend,
-                      dateCompletePlanToSend,
-                      startTimeToSend,
-                      endTimeToSend,
-                      qtyPlanToSend,
-                      startDateToSend,
-                      closeDateToSend,
-                    );
-                    setStateDialog(() => isSaving = false);
-
-                    if (result['success'] == true) {
-                      if (mounted) {
-                        setState(() {
-                          req['level'] = currentPriority;
-                          req['status'] = currentStatus;
-                          req['description'] = summaryController.text;
-                          if (currentPriority == 'Urgente') {
-                            req['levelColor'] = Colors.purple;
-                          } else if (currentPriority == 'Alta') {
-                            req['levelColor'] = Colors.red;
-                          } else if (currentPriority == 'Media') {
-                            req['levelColor'] = Colors.amber.shade800;
-                          } else if (currentPriority == 'Menor') {
-                            req['levelColor'] = Colors.grey;
-                          } else {
-                            req['levelColor'] = Colors.green;
-                          }
-                          req['levelBgColor'] = req['levelColor'].withOpacity(
-                            0.2,
-                          );
-                          _refreshRequest(); // Recalcular totales
-                        });
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Solicitud actualizada correctamente',
-                            ),
-                          ),
-                        );
-                      }
-                    } else {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Error: ${result['error']}\nPayload: ${result['payload']}',
-                            ),
-                            backgroundColor: Colors.red,
-                            duration: const Duration(seconds: 10),
-                          ),
-                        );
-                      }
-                    }
-                  },
-                ),
-            ],
-          );
-        },
+      builder: (context) => EditRequestDialog(
+        request: req,
+        statusIdMap: _statusIdMap,
+        priorityMap: _priorityMap,
+        onSave: _initData,
+        onDelete: () => _deleteRequest(req['realId']),
       ),
-    ).then((_) {
-      modalScrollController.dispose();
-      descriptionScrollController.dispose();
-    });
+    );
   }
 
   @override
@@ -1381,26 +911,30 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                         final buttons = Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            ElevatedButton.icon(
-                              onPressed: () async {
-                                final result = await showDialog(
-                                  context: context,
-                                  builder: (context) =>
-                                      const CreateRequestDialog(),
-                                );
-                                if (result == true) {
-                                  _initData();
-                                }
-                              },
-                              icon: const Icon(Icons.add, color: Colors.white),
-                              label: const Text(
-                                'Agregar registro',
-                                style: TextStyle(color: Colors.white),
+                            if (AccessControl.canCreateRequests)
+                              ElevatedButton.icon(
+                                onPressed: () async {
+                                  final result = await showDialog(
+                                    context: context,
+                                    builder: (context) =>
+                                        const CreateRequestDialog(),
+                                  );
+                                  if (result == true) {
+                                    _initData();
+                                  }
+                                },
+                                icon: const Icon(
+                                  Icons.add,
+                                  color: Colors.white,
+                                ),
+                                label: const Text(
+                                  'Agregar registro',
+                                  style: TextStyle(color: Colors.white),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF4F47E5),
+                                ),
                               ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF4F47E5),
-                              ),
-                            ),
                             const SizedBox(width: 16),
                             ElevatedButton.icon(
                               onPressed: () => setState(() {
@@ -1470,7 +1004,9 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                                 rows: paginatedAlerts.map((alert) {
                                   return DataRow(
                                     onSelectChanged: (value) =>
-                                        _editRequest(alert),
+                                        AccessControl.canManageRequests
+                                        ? _editRequest(alert)
+                                        : null,
                                     cells: [
                                       DataCell(Text(alert['id'])),
                                       DataCell(Text(alert['situation'])),

@@ -1,7 +1,6 @@
 // ignore_for_file: use_build_context_synchronously
 
 import 'package:flutter/material.dart';
-import 'package:http/http.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/auth_api.dart';
 import 'package:primhub/api/token.dart';
@@ -84,7 +83,11 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     final responseStep1 = await loginStep1(username, password);
 
     if (responseStep1.containsKey('error')) {
-      _showError(responseStep1['error']);
+      if (responseStep1['error'].toString().contains('401')) {
+        _showError('Usuario o Contraseña Incorrectos');
+      } else {
+        _showError(responseStep1['error']);
+      }
       return;
     }
 
@@ -129,6 +132,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
 
               Token.client = client['id'];
               Token.rol = role['id'];
+              Token.roleUU = role['uuid'] ?? role['UUID'];
               Token.organitation = org['id'];
               Token.warehouseID = warehouseId;
 
@@ -481,19 +485,6 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                         borderRadius: 12,
                                       ),
                               ),
-                              /*
-                              const SizedBox(height: 16),
-                              TextButton(
-                                onPressed: () {},
-                                child: Text(
-                                  '¿Olvidaste tu contraseña?',
-                                  style: TextStyle(
-                                    color: theme.colorScheme.primary,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                              */
                             ],
                           ),
                         ),

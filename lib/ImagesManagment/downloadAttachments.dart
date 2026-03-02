@@ -1,6 +1,9 @@
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:http/http.dart';
+import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/token.dart';
+import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/ui/shared/customToast.dart';
 import 'package:universal_html/html.dart' as html;
 import 'package:flutter/material.dart';
@@ -10,6 +13,7 @@ Future<void> downloadAttachment({
   required int recordID,
   required String tableName,
   required String fileName,
+  VoidCallback? onStatusChanged,
 }) async {
   final String token = Token.token;
 
@@ -45,6 +49,11 @@ Future<void> downloadAttachment({
 
     if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
       _triggerWebDownloadFromBytes(response.bodyBytes, fileName);
+
+      if (AccessControl.isProject) {
+        await _updateStatus(tableName, recordID, 'DL');
+        onStatusChanged?.call();
+      }
 
       if (context.mounted) {
         ToastMessage.show(
@@ -98,5 +107,27 @@ void _triggerWebDownloadFromBytes(Uint8List bytes, String fileName) {
     html.Url.revokeObjectUrl(url);
   } catch (e) {
     debugPrint("Error creando descarga: $e");
+  }
+}
+
+Future<void> _updateStatus(
+  String tableName,
+  int recordID,
+  String status,
+) async {
+  try {
+    final Uri url = tableName.startsWith('http')
+        ? Uri.parse('$tableName/$recordID')
+        : Uri.parse('${Endpoint.baseUrl}/api/v1/models/$tableName/$recordID');
+    await put(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': Token.token,
+      },
+      body: jsonEncode({'Status': status}),
+    );
+  } catch (e) {
+    debugPrint('Error updating status to $status: $e');
   }
 }
