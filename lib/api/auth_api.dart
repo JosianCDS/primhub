@@ -1,9 +1,12 @@
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
 import 'package:http/http.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../ui/pages/Login/login.dart';
 
 Future<Map<String, dynamic>> loginStep1(String username, String password) async {
   try {
@@ -59,7 +62,7 @@ Future<List<dynamic>> getWarehouses(int clientId, int roleId, int orgId, String 
 }
 
 //Confirmar login con parámetros de sesión
-Future<bool> finalizeLogin(String username, String password, Map<String, dynamic> contextParams) async {
+Future<bool> finalizeLogin(String username, String password, Map<String, dynamic> contextParams, BuildContext context) async {
   try {
     final body = {"userName": username, "password": password, "parameters": contextParams};
 
@@ -73,6 +76,20 @@ Future<bool> finalizeLogin(String username, String password, Map<String, dynamic
 
       bool hasSupport = false;
       bool hasProject = false;
+
+      final bool config = await getPrimConfig(rolId: Token.rol!, context: context);
+
+      if (config == false) {
+        Token.primConfig = null;
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const LoginPage()));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('El Rol no tiene configuración.'), backgroundColor: Colors.red));
+        Token.auth = null;
+        Token.refreshToken = null;
+        User.userID = null;
+        User.cBPartnerID = null;
+
+        return false;
+      }
 
       if (User.cBPartnerID != null) {
         await getProductChip();
@@ -121,6 +138,23 @@ Future<int?> getPartnerID({required int userId}) async {
     debugPrint('Error loading contracted hours: $e');
   }
   return null;
+}
+
+//PrimConfig
+Future<bool> getPrimConfig({required int rolId, required BuildContext context}) async {
+  try {
+    final response = await get(Uri.parse('${Endpoint.primConfig}?\$filter=AD_Role_ID eq $rolId'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+    if (response.statusCode == 200) {
+      final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
+      final records = jsonResponse['records'] as List;
+      Token.primConfig = records.isNotEmpty ? records[0]['ConfigurationLevel']['id'] : null;
+
+      return Token.primConfig != null;
+    }
+  } catch (e) {
+    debugPrint('Error loading contracted hours: $e');
+  }
+  return false;
 }
 
 //Ficha de Producto

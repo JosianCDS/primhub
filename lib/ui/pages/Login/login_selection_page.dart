@@ -131,8 +131,6 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
 
     Token.client = _selectedClientId;
     Token.rol = _selectedRoleId;
-    final selectedRole = _roles.firstWhere((r) => r['id'] == _selectedRoleId, orElse: () => null);
-    Token.roleUU = selectedRole?['uuid'] ?? selectedRole?['UUID'];
     Token.organitation = _selectedOrgId;
     Token.warehouseID = _selectedWarehouseId;
 
@@ -141,7 +139,7 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
       params["warehouseId"] = _selectedWarehouseId;
     }
 
-    final response = await finalizeLogin(_username!, _password!, params);
+    final response = await finalizeLogin(_username!, _password!, params, context);
 
     if (mounted) {
       setState(() => _isLoading = false);

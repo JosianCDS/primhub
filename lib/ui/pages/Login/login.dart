@@ -111,14 +111,13 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
 
               Token.client = client['id'];
               Token.rol = role['id'];
-              Token.roleUU = role['uuid'] ?? role['UUID'];
               Token.organitation = org['id'];
               Token.warehouseID = warehouseId;
 
               Map<String, dynamic> params = {"clientId": client['id'], "roleId": role['id'], "organizationId": org['id'], "language": "es_CO"};
               if (warehouseId != null) params["warehouseId"] = warehouseId;
 
-              final responseFinal = await finalizeLogin(username, password, params);
+              final responseFinal = await finalizeLogin(username, password, params, context);
 
               if (responseFinal == false) {
                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Credenciales Incorrectas.'), backgroundColor: Colors.red));
@@ -206,7 +205,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     final theme = Theme.of(context);
 
     return Scaffold(
-      floatingActionButton: FloatingActionButton(onPressed: _showChangeUrlDialog, child: const Icon(Icons.settings)),
+      floatingActionButton: Envirioment.isProduction ? null : FloatingActionButton(onPressed: _showChangeUrlDialog, child: const Icon(Icons.settings)),
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [theme.colorScheme.surface, theme.colorScheme.surfaceContainerLow]),

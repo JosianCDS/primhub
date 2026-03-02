@@ -1,10 +1,15 @@
+class Envirioment {
+  static bool isProduction = true;
+}
+
 class Endpoint {
-  static String baseUrl = "https://primhub.primware.net";
+  static String baseUrl = Envirioment.isProduction ? "https://erp.primware.net" : "https://primhub.primware.net";
   static String request = "$baseUrl/api/v1/models/R_Request";
   static String order = "$baseUrl/api/v1/models/C_Order";
   static String productChip = "$baseUrl/api/v1/models/C_BPartner_Product_Chip";
   static String cBPartner = "$baseUrl/api/v1/models/C_BPartner";
   static String adUser = "$baseUrl/api/v1/models/AD_User";
+  static String primConfig = "$baseUrl/api/v1/models/Prim_Config";
   static String project = "$baseUrl/api/v1/models/C_Project";
   static String primDocuments = "$baseUrl/api/v1/models/PRIM_Documents";
   static String authTokens = "$baseUrl/api/v1/auth/tokens";

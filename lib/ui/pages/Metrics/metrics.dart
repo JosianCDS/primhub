@@ -27,6 +27,7 @@ class _MetricsPageState extends State<MetricsPage> {
 
   double _projectCompliance = 0.0;
   List<double> _statusValues = [];
+  // ignore: unused_field
   List<String> _statusLabels = [];
   List<double> _moduleValues = [];
   List<String> _moduleLabels = [];

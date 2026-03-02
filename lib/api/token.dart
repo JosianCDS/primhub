@@ -6,7 +6,7 @@ class Token {
   static String? refreshToken;
   static int? client;
   static int? rol;
-  static String? roleUU;
+  static String? primConfig;
   static int? organitation;
   static int? warehouseID;
 
@@ -16,7 +16,7 @@ class Token {
     refreshToken = null;
     client = null;
     rol = null;
-    roleUU = null;
+    primConfig = null;
     organitation = null;
     warehouseID = null;
   }

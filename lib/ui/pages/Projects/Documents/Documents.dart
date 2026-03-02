@@ -31,7 +31,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
   bool _isInit = true;
   String _currentViewType = '';
   final ProjectsLogic _logic = ProjectsLogic();
-  final _DocumentsLogic = DocumentsLogic();
+
   Map<String, int> _statusIdMap = {};
   final Map<String, String> _priorityMap = {'Urgente': '1', 'Alta': '3', 'Media': '5', 'Baja': '7', 'Menor': '9'};
 
