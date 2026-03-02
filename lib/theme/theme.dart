@@ -4,9 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'theme_material.dart';
 
 class AppThemes {
-  static final ValueNotifier<ThemeMode> themeModeNotifier = ValueNotifier(
-    ThemeMode.system,
-  );
+  static final ValueNotifier<ThemeMode> themeModeNotifier = ValueNotifier(ThemeMode.system);
 
   static ThemeData get lightTheme {
     final colorScheme = MaterialTheme.lightScheme();
@@ -15,38 +13,22 @@ class AppThemes {
       useMaterial3: true,
       colorScheme: colorScheme,
       scaffoldBackgroundColor: Color(0xffF3F4F6),
-      appBarTheme: AppBarTheme(
-        backgroundColor: colorScheme.primary,
-        foregroundColor: colorScheme.onPrimary,
-        elevation: 0,
-        centerTitle: true,
-      ),
+      appBarTheme: AppBarTheme(backgroundColor: colorScheme.primary, foregroundColor: colorScheme.onPrimary, elevation: 0, centerTitle: true),
       drawerTheme: DrawerThemeData(
         backgroundColor: colorScheme.onPrimary,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       ),
-      textTheme: GoogleFonts.poppinsTextTheme().apply(
-        bodyColor: colorScheme.primary,
-      ),
-      floatingActionButtonTheme: FloatingActionButtonThemeData(
-        backgroundColor: colorScheme.primary,
-        foregroundColor: colorScheme.onPrimary,
-      ),
+      textTheme: GoogleFonts.poppinsTextTheme().apply(bodyColor: colorScheme.primary),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(backgroundColor: colorScheme.primary, foregroundColor: colorScheme.onPrimary),
       cardColor: colorScheme.surface,
 
       dividerColor: colorScheme.outline,
-      listTileTheme: ListTileThemeData(
-        textColor: colorScheme.onSurface,
-        iconColor: colorScheme.onSurfaceVariant,
-      ),
+      listTileTheme: ListTileThemeData(textColor: colorScheme.onSurface, iconColor: colorScheme.onSurfaceVariant),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: colorScheme.primary,
           foregroundColor: colorScheme.onPrimary,
-          textStyle: GoogleFonts.poppins(
-            fontWeight: FontWeight.w600,
-            fontSize: 18,
-          ),
+          textStyle: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 18),
         ),
       ),
     );
@@ -59,34 +41,20 @@ class AppThemes {
       useMaterial3: true,
       colorScheme: colorScheme,
       scaffoldBackgroundColor: colorScheme.surfaceDim,
-      appBarTheme: AppBarTheme(
-        backgroundColor: colorScheme.onPrimary,
-        foregroundColor: colorScheme.onTertiaryContainer,
-        elevation: 0,
-        centerTitle: true,
-      ),
+      appBarTheme: AppBarTheme(backgroundColor: colorScheme.onPrimary, foregroundColor: colorScheme.onTertiaryContainer, elevation: 0, centerTitle: true),
       drawerTheme: DrawerThemeData(
         backgroundColor: colorScheme.onPrimary,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       ),
-      textTheme: GoogleFonts.poppinsTextTheme().apply(
-        bodyColor: colorScheme.onSurface,
-        displayColor: colorScheme.onSurface,
-      ),
+      textTheme: GoogleFonts.poppinsTextTheme().apply(bodyColor: colorScheme.onSurface, displayColor: colorScheme.onSurface),
       cardColor: colorScheme.surface,
       dividerColor: colorScheme.outline,
-      listTileTheme: ListTileThemeData(
-        textColor: colorScheme.onSurface,
-        iconColor: colorScheme.onSurfaceVariant,
-      ),
+      listTileTheme: ListTileThemeData(textColor: colorScheme.onSurface, iconColor: colorScheme.onSurfaceVariant),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: colorScheme.primary,
           foregroundColor: colorScheme.onPrimary,
-          textStyle: GoogleFonts.poppins(
-            fontWeight: FontWeight.w600,
-            fontSize: 18,
-          ),
+          textStyle: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 18),
         ),
       ),
     );

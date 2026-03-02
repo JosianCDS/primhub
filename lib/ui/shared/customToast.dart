@@ -4,11 +4,7 @@ import 'package:toastification/toastification.dart';
 enum ToastType { success, failure, warning, help }
 
 class ToastMessage {
-  static void show({
-    required BuildContext context,
-    required String message,
-    required ToastType type,
-  }) {
+  static void show({required BuildContext context, required String message, required ToastType type}) {
     ToastificationType toastType;
     Color backgroundColor;
     IconData icon;
@@ -43,19 +39,14 @@ class ToastMessage {
       style: ToastificationStyle.flatColored,
       description: Text(
         message,
-        style: Theme.of(
-          context,
-        ).textTheme.bodyLarge?.copyWith(color: backgroundColor),
+        style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: backgroundColor),
         overflow: TextOverflow.visible,
       ),
       alignment: Alignment.bottomCenter,
       autoCloseDuration: const Duration(seconds: 4),
       icon: Icon(icon, color: backgroundColor),
       showProgressBar: true,
-      progressBarTheme: ProgressIndicatorThemeData(
-        color: backgroundColor,
-        circularTrackColor: backgroundColor.withOpacity(0.2),
-      ),
+      progressBarTheme: ProgressIndicatorThemeData(color: backgroundColor, circularTrackColor: backgroundColor.withOpacity(0.2)),
     );
   }
 }

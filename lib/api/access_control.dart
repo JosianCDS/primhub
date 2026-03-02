@@ -11,10 +11,8 @@ class AccessControl {
   static const int projectUserId = 1000006;
 
   static bool get isAdmin => Token.roleUU == adminUuid || Token.rol == adminId;
-  static bool get isSupport =>
-      Token.roleUU == supportUserUuid || Token.rol == supportUserId;
-  static bool get isProject =>
-      Token.roleUU == projectUserUuid || Token.rol == projectUserId;
+  static bool get isSupport => Token.roleUU == supportUserUuid || Token.rol == supportUserId;
+  static bool get isProject => Token.roleUU == projectUserUuid || Token.rol == projectUserId;
 
   // Capacidades de Proyecto
   static bool get canEditProject => isAdmin;
@@ -23,8 +21,7 @@ class AccessControl {
   static bool get canCreateProjectItems => isAdmin;
 
   // Capacidades de Solicitudes (Soporte)
-  static bool get canManageRequests =>
-      isAdmin; // completar, editar, borrar. El rol Soporte solo puede crear.
+  static bool get canManageRequests => isAdmin; // completar, editar, borrar. El rol Soporte solo puede crear.
   static bool get canCreateRequests => isAdmin || isSupport;
   static bool get canViewRequestDetails => isAdmin || isSupport || isProject;
 

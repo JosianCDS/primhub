@@ -34,8 +34,7 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_isInit) {
-      final args =
-          ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
       if (args != null) {
         _tempToken = args['token'];
         _clients = args['clients'] ?? [];
@@ -107,12 +106,7 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
       _isLoading = true;
     });
 
-    final warehouses = await getWarehouses(
-      _selectedClientId!,
-      _selectedRoleId!,
-      orgId,
-      _tempToken!,
-    );
+    final warehouses = await getWarehouses(_selectedClientId!, _selectedRoleId!, orgId, _tempToken!);
 
     if (mounted) {
       setState(() {
@@ -123,24 +117,13 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
   }
 
   Future<void> _finalizeLogin() async {
-    if (_selectedClientId == null ||
-        _selectedRoleId == null ||
-        _selectedOrgId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Por favor seleccione Empresa, Rol y Organización'),
-        ),
-      );
+    if (_selectedClientId == null || _selectedRoleId == null || _selectedOrgId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Por favor seleccione Empresa, Rol y Organización')));
       return;
     }
 
     if (_username == null || _password == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Error de credenciales. Vuelva a iniciar sesión.'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error de credenciales. Vuelva a iniciar sesión.'), backgroundColor: Colors.red));
       return;
     }
 
@@ -148,20 +131,12 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
 
     Token.client = _selectedClientId;
     Token.rol = _selectedRoleId;
-    final selectedRole = _roles.firstWhere(
-      (r) => r['id'] == _selectedRoleId,
-      orElse: () => null,
-    );
+    final selectedRole = _roles.firstWhere((r) => r['id'] == _selectedRoleId, orElse: () => null);
     Token.roleUU = selectedRole?['uuid'] ?? selectedRole?['UUID'];
     Token.organitation = _selectedOrgId;
     Token.warehouseID = _selectedWarehouseId;
 
-    Map<String, dynamic> params = {
-      "clientId": _selectedClientId,
-      "roleId": _selectedRoleId,
-      "organizationId": _selectedOrgId,
-      "language": "es_CO",
-    };
+    Map<String, dynamic> params = {"clientId": _selectedClientId, "roleId": _selectedRoleId, "organizationId": _selectedOrgId, "language": "es_CO"};
     if (_selectedWarehouseId != null) {
       params["warehouseId"] = _selectedWarehouseId;
     }
@@ -171,12 +146,7 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
     if (mounted) {
       setState(() => _isLoading = false);
       if (response == false) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Credenciales Incorrectas.'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Credenciales Incorrectas.'), backgroundColor: Colors.red));
       } else {
         CurrentLogMessage.add("Login exitoso. Token guardado.");
 
@@ -201,14 +171,7 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
       ),
       body: Container(
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              theme.colorScheme.surface,
-              theme.colorScheme.surfaceContainerLow,
-            ],
-          ),
+          gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [theme.colorScheme.surface, theme.colorScheme.surfaceContainerLow]),
         ),
         child: Center(
           child: SingleChildScrollView(
@@ -219,13 +182,7 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
               decoration: BoxDecoration(
                 color: theme.cardColor,
                 borderRadius: BorderRadius.circular(21),
-                boxShadow: [
-                  BoxShadow(
-                    color: theme.colorScheme.primary.withOpacity(0.2),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
+                boxShadow: [BoxShadow(color: theme.colorScheme.primary.withOpacity(0.2), blurRadius: 20, offset: const Offset(0, 10))],
               ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -234,25 +191,14 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
                   Text(
                     'Selección de Contexto',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: theme.colorScheme.onSurface,
-                    ),
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface),
                   ),
                   const SizedBox(height: 24),
                   CustomDropdown<int>(
                     value: _selectedClientId,
                     label: 'Empresa',
                     hintText: 'Seleccione Empresa',
-                    items: _clients
-                        .map(
-                          (c) => DropdownMenuItem<int>(
-                            value: c['id'],
-                            child: Text(_getName(c)),
-                          ),
-                        )
-                        .toList(),
+                    items: _clients.map((c) => DropdownMenuItem<int>(value: c['id'], child: Text(_getName(c)))).toList(),
                     onChanged: _onClientChanged,
                   ),
                   const SizedBox(height: 16),
@@ -260,31 +206,15 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
                     value: _selectedRoleId,
                     label: 'Rol',
                     hintText: 'Seleccione Rol',
-                    items: _roles
-                        .map(
-                          (r) => DropdownMenuItem<int>(
-                            value: r['id'],
-                            child: Text(_getName(r)),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: _selectedClientId == null
-                        ? null
-                        : _onRoleChanged,
+                    items: _roles.map((r) => DropdownMenuItem<int>(value: r['id'], child: Text(_getName(r)))).toList(),
+                    onChanged: _selectedClientId == null ? null : _onRoleChanged,
                   ),
                   const SizedBox(height: 16),
                   CustomDropdown<int>(
                     value: _selectedOrgId,
                     label: 'Organización',
                     hintText: 'Seleccione Organización',
-                    items: _orgs
-                        .map(
-                          (o) => DropdownMenuItem<int>(
-                            value: o['id'],
-                            child: Text(_getName(o)),
-                          ),
-                        )
-                        .toList(),
+                    items: _orgs.map((o) => DropdownMenuItem<int>(value: o['id'], child: Text(_getName(o)))).toList(),
                     onChanged: _selectedRoleId == null ? null : _onOrgChanged,
                   ),
                   const SizedBox(height: 16),
@@ -293,27 +223,12 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
                       value: _selectedWarehouseId,
                       label: 'Almacén (Opcional)',
                       hintText: 'Seleccione Almacén',
-                      items: _warehouses
-                          .map(
-                            (w) => DropdownMenuItem<int>(
-                              value: w['id'],
-                              child: Text(_getName(w)),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (val) =>
-                          setState(() => _selectedWarehouseId = val),
+                      items: _warehouses.map((w) => DropdownMenuItem<int>(value: w['id'], child: Text(_getName(w)))).toList(),
+                      onChanged: (val) => setState(() => _selectedWarehouseId = val),
                     ),
                   if (_warehouses.isNotEmpty) const SizedBox(height: 24),
                   const SizedBox(height: 24),
-                  CustomButton(
-                    text: 'Ingresar',
-                    onPressed: _finalizeLogin,
-                    isLoading: _isLoading,
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    borderRadius: 12,
-                  ),
+                  CustomButton(text: 'Ingresar', onPressed: _finalizeLogin, isLoading: _isLoading, width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 16), borderRadius: 12),
                 ],
               ),
             ),

@@ -64,12 +64,7 @@ class Token {
 class CurrentLogMessage {
   static List<Map<String, dynamic>> log = [];
   static void add(String message, {String level = 'INFO', String? tag}) {
-    final entry = {
-      'ts': DateTime.now().toIso8601String(),
-      'level': level,
-      'tag': tag,
-      'message': message,
-    };
+    final entry = {'ts': DateTime.now().toIso8601String(), 'level': level, 'tag': tag, 'message': message};
     log.add(entry);
     print('[$level] $message');
 

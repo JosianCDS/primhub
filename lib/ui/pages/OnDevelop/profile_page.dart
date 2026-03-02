@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../api/token.dart';
-import '../widgets/custom_drawer.dart';
-import '../shared/custom_modal.dart';
-import '../../theme/theme.dart';
+import '../../../api/token.dart';
+import '../../widgets/custom_drawer.dart';
+import '../../shared/custom_modal.dart';
+import '../../../theme/theme.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -41,24 +41,11 @@ class _ProfilePageState extends State<ProfilePage> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              ListTile(
-                leading: const Icon(Icons.camera_alt),
-                title: const Text('Tomar foto'),
-                onTap: () => Navigator.pop(context),
-              ),
-              ListTile(
-                leading: const Icon(Icons.image),
-                title: const Text('Seleccionar de galería'),
-                onTap: () => Navigator.pop(context),
-              ),
+              ListTile(leading: const Icon(Icons.camera_alt), title: const Text('Tomar foto'), onTap: () => Navigator.pop(context)),
+              ListTile(leading: const Icon(Icons.image), title: const Text('Seleccionar de galería'), onTap: () => Navigator.pop(context)),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar'),
-            ),
-          ],
+          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar'))],
         );
       },
     );
@@ -77,12 +64,8 @@ class _ProfilePageState extends State<ProfilePage> {
     final String bPartner = _userInfo['bpartner_name'] ?? 'GardenWorld HQ';
 
     final String roleName = roleId == 102 ? 'GardenWorld Admin' : 'Rol $roleId';
-    final String clientName = clientId == 11
-        ? 'GardenWorld'
-        : 'Cliente $clientId';
-    final String orgName = orgId == 0
-        ? '*'
-        : (orgId == 11 ? 'HQ' : 'Org $orgId');
+    final String clientName = clientId == 11 ? 'GardenWorld' : 'Cliente $clientId';
+    final String orgName = orgId == 0 ? '*' : (orgId == 11 ? 'HQ' : 'Org $orgId');
 
     return Scaffold(
       appBar: AppBar(title: const Text('Perfil de Usuario')),
@@ -101,13 +84,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       child: CircleAvatar(
                         radius: 50,
                         backgroundColor: const Color(0xFF4F47E5),
-                        child: Text(
-                          username.isNotEmpty ? username[0].toUpperCase() : 'U',
-                          style: const TextStyle(
-                            fontSize: 40,
-                            color: Colors.white,
-                          ),
-                        ),
+                        child: Text(username.isNotEmpty ? username[0].toUpperCase() : 'U', style: const TextStyle(fontSize: 40, color: Colors.white)),
                       ),
                     ),
                     Positioned(
@@ -120,15 +97,9 @@ class _ProfilePageState extends State<ProfilePage> {
                           decoration: const BoxDecoration(
                             color: Colors.white,
                             shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(blurRadius: 2, color: Colors.black26),
-                            ],
+                            boxShadow: [BoxShadow(blurRadius: 2, color: Colors.black26)],
                           ),
-                          child: const Icon(
-                            Icons.camera_alt,
-                            color: Color(0xFF4F47E5),
-                            size: 20,
-                          ),
+                          child: const Icon(Icons.camera_alt, color: Color(0xFF4F47E5), size: 20),
                         ),
                       ),
                     ),
@@ -136,32 +107,17 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
               ),
               const SizedBox(height: 16),
-              Text(
-                username,
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(
-                roleName,
-                style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-              ),
+              Text(username, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+              Text(roleName, style: TextStyle(fontSize: 16, color: Colors.grey[600])),
               const SizedBox(height: 32),
               Card(
                 elevation: 2,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
                     children: [
-                      _buildInfoTile(
-                        Icons.business,
-                        'Empresa / Cliente',
-                        clientName,
-                      ),
+                      _buildInfoTile(Icons.business, 'Empresa / Cliente', clientName),
                       const Divider(),
                       _buildInfoTile(Icons.store, 'Socio de Negocio', bPartner),
                       const Divider(),
@@ -169,11 +125,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       const Divider(),
                       _buildInfoTile(Icons.email, 'Correo Electrónico', email),
                       const Divider(),
-                      _buildInfoTile(
-                        Icons.badge,
-                        'ID de Usuario',
-                        userId.toString(),
-                      ),
+                      _buildInfoTile(Icons.badge, 'ID de Usuario', userId.toString()),
                       const Divider(),
                       _buildInfoTile(Icons.language, 'Idioma', language),
                     ],
@@ -183,31 +135,18 @@ class _ProfilePageState extends State<ProfilePage> {
               const SizedBox(height: 16),
               Card(
                 elevation: 2,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 child: ValueListenableBuilder<ThemeMode>(
                   valueListenable: AppThemes.themeModeNotifier,
                   builder: (context, mode, child) {
                     return SwitchListTile(
-                      secondary: const Icon(
-                        Icons.dark_mode,
-                        color: Color(0xFF4F47E5),
-                      ),
-                      title: const Text(
-                        'Modo Oscuro',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
+                      secondary: const Icon(Icons.dark_mode, color: Color(0xFF4F47E5)),
+                      title: const Text('Modo Oscuro', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
                       value: mode == ThemeMode.dark,
                       onChanged: (bool value) async {
                         final prefs = await SharedPreferences.getInstance();
                         await prefs.setBool('is_dark_mode', value);
-                        AppThemes.themeModeNotifier.value = value
-                            ? ThemeMode.dark
-                            : ThemeMode.light;
+                        AppThemes.themeModeNotifier.value = value ? ThemeMode.dark : ThemeMode.light;
                       },
                     );
                   },
@@ -231,17 +170,8 @@ class _ProfilePageState extends State<ProfilePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                ),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
+                Text(title, style: TextStyle(fontSize: 14, color: Colors.grey[600])),
+                Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
               ],
             ),
           ),

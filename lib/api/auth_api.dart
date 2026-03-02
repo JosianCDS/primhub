@@ -5,26 +5,16 @@ import 'package:primhub/api/token.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-Future<Map<String, dynamic>> loginStep1(
-  String username,
-  String password,
-) async {
+Future<Map<String, dynamic>> loginStep1(String username, String password) async {
   try {
-    final response = await post(
-      Uri.parse(Endpoint.authTokens),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'userName': username, 'password': password}),
-    );
+    final response = await post(Uri.parse(Endpoint.authTokens), headers: {'Content-Type': 'application/json'}, body: jsonEncode({'userName': username, 'password': password}));
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     }
     // Manejar respuestas HTML (como errores 404/500 del servidor web)
     if (response.body.toLowerCase().contains('<html')) {
-      return {
-        'error':
-            'Error ${response.statusCode}: Servicio no disponible o ruta incorrecta.',
-      };
+      return {'error': 'Error ${response.statusCode}: Servicio no disponible o ruta incorrecta.'};
     }
     return {'error': 'Error ${response.statusCode}: ${response.body}'};
   } catch (e) {
@@ -35,10 +25,7 @@ Future<Map<String, dynamic>> loginStep1(
 // Obtener Roles disponibles
 Future<List<dynamic>> getRoles(int clientId, String token) async {
   try {
-    final response = await get(
-      Uri.parse('${Endpoint.authRoles}?client=$clientId'),
-      headers: {'Authorization': 'Bearer $token'},
-    );
+    final response = await get(Uri.parse('${Endpoint.authRoles}?client=$clientId'), headers: {'Authorization': 'Bearer $token'});
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       return data['roles'] ?? [];
@@ -50,10 +37,7 @@ Future<List<dynamic>> getRoles(int clientId, String token) async {
 // Obtener Organizaciones disponibles
 Future<List<dynamic>> getOrgs(int clientId, int roleId, String token) async {
   try {
-    final response = await get(
-      Uri.parse('${Endpoint.authOrgs}?client=$clientId&role=$roleId'),
-      headers: {'Authorization': 'Bearer $token'},
-    );
+    final response = await get(Uri.parse('${Endpoint.authOrgs}?client=$clientId&role=$roleId'), headers: {'Authorization': 'Bearer $token'});
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       return data['organizations'] ?? [];
@@ -63,19 +47,9 @@ Future<List<dynamic>> getOrgs(int clientId, int roleId, String token) async {
 }
 
 // Obtener Almacenes (Opcional)
-Future<List<dynamic>> getWarehouses(
-  int clientId,
-  int roleId,
-  int orgId,
-  String token,
-) async {
+Future<List<dynamic>> getWarehouses(int clientId, int roleId, int orgId, String token) async {
   try {
-    final response = await get(
-      Uri.parse(
-        '${Endpoint.authWarehouses}?client=$clientId&role=$roleId&organization=$orgId',
-      ),
-      headers: {'Authorization': 'Bearer $token'},
-    );
+    final response = await get(Uri.parse('${Endpoint.authWarehouses}?client=$clientId&role=$roleId&organization=$orgId'), headers: {'Authorization': 'Bearer $token'});
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       return data['warehouses'] ?? [];
@@ -85,23 +59,11 @@ Future<List<dynamic>> getWarehouses(
 }
 
 //Confirmar login con parámetros de sesión
-Future<bool> finalizeLogin(
-  String username,
-  String password,
-  Map<String, dynamic> contextParams,
-) async {
+Future<bool> finalizeLogin(String username, String password, Map<String, dynamic> contextParams) async {
   try {
-    final body = {
-      "userName": username,
-      "password": password,
-      "parameters": contextParams,
-    };
+    final body = {"userName": username, "password": password, "parameters": contextParams};
 
-    final response = await post(
-      Uri.parse(Endpoint.authTokens),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode(body),
-    );
+    final response = await post(Uri.parse(Endpoint.authTokens), headers: {'Content-Type': 'application/json'}, body: jsonEncode(body));
     if (response.statusCode == 200) {
       final responseBody = jsonDecode(response.body);
       Token.auth = responseBody['token'];
@@ -132,13 +94,7 @@ Future<bool> finalizeLogin(
 // Refrescar Token
 Future<Map<String, dynamic>> refreshToken(String refreshToken) async {
   try {
-    final response = await put(
-      Uri.parse(Endpoint.authTokens),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $refreshToken',
-      },
-    );
+    final response = await put(Uri.parse(Endpoint.authTokens), headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $refreshToken'});
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     }
@@ -154,19 +110,11 @@ Future<Map<String, dynamic>> refreshToken(String refreshToken) async {
 //Tercero
 Future<int?> getPartnerID({required int userId}) async {
   try {
-    final response = await get(
-      Uri.parse('${Endpoint.adUser}?\$filter=AD_User_ID eq $userId'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': Token.token,
-      },
-    );
+    final response = await get(Uri.parse('${Endpoint.adUser}?\$filter=AD_User_ID eq $userId'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
     if (response.statusCode == 200) {
       final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
       final records = jsonResponse['records'] as List;
-      final cBpartnerId = records.isNotEmpty
-          ? records[0]['C_BPartner_ID']['id']
-          : null;
+      final cBpartnerId = records.isNotEmpty ? records[0]['C_BPartner_ID']['id'] : null;
       return cBpartnerId;
     }
   } catch (e) {
@@ -178,29 +126,15 @@ Future<int?> getPartnerID({required int userId}) async {
 //Ficha de Producto
 Future<void> getProductChip() async {
   try {
-    final response = await get(
-      Uri.parse(
-        '${Endpoint.productChip}?\$filter=C_BPartner_ID eq ${User.cBPartnerID} and M_Product_ID eq 1000831&\$orderBy=Created desc',
-      ),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': Token.token,
-      },
-    );
+    final response = await get(Uri.parse('${Endpoint.productChip}?\$filter=C_BPartner_ID eq ${User.cBPartnerID} and M_Product_ID eq 1000831&\$orderBy=Created desc'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
     if (response.statusCode == 200) {
       final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
       final records = jsonResponse['records'] as List;
-      ProductChip.frecuencyID = records.isNotEmpty
-          ? records[0]['FrequencyType']['id']
-          : null;
+      ProductChip.frecuencyID = records.isNotEmpty ? records[0]['FrequencyType']['id'] : null;
 
-      ProductChip.frecuencyName = records.isNotEmpty
-          ? records[0]['FrequencyType']['value']
-          : null;
+      ProductChip.frecuencyName = records.isNotEmpty ? records[0]['FrequencyType']['value'] : null;
 
-      ProductChip.mProductID = records.isNotEmpty
-          ? records[0]['M_Product_ID']['id']
-          : null;
+      ProductChip.mProductID = records.isNotEmpty ? records[0]['M_Product_ID']['id'] : null;
 
       ProductChip.iD = records.isNotEmpty ? records[0]['id'] : null;
     }
@@ -213,15 +147,7 @@ Future<void> getProductChip() async {
 Future<bool> checkProjects() async {
   if (User.cBPartnerID == null) return false;
   try {
-    final response = await get(
-      Uri.parse(
-        '${Endpoint.project}?\$filter=C_BPartner_ID eq ${User.cBPartnerID}&\$top=1',
-      ),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': Token.token,
-      },
-    );
+    final response = await get(Uri.parse('${Endpoint.project}?\$filter=C_BPartner_ID eq ${User.cBPartnerID}&\$top=1'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
     if (response.statusCode == 200) {
       final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
       final records = jsonResponse['records'] as List;

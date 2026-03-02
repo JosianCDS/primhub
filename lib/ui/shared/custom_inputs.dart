@@ -17,24 +17,7 @@ class CustomTextField extends StatelessWidget {
   final int? maxLength;
   final ScrollController? scrollController;
 
-  const CustomTextField({
-    super.key,
-    this.label,
-    this.hintText,
-    this.controller,
-    this.maxLines = 1,
-    this.width,
-    this.height,
-    this.obscureText = false,
-    this.prefixIcon,
-    this.validator,
-    this.keyboardType,
-    this.filled = false,
-    this.fillColor,
-    this.readOnly = false,
-    this.maxLength,
-    this.scrollController,
-  });
+  const CustomTextField({super.key, this.label, this.hintText, this.controller, this.maxLines = 1, this.width, this.height, this.obscureText = false, this.prefixIcon, this.validator, this.keyboardType, this.filled = false, this.fillColor, this.readOnly = false, this.maxLength, this.scrollController});
 
   @override
   Widget build(BuildContext context) {
@@ -66,10 +49,7 @@ class CustomTextField extends StatelessWidget {
             borderRadius: BorderRadius.circular(8.0),
             borderSide: BorderSide(color: colorScheme.primary, width: 2),
           ),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 16,
-          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
           alignLabelWithHint: maxLines > 1,
         ),
       ),
@@ -78,13 +58,7 @@ class CustomTextField extends StatelessWidget {
     return SizedBox(
       width: width ?? double.infinity,
       height: height,
-      child: scrollController != null
-          ? Scrollbar(
-              controller: scrollController,
-              thumbVisibility: true,
-              child: field,
-            )
-          : field,
+      child: scrollController != null ? Scrollbar(controller: scrollController, thumbVisibility: true, child: field) : field,
     );
   }
 }
@@ -101,19 +75,7 @@ class CustomDropdown<T> extends StatelessWidget {
   final bool filled;
   final Color? fillColor;
 
-  const CustomDropdown({
-    super.key,
-    required this.value,
-    required this.items,
-    required this.onChanged,
-    this.label,
-    this.hintText,
-    this.width,
-    this.height,
-    this.prefixIcon,
-    this.filled = false,
-    this.fillColor,
-  });
+  const CustomDropdown({super.key, required this.value, required this.items, required this.onChanged, this.label, this.hintText, this.width, this.height, this.prefixIcon, this.filled = false, this.fillColor});
 
   @override
   Widget build(BuildContext context) {
@@ -141,10 +103,7 @@ class CustomDropdown<T> extends StatelessWidget {
             borderRadius: BorderRadius.circular(8.0),
             borderSide: BorderSide(color: colorScheme.primary, width: 2),
           ),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 16,
-          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
         ),
         isExpanded: true,
         icon: const Icon(Icons.arrow_drop_down),

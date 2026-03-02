@@ -8,15 +8,7 @@ class CustomModal extends StatelessWidget {
   final double? height;
   final EdgeInsetsGeometry padding;
 
-  const CustomModal({
-    super.key,
-    this.title,
-    this.content,
-    this.actions,
-    this.width,
-    this.height,
-    this.padding = const EdgeInsets.all(24.0),
-  });
+  const CustomModal({super.key, this.title, this.content, this.actions, this.width, this.height, this.padding = const EdgeInsets.all(24.0)});
 
   @override
   Widget build(BuildContext context) {
@@ -32,27 +24,14 @@ class CustomModal extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (title != null) ...[
-              Text(
-                title!,
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 20),
-            ],
-            if (content != null)
-              Flexible(child: SingleChildScrollView(child: content!)),
+            if (title != null) ...[Text(title!, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)), const SizedBox(height: 20)],
+            if (content != null) Flexible(child: SingleChildScrollView(child: content!)),
             if (actions != null && actions!.isNotEmpty) ...[
               const SizedBox(height: 24),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: actions!.map((action) {
-                  return Padding(
-                    padding: const EdgeInsets.only(left: 10.0),
-                    child: action,
-                  );
+                  return Padding(padding: const EdgeInsets.only(left: 10.0), child: action);
                 }).toList(),
               ),
             ],

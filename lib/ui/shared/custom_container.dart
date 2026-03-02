@@ -10,17 +10,7 @@ class CustomContainer extends StatelessWidget {
   final double elevation;
   final Color? backgroundColor;
 
-  const CustomContainer({
-    super.key,
-    required this.child,
-    this.title,
-    this.action,
-    this.width = double.infinity,
-    this.height,
-    this.padding = const EdgeInsets.all(20),
-    this.elevation = 4,
-    this.backgroundColor,
-  });
+  const CustomContainer({super.key, required this.child, this.title, this.action, this.width = double.infinity, this.height, this.padding = const EdgeInsets.all(20), this.elevation = 4, this.backgroundColor});
 
   @override
   Widget build(BuildContext context) {
@@ -44,14 +34,7 @@ class CustomContainer extends StatelessWidget {
                   spacing: 10,
                   runSpacing: 10,
                   children: [
-                    if (title != null)
-                      Text(
-                        title!,
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                    if (title != null) Text(title!, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
                     if (action != null) action!,
                   ],
                 ),

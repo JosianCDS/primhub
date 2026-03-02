@@ -8,9 +8,7 @@ class ContractApi {
   static Future<double?> getContractedHours() async {
     // Si no hay un producto definido en la ficha, no podemos buscar horas.
     if (ProductChip.mProductID == null) {
-      debugPrint(
-        'No se encontró ID de producto en la ficha. No se pueden obtener las horas contratadas.',
-      );
+      debugPrint('No se encontró ID de producto en la ficha. No se pueden obtener las horas contratadas.');
       return 0.0;
     }
 
@@ -19,17 +17,10 @@ class ContractApi {
       return 0.0;
     }
 
-    final String queryUrl =
-        "${Endpoint.order}?\$filter=IsSOTrx eq true and C_BPartner_ID eq ${User.cBPartnerID} and (DocStatus eq 'CO' or DocStatus eq 'CL' or DocStatus eq 'DR')&\$expand=C_OrderLine(\$select=M_Product_ID,QtyEntered;\$filter=M_Product_ID eq ${ProductChip.mProductID})&\$select=DocumentNo,DateOrdered,Created";
+    final String queryUrl = "${Endpoint.order}?\$filter=IsSOTrx eq true and C_BPartner_ID eq ${User.cBPartnerID} and (DocStatus eq 'CO' or DocStatus eq 'CL' or DocStatus eq 'DR')&\$expand=C_OrderLine(\$select=M_Product_ID,QtyEntered;\$filter=M_Product_ID eq ${ProductChip.mProductID})&\$select=DocumentNo,DateOrdered,Created";
 
     try {
-      final response = await http.get(
-        Uri.parse(queryUrl),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': Token.token,
-        },
-      );
+      final response = await http.get(Uri.parse(queryUrl), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
 
       if (response.statusCode == 200) {
         final jsonResponse = json.decode(utf8.decode(response.bodyBytes));

@@ -1,17 +1,13 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import '../shared/duration_formatter.dart';
+import 'duration_formatter.dart';
 
 class AreaChartPainter extends CustomPainter {
   final List<List<double>> data;
   final List<Color> colors;
   final List<String> labels;
 
-  AreaChartPainter({
-    required this.data,
-    required this.colors,
-    required this.labels,
-  });
+  AreaChartPainter({required this.data, required this.colors, required this.labels});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -27,11 +23,7 @@ class AreaChartPainter extends CustomPainter {
     final double bottomY = size.height - padding;
 
     // Draw Grid/Axis
-    canvas.drawLine(
-      Offset(padding, bottomY),
-      Offset(size.width - padding, bottomY),
-      axisPaint,
-    );
+    canvas.drawLine(Offset(padding, bottomY), Offset(size.width - padding, bottomY), axisPaint);
 
     // Max value
     double maxValue = 0;
@@ -107,12 +99,7 @@ class LineChartPainter extends CustomPainter {
   final List<String> labels;
   final Offset? touchPosition;
 
-  LineChartPainter({
-    required this.data,
-    required this.colors,
-    required this.labels,
-    this.touchPosition,
-  });
+  LineChartPainter({required this.data, required this.colors, required this.labels, this.touchPosition});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -128,11 +115,7 @@ class LineChartPainter extends CustomPainter {
     final double bottomY = size.height - padding;
 
     // Draw Grid/Axis
-    canvas.drawLine(
-      Offset(padding, bottomY),
-      Offset(size.width - padding, bottomY),
-      axisPaint,
-    );
+    canvas.drawLine(Offset(padding, bottomY), Offset(size.width - padding, bottomY), axisPaint);
 
     // Max value
     double maxValue = 0;
@@ -184,9 +167,7 @@ class LineChartPainter extends CustomPainter {
     if (touchPosition != null && data.isNotEmpty && data[0].isNotEmpty) {
       final double stepX = chartWidth / (data[0].length - 1);
       // Encontrar el índice más cercano al toque
-      final int index = ((touchPosition!.dx - padding + stepX / 2) / stepX)
-          .clamp(0, data[0].length - 1)
-          .toInt();
+      final int index = ((touchPosition!.dx - padding + stepX / 2) / stepX).clamp(0, data[0].length - 1).toInt();
       final double x = padding + (index * stepX);
 
       // Dibujar línea vertical indicadora
@@ -209,32 +190,18 @@ class LineChartPainter extends CustomPainter {
       textPainter.layout();
 
       // Dibujar caja del tooltip
-      final tooltipRect = Rect.fromLTWH(
-        x - textPainter.width / 2 - 5,
-        padding,
-        textPainter.width + 10,
-        textPainter.height + 10,
-      );
+      final tooltipRect = Rect.fromLTWH(x - textPainter.width / 2 - 5, padding, textPainter.width + 10, textPainter.height + 10);
 
       paint.color = Colors.black87;
       paint.style = PaintingStyle.fill;
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(tooltipRect, const Radius.circular(4)),
-        paint,
-      );
+      canvas.drawRRect(RRect.fromRectAndRadius(tooltipRect, const Radius.circular(4)), paint);
 
-      textPainter.paint(
-        canvas,
-        Offset(tooltipRect.left + 5, tooltipRect.top + 5),
-      );
+      textPainter.paint(canvas, Offset(tooltipRect.left + 5, tooltipRect.top + 5));
     }
   }
 
   @override
-  bool shouldRepaint(covariant LineChartPainter oldDelegate) =>
-      oldDelegate.data != data ||
-      oldDelegate.colors != colors ||
-      oldDelegate.touchPosition != touchPosition;
+  bool shouldRepaint(covariant LineChartPainter oldDelegate) => oldDelegate.data != data || oldDelegate.colors != colors || oldDelegate.touchPosition != touchPosition;
 }
 
 class BarChartPainter extends CustomPainter {
@@ -247,16 +214,7 @@ class BarChartPainter extends CustomPainter {
   final Offset? touchPosition;
   final double animationValue;
 
-  BarChartPainter({
-    required this.labels,
-    required this.values,
-    required this.colors,
-    this.axisColor = Colors.black,
-    this.gridColor = Colors.grey,
-    this.textColor = Colors.black,
-    this.touchPosition,
-    this.animationValue = 1.0,
-  });
+  BarChartPainter({required this.labels, required this.values, required this.colors, this.axisColor = Colors.black, this.gridColor = Colors.grey, this.textColor = Colors.black, this.touchPosition, this.animationValue = 1.0});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -274,41 +232,24 @@ class BarChartPainter extends CustomPainter {
     final double chartWidth = size.width - leftMargin;
     final double chartHeight = size.height - bottomMargin;
 
-    canvas.drawLine(
-      Offset(leftMargin, 0),
-      Offset(leftMargin, chartHeight),
-      axisPaint,
-    );
-    canvas.drawLine(
-      Offset(leftMargin, chartHeight),
-      Offset(size.width, chartHeight),
-      axisPaint,
-    );
+    canvas.drawLine(Offset(leftMargin, 0), Offset(leftMargin, chartHeight), axisPaint);
+    canvas.drawLine(Offset(leftMargin, chartHeight), Offset(size.width, chartHeight), axisPaint);
 
     double maxValue = values.reduce(max);
     if (maxValue == 0) maxValue = 10;
-    double maxY =
-        (maxValue / 5).ceil() * 5.0 + 5; // Round up to nearest 5 + padding
+    double maxY = (maxValue / 5).ceil() * 5.0 + 5; // Round up to nearest 5 + padding
 
     for (int i = 0; i <= 5; i++) {
       double val = (maxY / 5) * i;
       double y = chartHeight - (val / maxY) * chartHeight;
-      if (i > 0)
-        canvas.drawLine(
-          Offset(leftMargin, y),
-          Offset(size.width, y),
-          gridPaint,
-        );
+      if (i > 0) canvas.drawLine(Offset(leftMargin, y), Offset(size.width, y), gridPaint);
       textPainter.text = TextSpan(
         // Usamos un formato simple para el eje
         text: '${val.toInt()}h',
         style: TextStyle(color: textColor, fontSize: 10),
       );
       textPainter.layout();
-      textPainter.paint(
-        canvas,
-        Offset(leftMargin - textPainter.width - 5, y - textPainter.height / 2),
-      );
+      textPainter.paint(canvas, Offset(leftMargin - textPainter.width - 5, y - textPainter.height / 2));
     }
 
     final double barWidth = (chartWidth / labels.length) * 0.5;
@@ -327,18 +268,13 @@ class BarChartPainter extends CustomPainter {
         style: TextStyle(color: textColor, fontSize: 11),
       );
       textPainter.layout();
-      textPainter.paint(
-        canvas,
-        Offset(x + barWidth / 2 - textPainter.width / 2, chartHeight + 8),
-      );
+      textPainter.paint(canvas, Offset(x + barWidth / 2 - textPainter.width / 2, chartHeight + 8));
 
       // Tooltip Interactivo
       if (touchPosition != null) {
         // Verificar si el toque está dentro del área horizontal de la barra
-        if (touchPosition!.dx >= x - 5 &&
-            touchPosition!.dx <= x + barWidth + 5) {
-          final tooltipText =
-              '${labels[i]}: ${DurationFormatter.format(values[i])}';
+        if (touchPosition!.dx >= x - 5 && touchPosition!.dx <= x + barWidth + 5) {
+          final tooltipText = '${labels[i]}: ${DurationFormatter.format(values[i])}';
           textPainter.text = TextSpan(
             text: tooltipText,
             style: const TextStyle(color: Colors.white, fontSize: 12),
@@ -353,24 +289,15 @@ class BarChartPainter extends CustomPainter {
           );
 
           paint.color = Colors.black87;
-          canvas.drawRRect(
-            RRect.fromRectAndRadius(tooltipRect, const Radius.circular(4)),
-            paint,
-          );
-          textPainter.paint(
-            canvas,
-            Offset(tooltipRect.left + 5, tooltipRect.top + 5),
-          );
+          canvas.drawRRect(RRect.fromRectAndRadius(tooltipRect, const Radius.circular(4)), paint);
+          textPainter.paint(canvas, Offset(tooltipRect.left + 5, tooltipRect.top + 5));
         }
       }
     }
   }
 
   @override
-  bool shouldRepaint(covariant BarChartPainter oldDelegate) =>
-      oldDelegate.values != values ||
-      oldDelegate.touchPosition != touchPosition ||
-      oldDelegate.animationValue != animationValue;
+  bool shouldRepaint(covariant BarChartPainter oldDelegate) => oldDelegate.values != values || oldDelegate.touchPosition != touchPosition || oldDelegate.animationValue != animationValue;
 }
 
 class DonutChartPainter extends CustomPainter {
@@ -379,12 +306,7 @@ class DonutChartPainter extends CustomPainter {
   final Offset? touchPosition;
   final double animationValue;
 
-  DonutChartPainter({
-    required this.values,
-    required this.colors,
-    this.touchPosition,
-    this.animationValue = 1.0,
-  });
+  DonutChartPainter({required this.values, required this.colors, this.touchPosition, this.animationValue = 1.0});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -432,22 +354,13 @@ class DonutChartPainter extends CustomPainter {
       final currentStrokeWidth = isTouched ? strokeWidth * 1.15 : strokeWidth;
       final currentRadius = isTouched ? radius * 1.05 : radius;
 
-      final rect = Rect.fromCircle(
-        center: center,
-        radius: currentRadius - currentStrokeWidth / 2,
-      );
+      final rect = Rect.fromCircle(center: center, radius: currentRadius - currentStrokeWidth / 2);
 
       paint.color = colors[i % colors.length];
       paint.strokeWidth = currentStrokeWidth;
 
       if (sweepAngle > 0) {
-        canvas.drawArc(
-          rect,
-          startAngle + 0.02,
-          sweepAngle - 0.04,
-          false,
-          paint,
-        );
+        canvas.drawArc(rect, startAngle + 0.02, sweepAngle - 0.04, false, paint);
       }
       startAngle += sweepAngle;
     }
@@ -458,37 +371,19 @@ class DonutChartPainter extends CustomPainter {
       final textPainter = TextPainter(textDirection: TextDirection.ltr);
       textPainter.text = TextSpan(
         text: '${val.toInt()}',
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 24,
-          fontWeight: FontWeight.bold,
-        ),
+        style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
       );
       textPainter.layout();
 
-      final textOffset = Offset(
-        center.dx - textPainter.width / 2,
-        center.dy - textPainter.height / 2,
-      );
-      final bgRect = Rect.fromLTWH(
-        textOffset.dx - 8,
-        textOffset.dy - 4,
-        textPainter.width + 16,
-        textPainter.height + 8,
-      );
+      final textOffset = Offset(center.dx - textPainter.width / 2, center.dy - textPainter.height / 2);
+      final bgRect = Rect.fromLTWH(textOffset.dx - 8, textOffset.dy - 4, textPainter.width + 16, textPainter.height + 8);
       final bgPaint = Paint()..color = Colors.black87;
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(bgRect, const Radius.circular(8)),
-        bgPaint,
-      );
+      canvas.drawRRect(RRect.fromRectAndRadius(bgRect, const Radius.circular(8)), bgPaint);
 
       textPainter.paint(canvas, textOffset);
     }
   }
 
   @override
-  bool shouldRepaint(covariant DonutChartPainter oldDelegate) =>
-      oldDelegate.values != values ||
-      oldDelegate.touchPosition != touchPosition ||
-      oldDelegate.animationValue != animationValue;
+  bool shouldRepaint(covariant DonutChartPainter oldDelegate) => oldDelegate.values != values || oldDelegate.touchPosition != touchPosition || oldDelegate.animationValue != animationValue;
 }

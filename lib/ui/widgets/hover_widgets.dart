@@ -16,12 +16,7 @@ class _HoverScaleCardState extends State<HoverScaleCard> {
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
-      child: AnimatedScale(
-        scale: _isHovered ? 1.05 : 1.0,
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
-        child: widget.child,
-      ),
+      child: AnimatedScale(scale: _isHovered ? 1.05 : 1.0, duration: const Duration(milliseconds: 200), curve: Curves.easeInOut, child: widget.child),
     );
   }
 }
@@ -43,11 +38,7 @@ class _HoverListTileState extends State<HoverListTile> {
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        color: _isHovered ? Colors.blue.withOpacity(0.1) : Colors.transparent,
-        child: widget.builder(_isHovered),
-      ),
+      child: AnimatedContainer(duration: const Duration(milliseconds: 200), color: _isHovered ? Colors.blue.withOpacity(0.1) : Colors.transparent, child: widget.builder(_isHovered)),
     );
   }
 }

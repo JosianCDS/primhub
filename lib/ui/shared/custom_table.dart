@@ -8,15 +8,7 @@ class CustomTable extends StatelessWidget {
   final bool enableHover;
   final bool showCheckboxColumn;
 
-  const CustomTable({
-    super.key,
-    required this.columns,
-    required this.rows,
-    this.width,
-    this.height,
-    this.enableHover = true,
-    this.showCheckboxColumn = false,
-  });
+  const CustomTable({super.key, required this.columns, required this.rows, this.width, this.height, this.enableHover = true, this.showCheckboxColumn = false});
 
   @override
   Widget build(BuildContext context) {
@@ -33,18 +25,11 @@ class CustomTable extends StatelessWidget {
               constraints: BoxConstraints(minWidth: constraints.maxWidth),
               child: DataTable(
                 showCheckboxColumn: showCheckboxColumn,
-                headingTextStyle: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.onSurface,
-                ),
+                headingTextStyle: TextStyle(fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface),
                 dataRowMinHeight: 45,
-                headingRowColor: MaterialStateProperty.all(
-                  theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
-                ),
+                headingRowColor: MaterialStateProperty.all(theme.colorScheme.surfaceContainerHighest.withOpacity(0.3)),
                 dataRowColor: enableHover
-                    ? MaterialStateProperty.resolveWith<Color?>((
-                        Set<MaterialState> states,
-                      ) {
+                    ? MaterialStateProperty.resolveWith<Color?>((Set<MaterialState> states) {
                         if (states.contains(MaterialState.hovered)) {
                           return Colors.blue.withOpacity(0.1);
                         }

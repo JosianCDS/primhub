@@ -5,9 +5,9 @@ import 'package:primhub/ui/shared/custom_container.dart';
 import 'package:primhub/ui/shared/custom_table.dart';
 import 'package:primhub/ui/shared/custom_inputs.dart';
 import 'package:primhub/ui/shared/custom_modal.dart';
-import '../widgets/custom_drawer.dart';
-import 'package:primhub/ui/shared/duration_formatter.dart';
-import 'request/request_functions.dart';
+import '../../widgets/custom_drawer.dart';
+import 'package:primhub/ui/widgets/duration_formatter.dart';
+import 'Requests/request_functions.dart';
 
 class SupportPage extends StatefulWidget {
   const SupportPage({super.key});
@@ -41,8 +41,7 @@ class _SupportPageState extends State<SupportPage> {
 
     for (var req in requests) {
       // Solo mostrar y sumar si está cerrado (Final Close)
-      if (req['R_Status_Name'] != '9_Final Close' && req['R_Status_ID'] != 103)
-        continue;
+      if (req['R_Status_Name'] != '9_Final Close' && req['R_Status_ID'] != 103) continue;
 
       // El consumo es la cantidad planeada (QtyPlan) una vez cerrado
       double hours = (req['QtyPlan'] as num?)?.toDouble() ?? 0.0;
@@ -72,15 +71,9 @@ class _SupportPageState extends State<SupportPage> {
   }
 
   void _showRequestDetails(Map<String, dynamic> record) {
-    final TextEditingController summaryController = TextEditingController(
-      text: record['Summary'] ?? '',
-    );
-    final TextEditingController dateStartController = TextEditingController(
-      text: record['DateStartPlan'] ?? '',
-    );
-    final TextEditingController dateCompleteController = TextEditingController(
-      text: record['DateCompletePlan'] ?? '',
-    );
+    final TextEditingController summaryController = TextEditingController(text: record['Summary'] ?? '');
+    final TextEditingController dateStartController = TextEditingController(text: record['DateStartPlan'] ?? '');
+    final TextEditingController dateCompleteController = TextEditingController(text: record['DateCompletePlan'] ?? '');
 
     String extractTime(String? val) {
       if (val == null || val.isEmpty) return '';
@@ -91,17 +84,11 @@ class _SupportPageState extends State<SupportPage> {
       return t.replaceAll('Z', '');
     }
 
-    final TextEditingController startTimeController = TextEditingController(
-      text: extractTime(record['StartTime']),
-    );
-    final TextEditingController endTimeController = TextEditingController(
-      text: extractTime(record['EndTime']),
-    );
+    final TextEditingController startTimeController = TextEditingController(text: extractTime(record['StartTime']));
+    final TextEditingController endTimeController = TextEditingController(text: extractTime(record['EndTime']));
 
     final double h = (record['QtyPlan'] as num?)?.toDouble() ?? 0.0;
-    final TextEditingController qtyPlanController = TextEditingController(
-      text: DurationFormatter.format(h),
-    );
+    final TextEditingController qtyPlanController = TextEditingController(text: DurationFormatter.format(h));
 
     showDialog(
       context: context,
@@ -111,31 +98,16 @@ class _SupportPageState extends State<SupportPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              CustomTextField(
-                controller: summaryController,
-                label: 'Descripción / Resumen',
-                readOnly: true,
-                maxLines: 10,
-              ),
+              CustomTextField(controller: summaryController, label: 'Descripción / Resumen', readOnly: true, maxLines: 10),
               const SizedBox(height: 16),
               Row(
                 children: [
                   Expanded(
-                    child: CustomTextField(
-                      controller: dateStartController,
-                      label: 'Inicio Plan',
-                      readOnly: true,
-                      prefixIcon: const Icon(Icons.calendar_today),
-                    ),
+                    child: CustomTextField(controller: dateStartController, label: 'Inicio Plan', readOnly: true, prefixIcon: const Icon(Icons.calendar_today)),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
-                    child: CustomTextField(
-                      controller: dateCompleteController,
-                      label: 'Fin Plan',
-                      readOnly: true,
-                      prefixIcon: const Icon(Icons.calendar_today),
-                    ),
+                    child: CustomTextField(controller: dateCompleteController, label: 'Fin Plan', readOnly: true, prefixIcon: const Icon(Icons.calendar_today)),
                   ),
                 ],
               ),
@@ -143,39 +115,20 @@ class _SupportPageState extends State<SupportPage> {
               Row(
                 children: [
                   Expanded(
-                    child: CustomTextField(
-                      controller: startTimeController,
-                      label: 'Hora Inicio',
-                      readOnly: true,
-                      prefixIcon: const Icon(Icons.access_time),
-                    ),
+                    child: CustomTextField(controller: startTimeController, label: 'Hora Inicio', readOnly: true, prefixIcon: const Icon(Icons.access_time)),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
-                    child: CustomTextField(
-                      controller: endTimeController,
-                      label: 'Hora Fin',
-                      readOnly: true,
-                      prefixIcon: const Icon(Icons.access_time),
-                    ),
+                    child: CustomTextField(controller: endTimeController, label: 'Hora Fin', readOnly: true, prefixIcon: const Icon(Icons.access_time)),
                   ),
                 ],
               ),
               const SizedBox(height: 16),
-              CustomTextField(
-                controller: qtyPlanController,
-                label: 'Horas Consumidas',
-                readOnly: true,
-              ),
+              CustomTextField(controller: qtyPlanController, label: 'Horas Consumidas', readOnly: true),
             ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cerrar'),
-          ),
-        ],
+        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cerrar'))],
       ),
     );
   }
@@ -188,10 +141,7 @@ class _SupportPageState extends State<SupportPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Gestión de Horas de Soporte',
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Gestión de Horas de Soporte', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
       ),
       drawer: const CustomDrawer(),
       body: SafeArea(
@@ -209,13 +159,7 @@ class _SupportPageState extends State<SupportPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Resumen del contrato',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                      const Text('Resumen del contrato', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 10),
                       LayoutBuilder(
                         builder: (context, constraints) {
@@ -223,9 +167,7 @@ class _SupportPageState extends State<SupportPage> {
                             height: 150,
                             width: null,
                             elevation: 0,
-                            color: isDark
-                                ? colorScheme.surfaceContainerHighest
-                                : const Color(0xFFF6F8FA),
+                            color: isDark ? colorScheme.surfaceContainerHighest : const Color(0xFFF6F8FA),
                             hover: true,
                             child: Container(
                               padding: const EdgeInsets.all(8.0),
@@ -236,28 +178,12 @@ class _SupportPageState extends State<SupportPage> {
                                   Text(
                                     'Horas Contratadas',
                                     textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                      color: isDark
-                                          ? colorScheme.onSurfaceVariant
-                                          : const Color(0xff777D8A),
-                                    ),
+                                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? colorScheme.onSurfaceVariant : const Color(0xff777D8A)),
                                   ),
                                   Text(
-                                    _contractedHours == null
-                                        ? '...'
-                                        : DurationFormatter.format(
-                                            _contractedHours!,
-                                          ),
+                                    _contractedHours == null ? '...' : DurationFormatter.format(_contractedHours!),
                                     textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontSize: 30,
-                                      fontWeight: FontWeight.bold,
-                                      color: isDark
-                                          ? colorScheme.onSurface
-                                          : const Color(0xFF1C2430),
-                                    ),
+                                    style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: isDark ? colorScheme.onSurface : const Color(0xFF1C2430)),
                                   ),
                                 ],
                               ),
@@ -267,9 +193,7 @@ class _SupportPageState extends State<SupportPage> {
                             height: 150,
                             width: null,
                             elevation: 0,
-                            color: isDark
-                                ? colorScheme.surfaceContainerHighest
-                                : const Color(0xFFF6F8FA),
+                            color: isDark ? colorScheme.surfaceContainerHighest : const Color(0xFFF6F8FA),
                             hover: true,
                             child: Container(
                               padding: const EdgeInsets.all(8.0),
@@ -280,28 +204,12 @@ class _SupportPageState extends State<SupportPage> {
                                   Text(
                                     'Horas Consumidas',
                                     textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                      color: isDark
-                                          ? colorScheme.onSurfaceVariant
-                                          : const Color(0xff777D8A),
-                                    ),
+                                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? colorScheme.onSurfaceVariant : const Color(0xff777D8A)),
                                   ),
                                   Text(
-                                    _isLoading
-                                        ? '...'
-                                        : DurationFormatter.format(
-                                            _totalConsumedHours,
-                                          ),
+                                    _isLoading ? '...' : DurationFormatter.format(_totalConsumedHours),
                                     textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontSize: 30,
-                                      fontWeight: FontWeight.bold,
-                                      color: isDark
-                                          ? colorScheme.error
-                                          : const Color(0xFFD12324),
-                                    ),
+                                    style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: isDark ? colorScheme.error : const Color(0xFFD12324)),
                                   ),
                                 ],
                               ),
@@ -311,9 +219,7 @@ class _SupportPageState extends State<SupportPage> {
                             height: 150,
                             width: null,
                             elevation: 0,
-                            color: isDark
-                                ? colorScheme.surfaceContainerHighest
-                                : const Color(0xFFE9EFFD),
+                            color: isDark ? colorScheme.surfaceContainerHighest : const Color(0xFFE9EFFD),
                             hover: true,
                             child: Container(
                               padding: const EdgeInsets.all(8.0),
@@ -324,29 +230,12 @@ class _SupportPageState extends State<SupportPage> {
                                   Text(
                                     'Horas Disponibles',
                                     textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: isDark
-                                          ? colorScheme.primary
-                                          : const Color(0xFF463EE2),
-                                    ),
+                                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: isDark ? colorScheme.primary : const Color(0xFF463EE2)),
                                   ),
                                   Text(
-                                    _isLoading || _contractedHours == null
-                                        ? '...'
-                                        : DurationFormatter.format(
-                                            _contractedHours! -
-                                                _totalConsumedHours,
-                                          ),
+                                    _isLoading || _contractedHours == null ? '...' : DurationFormatter.format(_contractedHours! - _totalConsumedHours),
                                     textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontSize: 30,
-                                      fontWeight: FontWeight.bold,
-                                      color: isDark
-                                          ? colorScheme.primary
-                                          : const Color(0xFF463EE2),
-                                    ),
+                                    style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: isDark ? colorScheme.primary : const Color(0xFF463EE2)),
                                   ),
                                 ],
                               ),
@@ -390,36 +279,17 @@ class _SupportPageState extends State<SupportPage> {
                           DataColumn(label: Text('Ticket Relacionado')),
                           DataColumn(label: Text('Actividad/Tarea')),
                           DataColumn(label: Text('Fecha de inicio Planeada')),
-                          DataColumn(
-                            label: Text('Fecha de Terminacion Planeada'),
-                          ),
+                          DataColumn(label: Text('Fecha de Terminacion Planeada')),
                           DataColumn(label: Text('Horas Consumidas')),
                         ],
                         rows: _supportRecords.map((record) {
-                          final double h =
-                              (record['QtyPlan'] as num?)?.toDouble() ?? 0.0;
+                          final double h = (record['QtyPlan'] as num?)?.toDouble() ?? 0.0;
                           final hours = DurationFormatter.format(h);
                           return DataRow(
-                            onSelectChanged: (value) =>
-                                _showRequestDetails(record),
+                            onSelectChanged: (value) => _showRequestDetails(record),
                             cells: [
-                              DataCell(
-                                Text(
-                                  record['DocumentNo'] ??
-                                      record['id'].toString(),
-                                ),
-                              ),
-                              DataCell(
-                                SizedBox(
-                                  width: 300,
-                                  child: Text(
-                                    (record['Summary'] != null &&
-                                            record['Summary'].length > 80)
-                                        ? '${record['Summary'].substring(0, 80)}...'
-                                        : record['Summary'] ?? '',
-                                  ),
-                                ),
-                              ),
+                              DataCell(Text(record['DocumentNo'] ?? record['id'].toString())),
+                              DataCell(SizedBox(width: 300, child: Text((record['Summary'] != null && record['Summary'].length > 80) ? '${record['Summary'].substring(0, 80)}...' : record['Summary'] ?? ''))),
                               DataCell(Text(record['DateStartPlan'] ?? '')),
                               DataCell(Text(record['DateCompletePlan'] ?? '')),
                               DataCell(Text(hours)),

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:primhub/ui/shared/cardcustom.dart';
 import 'package:primhub/ui/shared/custom_inputs.dart';
-import '../widgets/custom_drawer.dart';
+import '../../widgets/custom_drawer.dart';
 
 class KnowledgeBasePage extends StatelessWidget {
   const KnowledgeBasePage({super.key});
@@ -16,12 +16,7 @@ class KnowledgeBasePage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const CustomTextField(
-              hintText: 'Buscar...',
-              prefixIcon: Icon(Icons.search),
-              filled: true,
-              fillColor: Colors.white,
-            ),
+            const CustomTextField(hintText: 'Buscar...', prefixIcon: Icon(Icons.search), filled: true, fillColor: Colors.white),
             const SizedBox(height: 20),
             LayoutBuilder(
               builder: (context, constraints) {
@@ -29,50 +24,22 @@ class KnowledgeBasePage extends StatelessWidget {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _buildCard('Guías de Usuario', [
-                        'Manual de usuario (CMS)',
-                        'Primeros pasos con la plataforma',
-                        'Gestion de Roles y Permisos',
-                      ]),
+                      _buildCard('Guías de Usuario', ['Manual de usuario (CMS)', 'Primeros pasos con la plataforma', 'Gestion de Roles y Permisos']),
                       const SizedBox(height: 16),
-                      _buildCard('Solucion de Problemas (FAQ)', [
-                        '¿Como recupero mi contraseña?',
-                        'Error 500 al subir un archivo',
-                        'El reporte no se genera',
-                      ]),
+                      _buildCard('Solucion de Problemas (FAQ)', ['¿Como recupero mi contraseña?', 'Error 500 al subir un archivo', 'El reporte no se genera']),
                       const SizedBox(height: 16),
-                      _buildCard('Politicas y S.O.P', [
-                        'Politica de Soporte SLAs',
-                        'Procedimiento para solicitudes urgentes',
-                      ]),
+                      _buildCard('Politicas y S.O.P', ['Politica de Soporte SLAs', 'Procedimiento para solicitudes urgentes']),
                     ],
                   );
                 } else {
                   return Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: _buildCard('Guías de Usuario', [
-                          'Manual de usuario (CMS)',
-                          'Primeros pasos con la plataforma',
-                          'Gestion de Roles y Permisos',
-                        ]),
-                      ),
+                      Expanded(child: _buildCard('Guías de Usuario', ['Manual de usuario (CMS)', 'Primeros pasos con la plataforma', 'Gestion de Roles y Permisos'])),
                       const SizedBox(width: 16),
-                      Expanded(
-                        child: _buildCard('Solucion de Problemas (FAQ)', [
-                          '¿Como recupero mi contraseña?',
-                          'Error 500 al subir un archivo',
-                          'El reporte no se genera',
-                        ]),
-                      ),
+                      Expanded(child: _buildCard('Solucion de Problemas (FAQ)', ['¿Como recupero mi contraseña?', 'Error 500 al subir un archivo', 'El reporte no se genera'])),
                       const SizedBox(width: 16),
-                      Expanded(
-                        child: _buildCard('Politicas y S.O.P', [
-                          'Politica de Soporte SLAs',
-                          'Procedimiento para solicitudes urgentes',
-                        ]),
-                      ),
+                      Expanded(child: _buildCard('Politicas y S.O.P', ['Politica de Soporte SLAs', 'Procedimiento para solicitudes urgentes'])),
                     ],
                   );
                 }
@@ -94,10 +61,7 @@ class KnowledgeBasePage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              title,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
+            Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
             ...items.map((item) => _HoverableListItem(text: item)),
           ],
@@ -133,11 +97,7 @@ class _HoverableListItemState extends State<_HoverableListItem> {
           children: [
             Text(
               '• ',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color),
             ),
             Expanded(
               child: Text(widget.text, style: TextStyle(color: color)),

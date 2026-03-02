@@ -6,7 +6,7 @@ import '../../api/access_control.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../shared/custom_modal.dart';
 import '../shared/custom_button.dart';
-import '../shared/hover_widgets.dart';
+import 'hover_widgets.dart';
 
 class CustomDrawer extends StatefulWidget {
   const CustomDrawer({super.key});
@@ -56,14 +56,9 @@ class _CustomDrawerState extends State<CustomDrawer> {
       builder: (BuildContext context) {
         return CustomModal(
           title: 'Cerrar Sesión',
-          content: const Text(
-            '¿Estás seguro de que quieres cerrar sesión y salir de la aplicación?',
-          ),
+          content: const Text('¿Estás seguro de que quieres cerrar sesión y salir de la aplicación?'),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar'),
-            ),
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
             CustomButton(
               text: 'Sí, salir',
               onPressed: () {
@@ -95,102 +90,46 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 padding: EdgeInsets.zero,
                 children: [
                   DrawerHeader(
-                    decoration: BoxDecoration(
-                      color:
-                          theme.drawerTheme.backgroundColor ??
-                          colorScheme.surface,
-                    ),
+                    decoration: BoxDecoration(color: theme.drawerTheme.backgroundColor ?? colorScheme.surface),
                     child: Row(
                       children: [
                         Container(
                           padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: colorScheme.primary,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Icon(
-                            Icons.attachment,
-                            color: colorScheme.onPrimary,
-                          ),
+                          decoration: BoxDecoration(color: colorScheme.primary, borderRadius: BorderRadius.circular(8)),
+                          child: Icon(Icons.attachment, color: colorScheme.onPrimary),
                         ),
                         const SizedBox(width: 16),
-                        Text(
-                          _client.isNotEmpty ? _client : 'Tu Empresa',
-                          style: TextStyle(
-                            color: colorScheme.onSurface,
-                            fontSize: 24,
-                          ),
-                        ),
+                        Text(_client.isNotEmpty ? _client : 'Tu Empresa', style: TextStyle(color: colorScheme.onSurface, fontSize: 24)),
                       ],
                     ),
                   ),
                   if (_userRolePref != 'PROYECTO')
                     HoverListTile(
                       builder: (isHovered) => ListTile(
-                        leading: Icon(
-                          Icons.home,
-                          color: isHovered
-                              ? colorScheme.primary
-                              : colorScheme.onSurfaceVariant,
-                        ),
-                        title: Text(
-                          'Inicio',
-                          style: TextStyle(
-                            color: isHovered
-                                ? colorScheme.primary
-                                : colorScheme.onSurface,
-                          ),
-                        ),
+                        leading: Icon(Icons.home, color: isHovered ? colorScheme.primary : colorScheme.onSurfaceVariant),
+                        title: Text('Inicio', style: TextStyle(color: isHovered ? colorScheme.primary : colorScheme.onSurface)),
                         onTap: () {
                           Navigator.pop(context);
                           context.push('/');
                         },
                       ),
                     ),
-                  if (_hasSupport ||
-                      AccessControl.isSupport ||
-                      AccessControl.isAdmin)
+                  if (_hasSupport || AccessControl.isSupport || AccessControl.isAdmin)
                     HoverListTile(
                       builder: (isHovered) => ListTile(
-                        leading: Icon(
-                          Icons.schedule,
-                          color: isHovered
-                              ? colorScheme.primary
-                              : colorScheme.onSurfaceVariant,
-                        ),
-                        title: Text(
-                          'Horas de Soporte',
-                          style: TextStyle(
-                            color: isHovered
-                                ? colorScheme.primary
-                                : colorScheme.onSurface,
-                          ),
-                        ),
+                        leading: Icon(Icons.schedule, color: isHovered ? colorScheme.primary : colorScheme.onSurfaceVariant),
+                        title: Text('Horas de Soporte', style: TextStyle(color: isHovered ? colorScheme.primary : colorScheme.onSurface)),
                         onTap: () {
                           Navigator.pop(context);
                           context.push('/support');
                         },
                       ),
                     ),
-                  if (_hasSupport ||
-                      AccessControl.isSupport ||
-                      AccessControl.isAdmin)
+                  if (_hasSupport || AccessControl.isSupport || AccessControl.isAdmin)
                     HoverListTile(
                       builder: (isHovered) => ListTile(
-                        leading: Icon(
-                          Icons.help_outline,
-                          color: isHovered
-                              ? colorScheme.primary
-                              : colorScheme.onSurfaceVariant,
-                        ),
-                        title: Text(
-                          'Mis Solicitudes',
-                          style: TextStyle(
-                            color: isHovered
-                                ? colorScheme.primary
-                                : colorScheme.onSurface,
-                          ),
-                        ),
+                        leading: Icon(Icons.help_outline, color: isHovered ? colorScheme.primary : colorScheme.onSurfaceVariant),
+                        title: Text('Mis Solicitudes', style: TextStyle(color: isHovered ? colorScheme.primary : colorScheme.onSurface)),
                         onTap: () {
                           Navigator.pop(context);
                           context.push('/my-requests');
@@ -222,25 +161,11 @@ class _CustomDrawerState extends State<CustomDrawer> {
                   ),
                 ),
                 */
-                  if (_hasProject ||
-                      AccessControl.isProject ||
-                      AccessControl.isAdmin)
+                  if (_hasProject || AccessControl.isProject || AccessControl.isAdmin)
                     HoverListTile(
                       builder: (isHovered) => ListTile(
-                        leading: Icon(
-                          Icons.folder,
-                          color: isHovered
-                              ? colorScheme.primary
-                              : colorScheme.onSurfaceVariant,
-                        ),
-                        title: Text(
-                          'Mis Proyectos',
-                          style: TextStyle(
-                            color: isHovered
-                                ? colorScheme.primary
-                                : colorScheme.onSurface,
-                          ),
-                        ),
+                        leading: Icon(Icons.folder, color: isHovered ? colorScheme.primary : colorScheme.onSurfaceVariant),
+                        title: Text('Mis Proyectos', style: TextStyle(color: isHovered ? colorScheme.primary : colorScheme.onSurface)),
                         onTap: () {
                           Navigator.pop(context);
                           context.push('/deliverables');
@@ -250,20 +175,8 @@ class _CustomDrawerState extends State<CustomDrawer> {
 
                   HoverListTile(
                     builder: (isHovered) => ListTile(
-                      leading: Icon(
-                        Icons.bar_chart,
-                        color: isHovered
-                            ? colorScheme.primary
-                            : colorScheme.onSurfaceVariant,
-                      ),
-                      title: Text(
-                        'Indicadores (BI)',
-                        style: TextStyle(
-                          color: isHovered
-                              ? colorScheme.primary
-                              : colorScheme.onSurface,
-                        ),
-                      ),
+                      leading: Icon(Icons.bar_chart, color: isHovered ? colorScheme.primary : colorScheme.onSurfaceVariant),
+                      title: Text('Indicadores (BI)', style: TextStyle(color: isHovered ? colorScheme.primary : colorScheme.onSurface)),
                       onTap: () {
                         Navigator.pop(context);
                         context.push('/metrics');
@@ -300,44 +213,26 @@ class _CustomDrawerState extends State<CustomDrawer> {
             const Divider(),
             HoverListTile(
               builder: (isHovered) => ListTile(
-                contentPadding: EdgeInsets.symmetric(
-                  vertical: isMobile ? 8.0 : 20.0,
-                  horizontal: 16.0,
-                ),
+                contentPadding: EdgeInsets.symmetric(vertical: isMobile ? 8.0 : 20.0, horizontal: 16.0),
                 leading: CircleAvatar(
                   radius: isMobile ? 20 : 30,
                   child: Icon(Icons.person, size: isMobile ? 24 : 40),
                 ),
                 title: Text(
                   _username.isNotEmpty ? _username : 'Nombre',
-                  style: TextStyle(
-                    fontSize: isMobile ? 16 : 22,
-                    color: isHovered
-                        ? colorScheme.primary
-                        : colorScheme.onSurface,
-                  ),
+                  style: TextStyle(fontSize: isMobile ? 16 : 22, color: isHovered ? colorScheme.primary : colorScheme.onSurface),
                 ),
                 subtitle: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       _role.isNotEmpty ? _role : 'Rol',
-                      style: TextStyle(
-                        fontSize: isMobile ? 12 : 16,
-                        color: isHovered
-                            ? colorScheme.primary
-                            : colorScheme.onSurfaceVariant,
-                      ),
+                      style: TextStyle(fontSize: isMobile ? 12 : 16, color: isHovered ? colorScheme.primary : colorScheme.onSurfaceVariant),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       'Ver perfil',
-                      style: TextStyle(
-                        fontSize: isMobile ? 11 : 14,
-                        color: isHovered
-                            ? colorScheme.primary.withOpacity(0.8)
-                            : colorScheme.onSurface.withOpacity(0.6),
-                      ),
+                      style: TextStyle(fontSize: isMobile ? 11 : 14, color: isHovered ? colorScheme.primary.withOpacity(0.8) : colorScheme.onSurface.withOpacity(0.6)),
                     ),
                   ],
                 ),
@@ -350,20 +245,8 @@ class _CustomDrawerState extends State<CustomDrawer> {
             ),
             HoverListTile(
               builder: (isHovered) => ListTile(
-                leading: Icon(
-                  Icons.logout,
-                  color: isHovered
-                      ? colorScheme.error
-                      : colorScheme.onSurfaceVariant,
-                ),
-                title: Text(
-                  'Cerrar sesión',
-                  style: TextStyle(
-                    color: isHovered
-                        ? colorScheme.error
-                        : colorScheme.onSurface,
-                  ),
-                ),
+                leading: Icon(Icons.logout, color: isHovered ? colorScheme.error : colorScheme.onSurfaceVariant),
+                title: Text('Cerrar sesión', style: TextStyle(color: isHovered ? colorScheme.error : colorScheme.onSurface)),
                 onTap: () {
                   Navigator.pop(context); // Cierra el menú
                   _showLogoutDialog(context);

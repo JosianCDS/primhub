@@ -8,24 +8,13 @@ import 'package:primhub/ui/shared/customToast.dart';
 import 'package:universal_html/html.dart' as html;
 import 'package:flutter/material.dart';
 
-Future<void> downloadAttachment({
-  required BuildContext context,
-  required int recordID,
-  required String tableName,
-  required String fileName,
-  VoidCallback? onStatusChanged,
-}) async {
+Future<void> downloadAttachment({required BuildContext context, required int recordID, required String tableName, required String fileName, VoidCallback? onStatusChanged}) async {
   final String token = Token.token;
 
   try {
-    final Uri url = Uri.parse(
-      '$tableName/$recordID/attachments/${Uri.encodeComponent(fileName)}',
-    );
+    final Uri url = Uri.parse('$tableName/$recordID/attachments/${Uri.encodeComponent(fileName)}');
 
-    final Response response = await get(
-      url,
-      headers: {'Authorization': token, 'Accept': '*/*'},
-    );
+    final Response response = await get(url, headers: {'Authorization': token, 'Accept': '*/*'});
 
     // 🔎 DEBUG CRUDO
     debugPrint('================ ATTACHMENT DEBUG ================');
@@ -56,20 +45,12 @@ Future<void> downloadAttachment({
       }
 
       if (context.mounted) {
-        ToastMessage.show(
-          context: context,
-          message: "Descarga iniciada: $fileName",
-          type: ToastType.success,
-        );
+        ToastMessage.show(context: context, message: "Descarga iniciada: $fileName", type: ToastType.success);
       }
     } else {
       if (response.statusCode == 404 || response.bodyBytes.isEmpty) {
         if (context.mounted) {
-          ToastMessage.show(
-            context: context,
-            message: "No hay un archivo adjunto o no se ha encontrado.",
-            type: ToastType.failure,
-          );
+          ToastMessage.show(context: context, message: "No hay un archivo adjunto o no se ha encontrado.", type: ToastType.failure);
         }
       } else {
         throw Exception(
@@ -110,23 +91,10 @@ void _triggerWebDownloadFromBytes(Uint8List bytes, String fileName) {
   }
 }
 
-Future<void> _updateStatus(
-  String tableName,
-  int recordID,
-  String status,
-) async {
+Future<void> _updateStatus(String tableName, int recordID, String status) async {
   try {
-    final Uri url = tableName.startsWith('http')
-        ? Uri.parse('$tableName/$recordID')
-        : Uri.parse('${Endpoint.baseUrl}/api/v1/models/$tableName/$recordID');
-    await put(
-      url,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': Token.token,
-      },
-      body: jsonEncode({'Status': status}),
-    );
+    final Uri url = tableName.startsWith('http') ? Uri.parse('$tableName/$recordID') : Uri.parse('${Endpoint.baseUrl}/api/v1/models/$tableName/$recordID');
+    await put(url, headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: jsonEncode({'Status': status}));
   } catch (e) {
     debugPrint('Error updating status to $status: $e');
   }

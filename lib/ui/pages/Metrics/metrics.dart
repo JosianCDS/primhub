@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:primhub/ui/shared/custom_chart.dart';
 import 'package:primhub/ui/shared/custom_container.dart';
-import '../../theme/colors.dart';
-import '../../api/access_control.dart';
-import '../widgets/custom_drawer.dart';
-import 'package:primhub/ui/pages/request/request_functions.dart';
+import '../../../theme/colors.dart';
+import '../../../api/access_control.dart';
+import '../../widgets/custom_drawer.dart';
+import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
 import 'package:primhub/ui/shared/custom_inputs.dart';
 
 class MetricsPage extends StatefulWidget {
@@ -47,13 +47,7 @@ class _MetricsPageState extends State<MetricsPage> {
     try {
       final requests = await fetchRequest();
 
-      final Map<String, double> priorityTotals = {
-        'Urgente': 0.0,
-        'Alta': 0.0,
-        'Media': 0.0,
-        'Baja': 0.0,
-        'Menor': 0.0,
-      };
+      final Map<String, double> priorityTotals = {'Urgente': 0.0, 'Alta': 0.0, 'Media': 0.0, 'Baja': 0.0, 'Menor': 0.0};
       final Map<String, double> typeCounts = {};
       final Map<String, double> statusCounts = {};
       final Map<String, double> moduleCounts = {};
@@ -67,12 +61,9 @@ class _MetricsPageState extends State<MetricsPage> {
         if (created.year != _selectedYear) continue;
 
         final priority = req['Priority_Name'] ?? 'Media';
-        if (_selectedPriority != null && priority != _selectedPriority)
-          continue;
+        if (_selectedPriority != null && priority != _selectedPriority) continue;
 
-        final isResolved =
-            req['R_Status_Name'] == '9_Final Close' ||
-            req['R_Status_ID'] == 103;
+        final isResolved = req['R_Status_Name'] == '9_Final Close' || req['R_Status_ID'] == 103;
         if (isResolved && !_showResolved) continue;
         if (!isResolved && !_showUnresolved) continue;
 
@@ -95,10 +86,7 @@ class _MetricsPageState extends State<MetricsPage> {
       }
 
       // Lógica de Tendencia
-      final List<DateTime> months = List.generate(
-        12,
-        (i) => DateTime(_selectedYear, i + 1, 1),
-      );
+      final List<DateTime> months = List.generate(12, (i) => DateTime(_selectedYear, i + 1, 1));
       final Map<String, int> receivedCounts = {};
       final Map<String, int> resolvedCounts = {};
 
@@ -112,16 +100,13 @@ class _MetricsPageState extends State<MetricsPage> {
         if (req['Created'] != null) {
           final c = DateTime.parse(req['Created']);
           String key = "${c.year}-${c.month.toString().padLeft(2, '0')}";
-          if (receivedCounts.containsKey(key))
-            receivedCounts[key] = receivedCounts[key]! + 1;
+          if (receivedCounts.containsKey(key)) receivedCounts[key] = receivedCounts[key]! + 1;
         }
-        if (req['R_Status_Name'] == '9_Final Close' ||
-            req['R_Status_ID'] == 103) {
+        if (req['R_Status_Name'] == '9_Final Close' || req['R_Status_ID'] == 103) {
           if (req['CloseDate'] != null) {
             final cl = DateTime.parse(req['CloseDate']);
             String key = "${cl.year}-${cl.month.toString().padLeft(2, '0')}";
-            if (resolvedCounts.containsKey(key))
-              resolvedCounts[key] = resolvedCounts[key]! + 1;
+            if (resolvedCounts.containsKey(key)) resolvedCounts[key] = resolvedCounts[key]! + 1;
           }
         }
       }
@@ -131,34 +116,12 @@ class _MetricsPageState extends State<MetricsPage> {
           _consumedByPriority = priorityTotals.values.toList();
           _typeLabels = typeCounts.keys.toList();
           _typeValues = typeCounts.values.toList();
-          _typeColors = List.generate(
-            _typeLabels.length,
-            (i) => Colors.primaries[i % Colors.primaries.length],
-          );
+          _typeColors = List.generate(_typeLabels.length, (i) => Colors.primaries[i % Colors.primaries.length]);
 
           _lineLabels = months.map((d) => _getMonthNameShort(d.month)).toList();
-          _lineData = [
-            months
-                .map(
-                  (d) =>
-                      (receivedCounts["${d.year}-${d.month.toString().padLeft(2, '0')}"] ??
-                              0)
-                          .toDouble(),
-                )
-                .toList(),
-            months
-                .map(
-                  (d) =>
-                      (resolvedCounts["${d.year}-${d.month.toString().padLeft(2, '0')}"] ??
-                              0)
-                          .toDouble(),
-                )
-                .toList(),
-          ];
+          _lineData = [months.map((d) => (receivedCounts["${d.year}-${d.month.toString().padLeft(2, '0')}"] ?? 0).toDouble()).toList(), months.map((d) => (resolvedCounts["${d.year}-${d.month.toString().padLeft(2, '0')}"] ?? 0).toDouble()).toList()];
 
-          _projectCompliance = totalForCompliance > 0
-              ? (resolvedForCompliance / totalForCompliance) * 100
-              : 0.0;
+          _projectCompliance = totalForCompliance > 0 ? (resolvedForCompliance / totalForCompliance) * 100 : 0.0;
           _statusLabels = statusCounts.keys.toList();
           _statusValues = statusCounts.values.toList();
           _moduleLabels = moduleCounts.keys.toList();
@@ -201,9 +164,7 @@ class _MetricsPageState extends State<MetricsPage> {
                       width: 300,
                       decoration: BoxDecoration(
                         color: theme.cardColor,
-                        border: Border(
-                          right: BorderSide(color: theme.dividerColor),
-                        ),
+                        border: Border(right: BorderSide(color: theme.dividerColor)),
                       ),
                       child: _buildFilters(context),
                     ),
@@ -212,17 +173,11 @@ class _MetricsPageState extends State<MetricsPage> {
                       children: [
                         if (!isLargeScreen && AccessControl.canFilterMetrics)
                           ExpansionTile(
-                            title: const Text(
-                              "Filtros de búsqueda",
-                              style: TextStyle(fontWeight: FontWeight.bold),
-                            ),
+                            title: const Text("Filtros de búsqueda", style: TextStyle(fontWeight: FontWeight.bold)),
                             children: [_buildFilters(context)],
                           ),
                         Expanded(
-                          child: SingleChildScrollView(
-                            padding: const EdgeInsets.all(20.0),
-                            child: _buildDashboardGrid(context, isLargeScreen),
-                          ),
+                          child: SingleChildScrollView(padding: const EdgeInsets.all(20.0), child: _buildDashboardGrid(context, isLargeScreen)),
                         ),
                       ],
                     ),
@@ -246,29 +201,13 @@ class _MetricsPageState extends State<MetricsPage> {
               SizedBox(
                 width: 150,
                 height: 150,
-                child: CircularProgressIndicator(
-                  value: _projectCompliance / 100,
-                  strokeWidth: 12,
-                  backgroundColor: Colors.grey.withOpacity(0.1),
-                  color: _projectCompliance > 80
-                      ? ColorTheme.success
-                      : ColorTheme.atention,
-                ),
+                child: CircularProgressIndicator(value: _projectCompliance / 100, strokeWidth: 12, backgroundColor: Colors.grey.withOpacity(0.1), color: _projectCompliance > 80 ? ColorTheme.success : ColorTheme.atention),
               ),
               Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    "${_projectCompliance.toStringAsFixed(1)}%",
-                    style: const TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const Text(
-                    "Finalizado",
-                    style: TextStyle(color: Colors.grey),
-                  ),
+                  Text("${_projectCompliance.toStringAsFixed(1)}%", style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
+                  const Text("Finalizado", style: TextStyle(color: Colors.grey)),
                 ],
               ),
             ],
@@ -278,51 +217,11 @@ class _MetricsPageState extends State<MetricsPage> {
     );
 
     // Gráficos con validación de datos vacíos
-    final statusChart = _buildChartCard(
-      'Solicitudes por Estado',
-      220,
-      _statusValues.isEmpty
-          ? _buildEmptyView()
-          : CustomDonutChart(
-              values: _statusValues,
-              colors: [
-                ColorTheme.info,
-                ColorTheme.atention,
-                ColorTheme.error,
-                Colors.blueGrey,
-              ],
-            ),
-    );
+    final statusChart = _buildChartCard('Solicitudes por Estado', 220, _statusValues.isEmpty ? _buildEmptyView() : CustomDonutChart(values: _statusValues, colors: [ColorTheme.info, ColorTheme.atention, ColorTheme.error, Colors.blueGrey]));
 
-    final moduleChart = _buildChartCard(
-      'Cumplimiento por Módulo',
-      220,
-      _moduleValues.isEmpty
-          ? _buildEmptyView()
-          : CustomBarChart(
-              labels: _moduleLabels,
-              values: _moduleValues,
-              colors: [const Color(0xFF673AB7)],
-            ),
-    );
+    final moduleChart = _buildChartCard('Cumplimiento por Módulo', 220, _moduleValues.isEmpty ? _buildEmptyView() : CustomBarChart(labels: _moduleLabels, values: _moduleValues, colors: [const Color(0xFF673AB7)]));
 
-    final barChart = _buildChartCard(
-      'Horas por Prioridad',
-      250,
-      _consumedByPriority.every((e) => e == 0)
-          ? _buildEmptyView()
-          : CustomBarChart(
-              labels: const ['Urgente', 'Alta', 'Media', 'Baja', 'Menor'],
-              values: _consumedByPriority,
-              colors: [
-                ColorTheme.error,
-                ColorTheme.atention,
-                const Color(0xFFFDD835),
-                ColorTheme.success,
-                Colors.grey,
-              ],
-            ),
-    );
+    final barChart = _buildChartCard('Horas por Prioridad', 250, _consumedByPriority.every((e) => e == 0) ? _buildEmptyView() : CustomBarChart(labels: const ['Urgente', 'Alta', 'Media', 'Baja', 'Menor'], values: _consumedByPriority, colors: [ColorTheme.error, ColorTheme.atention, const Color(0xFFFDD835), ColorTheme.success, Colors.grey]));
 
     final donutChart = _buildChartCard(
       'Volumen por Categoría',
@@ -333,24 +232,11 @@ class _MetricsPageState extends State<MetricsPage> {
               children: [
                 Expanded(
                   flex: 3,
-                  child: CustomDonutChart(
-                    values: _typeValues,
-                    colors: _typeColors,
-                  ),
+                  child: CustomDonutChart(values: _typeValues, colors: _typeColors),
                 ),
                 Expanded(
                   flex: 2,
-                  child: SingleChildScrollView(
-                    child: Column(
-                      children: List.generate(
-                        _typeLabels.length,
-                        (i) => _buildLegendItem(
-                          _typeColors[i],
-                          '${_typeLabels[i]} (${_typeValues[i].toInt()})',
-                        ),
-                      ),
-                    ),
-                  ),
+                  child: SingleChildScrollView(child: Column(children: List.generate(_typeLabels.length, (i) => _buildLegendItem(_typeColors[i], '${_typeLabels[i]} (${_typeValues[i].toInt()})')))),
                 ),
               ],
             ),
@@ -362,21 +248,10 @@ class _MetricsPageState extends State<MetricsPage> {
       Column(
         children: [
           Expanded(
-            child: CustomLineChart(
-              labels: _lineLabels,
-              data: _lineData,
-              colors: const [Color(0xFF4F47E5), Color(0xFF10B981)],
-            ),
+            child: CustomLineChart(labels: _lineLabels, data: _lineData, colors: const [Color(0xFF4F47E5), Color(0xFF10B981)]),
           ),
           const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _buildSimpleLegend(const Color(0xFF4F47E5), 'Recibidos'),
-              const SizedBox(width: 20),
-              _buildSimpleLegend(const Color(0xFF10B981), 'Resueltos'),
-            ],
-          ),
+          Row(mainAxisAlignment: MainAxisAlignment.center, children: [_buildSimpleLegend(const Color(0xFF4F47E5), 'Recibidos'), const SizedBox(width: 20), _buildSimpleLegend(const Color(0xFF10B981), 'Resueltos')]),
         ],
       ),
     );
@@ -393,12 +268,7 @@ class _MetricsPageState extends State<MetricsPage> {
 
     if (!isLargeScreen) {
       return Column(
-        children: visibleCharts
-            .map(
-              (w) =>
-                  Padding(padding: const EdgeInsets.only(bottom: 16), child: w),
-            )
-            .toList(),
+        children: visibleCharts.map((w) => Padding(padding: const EdgeInsets.only(bottom: 16), child: w)).toList(),
       );
     }
 
@@ -417,61 +287,7 @@ class _MetricsPageState extends State<MetricsPage> {
         }
       }).toList(),
     );
-    /*
-    // Código original reemplazado por lógica dinámica arriba
-    return Wrap(
-      spacing: 20,
-      runSpacing: 20,
-      children: [
-        FractionallySizedBox(widthFactor: 0.31, child: complianceChart),
-        FractionallySizedBox(widthFactor: 0.31, child: statusChart),
-        FractionallySizedBox(widthFactor: 0.31, child: moduleChart),
-        FractionallySizedBox(widthFactor: 0.48, child: barChart),
-        FractionallySizedBox(widthFactor: 0.48, child: donutChart),
-        SizedBox(width: double.infinity, child: lineChart),
-      ],
-    );
-    */
   }
-
-  /*
-  // Método original eliminado/reemplazado
-  Widget _buildDashboardGridOriginal(BuildContext context, bool isLargeScreen) {
-    // ... (código original de los gráficos) ...
-    if (!isLargeScreen) {
-      return Column(
-        children: [
-                  complianceChart,
-                  statusChart,
-                  moduleChart,
-                  barChart,
-                  donutChart,
-                  lineChart,
-                ]
-                .map(
-                  (w) => Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: w,
-                  ),
-                )
-                .toList(),
-      );
-    }
-
-    return Wrap(
-      spacing: 20,
-      runSpacing: 20,
-      children: [
-        FractionallySizedBox(widthFactor: 0.31, child: complianceChart),
-        FractionallySizedBox(widthFactor: 0.31, child: statusChart),
-        FractionallySizedBox(widthFactor: 0.31, child: moduleChart),
-        FractionallySizedBox(widthFactor: 0.48, child: barChart),
-        FractionallySizedBox(widthFactor: 0.48, child: donutChart),
-        SizedBox(width: double.infinity, child: lineChart),
-      ],
-    );
-  }
-  */
 
   // --- Helpers de UI ---
 
@@ -487,16 +303,9 @@ class _MetricsPageState extends State<MetricsPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.insert_chart_outlined,
-            size: 40,
-            color: Colors.grey.withOpacity(0.5),
-          ),
+          Icon(Icons.insert_chart_outlined, size: 40, color: Colors.grey.withOpacity(0.5)),
           const SizedBox(height: 8),
-          const Text(
-            "Sin datos disponibles",
-            style: TextStyle(color: Colors.grey, fontSize: 13),
-          ),
+          const Text("Sin datos disponibles", style: TextStyle(color: Colors.grey, fontSize: 13)),
         ],
       ),
     );
@@ -506,25 +315,13 @@ class _MetricsPageState extends State<MetricsPage> {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        const Text(
-          "Filtros del Dashboard",
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
+        const Text("Filtros del Dashboard", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         const Divider(height: 30),
-        const Text(
-          "Año de consulta",
-          style: TextStyle(fontWeight: FontWeight.w500),
-        ),
+        const Text("Año de consulta", style: TextStyle(fontWeight: FontWeight.w500)),
         const SizedBox(height: 8),
         CustomDropdown<int>(
           value: _selectedYear,
-          items: List.generate(
-            5,
-            (i) => DropdownMenuItem(
-              value: DateTime.now().year - i,
-              child: Text((DateTime.now().year - i).toString()),
-            ),
-          ),
+          items: List.generate(5, (i) => DropdownMenuItem(value: DateTime.now().year - i, child: Text((DateTime.now().year - i).toString()))),
           onChanged: (val) {
             if (val != null) {
               setState(() => _selectedYear = val);
@@ -533,22 +330,13 @@ class _MetricsPageState extends State<MetricsPage> {
           },
         ),
         const SizedBox(height: 20),
-        const Text(
-          "Nivel de Prioridad",
-          style: TextStyle(fontWeight: FontWeight.w500),
-        ),
+        const Text("Nivel de Prioridad", style: TextStyle(fontWeight: FontWeight.w500)),
         const SizedBox(height: 8),
         CustomDropdown<String?>(
           value: _selectedPriority,
           items: [
             const DropdownMenuItem(value: null, child: Text("Todas")),
-            ...[
-              'Urgente',
-              'Alta',
-              'Media',
-              'Baja',
-              'Menor',
-            ].map((e) => DropdownMenuItem(value: e, child: Text(e))),
+            ...['Urgente', 'Alta', 'Media', 'Baja', 'Menor'].map((e) => DropdownMenuItem(value: e, child: Text(e))),
           ],
           onChanged: (val) {
             setState(() => _selectedPriority = val);
@@ -589,11 +377,7 @@ class _MetricsPageState extends State<MetricsPage> {
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(fontSize: 11),
-            overflow: TextOverflow.ellipsis,
-          ),
+          child: Text(text, style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis),
         ),
       ],
     ),
@@ -603,25 +387,9 @@ class _MetricsPageState extends State<MetricsPage> {
     children: [
       Container(width: 12, height: 3, color: color),
       const SizedBox(width: 8),
-      Text(
-        text,
-        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-      ),
+      Text(text, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
     ],
   );
 
-  String _getMonthNameShort(int month) => [
-    'Ene',
-    'Feb',
-    'Mar',
-    'Abr',
-    'May',
-    'Jun',
-    'Jul',
-    'Ago',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dic',
-  ][month - 1];
+  String _getMonthNameShort(int month) => ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'][month - 1];
 }
