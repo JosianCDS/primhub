@@ -26,7 +26,7 @@ class HomeController extends ChangeNotifier {
   // Projects
   List<dynamic> projects = [];
   List<int> selectedProjectIds = [];
-  Map<int, Map<String, int>> projectStats = {};
+  Map<int, Map<String, dynamic>> projectStats = {};
 
   // Requests
   List<Map<String, dynamic>> recentRequests = [];
@@ -38,6 +38,9 @@ class HomeController extends ChangeNotifier {
   // Hours
   double? contractedHours;
   double consumedHours = 0.0;
+
+  // Filter
+  int? filterSalesRepId = User.userID; // Por defecto "Mis Proyectos"
 
   // Static persistence (from original file)
   static List<int> savedSelectedProjectIds = [];
@@ -85,7 +88,23 @@ class HomeController extends ChangeNotifier {
           }
         }
 
-        final projResponse = await http.get(Uri.parse(Endpoint.project), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+        String projectUrl = Endpoint.project;
+        List<String> filters = [];
+
+        // Regla: Usuario de proyecto solo ve sus proyectos
+        if (AccessControl.isProject && partnerID != null) {
+          filters.add('C_BPartner_ID eq $partnerID');
+        } else {
+          if (filterSalesRepId != null) {
+            filters.add('SalesRep_ID eq $filterSalesRepId');
+          }
+        }
+
+        if (filters.isNotEmpty) {
+          projectUrl += '?\$filter=${filters.join(' and ')}';
+        }
+
+        final projResponse = await http.get(Uri.parse(projectUrl), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
         if (projResponse.statusCode == 200) {
           final data = json.decode(utf8.decode(projResponse.bodyBytes));
           if (data['records'] != null && (data['records'] as List).isNotEmpty) {
@@ -113,7 +132,9 @@ class HomeController extends ChangeNotifier {
   }
 
   Future<void> loadRecentRequests() async {
-    final requests = await fetchRequest();
+    // Se limita a los últimos 5 registros para la tabla de "Solicitudes Recientes" para una carga rápida.
+    // Las estadísticas de las tarjetas se calcularán sobre esta pequeña muestra.
+    final requests = await fetchRequest(top: 5, filter: "R_Status_ID ne 103");
 
     int open = 0;
     int others = 0;
@@ -206,7 +227,7 @@ class HomeController extends ChangeNotifier {
   Future<void> loadDocumentStats() async {
     if (projects.isEmpty) return;
 
-    Map<int, Map<String, int>> stats = {};
+    Map<int, Map<String, dynamic>> stats = {};
     List<Future<void>> futures = [];
 
     for (var project in projects) {
@@ -216,6 +237,9 @@ class HomeController extends ChangeNotifier {
           int pEt = 0;
           int pSg = 0;
           int pGn = 0;
+          // bool hasPendingEt = false;
+          // bool hasPendingSg = false;
+          // bool hasPendingGn = false;
 
           final response = await http.get(Uri.parse('${Endpoint.primDocuments}?\$filter=C_Project_ID eq ${projectId}&\$expand=PRIM_Documents_Related'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
 
@@ -223,7 +247,9 @@ class HomeController extends ChangeNotifier {
             final data = json.decode(utf8.decode(response.bodyBytes));
             final records = data['records'] as List;
 
+            // Retorna true si encontró algún pendiente en esta rama
             void countRecursive(List<dynamic> docs, String? inheritedType) {
+              // bool branchHasPending = false;
               for (var doc in docs) {
                 dynamic typeVal = doc['Type'];
                 String typeCode = '';
@@ -239,22 +265,47 @@ class HomeController extends ChangeNotifier {
                 }
 
                 final isFolder = doc['IsSummary'] == true;
+                // final status = doc['Status'];
+                // // Pendiente si NO es 'DL' (Entregado) ni 'Entregado' (por si viene el nombre)
+                // final isPending = status != 'DL' && status != 'Entregado';
+                //
+                // if (isPending) branchHasPending = true;
 
                 if (!isFolder) {
-                  if (typeCode == 'ET') pEt++;
-                  if (typeCode == 'SG') pSg++;
-                  if (typeCode == 'GN') pGn++;
+                  if (typeCode == 'ET') {
+                    pEt++;
+                    // if (isPending) hasPendingEt = true;
+                  }
+                  if (typeCode == 'SG') {
+                    pSg++;
+                    // if (isPending) hasPendingSg = true;
+                  }
+                  if (typeCode == 'GN') {
+                    pGn++;
+                    // if (isPending) hasPendingGn = true;
+                  }
                 }
 
                 final children = doc['PRIM_Documents_Related'] as List? ?? [];
                 if (children.isNotEmpty) {
                   countRecursive(children, typeCode.isNotEmpty ? typeCode : inheritedType);
+                  // if (countRecursive(children, typeCode.isNotEmpty ? typeCode : inheritedType)) {
+                  //   branchHasPending = true;
+                  // }
                 }
               }
+              // return branchHasPending;
             }
 
             countRecursive(records, null);
-            stats[projectId] = {'et': pEt, 'sg': pSg, 'gn': pGn};
+            stats[projectId] = {
+              'et': pEt,
+              'sg': pSg,
+              'gn': pGn,
+              // 'pendingEt': hasPendingEt,
+              // 'pendingSg': hasPendingSg,
+              // 'pendingGn': hasPendingGn
+            };
           }
         } catch (e) {
           debugPrint('Error loading document stats for project: ');

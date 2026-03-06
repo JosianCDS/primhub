@@ -12,6 +12,7 @@ class Endpoint {
   static String primConfig = "$baseUrl/api/v1/models/Prim_Config";
   static String project = "$baseUrl/api/v1/models/C_Project";
   static String primDocuments = "$baseUrl/api/v1/models/PRIM_Documents";
+  static String currency = "$baseUrl/api/v1/models/C_Currency";
   static String authTokens = "$baseUrl/api/v1/auth/tokens";
   static String authRoles = "$baseUrl/api/v1/auth/roles";
   static String authOrgs = "$baseUrl/api/v1/auth/organizations";

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:primhub/ui/shared/custom_button.dart';
-import 'package:primhub/ui/shared/custom_inputs.dart';
-import 'package:primhub/ui/shared/custom_modal.dart';
+import 'package:primhub/ui/Shared_Custom/custom_button.dart';
+import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
+import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 
 class ItemEditDialog extends StatelessWidget {
   final String type;
@@ -36,8 +36,10 @@ class ItemEditDialog extends StatelessWidget {
         CustomButton(
           text: 'Guardar',
           onPressed: () {
-            onSave(nameController.text, descController.text);
-            Navigator.pop(context);
+            if (nameController.text.isNotEmpty) {
+              onSave(nameController.text, descController.text);
+              Navigator.pop(context);
+            }
           },
         ),
       ],

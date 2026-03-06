@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Importante para que funcionen los formatters
 
 class CustomTextField extends StatelessWidget {
   final String? label;
@@ -16,8 +17,28 @@ class CustomTextField extends StatelessWidget {
   final bool readOnly;
   final int? maxLength;
   final ScrollController? scrollController;
+  // --- Nuevo parámetro añadido ---
+  final List<TextInputFormatter>? inputFormatters;
 
-  const CustomTextField({super.key, this.label, this.hintText, this.controller, this.maxLines = 1, this.width, this.height, this.obscureText = false, this.prefixIcon, this.validator, this.keyboardType, this.filled = false, this.fillColor, this.readOnly = false, this.maxLength, this.scrollController});
+  const CustomTextField({
+    super.key,
+    this.label,
+    this.hintText,
+    this.controller,
+    this.maxLines = 1,
+    this.width,
+    this.height,
+    this.obscureText = false,
+    this.prefixIcon,
+    this.validator,
+    this.keyboardType,
+    this.filled = false,
+    this.fillColor,
+    this.readOnly = false,
+    this.maxLength,
+    this.scrollController,
+    this.inputFormatters, // Se añade al constructor
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -34,6 +55,7 @@ class CustomTextField extends StatelessWidget {
         maxLength: maxLength,
         keyboardType: keyboardType,
         readOnly: readOnly,
+        inputFormatters: inputFormatters, // Se pasa al TextFormField nativo
         decoration: InputDecoration(
           labelText: label,
           hintText: hintText,
@@ -74,8 +96,9 @@ class CustomDropdown<T> extends StatelessWidget {
   final Widget? prefixIcon;
   final bool filled;
   final Color? fillColor;
+  final String? Function(T?)? validator;
 
-  const CustomDropdown({super.key, required this.value, required this.items, required this.onChanged, this.label, this.hintText, this.width, this.height, this.prefixIcon, this.filled = false, this.fillColor});
+  const CustomDropdown({super.key, required this.value, required this.items, required this.onChanged, this.label, this.hintText, this.width, this.height, this.prefixIcon, this.filled = false, this.fillColor, this.validator});
 
   @override
   Widget build(BuildContext context) {
@@ -88,6 +111,7 @@ class CustomDropdown<T> extends StatelessWidget {
         value: value,
         items: items,
         onChanged: onChanged,
+        validator: validator,
         decoration: InputDecoration(
           labelText: label,
           hintText: hintText,

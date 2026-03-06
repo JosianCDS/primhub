@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
-import 'package:primhub/ui/shared/custom_inputs.dart';
+import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 
 class ProjectListView extends StatefulWidget {
   final List<dynamic> projects;
@@ -22,8 +22,8 @@ class ProjectListView extends StatefulWidget {
 class _ProjectListViewState extends State<ProjectListView> {
   final TextEditingController _searchController = TextEditingController();
   List<Map<String, dynamic>> _requests = [];
-  bool _expandAll = false;
-  int _expansionKey = 0;
+  final bool _expandAll = false;
+  final int _expansionKey = 0;
 
   @override
   void initState() {
@@ -50,10 +50,11 @@ class _ProjectListViewState extends State<ProjectListView> {
   @override
   Widget build(BuildContext context) {
     if (widget.isLoading) return const Center(child: CircularProgressIndicator());
-    if (widget.errorMessage != null)
+    if (widget.errorMessage != null) {
       return Center(
         child: Text(widget.errorMessage!, style: const TextStyle(color: Colors.red)),
       );
+    }
     if (widget.projects.isEmpty) return const Center(child: Text('No tienes proyectos activos.'));
 
     final filteredProjects = widget.projects.where((project) {
@@ -126,24 +127,8 @@ class ProjectCard extends StatelessWidget {
           ],
         ),
         children: [
-          ...phases.map(
-            (phase) => PhaseItem(
-              phase: phase,
-              requests: requests,
-              onEditItem: onEditItem,
-              onAddTask: onAddTask,
-              onToggleComplete: onToggleComplete, 
-            ),
-          ),
-          ...directTasks.map(
-            (task) => TaskItem(
-              task: task,
-              phase: null,
-              requests: requests,
-              onEditItem: onEditItem,
-              onToggleComplete: onToggleComplete, 
-            ),
-          ),
+          ...phases.map((phase) => PhaseItem(phase: phase, requests: requests, onEditItem: onEditItem, onAddTask: onAddTask, onToggleComplete: onToggleComplete)),
+          ...directTasks.map((task) => TaskItem(task: task, phase: null, requests: requests, onEditItem: onEditItem, onToggleComplete: onToggleComplete)),
         ],
       ),
     );
@@ -157,14 +142,7 @@ class PhaseItem extends StatelessWidget {
   final Function(int phaseId) onAddTask;
   final Function(String type, int id, bool currentStatus, Map<String, dynamic>? parent) onToggleComplete;
 
-  const PhaseItem({
-    super.key,
-    required this.phase,
-    required this.requests,
-    required this.onEditItem,
-    required this.onAddTask,
-    required this.onToggleComplete, 
-  });
+  const PhaseItem({super.key, required this.phase, required this.requests, required this.onEditItem, required this.onAddTask, required this.onToggleComplete});
 
   @override
   Widget build(BuildContext context) {
@@ -177,18 +155,7 @@ class PhaseItem extends StatelessWidget {
         onPressed: () => onToggleComplete('phase', phase['id'], isComplete, null),
       ),
       title: Text(phase['Name'] ?? 'Fase'),
-      children: tasks
-          .map(
-            (task) => TaskItem(
-              task: task,
-              phase: phase,
-              requests: requests,
-              onEditItem: onEditItem,
-              onToggleComplete: onToggleComplete, 
-              isNested: true,
-            ),
-          )
-          .toList(),
+      children: tasks.map((task) => TaskItem(task: task, phase: phase, requests: requests, onEditItem: onEditItem, onToggleComplete: onToggleComplete, isNested: true)).toList(),
     );
   }
 }
@@ -201,15 +168,7 @@ class TaskItem extends StatelessWidget {
   final Function(String type, int id, bool currentStatus, Map<String, dynamic>? parent) onToggleComplete;
   final bool isNested;
 
-  const TaskItem({
-    super.key,
-    required this.task,
-    this.phase,
-    required this.requests,
-    required this.onEditItem,
-    required this.onToggleComplete, 
-    this.isNested = false,
-  });
+  const TaskItem({super.key, required this.task, this.phase, required this.requests, required this.onEditItem, required this.onToggleComplete, this.isNested = false});
 
   @override
   Widget build(BuildContext context) {

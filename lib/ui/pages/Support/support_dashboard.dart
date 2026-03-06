@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:primhub/api/contract_api.dart';
-import 'package:primhub/ui/shared/cardcustom.dart';
-import 'package:primhub/ui/shared/custom_container.dart';
-import 'package:primhub/ui/shared/custom_table.dart';
-import 'package:primhub/ui/shared/custom_inputs.dart';
-import 'package:primhub/ui/shared/custom_modal.dart';
+import 'package:primhub/ui/Shared_Custom/cardcustom.dart';
+import 'package:primhub/ui/Shared_Custom/custom_container.dart';
+import 'package:primhub/ui/Shared_Custom/custom_table.dart';
+import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
+import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import '../../widgets/custom_drawer.dart';
 import 'package:primhub/ui/widgets/duration_formatter.dart';
 import 'Requests/request_functions.dart';
@@ -142,6 +142,16 @@ class _SupportPageState extends State<SupportPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Gestión de Horas de Soporte', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refrescar',
+            onPressed: () {
+              setState(() => _isLoading = true);
+              _initData();
+            },
+          ),
+        ],
       ),
       drawer: const CustomDrawer(),
       body: SafeArea(

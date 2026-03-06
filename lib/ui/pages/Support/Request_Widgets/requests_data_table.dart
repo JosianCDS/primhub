@@ -1,7 +1,5 @@
-// /home/alexander/Descargas/primhub/lib/ui/pages/Support/requests_data_table.dart
-
 import 'package:flutter/material.dart';
-import 'package:primhub/ui/shared/custom_table.dart';
+import 'package:primhub/ui/Shared_Custom/custom_table.dart';
 import 'package:primhub/api/access_control.dart';
 
 class RequestsDataTable extends StatelessWidget {

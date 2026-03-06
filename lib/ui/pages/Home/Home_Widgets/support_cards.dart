@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/token.dart';
-import 'package:primhub/ui/shared/cardcustom.dart';
+import 'package:primhub/ui/Shared_Custom/cardcustom.dart';
 import 'package:primhub/ui/widgets/duration_formatter.dart';
 
 class SupportHoursCard extends StatelessWidget {

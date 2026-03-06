@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 class Token {
   static String? preAuth;
@@ -83,6 +84,7 @@ class User {
   static String? email;
   static int? cBPartnerID;
   static int? userID;
+  static Uint8List? profileImageBytes;
 }
 
 class ProductChip {

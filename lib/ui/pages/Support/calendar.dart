@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:primhub/ui/shared/custom_inputs.dart';
-import 'package:primhub/ui/shared/custom_modal.dart';
-import '../../shared/custom_button.dart';
+import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
+import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
+import '../../Shared_Custom/custom_button.dart';
 
 class CalendarTab extends StatefulWidget {
   final List<dynamic> requests;
@@ -19,62 +19,6 @@ class _CalendarTabState extends State<CalendarTab> {
   ];
 
   DateTime _focusedMonth = DateTime.now();
-
-  void _addEvent() {
-    DateTime? selectedDate;
-    final TextEditingController descController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setStateDialog) {
-          return CustomModal(
-            title: 'Agregar Evento',
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CustomTextField(controller: descController, label: 'Breve descripción'),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Text(selectedDate == null ? 'Seleccionar fecha' : '${selectedDate!.day}/${selectedDate!.month}/${selectedDate!.year}'),
-                    const Spacer(),
-                    IconButton(
-                      icon: const Icon(Icons.calendar_today),
-                      onPressed: () async {
-                        final picked = await showDatePicker(context: context, initialDate: _focusedMonth, firstDate: DateTime(1999), lastDate: DateTime(2100));
-                        if (picked != null) {
-                          setStateDialog(() {
-                            selectedDate = picked;
-                          });
-                        }
-                      },
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
-              CustomButton(
-                text: 'Guardar',
-                onPressed: () {
-                  if (selectedDate != null && descController.text.isNotEmpty) {
-                    setState(() {
-                      _events.add({'date': selectedDate!, 'description': descController.text});
-                      _events.sort((a, b) => (a['date'] as DateTime).compareTo(b['date'] as DateTime));
-                    });
-                    Navigator.pop(context);
-                  }
-                },
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
   void _editEvent(BuildContext context, Map<String, dynamic> event) {
     final TextEditingController descController = TextEditingController(text: event['description']);
     DateTime selectedDate = event['date'];
@@ -221,9 +165,6 @@ class _CalendarTabState extends State<CalendarTab> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final colorScheme = Theme.of(context).colorScheme;
-
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Column(

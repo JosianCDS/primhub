@@ -1,8 +1,5 @@
-// /home/alexander/Descargas/primhub/lib/ui/pages/Support/request_filter_bar.dart
-
 import 'package:flutter/material.dart';
-import 'package:primhub/ui/shared/custom_button.dart';
-import 'package:primhub/ui/shared/custom_inputs.dart';
+import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/api/access_control.dart';
 
 class RequestFilterBar extends StatelessWidget {

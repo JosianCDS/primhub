@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:primhub/ui/shared/custom_container.dart';
-import 'package:primhub/ui/shared/custom_inputs.dart';
-import '../../shared/custom_button.dart';
+import 'package:primhub/ui/Shared_Custom/custom_container.dart';
+import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
+import '../../Shared_Custom/custom_button.dart';
 import '../../widgets/custom_drawer.dart';
 
 class MarketplacePage extends StatelessWidget {

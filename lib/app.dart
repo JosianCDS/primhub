@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/theme/theme.dart';
-import 'package:primhub/ui/pages/Projects/Documents/Documents.dart';
+import 'package:primhub/ui/pages/Projects/Documents/documents.dart';
 import 'package:primhub/ui/pages/Home/home_page.dart';
 import 'package:primhub/ui/pages/OnDevelop/knowledge_base.dart';
 import 'package:primhub/ui/pages/Login/login.dart';
@@ -11,7 +11,7 @@ import 'package:primhub/ui/pages/OnDevelop/marketplace.dart';
 import 'package:primhub/ui/pages/Metrics/metrics.dart';
 import 'package:primhub/ui/pages/OnDevelop/profile_page.dart';
 import 'package:primhub/ui/pages/Support/Requests/my_requests.dart';
-import 'package:primhub/ui/pages/Support/support_Dashboard.dart';
+import 'package:primhub/ui/pages/Support/support_dashboard.dart';
 
 final _router = GoRouter(
   initialLocation: '/login',

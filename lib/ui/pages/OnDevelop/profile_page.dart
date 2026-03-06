@@ -1,9 +1,13 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../api/token.dart';
 import '../../widgets/custom_drawer.dart';
-import '../../shared/custom_modal.dart';
+import '../../Shared_Custom/custom_modal.dart';
 import '../../../theme/theme.dart';
+import 'package:primhub/endpoint/endpoint.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -14,11 +18,80 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   Map<String, dynamic> _userInfo = {};
+  Uint8List? _profileImageBytes;
 
   @override
   void initState() {
     super.initState();
     _loadUserInfo();
+    if (User.profileImageBytes != null) {
+      _profileImageBytes = User.profileImageBytes;
+    } else {
+      _loadPartnerLogo();
+    }
+  }
+
+  Future<void> _loadPartnerLogo() async {
+    int? partnerId = User.cBPartnerID;
+
+    // Fallback: Si no hay ID en memoria, intentamos recuperarlo del usuario actual
+    if (partnerId == null) {
+      try {
+        final payload = Token.decodePayload(Token.token);
+        final userId = payload['AD_User_ID'];
+        if (userId != null) {
+          final userUrl = Uri.parse('${Endpoint.adUser}/$userId?\$select=C_BPartner_ID');
+          final userResp = await http.get(userUrl, headers: {'Authorization': Token.token});
+          if (userResp.statusCode == 200) {
+            final userData = json.decode(utf8.decode(userResp.bodyBytes));
+            final bpField = userData['C_BPartner_ID'];
+            if (bpField is Map)
+              partnerId = bpField['id'];
+            else if (bpField is int)
+              partnerId = bpField;
+            if (partnerId != null) User.cBPartnerID = partnerId; // Guardar en memoria
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (partnerId == null) return;
+
+    try {
+      // 1. Obtener Logo_ID del Tercero (C_BPartner)
+      final bpUrl = Uri.parse('${Endpoint.cBPartner}/$partnerId?\$select=Logo_ID');
+      final bpResponse = await http.get(bpUrl, headers: {'Authorization': Token.token});
+
+      if (bpResponse.statusCode == 200) {
+        final bpData = json.decode(utf8.decode(bpResponse.bodyBytes));
+        final logoField = bpData['Logo_ID'];
+        int? logoId;
+        if (logoField is Map) {
+          logoId = logoField['id'];
+        } else if (logoField is int) {
+          logoId = logoField;
+        }
+
+        if (logoId != null) {
+          // 2. Obtener BinaryData de la imagen (AD_Image)
+          final imgUrl = Uri.parse('${Endpoint.baseUrl}/api/v1/models/AD_Image/$logoId?\$select=BinaryData');
+          final imgResponse = await http.get(imgUrl, headers: {'Authorization': Token.token});
+          if (imgResponse.statusCode == 200) {
+            final imgData = json.decode(utf8.decode(imgResponse.bodyBytes));
+            final binaryData = imgData['BinaryData'];
+            if (binaryData is String && binaryData.isNotEmpty) {
+              final bytes = base64Decode(binaryData);
+              User.profileImageBytes = bytes; // Guardar en caché
+              setState(() {
+                _profileImageBytes = bytes;
+              });
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading partner logo: $e');
+    }
   }
 
   void _loadUserInfo() {
@@ -32,25 +105,6 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  void _showChangePhotoDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return CustomModal(
-          title: 'Cambiar foto de perfil',
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(leading: const Icon(Icons.camera_alt), title: const Text('Tomar foto'), onTap: () => Navigator.pop(context)),
-              ListTile(leading: const Icon(Icons.image), title: const Text('Seleccionar de galería'), onTap: () => Navigator.pop(context)),
-            ],
-          ),
-          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar'))],
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     // Mapeo de nombres amigabless basado en el token
@@ -58,17 +112,19 @@ class _ProfilePageState extends State<ProfilePage> {
     final int roleId = _userInfo['AD_Role_ID'] ?? 0;
     final int clientId = _userInfo['AD_Client_ID'] ?? 0;
     final int orgId = _userInfo['AD_Org_ID'] ?? 0;
-    final int userId = _userInfo['AD_User_ID'] ?? 0;
     final String language = _userInfo['AD_Language'] ?? 'es_PA';
     final String email = _userInfo['email'] ?? 'admin@gardenworld.com';
     final String bPartner = _userInfo['bpartner_name'] ?? 'GardenWorld HQ';
 
-    final String roleName = roleId == 102 ? 'GardenWorld Admin' : 'Rol $roleId';
+    final String roleName = _userInfo['roleName'] ?? (roleId == 102 ? 'GardenWorld Admin' : 'Usuario');
     final String clientName = clientId == 11 ? 'GardenWorld' : 'Cliente $clientId';
     final String orgName = orgId == 0 ? '*' : (orgId == 11 ? 'HQ' : 'Org $orgId');
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Perfil de Usuario')),
+      appBar: AppBar(
+        title: const Text('Perfil de Usuario'),
+        actions: [IconButton(icon: const Icon(Icons.refresh), tooltip: 'Refrescar', onPressed: _loadUserInfo)],
+      ),
       drawer: const CustomDrawer(),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -79,35 +135,21 @@ class _ProfilePageState extends State<ProfilePage> {
               Center(
                 child: Stack(
                   children: [
-                    GestureDetector(
-                      onTap: () => _showChangePhotoDialog(context),
-                      child: CircleAvatar(
-                        radius: 50,
-                        backgroundColor: const Color(0xFF4F47E5),
-                        child: Text(username.isNotEmpty ? username[0].toUpperCase() : 'U', style: const TextStyle(fontSize: 40, color: Colors.white)),
-                      ),
-                    ),
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: GestureDetector(
-                        onTap: () => _showChangePhotoDialog(context),
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: const BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                            boxShadow: [BoxShadow(blurRadius: 2, color: Colors.black26)],
-                          ),
-                          child: const Icon(Icons.camera_alt, color: Color(0xFF4F47E5), size: 20),
-                        ),
-                      ),
+                    CircleAvatar(
+                      radius: 50,
+                      backgroundColor: const Color(0xFF4F47E5),
+                      backgroundImage: _profileImageBytes != null ? MemoryImage(_profileImageBytes!) : null,
+                      child: _profileImageBytes != null ? null : Text(clientName.isNotEmpty ? clientName[0].toUpperCase() : (username.isNotEmpty ? username[0].toUpperCase() : 'U'), style: const TextStyle(fontSize: 40, color: Colors.white)),
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 16),
-              Text(username, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+              Text(clientName, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+              Text(
+                username,
+                style: TextStyle(fontSize: 18, color: Colors.grey[800], fontWeight: FontWeight.w500),
+              ),
               Text(roleName, style: TextStyle(fontSize: 16, color: Colors.grey[600])),
               const SizedBox(height: 32),
               Card(
@@ -116,19 +158,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
-                    children: [
-                      _buildInfoTile(Icons.business, 'Empresa / Cliente', clientName),
-                      const Divider(),
-                      _buildInfoTile(Icons.store, 'Socio de Negocio', bPartner),
-                      const Divider(),
-                      _buildInfoTile(Icons.domain, 'Organización', orgName),
-                      const Divider(),
-                      _buildInfoTile(Icons.email, 'Correo Electrónico', email),
-                      const Divider(),
-                      _buildInfoTile(Icons.badge, 'ID de Usuario', userId.toString()),
-                      const Divider(),
-                      _buildInfoTile(Icons.language, 'Idioma', language),
-                    ],
+                    children: [_buildInfoTile(Icons.business, 'Empresa / Cliente', clientName), const Divider(), _buildInfoTile(Icons.store, 'Socio de Negocio', bPartner), const Divider(), _buildInfoTile(Icons.domain, 'Organización', orgName), const Divider(), _buildInfoTile(Icons.email, 'Correo Electrónico', email), const Divider(), _buildInfoTile(Icons.language, 'Idioma', language)],
                   ),
                 ),
               ),

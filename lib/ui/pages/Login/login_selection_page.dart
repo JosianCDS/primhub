@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/auth_api.dart';
 import 'package:primhub/api/token.dart';
-import 'package:primhub/ui/shared/custom_button.dart';
-import 'package:primhub/ui/shared/custom_inputs.dart';
+import 'package:primhub/ui/Shared_Custom/custom_button.dart';
+import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 
 class LoginSelectionPage extends StatefulWidget {
   const LoginSelectionPage({super.key});

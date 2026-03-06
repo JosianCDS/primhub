@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:primhub/ImagesManagment/downloadAttachments.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
-import 'package:primhub/ui/shared/custom_button.dart';
-import 'package:primhub/ui/shared/custom_modal.dart';
+import 'package:primhub/ui/Shared_Custom/custom_button.dart';
+import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 class FilePreviewManager {
@@ -59,7 +59,10 @@ class FilePreviewManager {
                 if (AccessControl.canManageFiles)
                   IconButton(
                     icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: onDelete,
+                    onPressed: () {
+                      Navigator.pop(context);
+                      onDelete();
+                    },
                   ),
                 TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cerrar')),
                 CustomButton(

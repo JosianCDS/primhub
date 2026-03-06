@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:primhub/api/access_control.dart';
-import 'package:primhub/ui/pages/Projects/Documents/projects_logic.dart';
+import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 import 'package:primhub/ui/pages/Projects/Projects_Widgets/requests_data_table.dart';
 import 'package:primhub/ui/pages/Projects/dialogs/item_edit_dialog.dart';
+import 'package:primhub/ui/pages/Support/Requests/edit_request_dialog.dart';
+import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
 import 'package:primhub/ui/pages/Support/Requests/create_request_dialog.dart';
 
 class TaskItem extends StatefulWidget {
@@ -12,8 +14,9 @@ class TaskItem extends StatefulWidget {
   final Map<String, String> priorityMap;
   final VoidCallback onRefresh;
   final Function(String type, int id, String name, String desc) onEdit;
+  final bool isArchived;
 
-  const TaskItem({super.key, required this.task, required this.initiallyExpanded, required this.statusIdMap, required this.priorityMap, required this.onRefresh, required this.onEdit});
+  const TaskItem({super.key, required this.task, required this.initiallyExpanded, required this.statusIdMap, required this.priorityMap, required this.onRefresh, required this.onEdit, this.isArchived = false});
 
   @override
   State<TaskItem> createState() => _TaskItemState();
@@ -21,6 +24,45 @@ class TaskItem extends StatefulWidget {
 
 class _TaskItemState extends State<TaskItem> {
   final ProjectsLogic _logic = ProjectsLogic();
+
+  String? _getDropdownValue(dynamic rawValue) {
+    final extracted = DocumentsLogic.extractValue(rawValue);
+    return extracted == 'N/A' ? null : extracted;
+  }
+
+  Future<void> _deleteRequest(dynamic id) async {
+    if (!AccessControl.canManageRequests) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No tienes permisos para eliminar solicitudes.')));
+      return;
+    }
+    // Diálogo de confirmación simple
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirmar Eliminación'),
+        content: const Text('¿Está seguro de que desea eliminar esta solicitud?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      final success = await deleteRequestApi(id);
+      if (mounted) {
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Solicitud eliminada correctamente')));
+          setState(() {}); // Recargar la lista de solicitudes de la tarea
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al eliminar'), backgroundColor: Colors.red));
+        }
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +79,7 @@ class _TaskItemState extends State<TaskItem> {
         final countText = snapshot.connectionState == ConnectionState.waiting ? '...' : '${requests.length}';
 
         return ExpansionTile(
-          key: Key('task-'),
+          key: Key('task-$taskId'),
           initiallyExpanded: widget.initiallyExpanded,
           leading: const Icon(Icons.task_alt_outlined, size: 20),
           title: Row(
@@ -49,7 +91,7 @@ class _TaskItemState extends State<TaskItem> {
             ],
           ),
           subtitle: widget.task['Description'] != null ? Text(widget.task['Description'], maxLines: 2, overflow: TextOverflow.ellipsis) : null,
-          trailing: (AccessControl.canCreateRequests || AccessControl.canEditProject)
+          trailing: ((AccessControl.canCreateRequests || AccessControl.canEditProject) && !widget.isArchived)
               ? Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -63,7 +105,7 @@ class _TaskItemState extends State<TaskItem> {
                             builder: (context) => CreateRequestDialog(linkedRecordUU: taskUU),
                           );
                           if (result == true) {
-                            widget.onRefresh();
+                            setState(() {}); // Refresca solo esta tarea para evitar colapsar el proyecto
                           }
                         },
                       ),
@@ -93,9 +135,37 @@ class _TaskItemState extends State<TaskItem> {
                   requests: requests,
                   statusIdMap: widget.statusIdMap,
                   priorityMap: widget.priorityMap,
-                  onRefresh: () {
-                    setState(() {}); // Refresh local future builder
-                    widget.onRefresh(); // Refresh parent if needed
+                  onEdit: (req) {
+                    if (!AccessControl.canManageRequests) return;
+
+                    // Mapeo manual de la solicitud cruda a lo que espera el diálogo de edición
+                    final Map<String, dynamic> processedReq = {
+                      'realId': req['id'],
+                      'id': req['DocumentNo'] ?? req['id'].toString(),
+                      'description': req['Summary'] ?? '',
+                      'level': DocumentsLogic.extractValue(req['Priority']) == 'N/A' ? 'Media' : DocumentsLogic.extractValue(req['Priority']),
+                      'status': DocumentsLogic.extractValue(req['Status']) == 'N/A' ? '1_Open' : DocumentsLogic.extractValue(req['Status']),
+                      'statusId': req['R_Status_ID'] is Map ? req['R_Status_ID']['id'] : (req['R_Status_ID'] is int ? req['R_Status_ID'] : null),
+                      'dateStartPlan': req['DateStartPlan'] ?? '',
+                      'dateCompletePlan': req['DateCompletePlan'] ?? '',
+                      'startTime': extractTime(req['StartTime']),
+                      'endTime': extractTime(req['EndTime']),
+                      'qtyPlan': req['QtyPlan']?.toString() ?? '',
+                      'type': _getDropdownValue(req['R_RequestType_ID']),
+                      'category': _getDropdownValue(req['R_Category_ID']),
+                      'group': _getDropdownValue(req['R_Group_ID']),
+                    };
+
+                    showDialog(
+                      context: context,
+                      builder: (context) => EditRequestDialog(
+                        request: processedReq,
+                        statusIdMap: widget.statusIdMap,
+                        priorityMap: widget.priorityMap,
+                        onSave: () => setState(() {}), // Recargar al guardar
+                        onDelete: () => _deleteRequest(req['id']),
+                      ),
+                    );
                   },
                 ),
               )

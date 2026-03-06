@@ -6,9 +6,9 @@ import 'package:primhub/ui/pages/Home/Home_Controller/home_controller.dart';
 import 'package:primhub/ui/pages/Home/Home_Widgets/project_dashboard_cards.dart';
 import 'package:primhub/ui/pages/Home/Home_Widgets/recent_requests_table.dart';
 import 'package:primhub/ui/pages/Home/Home_Widgets/support_cards.dart';
-import 'package:primhub/ui/shared/custom_button.dart';
-import 'package:primhub/ui/shared/custom_container.dart';
-import 'package:primhub/ui/shared/custom_modal.dart';
+import 'package:primhub/ui/Shared_Custom/custom_button.dart';
+import 'package:primhub/ui/Shared_Custom/custom_container.dart';
+import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import '../../widgets/custom_drawer.dart';
 
 class HomePage extends StatefulWidget {
@@ -67,10 +67,26 @@ class _HomePageState extends State<HomePage> {
           actions: [
             IconButton(
               icon: const Icon(Icons.refresh),
+              tooltip: 'Refrescar',
               onPressed: () {
+                // Forzar recarga completa
                 _controller.initData();
               },
             ),
+            if (!AccessControl.isProject)
+              IconButton(
+                icon: Icon(_controller.filterSalesRepId != null ? Icons.person : Icons.group),
+                tooltip: _controller.filterSalesRepId != null ? 'Viendo mis proyectos' : 'Viendo todos',
+                onPressed: () {
+                  setState(() {
+                    // Alternar filtro en el controlador: null (Todos) vs User.userID (Mis Proyectos)
+                    // Funciona igual que en la pantalla de Proyectos
+                    _controller.filterSalesRepId = (_controller.filterSalesRepId == null) ? User.userID : null;
+                  });
+                  // Recargar datos con el nuevo filtro
+                  _controller.initData();
+                },
+              ),
           ],
         ),
         drawer: const CustomDrawer(),
@@ -78,17 +94,24 @@ class _HomePageState extends State<HomePage> {
           child: AnimatedBuilder(
             animation: _controller,
             builder: (context, child) {
+              if (_controller.validationLoading) {
+                return const Center(child: CircularProgressIndicator());
+              }
               return SingleChildScrollView(
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center, // Asegura centrado horizontal de hijos directos
                   children: [
                     const SizedBox(height: 20),
-                    Text(
-                      'Bienvenido/a ${_controller.username}',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                    Center(
+                      child: Text(
+                        'Bienvenido/a ${_controller.username}',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                      ),
                     ),
                     const SizedBox(height: 20),
-                    if (_controller.projects.isNotEmpty)
+                    // Mostrar selector solo si no es usuario de proyecto O si tiene más de 1 proyecto
+                    if (_controller.projects.isNotEmpty && (!AccessControl.isProject || _controller.projects.length > 1))
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16.0),
                         child: CustomContainer(
@@ -97,7 +120,7 @@ class _HomePageState extends State<HomePage> {
                         ),
                       ),
                     const SizedBox(height: 20),
-                    if (_controller.hasSupport) ...[
+                    if (_controller.hasSupport && !AccessControl.isProject) ...[
                       Wrap(
                         spacing: 20,
                         runSpacing: 20,
@@ -114,32 +137,41 @@ class _HomePageState extends State<HomePage> {
                         padding: const EdgeInsets.symmetric(horizontal: 16.0),
                         child: LayoutBuilder(
                           builder: (context, constraints) {
-                            int columns = constraints.maxWidth < 900 ? 2 : 4;
-                            double spacing = 20;
-                            double itemWidth = (constraints.maxWidth - (spacing * (columns - 1))) / columns;
-
-                            if (itemWidth <= 0) itemWidth = 100;
-
                             final activeProjects = _controller.projects.where((p) => _controller.selectedProjectIds.contains(p['id'])).toList();
 
                             if (activeProjects.isEmpty) return const SizedBox.shrink();
 
-                            return Wrap(
-                              spacing: spacing,
-                              runSpacing: spacing,
-                              alignment: WrapAlignment.center,
-                              children: activeProjects.expand((proj) {
-                                return [
-                                  SizedBox(
-                                    width: itemWidth,
-                                    child: ProjectDurationCard(project: proj, textColor: textColor),
-                                  ),
-                                  SizedBox(
-                                    width: itemWidth,
-                                    child: ProjectDeliverablesCard(projectId: proj['id'], stats: _controller.projectStats[proj['id']] ?? {}, textColor: textColor),
-                                  ),
-                                ];
-                              }).toList(),
+                            // Ajuste dinámico de columnas: Si es 1 proyecto, centramos mejor.
+                            int columns = activeProjects.length == 1 ? 1 : (constraints.maxWidth < 900 ? 2 : 4);
+                            double spacing = 20;
+                            double itemWidth = (constraints.maxWidth - (spacing * (columns - 1))) / columns;
+
+                            // Si es un solo proyecto, limitamos el ancho máximo para que no se estire demasiado
+                            if (activeProjects.length == 1 && itemWidth > 400) {
+                              itemWidth = 400;
+                            }
+
+                            if (itemWidth <= 0) itemWidth = 100;
+
+                            return Center(
+                              child: Wrap(
+                                spacing: spacing,
+                                runSpacing: spacing,
+                                alignment: WrapAlignment.center,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: activeProjects.expand((proj) {
+                                  return [
+                                    SizedBox(
+                                      width: itemWidth,
+                                      child: ProjectDurationCard(project: proj, textColor: textColor),
+                                    ),
+                                    SizedBox(
+                                      width: itemWidth,
+                                      child: ProjectDeliverablesCard(projectId: proj['id'], stats: _controller.projectStats[proj['id']] ?? {}, textColor: textColor),
+                                    ),
+                                  ];
+                                }).toList(),
+                              ),
                             );
                           },
                         ),

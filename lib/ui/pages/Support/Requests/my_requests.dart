@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/contract_api.dart';
+import 'package:primhub/api/token.dart';
 import 'package:primhub/ui/pages/Support/calendar.dart';
 import 'package:primhub/ui/pages/Support/Requests/create_request_dialog.dart';
 import 'package:primhub/ui/pages/Support/Requests/edit_request_dialog.dart';
@@ -10,8 +11,8 @@ import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
 import 'package:primhub/ui/pages/Support/Request_Widgets/request_stats_card.dart';
 import 'package:primhub/ui/pages/Support/Request_Widgets/request_filter_bar.dart';
 import 'package:primhub/ui/pages/Support/Request_Widgets/requests_data_table.dart';
-import 'package:primhub/ui/shared/custom_modal.dart';
-import 'package:primhub/ui/shared/custom_button.dart';
+import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
+import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import '../../../widgets/custom_drawer.dart';
 
 class MyRequestsPage extends StatefulWidget {
@@ -78,10 +79,11 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   }
 
   Future<void> _refreshRequest() async {
-    String? filter;
-    if (AccessControl.limitToCurrentYear) {
-      final currentYear = DateTime.now().year;
-      filter = "Created ge '$currentYear-01-01T00:00:00Z' and Created le '-12-31T23:59:59Z'";
+    // OPTIMIZACIÓN: Cargar solo las solicitudes del año seleccionado por defecto
+    String filter = "Created ge '${_selectedYear}-01-01T00:00:00Z' and Created le '${_selectedYear}-12-31T23:59:59Z'";
+
+    if (AccessControl.isProject && User.cBPartnerID != null) {
+      filter += " and C_BPartner_ID eq ${User.cBPartnerID}";
     }
     final requests = await fetchRequest(filter: filter);
     final processed = await processRequests(requests, _statusIdMap);
@@ -193,6 +195,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                   _initData();
                 },
                 icon: const Icon(Icons.refresh),
+                tooltip: 'Refrescar',
               ),
             ),
           ],

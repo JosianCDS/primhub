@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:primhub/ui/shared/cardcustom.dart';
-import 'package:primhub/ui/shared/custom_inputs.dart';
+import 'package:primhub/ui/Shared_Custom/cardcustom.dart';
+import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import '../../widgets/custom_drawer.dart';
 
 class KnowledgeBasePage extends StatelessWidget {

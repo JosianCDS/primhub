@@ -42,20 +42,28 @@ String ensureIsoTime(String? dateContext, String time) {
 // --- LLAMADAS A LA API ---
 
 /// Obtiene las solicitudes usando paginación para asegurar que se traigan todos los registros.
-Future<List<Map<String, dynamic>>> fetchRequest({String? filter}) async {
+Future<List<Map<String, dynamic>>> fetchRequest({String? model = 'R_Request', String? filter, int? top, String? select, String? orderBy}) async {
   List<Map<String, dynamic>> allRecords = [];
   int skip = 0;
-  const int pageSize = 100;
+  // Si se especifica 'top', se usa como tamaño de página y no se pagina más.
+  // Si no, se usa un tamaño de página estándar para la paginación completa.
+  final int pageSize = top ?? 100;
   bool hasMore = true;
 
   try {
     while (hasMore) {
-      String url = '${Endpoint.request}?\$skip=$skip&\$top=$pageSize&\$limit=$pageSize&\$orderBy=Created desc';
+      final queryParams = {'\$skip': skip.toString(), '\$top': pageSize.toString(), '\$limit': pageSize.toString(), '\$orderBy': orderBy ?? 'Created desc'};
+
       if (filter != null && filter.isNotEmpty) {
-        url += '&\$filter=$filter';
+        queryParams['\$filter'] = filter;
+      }
+      if (select != null && select.isNotEmpty) {
+        queryParams['\$select'] = select;
       }
 
-      final response = await http.get(Uri.parse(url), headers: {'Content-Type': 'application/json; charset=UTF-8', 'Authorization': Token.token});
+      final endpoint = '${Endpoint.baseUrl}/api/v1/models/$model';
+      final uri = Uri.parse(endpoint).replace(queryParameters: queryParams);
+      final response = await http.get(uri, headers: {'Content-Type': 'application/json; charset=UTF-8', 'Authorization': Token.token});
 
       if (response.statusCode == 200) {
         final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
@@ -68,7 +76,8 @@ Future<List<Map<String, dynamic>>> fetchRequest({String? filter}) async {
           final mapped = records.map((r) => Map<String, dynamic>.from(r)).toList();
           allRecords.addAll(mapped);
 
-          if (records.length < pageSize) {
+          // Si se especificó un 'top', solo hacemos una página. Si no, paginamos hasta el final.
+          if (records.length < pageSize || top != null) {
             hasMore = false;
           } else {
             skip += pageSize;
@@ -87,7 +96,7 @@ Future<List<Map<String, dynamic>>> fetchRequest({String? filter}) async {
 
 Future<Map<String, int>> fetchStatuses() async {
   try {
-    final response = await http.get(Uri.parse('${Endpoint.baseUrl}/api/v1/models/R_Status'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+    final response = await http.get(Uri.parse('${Endpoint.baseUrl}/api/v1/models/R_Status?\$limit=20&\$orderby=Name'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
 
     if (response.statusCode == 200) {
       final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
@@ -144,15 +153,15 @@ Future<Map<String, dynamic>> processRequests(List<dynamic> requests, Map<String,
     }
 
     Color baseColor = Colors.green;
-    if (level == 'Urgente')
+    if (level == 'Urgente') {
       baseColor = Colors.purple;
-    else if (level == 'Alta')
+    } else if (level == 'Alta') {
       baseColor = Colors.red;
-    else if (level == 'Media')
+    } else if (level == 'Media') {
       baseColor = Colors.amber.shade800;
-    else if (level == 'Menor')
+    } else if (level == 'Menor') {
       baseColor = Colors.grey;
-
+    }
     String formattedTime = req['Created'] ?? '';
     try {
       if (formattedTime.isNotEmpty) {
@@ -188,7 +197,7 @@ Future<Map<String, dynamic>> processRequests(List<dynamic> requests, Map<String,
   return {'rawRequests': rawRequests, 'requests': processedRequests, 'consumedHours': consumed, 'estimatedHours': estimated};
 }
 
-Future<Map<String, dynamic>> updateRemoteRequest({required dynamic id, String? priority, int? statusId, String? statusIdentifier, String? summary, String? dateStartPlan, String? dateCompletePlan, String? startTime, String? endTime, double? qtyPlan, String? startDate, String? closeDate}) async {
+Future<Map<String, dynamic>> updateRemoteRequest({required dynamic id, String? priority, int? statusId, String? statusIdentifier, String? summary, String? dateStartPlan, String? dateCompletePlan, String? startTime, String? endTime, double? qtyPlan, String? startDate, String? closeDate, int? requestTypeId, int? categoryId, int? groupId}) async {
   try {
     final url = Uri.parse('${Endpoint.request}/$id');
     final Map<String, dynamic> data = {};
@@ -210,6 +219,10 @@ Future<Map<String, dynamic>> updateRemoteRequest({required dynamic id, String? p
 
     if (startDate != null) data['StartDate'] = startDate;
     if (closeDate != null) data['CloseDate'] = closeDate;
+
+    if (requestTypeId != null) data['R_RequestType_ID'] = {'id': requestTypeId};
+    if (categoryId != null) data['R_Category_ID'] = {'id': categoryId};
+    if (groupId != null) data['R_Group_ID'] = {'id': groupId};
 
     final response = await http.put(url, headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: jsonEncode(data));
 

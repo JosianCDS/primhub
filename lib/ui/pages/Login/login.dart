@@ -5,9 +5,9 @@ import 'package:go_router/go_router.dart';
 import 'package:primhub/api/auth_api.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/endpoint/endpoint.dart';
-import 'package:primhub/ui/shared/custom_button.dart';
-import 'package:primhub/ui/shared/custom_inputs.dart';
-import 'package:primhub/ui/shared/custom_modal.dart';
+import 'package:primhub/ui/Shared_Custom/custom_button.dart';
+import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
+import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginPage extends StatefulWidget {

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:primhub/ui/shared/cardcustom.dart';
-import 'package:primhub/ui/shared/custom_button.dart';
-import 'package:primhub/ui/shared/custom_modal.dart';
+import 'package:primhub/ui/Shared_Custom/cardcustom.dart';
+import 'package:primhub/ui/Shared_Custom/custom_button.dart';
+import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 
 class ProjectDurationCard extends StatelessWidget {
   final Map<String, dynamic> project;
@@ -94,7 +94,7 @@ class ProjectDurationCard extends StatelessWidget {
 
 class ProjectDeliverablesCard extends StatelessWidget {
   final int projectId;
-  final Map<String, int> stats;
+  final Map<String, dynamic> stats;
   final Color textColor;
 
   const ProjectDeliverablesCard({super.key, required this.projectId, required this.stats, required this.textColor});
@@ -104,6 +104,9 @@ class ProjectDeliverablesCard extends StatelessWidget {
     final et = stats['et'] ?? 0;
     final sg = stats['sg'] ?? 0;
     final gn = stats['gn'] ?? 0;
+    // final bool pendingEt = stats['pendingEt'] ?? false;
+    // final bool pendingSg = stats['pendingSg'] ?? false;
+    // final bool pendingGn = stats['pendingGn'] ?? false;
 
     return CardCustom(
       hover: true,
@@ -133,18 +136,7 @@ class ProjectDeliverablesCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                     child: Padding(
                       padding: const EdgeInsets.all(8.0),
-                      child: Column(
-                        children: [
-                          Text(
-                            et.toString(),
-                            style: Theme.of(context).textTheme.displayMedium?.copyWith(color: const Color(0xffD97708), fontWeight: FontWeight.bold, fontSize: 24),
-                          ),
-                          Text(
-                            'Entregables',
-                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: textColor),
-                          ),
-                        ],
-                      ),
+                      child: Column(children: [_buildStatItem(context, et, 'Entregables' /*, pendingEt*/)]),
                     ),
                   ),
                   Container(height: 30, width: 1, color: Colors.grey.withOpacity(0.3)),
@@ -153,18 +145,7 @@ class ProjectDeliverablesCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                     child: Padding(
                       padding: const EdgeInsets.all(8.0),
-                      child: Column(
-                        children: [
-                          Text(
-                            sg.toString(),
-                            style: Theme.of(context).textTheme.displayMedium?.copyWith(color: const Color(0xffD97708), fontWeight: FontWeight.bold, fontSize: 24),
-                          ),
-                          Text(
-                            'Seguimiento',
-                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: textColor),
-                          ),
-                        ],
-                      ),
+                      child: Column(children: [_buildStatItem(context, sg, 'Seguimiento' /*, pendingSg*/)]),
                     ),
                   ),
                   Container(height: 30, width: 1, color: Colors.grey.withOpacity(0.3)),
@@ -173,18 +154,7 @@ class ProjectDeliverablesCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                     child: Padding(
                       padding: const EdgeInsets.all(8.0),
-                      child: Column(
-                        children: [
-                          Text(
-                            gn.toString(),
-                            style: Theme.of(context).textTheme.displayMedium?.copyWith(color: const Color(0xffD97708), fontWeight: FontWeight.bold, fontSize: 24),
-                          ),
-                          Text(
-                            'General',
-                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: textColor),
-                          ),
-                        ],
-                      ),
+                      child: Column(children: [_buildStatItem(context, gn, 'General' /*, pendingGn*/)]),
                     ),
                   ),
                 ],
@@ -198,6 +168,34 @@ class ProjectDeliverablesCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildStatItem(BuildContext context, int count, String label /*, bool hasPending*/) {
+    return Column(
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              count.toString(),
+              style: Theme.of(context).textTheme.displayMedium?.copyWith(color: const Color(0xffD97708), fontWeight: FontWeight.bold, fontSize: 24),
+            ),
+            // if (count > 0)
+            //   Container(
+            //     margin: const EdgeInsets.only(top: 4, left: 2),
+            //     width: 8,
+            //     height: 8,
+            //     decoration: BoxDecoration(color: hasPending ? Colors.red : Colors.green, shape: BoxShape.circle),
+            //   ),
+          ],
+        ),
+        Text(
+          label,
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: textColor),
+        ),
+      ],
     );
   }
 }

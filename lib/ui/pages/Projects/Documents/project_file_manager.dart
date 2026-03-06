@@ -9,9 +9,9 @@ import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 import 'package:primhub/ui/pages/Projects/Projects_Widgets/breadcrumb_navigator.dart';
 import 'package:primhub/ui/pages/Projects/Projects_Widgets/file_card.dart';
 import 'package:primhub/ui/pages/Projects/Projects_Widgets/file_preview_manager.dart';
-import 'package:primhub/ui/shared/custom_button.dart';
-import 'package:primhub/ui/shared/custom_inputs.dart';
-import 'package:primhub/ui/shared/custom_modal.dart';
+import 'package:primhub/ui/Shared_Custom/custom_button.dart';
+import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
+import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 
 class ProjectFileManager extends StatefulWidget {
   final Map<String, dynamic> project;
@@ -38,6 +38,7 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
   void initState() {
     super.initState();
     _currentPath = ['Mis Proyectos', widget.project['Name'] ?? 'Proyecto', widget.viewType];
+    _searchController.addListener(() => setState(() {}));
     _fetchDocuments();
   }
 
@@ -131,14 +132,13 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
       ),
     );
     if (confirm == true) {
-      if (Navigator.canPop(context)) Navigator.pop(context); // Close preview if open
       setState(() => _isLoadingDocuments = true);
-      final success = await DocumentsLogic.deleteFile(id, tableName);
-      if (success) {
+      final result = await DocumentsLogic.deleteFile(id, tableName);
+      if (result['success'] == true) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Archivo eliminado')));
         _fetchDocuments();
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al eliminar')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result['message'] ?? 'Error al eliminar'), backgroundColor: Colors.red));
         setState(() => _isLoadingDocuments = false);
       }
     }
@@ -208,8 +208,8 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
 
   Widget _buildSearchResults() {
     if (_isLoadingDocuments) return const Center(child: CircularProgressIndicator());
-    if (_searchResults.isEmpty) return const Center(child: Text('No se encontraron documentos.'));
     final results = DocumentsLogic.performSearch(_searchController.text, _documents, _currentPath.sublist(0, 3));
+    if (results.isEmpty) return const Center(child: Text('No se encontraron documentos.'));
 
     return ListView.builder(
       shrinkWrap: true,
@@ -424,12 +424,27 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
                             const statusCodes = {'Pendiente': 'PD', 'En revisión': 'IR', 'Entregado': 'DL'};
                             body['Status'] = statusCodes[currentStatus] ?? currentStatus;
                           }
-                          final success = await DocumentsLogic.updateDocumentRemote(details['id'], body);
+
+                          // Usamos la tabla correcta (si estamos dentro de carpeta es Related)
+                          final success = await DocumentsLogic.updateDocumentRemote(details['id'], body, tableName: tableName);
+
                           setStateDialog(() => isSaving = false);
                           if (success) {
                             if (context.mounted) {
                               Navigator.pop(context);
-                              _fetchDocuments();
+                              await _fetchDocuments();
+
+                              // Si estamos dentro de una carpeta y cambiamos el estado, verificar la carpeta padre
+                              if (_currentPath.length > 3 && !isFolder) {
+                                final folderName = _currentPath.last;
+                                // Buscamos el ID de la carpeta padre en la lista actual (que son los hijos) no es posible directamente.
+                                // Pero _documents en este contexto (dentro de carpeta) son los hijos.
+                                // Necesitamos el ID de la carpeta padre. Lo podemos obtener de 'PRIM_Documents_ID' del hijo si existe.
+                                final parentId = details['PRIM_Documents_ID'] is Map ? details['PRIM_Documents_ID']['id'] : details['PRIM_Documents_ID'];
+                                if (parentId != null) {
+                                  await DocumentsLogic.checkAndUpdateFolderStatus(parentId);
+                                }
+                              }
                             }
                           }
                         },

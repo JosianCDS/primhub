@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:primhub/ui/shared/custom_inputs.dart';
-import 'package:primhub/ui/shared/custom_modal.dart';
+import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
+import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 
 class RequestDetailsDialog extends StatelessWidget {

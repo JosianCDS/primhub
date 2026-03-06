@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:primhub/api/token.dart';
-import 'package:primhub/ui/pages/Projects/Documents/projects_logic.dart';
-import 'package:primhub/ui/shared/custom_button.dart';
-import 'package:primhub/ui/shared/custom_inputs.dart';
-import 'package:primhub/ui/shared/custom_modal.dart';
+import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
+import 'package:primhub/ui/Shared_Custom/custom_button.dart';
+import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
+import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 
 class ProjectCreateDialog extends StatefulWidget {
   final List<dynamic> projects;
@@ -40,7 +40,7 @@ class _ProjectCreateDialogState extends State<ProjectCreateDialog> {
   }
 
   Future<void> _loadData() async {
-    final results = await Future.wait([_logic.fetchBPartners(), _logic.fetchProjectTypes()]);
+    final results = await Future.wait([_logic.fetchBPartners(), _logic.fetchProjects(context)]);
     if (mounted) {
       setState(() {
         _bPartners = results[0];

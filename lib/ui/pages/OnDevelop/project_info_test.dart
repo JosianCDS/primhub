@@ -115,6 +115,13 @@ class _ProjectInfoTestPageState extends State<ProjectInfoTestPage> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Prueba Info Proyecto'),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              tooltip: 'Refrescar',
+              onPressed: _initData,
+            ),
+          ],
           bottom: const TabBar(
             isScrollable: true,
             tabs: [
