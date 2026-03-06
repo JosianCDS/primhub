@@ -8,7 +8,6 @@ import '../../widgets/custom_drawer.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
-import 'package:primhub/ui/pages/Metrics/project_requests_page.dart';
 
 class MetricsPage extends StatefulWidget {
   const MetricsPage({super.key});
