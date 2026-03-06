@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 class Token {
   static String? preAuth;
@@ -6,7 +7,7 @@ class Token {
   static String? refreshToken;
   static int? client;
   static int? rol;
-  static String? roleUU;
+  static String? primConfig;
   static int? organitation;
   static int? warehouseID;
 
@@ -16,7 +17,7 @@ class Token {
     refreshToken = null;
     client = null;
     rol = null;
-    roleUU = null;
+    primConfig = null;
     organitation = null;
     warehouseID = null;
   }
@@ -64,12 +65,7 @@ class Token {
 class CurrentLogMessage {
   static List<Map<String, dynamic>> log = [];
   static void add(String message, {String level = 'INFO', String? tag}) {
-    final entry = {
-      'ts': DateTime.now().toIso8601String(),
-      'level': level,
-      'tag': tag,
-      'message': message,
-    };
+    final entry = {'ts': DateTime.now().toIso8601String(), 'level': level, 'tag': tag, 'message': message};
     log.add(entry);
     print('[$level] $message');
 
@@ -88,6 +84,7 @@ class User {
   static String? email;
   static int? cBPartnerID;
   static int? userID;
+  static Uint8List? profileImageBytes;
 }
 
 class ProductChip {

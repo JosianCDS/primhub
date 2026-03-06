@@ -38,7 +38,7 @@ cat > "$SNIPPET_FILE" <<EOF
 (function () {
   var currentVersion = "$VERSION";
 
-  // 1) Fuerza a que el SW busque updates en cada visita
+
   if ('serviceWorker' in navigator) {
     try {
       navigator.serviceWorker.getRegistrations()
@@ -46,7 +46,7 @@ cat > "$SNIPPET_FILE" <<EOF
         .catch(function(){});
     } catch(e) {}
 
-    // 2) Cuando el nuevo SW toma control, recargamos una sola vez
+z
     (function(){
       var reloaded = false;
       navigator.serviceWorker.addEventListener('controllerchange', function () {
@@ -62,7 +62,7 @@ cat > "$SNIPPET_FILE" <<EOF
   // 3) Persistimos versión y recarga "fallback" si NO hay SW
   try {
     var prev = localStorage.getItem('app_build');
-    // Guard para evitar bucles de recarga en esta sesión
+
     var alreadyReloaded = sessionStorage.getItem('__app_auto_reloaded__') === '1';
 
     if (!prev) {
@@ -70,16 +70,14 @@ cat > "$SNIPPET_FILE" <<EOF
     } else if (prev !== currentVersion) {
       localStorage.setItem('app_build', currentVersion);
 
-      // Si no hay SW (o no dispara controllerchange), hacemos UNA recarga
+
       if (!('serviceWorker' in navigator)) {
         if (!alreadyReloaded) {
           sessionStorage.setItem('__app_auto_reloaded__', '1');
           location.reload();
         }
       } else {
-        // Hay SW: normalmente controllerchange recargará.
-        // Si por alguna razón no activa, como plan B puedes forzar:
-        // setTimeout(function(){ if (!sessionStorage.getItem('__app_auto_reloaded__')) { sessionStorage.setItem('__app_auto_reloaded__','1'); location.reload(); } }, 4000);
+        
       }
     }
   } catch(e) {}
