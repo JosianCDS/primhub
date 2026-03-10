@@ -36,12 +36,15 @@ class HomeController extends ChangeNotifier {
   int closedRequestsCount = 0;
 
   // Hours
-  double? contractedHours;
   double consumedHours = 0.0;
+  List<Map<String, dynamic>> supportContracts = [];
 
-  // Filter
+  // Project Filter
   int? filterSalesRepId = User.userID; // Por defecto "Mis Proyectos"
 
+  // Admin Support Filter
+  List<dynamic> supportBPartners = [];
+  int? selectedSupportBpId;
   // Static persistence (from original file)
   static List<int> savedSelectedProjectIds = [];
 
@@ -59,10 +62,27 @@ class HomeController extends ChangeNotifier {
   }
 
   Future<void> initData() async {
+    validationLoading = true;
+    notifyListeners();
+
     await loadValidationData();
-    await loadContractedHours();
+    if (AccessControl.isAdmin) {
+      await loadSupportBPartners();
+    }
     await loadRecentRequests();
     await loadDocumentStats();
+    await loadSupportContracts();
+
+    validationLoading = false;
+    notifyListeners();
+  }
+
+  Future<void> loadSupportBPartners() async {
+    supportBPartners = await ContractApi.getBPartnersWithSupportContracts();
+    if (supportBPartners.length == 1) {
+      selectedSupportBpId = supportBPartners.first['id'];
+    }
+    notifyListeners();
   }
 
   Future<void> loadValidationData() async {
@@ -91,10 +111,11 @@ class HomeController extends ChangeNotifier {
         String projectUrl = Endpoint.project;
         List<String> filters = [];
 
-        // Regla: Usuario de proyecto solo ve sus proyectos
-        if (AccessControl.isProject && partnerID != null) {
+        // Regla: Si es un usuario de proyecto real (no un admin en modo proyecto), filtra por su BPartner
+        if (Token.primConfig?.toLowerCase() == 'py' && partnerID != null) {
           filters.add('C_BPartner_ID eq $partnerID');
         } else {
+          // Para usuarios internos (Admin/Soporte), el filtro depende del botón "Mis Proyectos" / "Todos"
           if (filterSalesRepId != null) {
             filters.add('SalesRep_ID eq $filterSalesRepId');
           }
@@ -122,7 +143,7 @@ class HomeController extends ChangeNotifier {
       }
     }
 
-    hasSupport = prefs.getBool('has_support') ?? false;
+    // hasSupport es ahora determinado dinámicamente por loadContractedHours
     hasProject = projects.isNotEmpty;
     cBPartnerID = partnerID;
     partnerName = pName;
@@ -132,41 +153,62 @@ class HomeController extends ChangeNotifier {
   }
 
   Future<void> loadRecentRequests() async {
-    // Se limita a los últimos 5 registros para la tabla de "Solicitudes Recientes" para una carga rápida.
-    // Las estadísticas de las tarjetas se calcularán sobre esta pequeña muestra.
-    final requests = await fetchRequest(top: 5, filter: "R_Status_ID ne 103");
+    String bpFilter = "";
+    int? bpIdForQuery;
 
-    int open = 0;
-    int others = 0;
+    if (AccessControl.isAdmin) {
+      bpIdForQuery = selectedSupportBpId;
+    } else {
+      bpIdForQuery = User.cBPartnerID;
+    }
+
+    if (bpIdForQuery != null) {
+      bpFilter = "C_BPartner_ID eq $bpIdForQuery";
+    }
+
+    // Fetch ALL requests for the BPartner to calculate stats correctly
+    final allBPartnerRequests = await fetchRequest(filter: bpFilter);
+
+    int open = 0; // Unused for now
+    int inProgress = 0;
     int closed = 0;
     double totalConsumed = 0.0;
 
-    for (var req in requests) {
-      if (req['R_Status_Name'] != '9_Final Close' && req['R_Status_ID'] != 103) {
-        // Not closed
-      } else {
-        double hours = (req['QtyPlan'] as num?)?.toDouble() ?? 0.0;
-        totalConsumed += hours;
+    for (var req in allBPartnerRequests) {
+      // Condición del usuario: Solo contar para soporte si NO está asociada a un proyecto.
+      final recordUU = req['Record_UU'];
+      if (recordUU != null && recordUU.toString().isNotEmpty) {
+        continue; // Saltar esta solicitud, es de proyecto.
       }
 
-      if (req['R_Status_Name'] == '9_Final Close' || req['R_Status_ID'] == 103) {
+      final statusId = req['R_Status_ID'] is Map ? req['R_Status_ID']['id'] : req['R_Status_ID'];
+      if (statusId == 103 || req['R_Status_Name'] == '9_Final Close') {
+        double hours = (req['QtyPlan'] as num?)?.toDouble() ?? 0.0;
+        totalConsumed += hours;
         closed++;
       } else {
-        others++;
+        inProgress++;
       }
     }
 
-    requests.sort((a, b) {
+    // Filter for the "Recent Requests" table (non-closed, non-project-linked)
+    final nonClosedRequests = allBPartnerRequests.where((r) {
+      final statusId = r['R_Status_ID'] is Map ? r['R_Status_ID']['id'] : r['R_Status_ID'];
+      final recordUU = r['Record_UU'];
+      return (statusId != 103 && r['R_Status_Name'] != '9_Final Close') && (recordUU == null || recordUU.toString().isEmpty);
+    }).toList();
+
+    nonClosedRequests.sort((a, b) {
       final dateA = DateTime.tryParse(a['Created'] ?? '') ?? DateTime(0);
       final dateB = DateTime.tryParse(b['Created'] ?? '') ?? DateTime(0);
       return dateB.compareTo(dateA);
     });
 
     openRequestsCount = open;
-    inProgressRequestsCount = others;
+    inProgressRequestsCount = inProgress;
     closedRequestsCount = closed;
     consumedHours = totalConsumed;
-    allRequests = requests.where((r) => r['R_Status_Name'] != '9_Final Close' && r['R_Status_ID'] != 103).toList();
+    allRequests = nonClosedRequests;
 
     _applyFilters();
     isLoading = false;
@@ -175,11 +217,6 @@ class HomeController extends ChangeNotifier {
 
   void _applyFilters() {
     var filtered = List<dynamic>.from(allRequests);
-    filtered = filtered.where((r) {
-      final recordUU = r['Record_UU'];
-      return recordUU == null || recordUU.toString().isEmpty;
-    }).toList();
-
     recentRequests = filtered.take(5).map((r) {
       String level = r['Priority_Name'] ?? 'Baja';
       Color baseColor = Colors.green;
@@ -216,12 +253,38 @@ class HomeController extends ChangeNotifier {
     }).toList();
   }
 
-  Future<void> loadContractedHours() async {
-    final total = await ContractApi.getContractedHours();
-    if (total != null) {
-      contractedHours = total;
-      notifyListeners();
+  Future<void> loadSupportContracts() async {
+    int? bpIdForQuery;
+    if (AccessControl.isAdmin) {
+      bpIdForQuery = selectedSupportBpId;
+    } else {
+      bpIdForQuery = User.cBPartnerID;
     }
+
+    final contracts = await ContractApi.getSupportContracts(bPartnerId: bpIdForQuery);
+
+    // Distribuir el consumo total (calculado en loadRecentRequests) entre los contratos
+    double remainingConsumed = consumedHours;
+
+    for (var contract in contracts) {
+      double contracted = contract['contractedHours'] ?? 0.0;
+      if (remainingConsumed > 0) {
+        if (remainingConsumed >= contracted) {
+          contract['consumedHours'] = contracted;
+          remainingConsumed -= contracted;
+        } else {
+          contract['consumedHours'] = remainingConsumed;
+          remainingConsumed = 0;
+        }
+      } else {
+        contract['consumedHours'] = 0.0;
+      }
+    }
+
+    supportContracts = contracts;
+    hasSupport = contracts.isNotEmpty;
+
+    notifyListeners();
   }
 
   Future<void> loadDocumentStats() async {
@@ -322,6 +385,12 @@ class HomeController extends ChangeNotifier {
     selectedProjectIds = ids;
     savedSelectedProjectIds = List.from(ids);
     notifyListeners();
+  }
+
+  void updateSelectedSupportBp(int? bpId) {
+    selectedSupportBpId = bpId;
+    loadSupportContracts();
+    loadRecentRequests();
   }
 
   // Helper to update a request locally after edit

@@ -398,7 +398,7 @@ class _MetricsPageState extends State<MetricsPage> {
     );
 
     List<Widget> visibleCharts = [];
-    if (AccessControl.canViewProjectCharts && !AccessControl.isSupport) visibleCharts.addAll([complianceChart, statusChart, moduleChart]);
+    if (AccessControl.canViewProjectCharts) visibleCharts.addAll([complianceChart, statusChart, moduleChart]);
     if (AccessControl.canViewSupportCharts) visibleCharts.addAll([barChart, donutChart, lineChart]);
 
     if (!isLargeScreen)

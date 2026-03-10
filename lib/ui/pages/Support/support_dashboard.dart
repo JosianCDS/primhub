@@ -62,10 +62,11 @@ class _SupportPageState extends State<SupportPage> {
   }
 
   Future<void> _loadContractedHours() async {
-    final total = await ContractApi.getContractedHours();
-    if (mounted && total != null) {
+    final contracts = await ContractApi.getSupportContracts();
+    if (mounted) {
+      final double totalHours = contracts.fold(0.0, (sum, contract) => sum + ((contract['contractedHours'] as num?)?.toDouble() ?? 0.0));
       setState(() {
-        _contractedHours = total;
+        _contractedHours = totalHours;
       });
     }
   }

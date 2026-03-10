@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:primhub/api/access_control.dart';
+import 'package:primhub/api/admin_view_mode.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/ui/pages/Projects/Documents/project_file_manager.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
@@ -19,6 +20,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
   bool _showingFiles = false;
   bool _isFileManagerRoot = true;
   final GlobalKey<ProjectFileManagerState> _fileManagerKey = GlobalKey();
+  final _adminViewModeManager = AdminViewModeManager();
 
   List<dynamic> _projects = [];
   Map<String, dynamic>? _selectedProject;
@@ -27,7 +29,6 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
   final TextEditingController _searchController = TextEditingController();
 
   // FILTROS DE ADMINISTRADOR
-  int? _filterBPartnerId;
   // Usamos el ID del usuario logueado desde la clase Token/User
   int? _filterSalesRepId = User.userID; // Verifica si en tu clase Token es userID o User.userID
   bool _showInactive = false;
@@ -46,13 +47,21 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
   @override
   void initState() {
     super.initState();
-    if (AccessControl.isProject && User.cBPartnerID != null) {
-      _filterBPartnerId = User.cBPartnerID;
-      _filterSalesRepId = null; // Disable sales rep filter for client users
-    }
     _loadProjects();
     _fetchStatuses();
     _searchController.addListener(() => setState(() {}));
+    _adminViewModeManager.addListener(_onViewModeChanged);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _adminViewModeManager.removeListener(_onViewModeChanged);
+    super.dispose();
+  }
+
+  void _onViewModeChanged() {
+    _loadProjects();
   }
 
   // Carga de proyectos con filtros aplicados
@@ -63,8 +72,20 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
       _projectsErrorMessage = null;
     });
     try {
-      // CORRECCIÓN: Se pasa 'context' como primer argumento según tu ProjectsLogic
-      final projects = await _logic.fetchProjects(context, bPartnerId: _filterBPartnerId, salesRepId: _filterSalesRepId, showInactive: _showInactive, onlyInactive: _viewingInactive);
+      int? bPartnerIdForQuery;
+      int? salesRepIdForQuery;
+
+      // Si es un usuario de proyecto real (no un admin en modo proyecto)
+      if (Token.primConfig?.toLowerCase() == 'py' && User.cBPartnerID != null) {
+        bPartnerIdForQuery = User.cBPartnerID;
+        salesRepIdForQuery = null;
+      } else {
+        // Para usuarios internos (Admin, Soporte), usar el estado del botón de filtro
+        bPartnerIdForQuery = null;
+        salesRepIdForQuery = _filterSalesRepId;
+      }
+
+      final projects = await _logic.fetchProjects(context, bPartnerId: bPartnerIdForQuery, salesRepId: salesRepIdForQuery, showInactive: _showInactive, onlyInactive: _viewingInactive);
 
       if (mounted) {
         setState(() {
@@ -195,7 +216,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
             : null,
         actions: [
           if (!_showingFiles) ...[
-            if (!AccessControl.isProject)
+            if (AccessControl.isAdmin || Token.primConfig?.toLowerCase() == 'sp')
               IconButton(
                 icon: Icon(_filterSalesRepId != null ? Icons.person : Icons.group),
                 tooltip: _filterSalesRepId != null ? 'Viendo mis proyectos' : 'Viendo todos',

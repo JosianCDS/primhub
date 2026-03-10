@@ -1,25 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:primhub/api/token.dart';
 import 'package:primhub/ui/Shared_Custom/cardcustom.dart';
 import 'package:primhub/ui/widgets/duration_formatter.dart';
 
 class SupportHoursCard extends StatelessWidget {
-  final double? contractedHours;
-  final double consumedHours;
+  final Map<String, dynamic> contract;
   final bool isDark;
   final Color textColor;
 
-  const SupportHoursCard({
-    super.key,
-    required this.contractedHours,
-    required this.consumedHours,
-    required this.isDark,
-    required this.textColor,
-  });
+  const SupportHoursCard({super.key, required this.contract, required this.isDark, required this.textColor});
 
   @override
   Widget build(BuildContext context) {
+    final double contractedHours = contract['contractedHours'] ?? 0.0;
+    final double consumedHours = contract['consumedHours'] ?? 0.0;
+    final String documentNo = contract['DocumentNo'] ?? 'N/A';
+
     double progress = 0.0;
     if (contractedHours != null && contractedHours! > 0) {
       progress = consumedHours / contractedHours!;
@@ -48,7 +44,7 @@ class SupportHoursCard extends StatelessWidget {
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor),
                 ),
                 Text(
-                  contractedHours == null ? '...' : DurationFormatter.format(contractedHours! - consumedHours),
+                  DurationFormatter.format(contractedHours - consumedHours),
                   style: Theme.of(context).textTheme.displayMedium?.copyWith(color: const Color(0xff4F47E5), fontWeight: FontWeight.bold),
                 ),
               ],
@@ -59,31 +55,20 @@ class SupportHoursCard extends StatelessWidget {
               child: TweenAnimationBuilder<double>(
                 tween: Tween<double>(begin: 0, end: progress.clamp(0.0, 1.0)),
                 duration: const Duration(seconds: 2),
-                builder: (context, value, _) => LinearProgressIndicator(
-                  value: value,
-                  backgroundColor: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
-                  valueColor: AlwaysStoppedAnimation<Color>(progress > 1.0 ? Colors.red : const Color.fromARGB(255, 200, 42, 42)),
-                  minHeight: 8,
-                  borderRadius: BorderRadius.circular(4)
-                ),
+                builder: (context, value, _) => LinearProgressIndicator(value: value, backgroundColor: isDark ? Colors.grey.shade800 : Colors.grey.shade200, valueColor: AlwaysStoppedAnimation<Color>(progress > 1.0 ? Colors.red : const Color.fromARGB(255, 200, 42, 42)), minHeight: 8, borderRadius: BorderRadius.circular(4)),
               ),
             ),
             const SizedBox(height: 10),
             Text(
-              contractedHours == null ? 'Cargando contrato...' : 'Contrato de ${DurationFormatter.format(contractedHours!)}.',
+              'Contrato: $documentNo',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: textColor, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 4),
             Text(
-              'renovacion: 31/12/2026',
+              'Total: ${DurationFormatter.format(contractedHours)}',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: textColor, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            Text(
-              'Frecuencia: ${ProductChip.frecuencyID ?? 'No definida'}',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: textColor, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 4),
           ],
         ),
       ),
@@ -96,12 +81,7 @@ class SupportRequestsCard extends StatelessWidget {
   final int inProgressRequestsCount;
   final Color textColor;
 
-  const SupportRequestsCard({
-    super.key,
-    required this.closedRequestsCount,
-    required this.inProgressRequestsCount,
-    required this.textColor,
-  });
+  const SupportRequestsCard({super.key, required this.closedRequestsCount, required this.inProgressRequestsCount, required this.textColor});
 
   @override
   Widget build(BuildContext context) {
@@ -124,18 +104,18 @@ class SupportRequestsCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Text(
-                  'Solicitudes ya atendidas',
+                  'Solicitudes Atendidas',
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textColor),
                 ),
                 Text(
-                  '',
+                  '$closedRequestsCount',
                   style: Theme.of(context).textTheme.displayMedium?.copyWith(color: const Color(0xffD97708), fontWeight: FontWeight.bold),
                 ),
               ],
             ),
             const SizedBox(height: 20),
             Text(
-              ' están en revisión/progreso.',
+              '$inProgressRequestsCount están en revisión/progreso.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: textColor, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 4),

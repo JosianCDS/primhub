@@ -57,11 +57,13 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   }
 
   Future<void> _initData() async {
-    final total = await ContractApi.getContractedHours();
+    final contracts = await ContractApi.getSupportContracts();
+    final double total = contracts.fold(0.0, (sum, contract) => sum + ((contract['contractedHours'] as num?)?.toDouble() ?? 0.0));
+
     final statuses = await fetchStatuses();
     if (mounted) {
       setState(() {
-        _contractedHours = total;
+        _contractedHours = total > 0 ? total : null;
         _statusIdMap = statuses;
       });
     }
