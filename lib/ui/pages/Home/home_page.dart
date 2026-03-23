@@ -138,34 +138,31 @@ class _HomePageState extends State<HomePage> {
                         padding: const EdgeInsets.symmetric(horizontal: 16.0),
                         child: CustomContainer(
                           title: 'Filtrar Soporte por Tercero',
-                          child: CustomDropdown<int?>(
-                            value: _controller.selectedSupportBpId,
-                            hintText: 'Seleccione un tercero',
-                            items: [
-                              const DropdownMenuItem<int?>(value: null, child: Text('Ver todos')),
-                              ..._controller.supportBPartners.map((bp) => DropdownMenuItem<int>(value: bp['id'], child: Text(bp['Name'] ?? 'Tercero sin nombre'))),
-                            ],
-                            onChanged: (val) => _controller.updateSelectedSupportBp(val),
-                          ),
-                          child: _SupportBpSelector(
-                              bPartners: _controller.supportBPartners,
-                              selectedBpIds: _controller.selectedSupportBpIds,
-                              onSelectionChanged: (ids) => _controller.updateSelectedSupportBps(ids)),
+                          child: _SupportBpSelector(bPartners: _controller.supportBPartners, selectedBpIds: _controller.selectedSupportBpIds, onSelectionChanged: (ids) => _controller.updateSelectedSupportBps(ids)),
                         ),
                       ),
                     const SizedBox(height: 20),
-                    if (AccessControl.isSupport || (_controller.hasSupport && Token.primConfig == null))
-                      Wrap(
-                        spacing: 20,
-                        runSpacing: 20,
-                        alignment: WrapAlignment.center,
-                        children: [
-                          ..._controller.supportContracts.map((contract) {
-                            return SupportHoursCard(contract: contract, isDark: isDark, textColor: textColor);
-                          }).toList(),
-                          SupportRequestsCard(closedRequestsCount: _controller.closedRequestsCount, inProgressRequestsCount: _controller.inProgressRequestsCount, textColor: textColor),
-                        ],
+                    if (AccessControl.isSupport || (_controller.hasSupport && Token.primConfig == null)) ...[
+                      Builder(
+                        builder: (context) {
+                          final bpsToRender = AccessControl.isAdmin ? _controller.selectedSupportBpIds : (User.cBPartnerID != null ? [User.cBPartnerID!] : <int>[]);
+
+                          return Wrap(
+                            spacing: 20,
+                            runSpacing: 20,
+                            alignment: WrapAlignment.center,
+                            children: bpsToRender.expand<Widget>((bpId) {
+                              final bpContracts = _controller.supportContracts.where((c) => c['C_BPartner_ID'] == bpId).toList();
+                              final stats = _controller.requestsStatsByBp[bpId] ?? {'closed': 0, 'inProgress': 0};
+                              final bpInfo = _controller.supportBPartners.firstWhere((bp) => bp['id'] == bpId, orElse: () => null);
+                              final bpName = bpInfo?['Name'] ?? 'Tercero $bpId';
+
+                              return [...bpContracts.map((contract) => SupportHoursCard(contract: contract, isDark: isDark, textColor: textColor)), if (stats['closed']! > 0 || stats['inProgress']! > 0) SupportRequestsCard(bpName: bpName, closedRequestsCount: stats['closed']!, inProgressRequestsCount: stats['inProgress']!, textColor: textColor)];
+                            }).toList(),
+                          );
+                        },
                       ),
+                    ],
                     if ((AccessControl.isSupport || (_controller.hasSupport && Token.primConfig == null)) && (AccessControl.isProject || (_controller.hasProject && Token.primConfig == null)) && _controller.selectedProjectIds.isNotEmpty) ...[const SizedBox(height: 30), const Divider(indent: 20, endIndent: 20), const SizedBox(height: 30)],
                     const SizedBox(height: 20),
                     // Mostrar selector solo si no es usuario de proyecto O si tiene más de 1 proyecto
@@ -205,8 +202,8 @@ class _HomePageState extends State<HomePage> {
                                 runSpacing: spacing,
                                 alignment: WrapAlignment.center,
                                 crossAxisAlignment: WrapCrossAlignment.center,
-                                children: activeProjects.expand((proj) {
-                                  return [
+                                children: [
+                                  for (final proj in activeProjects) ...[
                                     SizedBox(
                                       width: itemWidth,
                                       child: ProjectDurationCard(project: proj, textColor: textColor),
@@ -215,8 +212,8 @@ class _HomePageState extends State<HomePage> {
                                       width: itemWidth,
                                       child: ProjectDeliverablesCard(projectId: proj['id'], stats: _controller.projectStats[proj['id']] ?? {}, textColor: textColor),
                                     ),
-                                  ];
-                                }).toList(),
+                                  ],
+                                ],
                               ),
                             );
                           },
@@ -247,11 +244,7 @@ class _SupportBpSelector extends StatelessWidget {
   final List<int> selectedBpIds;
   final ValueChanged<List<int>> onSelectionChanged;
 
-  const _SupportBpSelector({
-    required this.bPartners,
-    required this.selectedBpIds,
-    required this.onSelectionChanged,
-  });
+  const _SupportBpSelector({required this.bPartners, required this.selectedBpIds, required this.onSelectionChanged});
 
   void _showMultiSelectBps(BuildContext context) async {
     final List<int> tempSelectedBpIds = List.from(selectedBpIds);
@@ -293,10 +286,13 @@ class _SupportBpSelector extends StatelessWidget {
           ),
           actions: <Widget>[
             TextButton(child: const Text('Cancelar'), onPressed: () => Navigator.of(context).pop()),
-            CustomButton(text: 'Aceptar', onPressed: () {
-              onSelectionChanged(tempSelectedBpIds);
-              Navigator.of(context).pop();
-            }),
+            CustomButton(
+              text: 'Aceptar',
+              onPressed: () {
+                onSelectionChanged(tempSelectedBpIds);
+                Navigator.of(context).pop();
+              },
+            ),
           ],
         );
       },
@@ -320,8 +316,17 @@ class _SupportBpSelector extends StatelessWidget {
     return InkWell(
       onTap: () => _showMultiSelectBps(context),
       child: InputDecorator(
-        decoration: InputDecoration(border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16)),
-        child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: <Widget>[Expanded(child: Text(displayText, overflow: TextOverflow.ellipsis)), const Icon(Icons.arrow_drop_down, color: Colors.grey)]),
+        decoration: InputDecoration(
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0)),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: <Widget>[
+            Expanded(child: Text(displayText, overflow: TextOverflow.ellipsis)),
+            const Icon(Icons.arrow_drop_down, color: Colors.grey),
+          ],
+        ),
       ),
     );
   }

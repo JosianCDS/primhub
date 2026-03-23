@@ -6,57 +6,62 @@ import 'package:primhub/api/token.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 
 class ContractApi {
-  static Future<List<Map<String, dynamic>>> getSupportContracts({int? bPartnerId}) async {
-    // Si no hay un producto definido en la ficha, no podemos buscar horas.
+  static Future<List<Map<String, dynamic>>> getSupportContracts({int? bPartnerId, List<int>? bPartnerIds}) async {
     if (ProductChip.mProductID == null) {
       debugPrint('No se encontró ID de producto en la ficha. No se pueden obtener las horas contratadas.');
       return [];
     }
 
-    String filter = "IsSOTrx eq true and (DocStatus eq 'CO' or DocStatus eq 'CL' or DocStatus eq 'DR')";
+    // Nuevo enfoque: Consultar C_OrderLine directamente y expandir hacia arriba para obtener la información del Pedido.
+    final String orderLineEndpoint = "${Endpoint.baseUrl}/api/v1/models/C_OrderLine";
+    String filter = "M_Product_ID eq ${ProductChip.mProductID}";
 
-    if (bPartnerId != null) {
-      filter += " and C_BPartner_ID eq $bPartnerId";
-    } else if (Token.primConfig?.toLowerCase() != 'ad' && Token.primConfig?.toLowerCase() != 'sp') {
-      if (User.cBPartnerID != null) {
-        filter += " and C_BPartner_ID eq ${User.cBPartnerID}";
-      } else {
-        return [];
-      }
+    // Construimos el filtro de terceros para la consulta de líneas
+    List<int> finalBpIds = [];
+    if (bPartnerId != null) finalBpIds.add(bPartnerId);
+    if (bPartnerIds != null) finalBpIds.addAll(bPartnerIds);
+    if (finalBpIds.isEmpty && Token.primConfig?.toLowerCase() != 'ad' && Token.primConfig?.toLowerCase() != 'sp' && User.cBPartnerID != null) {
+      finalBpIds.add(User.cBPartnerID!);
     }
-
-    // Se añade el filtro 'any' para asegurar que solo traemos órdenes con el producto de soporte.
-    filter += " and C_OrderLine/any(l: l/M_Product_ID eq ${ProductChip.mProductID})";
-    // Se expanden las líneas para poder sumar las cantidades en el cliente.
-    final String queryUrl = "${Endpoint.order}?\$filter=$filter&\$expand=C_OrderLine(\$select=M_Product_ID,QtyEntered)&\$select=DocumentNo,DateOrdered,Created";
+    // NOTA: Si finalBpIds está vacío (admin, sin selección), no se filtra por tercero en las líneas, se filtra después.
+    final String queryUrl = "$orderLineEndpoint?\$filter=$filter&\$expand=C_Order_ID(\$select=DocumentNo,DateOrdered,Created,C_BPartner_ID,DocStatus,IsSOTrx)";
 
     try {
       final response = await http.get(Uri.parse(queryUrl), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
 
       if (response.statusCode == 200) {
         final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
-        final records = jsonResponse['records'] as List;
-        List<Map<String, dynamic>> contracts = [];
+        final lines = jsonResponse['records'] as List;
+        Map<int, Map<String, dynamic>> contracts = {};
 
-        for (var record in records) {
-          final lines = record['C_OrderLine'] as List?;
-          double totalHoursForThisOrder = 0.0;
-          if (lines != null) {
-            // Como el filtro en expand puede no funcionar, filtramos las líneas en el cliente.
-            for (var line in lines) {
-              if (line['M_Product_ID'] != null && line['M_Product_ID']['id'] == ProductChip.mProductID) {
-                totalHoursForThisOrder += (line['QtyEntered'] as num?)?.toDouble() ?? 0.0;
-              }
+        for (var line in lines) {
+          final orderInfo = line['C_Order_ID'];
+          if (orderInfo == null) continue;
+
+          final orderBpId = orderInfo['C_BPartner_ID']?['id'];
+          // Si se especificaron terceros, filtramos aquí
+          if (finalBpIds.isNotEmpty && !finalBpIds.contains(orderBpId)) {
+            continue;
+          }
+
+          final isSOTrx = orderInfo['IsSOTrx'] == true;
+          final docStatus = orderInfo['DocStatus'] is Map ? orderInfo['DocStatus']['id'] : orderInfo['DocStatus'];
+          final isValidStatus = docStatus == 'CO' || docStatus == 'CL' || docStatus == 'DR';
+
+          if (isSOTrx && isValidStatus) {
+            final orderId = orderInfo['id'];
+            final hoursInLine = (line['QtyEntered'] as num?)?.toDouble() ?? 0.0;
+
+            if (contracts.containsKey(orderId)) {
+              contracts[orderId]!['contractedHours'] += hoursInLine;
+            } else {
+              contracts[orderId] = {'id': orderId, 'DocumentNo': orderInfo['DocumentNo'], 'DateOrdered': orderInfo['DateOrdered'], 'contractedHours': hoursInLine, 'C_BPartner_ID': orderBpId};
             }
           }
-          // Solo añadir contratos que realmente tienen horas de soporte
-          if (totalHoursForThisOrder > 0) {
-            contracts.add({'id': record['id'], 'DocumentNo': record['DocumentNo'], 'DateOrdered': record['DateOrdered'], 'contractedHours': totalHoursForThisOrder});
-          }
         }
-        // Ordenar por fecha para aplicar consumo FIFO
-        contracts.sort((a, b) => (a['DateOrdered'] as String).compareTo(b['DateOrdered'] as String));
-        return contracts;
+        final result = contracts.values.toList();
+        result.sort((a, b) => (a['DateOrdered'] as String).compareTo(b['DateOrdered'] as String));
+        return result;
       }
     } catch (e) {
       debugPrint('Error loading contracted hours: $e');

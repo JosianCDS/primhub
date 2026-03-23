@@ -31,9 +31,7 @@ class HomeController extends ChangeNotifier {
   // Requests
   List<Map<String, dynamic>> recentRequests = [];
   List<dynamic> allRequests = [];
-  int openRequestsCount = 0;
-  int inProgressRequestsCount = 0;
-  int closedRequestsCount = 0;
+  Map<int, Map<String, int>> requestsStatsByBp = {};
 
   // Hours
   double consumedHours = 0.0;
@@ -44,12 +42,14 @@ class HomeController extends ChangeNotifier {
 
   // Admin Support Filter
   List<dynamic> supportBPartners = [];
-  int? selectedSupportBpId;
+  List<int> selectedSupportBpIds = [];
   // Static persistence (from original file)
   static List<int> savedSelectedProjectIds = [];
+  static List<int> savedSelectedSupportBpIds = [];
 
   HomeController() {
     selectedProjectIds = List.from(savedSelectedProjectIds);
+    selectedSupportBpIds = List.from(savedSelectedSupportBpIds);
     _loadCurrentUser();
   }
 
@@ -79,8 +79,9 @@ class HomeController extends ChangeNotifier {
 
   Future<void> loadSupportBPartners() async {
     supportBPartners = await ContractApi.getBPartnersWithSupportContracts();
-    if (supportBPartners.length == 1) {
-      selectedSupportBpId = supportBPartners.first['id'];
+    if (selectedSupportBpIds.isEmpty && supportBPartners.isNotEmpty) {
+      selectedSupportBpIds = supportBPartners.map<int>((bp) => bp['id'] as int).toList();
+      savedSelectedSupportBpIds = List.from(selectedSupportBpIds);
     }
     notifyListeners();
   }
@@ -153,21 +154,28 @@ class HomeController extends ChangeNotifier {
   }
 
   Future<void> loadRecentRequests() async {
-    String bpFilter = "";
-    int? bpIdForQuery;
+    List<Map<String, dynamic>> allBPartnerRequests = [];
+    List<int>? bpIdsForQuery;
 
     if (AccessControl.isAdmin) {
-      bpIdForQuery = selectedSupportBpId;
+      bpIdsForQuery = selectedSupportBpIds;
     } else {
-      bpIdForQuery = User.cBPartnerID;
+      if (User.cBPartnerID != null) {
+        bpIdsForQuery = [User.cBPartnerID!];
+      }
     }
 
-    if (bpIdForQuery != null) {
-      bpFilter = "C_BPartner_ID eq $bpIdForQuery";
+    if (bpIdsForQuery != null && bpIdsForQuery.isNotEmpty) {
+      // Hacemos una consulta por cada tercero seleccionado para asegurar que el filtro se aplique correctamente
+      // y luego combinamos los resultados.
+      for (final bpId in bpIdsForQuery) {
+        final requestsForBp = await fetchRequest(filter: "C_BPartner_ID eq $bpId");
+        allBPartnerRequests.addAll(requestsForBp);
+      }
+    } else if (AccessControl.isAdmin && (bpIdsForQuery == null || bpIdsForQuery.isEmpty)) {
+      // Si el admin no ha seleccionado a nadie, la lista de solicitudes estará vacía.
+      allBPartnerRequests = [];
     }
-
-    // Fetch ALL requests for the BPartner to calculate stats correctly
-    final allBPartnerRequests = await fetchRequest(filter: bpFilter);
 
     int open = 0; // Unused for now
     int inProgress = 0;
@@ -204,9 +212,6 @@ class HomeController extends ChangeNotifier {
       return dateB.compareTo(dateA);
     });
 
-    openRequestsCount = open;
-    inProgressRequestsCount = inProgress;
-    closedRequestsCount = closed;
     consumedHours = totalConsumed;
     allRequests = nonClosedRequests;
 
@@ -254,19 +259,28 @@ class HomeController extends ChangeNotifier {
   }
 
   Future<void> loadSupportContracts() async {
-    int? bpIdForQuery;
+    List<int>? bpIdsForQuery;
+
     if (AccessControl.isAdmin) {
-      bpIdForQuery = selectedSupportBpId;
+      bpIdsForQuery = selectedSupportBpIds;
+      if (bpIdsForQuery.isEmpty) {
+        supportContracts = [];
+        hasSupport = false;
+        notifyListeners();
+        return;
+      }
     } else {
-      bpIdForQuery = User.cBPartnerID;
+      if (User.cBPartnerID != null) {
+        bpIdsForQuery = [User.cBPartnerID!];
+      }
     }
 
-    final contracts = await ContractApi.getSupportContracts(bPartnerId: bpIdForQuery);
+    final allContracts = await ContractApi.getSupportContracts(bPartnerIds: bpIdsForQuery);
 
     // Distribuir el consumo total (calculado en loadRecentRequests) entre los contratos
     double remainingConsumed = consumedHours;
 
-    for (var contract in contracts) {
+    for (var contract in allContracts) {
       double contracted = contract['contractedHours'] ?? 0.0;
       if (remainingConsumed > 0) {
         if (remainingConsumed >= contracted) {
@@ -281,8 +295,8 @@ class HomeController extends ChangeNotifier {
       }
     }
 
-    supportContracts = contracts;
-    hasSupport = contracts.isNotEmpty;
+    supportContracts = allContracts;
+    hasSupport = allContracts.isNotEmpty;
 
     notifyListeners();
   }
@@ -387,10 +401,21 @@ class HomeController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void updateSelectedSupportBp(int? bpId) {
-    selectedSupportBpId = bpId;
+  void updateSelectedSupportBps(List<int> ids) {
+    selectedSupportBpIds = ids;
+    savedSelectedSupportBpIds = List.from(ids);
     loadSupportContracts();
     loadRecentRequests();
+    notifyListeners();
+  }
+
+  void setStateForEmptyRequests() {
+    requestsStatsByBp.clear();
+    consumedHours = 0.0;
+    allRequests = [];
+    recentRequests = [];
+    isLoading = false;
+    notifyListeners();
   }
 
   // Helper to update a request locally after edit

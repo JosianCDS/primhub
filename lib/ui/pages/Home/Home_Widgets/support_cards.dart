@@ -77,11 +77,12 @@ class SupportHoursCard extends StatelessWidget {
 }
 
 class SupportRequestsCard extends StatelessWidget {
+  final String? bpName;
   final int closedRequestsCount;
   final int inProgressRequestsCount;
   final Color textColor;
 
-  const SupportRequestsCard({super.key, required this.closedRequestsCount, required this.inProgressRequestsCount, required this.textColor});
+  const SupportRequestsCard({super.key, this.bpName, required this.closedRequestsCount, required this.inProgressRequestsCount, required this.textColor});
 
   @override
   Widget build(BuildContext context) {
@@ -99,6 +100,19 @@ class SupportRequestsCard extends StatelessWidget {
               child: const Icon(Icons.sync, color: Color.fromRGBO(217, 119, 8, 1), size: 36),
             ),
             const SizedBox(height: 16),
+            if (bpName != null) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                child: Text(
+                  bpName!,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: textColor.withOpacity(0.7)),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(height: 4),
+            ],
             Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.center,
