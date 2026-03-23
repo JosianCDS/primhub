@@ -13,8 +13,9 @@ class PhaseItem extends StatelessWidget {
   final Function(String type, int id, String name, String desc) onEdit;
   final Function(int phaseId, String name, String desc) onCreateTask;
   final bool isArchived;
+  final int projectId;
 
-  const PhaseItem({super.key, required this.phase, required this.initiallyExpanded, required this.statusIdMap, required this.priorityMap, required this.onRefresh, required this.onEdit, required this.onCreateTask, this.isArchived = false});
+  const PhaseItem({super.key, required this.phase, required this.initiallyExpanded, required this.statusIdMap, required this.priorityMap, required this.onRefresh, required this.onEdit, required this.onCreateTask, this.isArchived = false, required this.projectId});
 
   @override
   Widget build(BuildContext context) {
@@ -58,7 +59,7 @@ class PhaseItem extends StatelessWidget {
               ],
             )
           : null,
-      children: tasks.map((task) => TaskItem(task: task, initiallyExpanded: initiallyExpanded, statusIdMap: statusIdMap, priorityMap: priorityMap, onRefresh: onRefresh, onEdit: onEdit, isArchived: isArchived)).toList(),
+      children: tasks.map((task) => TaskItem(task: task, phase: phase, initiallyExpanded: initiallyExpanded, statusIdMap: statusIdMap, priorityMap: priorityMap, onRefresh: onRefresh, onEdit: onEdit, isArchived: isArchived, projectId: projectId)).toList(),
     );
   }
 }

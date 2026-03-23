@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
 import 'package:http/http.dart';
 import 'package:primhub/api/token.dart';
+import 'package:primhub/api/contract_api.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -91,10 +92,25 @@ Future<bool> finalizeLogin(String username, String password, Map<String, dynamic
         return false;
       }
 
-      if (User.cBPartnerID != null) {
+      if (Token.primConfig?.toLowerCase() == 'ad' || Token.primConfig?.toLowerCase() == 'sp') {
+        // For Admin or Support users, we assume they can see support features.
+        // Set the product ID so subsequent API calls work.
+        ProductChip.mProductID = 1000816;
+        hasSupport = true; // Let's assume true, the home controller will load the actual data.
+        hasProject = true;
+      } else if (User.cBPartnerID != null) {
+        // For other users (like Project users)
         await getProductChip();
-        hasSupport = ProductChip.mProductID != null;
+        if (ProductChip.mProductID != null) {
+          final contracts = await ContractApi.getSupportContracts(bPartnerId: User.cBPartnerID);
+          hasSupport = contracts.isNotEmpty;
+        } else {
+          hasSupport = false;
+        }
         hasProject = await checkProjects();
+      } else {
+        hasSupport = false;
+        hasProject = false;
       }
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('has_support', hasSupport);
@@ -102,9 +118,7 @@ Future<bool> finalizeLogin(String username, String password, Map<String, dynamic
       // Éxito, el token y datos de usuario ya se guardaron.
       return true;
     }
-  } catch (e) {
-    debugPrint('Error al finalizar el inicio de sesión: $e');
-  }
+  } catch (e) {}
   return false;
 }
 
@@ -134,9 +148,7 @@ Future<int?> getPartnerID({required int userId}) async {
       final cBpartnerId = records.isNotEmpty ? records[0]['C_BPartner_ID']['id'] : null;
       return cBpartnerId;
     }
-  } catch (e) {
-    debugPrint('Error loading contracted hours: $e');
-  }
+  } catch (e) {}
   return null;
 }
 
@@ -151,16 +163,14 @@ Future<bool> getPrimConfig({required int rolId, required BuildContext context}) 
 
       return Token.primConfig != null;
     }
-  } catch (e) {
-    debugPrint('Error loading contracted hours: $e');
-  }
+  } catch (e) {}
   return false;
 }
 
 //Ficha de Producto
 Future<void> getProductChip() async {
   try {
-    final response = await get(Uri.parse('${Endpoint.productChip}?\$filter=C_BPartner_ID eq ${User.cBPartnerID} and M_Product_ID eq 1000831&\$orderBy=Created desc'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+    final response = await get(Uri.parse('${Endpoint.productChip}?\$filter=C_BPartner_ID eq ${User.cBPartnerID} and M_Product_ID eq 1000816&\$orderBy=Created desc'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
     if (response.statusCode == 200) {
       final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
       final records = jsonResponse['records'] as List;
@@ -172,9 +182,7 @@ Future<void> getProductChip() async {
 
       ProductChip.iD = records.isNotEmpty ? records[0]['id'] : null;
     }
-  } catch (e) {
-    debugPrint('Error loading contracted hours: $e');
-  }
+  } catch (e) {}
 }
 
 // Verificar si tiene proyectos
@@ -187,8 +195,6 @@ Future<bool> checkProjects() async {
       final records = jsonResponse['records'] as List;
       return records.isNotEmpty;
     }
-  } catch (e) {
-    debugPrint('Error checking projects: $e');
-  }
+  } catch (e) {}
   return false;
 }

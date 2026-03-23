@@ -7,7 +7,7 @@ import 'package:primhub/api/access_control.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
-import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
+import 'package:printing/printing.dart';
 
 class FilePreviewManager {
   static void showPreview(BuildContext context, Map<String, dynamic> details, String tableName, String name, VoidCallback onDelete, VoidCallback onStatusChanged) {
@@ -40,7 +40,7 @@ class FilePreviewManager {
                                 constraints: const BoxConstraints(maxHeight: 400),
                                 child: Image.memory(snapshot.data!, fit: BoxFit.contain),
                               );
-                            if (isPdf) return SizedBox(height: 500, child: SfPdfViewer.memory(snapshot.data!));
+                            if (isPdf) return SizedBox(height: 500, child: PdfPreview(build: (format) async => snapshot.data!, allowPrinting: false, allowSharing: false, canChangeOrientation: false, canChangePageFormat: false, canDebug: false));
                             if (isCsv) return _buildCsvPreview(snapshot.data!);
                             if (isText) return _buildTextPreview(snapshot.data!);
                           }

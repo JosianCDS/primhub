@@ -4,8 +4,7 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   desktop_drop
-  syncfusion_pdfviewer_windows
-  url_launcher_windows
+  printing
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST

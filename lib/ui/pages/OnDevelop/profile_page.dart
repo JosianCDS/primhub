@@ -80,18 +80,20 @@ class _ProfilePageState extends State<ProfilePage> {
             final imgData = json.decode(utf8.decode(imgResponse.bodyBytes));
             final binaryData = imgData['BinaryData'];
             if (binaryData is String && binaryData.isNotEmpty) {
-              final bytes = base64Decode(binaryData);
-              User.profileImageBytes = bytes; // Guardar en caché
-              setState(() {
-                _profileImageBytes = bytes;
-              });
+              try {
+                final cleanBase64 = binaryData.replaceAll(RegExp(r'\s+'), '');
+                final bytes = base64Decode(cleanBase64);
+                User.profileImageBytes = bytes; // Guardar en caché
+                if (mounted)
+                  setState(() {
+                    _profileImageBytes = bytes;
+                  });
+              } catch (_) {}
             }
           }
         }
       }
-    } catch (e) {
-      debugPrint('Error loading partner logo: $e');
-    }
+    } catch (e) {}
   }
 
   void _loadUserInfo() {
@@ -100,9 +102,7 @@ class _ProfilePageState extends State<ProfilePage> {
       setState(() {
         _userInfo = payload;
       });
-    } catch (e) {
-      debugPrint('Error decoding token: $e');
-    }
+    } catch (e) {}
   }
 
   @override
@@ -139,6 +139,11 @@ class _ProfilePageState extends State<ProfilePage> {
                       radius: 50,
                       backgroundColor: const Color(0xFF4F47E5),
                       backgroundImage: _profileImageBytes != null ? MemoryImage(_profileImageBytes!) : null,
+                      onBackgroundImageError: _profileImageBytes != null
+                          ? (exception, stackTrace) {
+                              if (mounted) setState(() => _profileImageBytes = null);
+                            }
+                          : null,
                       child: _profileImageBytes != null ? null : Text(clientName.isNotEmpty ? clientName[0].toUpperCase() : (username.isNotEmpty ? username[0].toUpperCase() : 'U'), style: const TextStyle(fontSize: 40, color: Colors.white)),
                     ),
                   ],

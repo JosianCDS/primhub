@@ -1,15 +1,23 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart';
+import 'package:primhub/api/api_utils.dart';
 import 'package:primhub/api/token.dart';
 
 Future<List<Map<String, dynamic>>> fetchAttachments({required int recordID, required String tableName}) async {
   List<Map<String, dynamic>> allRecords = [];
 
-  String token = Token.auth!;
-
   try {
-    final response = await get(Uri.parse('$tableName/$recordID/attachments'), headers: {'Content-Type': 'application/json; charset=UTF-8', 'Authorization': token});
+    var response = await get(Uri.parse('$tableName/$recordID/attachments'), headers: {'Content-Type': 'application/json; charset=UTF-8', 'Authorization': Token.token});
+
+    if (response.statusCode == 401) {
+      final refreshed = await handleTokenRefresh();
+      if (refreshed) {
+        response = await get(Uri.parse('$tableName/$recordID/attachments'), headers: {'Content-Type': 'application/json; charset=UTF-8', 'Authorization': Token.token});
+      } else {
+        return [];
+      }
+    }
 
     if (response.statusCode == 200) {
       final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
@@ -26,7 +34,6 @@ Future<List<Map<String, dynamic>>> fetchAttachments({required int recordID, requ
 
     return allRecords;
   } catch (e) {
-    debugPrint('Excepción al obtener los adjuntos: $e');
     return [];
   }
 }

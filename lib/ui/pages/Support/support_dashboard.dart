@@ -1,99 +1,233 @@
 import 'package:flutter/material.dart';
+import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/contract_api.dart';
+import 'package:primhub/api/token.dart';
+import 'package:primhub/api/admin_view_mode.dart';
+import 'package:primhub/api/validation_manager.dart';
 import 'package:primhub/ui/Shared_Custom/cardcustom.dart';
 import 'package:primhub/ui/Shared_Custom/custom_container.dart';
 import 'package:primhub/ui/Shared_Custom/custom_table.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
+import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import '../../widgets/custom_drawer.dart';
 import 'package:primhub/ui/widgets/duration_formatter.dart';
 import 'Requests/request_functions.dart';
+import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 
-class SupportPage extends StatefulWidget {
-  const SupportPage({super.key});
+class SupportDashboardPage extends StatefulWidget {
+  const SupportDashboardPage({super.key});
 
   @override
-  State<SupportPage> createState() => _SupportPageState();
+  State<SupportDashboardPage> createState() => _SupportDashboardPageState();
 }
 
-class _SupportPageState extends State<SupportPage> {
+class _SupportDashboardPageState extends State<SupportDashboardPage> {
   List<Map<String, dynamic>> _supportRecords = [];
   bool _isLoading = true;
   double _totalConsumedHours = 0.0;
   double? _contractedHours;
 
+  bool _isInit = true;
+
+  // Filtro de Tercero
+  List<Map<String, dynamic>> _bPartners = [];
+  Map<String, int> _statusIdMap = {};
+  int? _selectedBpId;
+  final _adminViewModeManager = AdminViewModeManager();
+
   @override
   void initState() {
     super.initState();
-    _initData();
+    // La inicialización se mueve a didChangeDependencies para asegurar que el contexto esté listo
+    _adminViewModeManager.addListener(_onViewModeChanged);
+  }
+
+  void _onViewModeChanged() {
+    _refreshData();
+  }
+
+  @override
+  void dispose() {
+    _adminViewModeManager.removeListener(_onViewModeChanged);
+    super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_isInit) {
+      // Para administradores es mejor iniciar sin filtro (Todos)
+      _selectedBpId = AccessControl.isAdmin ? null : User.cBPartnerID;
+      _initData();
+      _isInit = false;
+    }
   }
 
   Future<void> _initData() async {
+    if (AccessControl.isAdmin && _bPartners.isEmpty) {
+      _bPartners = await ContractApi.getBPartnersWithSupportContracts();
+      // Si el ID seleccionado no está en la lista de contratos, lo limpiamos
+      if (_selectedBpId != null && !_bPartners.any((bp) => bp['id'] == _selectedBpId)) {
+        _selectedBpId = null;
+      }
+    }
+    _statusIdMap = await fetchStatuses();
+    await _refreshData();
+  }
+
+  Future<void> _refreshData() async {
+    setState(() => _isLoading = true);
     await _loadContractedHours();
     await _loadSupportData();
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _loadSupportData() async {
-    final requests = await fetchRequest();
-
-    double total = 0.0;
-    List<Map<String, dynamic>> validRequests = [];
-
-    for (var req in requests) {
-      // Solo mostrar y sumar si está cerrado (Final Close)
-      if (req['R_Status_Name'] != '9_Final Close' && req['R_Status_ID'] != 103) continue;
-
-      // El consumo es la cantidad planeada (QtyPlan) una vez cerrado
-      double hours = (req['QtyPlan'] as num?)?.toDouble() ?? 0.0;
-
-      if (hours > 0) {
-        total += hours;
-        validRequests.add(req);
-      }
+    String? filter;
+    if (_selectedBpId != null) {
+      filter = "C_BPartner_ID eq $_selectedBpId";
+    } else if (!AccessControl.isAdmin && User.cBPartnerID != null) {
+      // Si no es admin y tiene BP, filtrar por defecto
+      filter = "C_BPartner_ID eq ${User.cBPartnerID}";
     }
+    // Si es admin y _selectedBpId es null, fetchRequest sin filtro traerá todo (o paginado),
+    // pero para gestión de horas global podría ser mucho.
+    // El requerimiento dice "filtro como el de my request... del tercero seleccionado".
+    // Si no hay seleccionado, mostramos todo lo que traiga.
+
+    final rawRequests = await fetchRequest(filter: filter);
+
+    // Usar la misma función de procesamiento que my_requests.dart para consistencia
+    final processedData = await processRequests(rawRequests, _statusIdMap);
+
+    // Filtrar solo las solicitudes cerradas (espejo de la bitácora)
+    final closedRequests = (processedData['requests'] as List<Map<String, dynamic>>).where((req) {
+      final status = req['status'] as String?;
+      final statusId = req['statusId'] as int?;
+      return status == '9_Final Close' || statusId == 103;
+    }).toList();
+
+    // Ordenar por fecha descendente
+    closedRequests.sort((a, b) {
+      final timeA = a['time'] ?? '';
+      final timeB = b['time'] ?? '';
+      return timeB.compareTo(timeA);
+    });
 
     if (mounted) {
       setState(() {
-        _supportRecords = validRequests;
-        _totalConsumedHours = total;
-        _isLoading = false;
+        _supportRecords = closedRequests;
+        _totalConsumedHours = (processedData['consumedHours'] as num?)?.toDouble() ?? 0.0;
       });
     }
   }
 
   Future<void> _loadContractedHours() async {
-    final total = await ContractApi.getContractedHours();
-    if (mounted && total != null) {
+    final contracts = await ContractApi.getSupportContracts(bPartnerId: _selectedBpId);
+
+    if (mounted) {
+      final double totalHours = contracts.fold(0.0, (sum, contract) => sum + ((contract['contractedHours'] as num?)?.toDouble() ?? 0.0));
       setState(() {
-        _contractedHours = total;
+        _contractedHours = totalHours;
       });
     }
   }
 
+  Future<void> _showExceptionDialog() async {
+    if (!AccessControl.isAdmin) return;
+
+    final Set<int> tempSelectedIds = Set.from(ValidationManager.hourValidationExceptions);
+    List<dynamic> allBPartners = [];
+    bool isFetching = true;
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        String searchQuery = '';
+        return CustomModal(
+          title: 'Gestionar Excepciones de Horas',
+          width: 500,
+          content: StatefulBuilder(
+            builder: (BuildContext context, StateSetter setState) {
+              if (isFetching && allBPartners.isEmpty) {
+                ProjectsLogic().fetchBPartners().then((bps) {
+                  if (context.mounted) {
+                    setState(() {
+                      allBPartners = bps;
+                      isFetching = false;
+                    });
+                  }
+                });
+              }
+
+              final filteredBps = allBPartners.where((bp) => (bp['Name'] ?? '').toString().toLowerCase().contains(searchQuery.toLowerCase())).toList();
+
+              return SizedBox(
+                height: 400,
+                child: isFetching
+                    ? const Center(child: CircularProgressIndicator())
+                    : Column(
+                        children: [
+                          TextField(
+                            decoration: InputDecoration(
+                              hintText: 'Buscar tercero...',
+                              prefixIcon: const Icon(Icons.search),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            ),
+                            onChanged: (val) => setState(() => searchQuery = val),
+                          ),
+                          const SizedBox(height: 10),
+                          Expanded(
+                            child: filteredBps.isEmpty
+                                ? const Center(child: Text('No se encontraron terceros.'))
+                                : ListView.builder(
+                                    itemCount: filteredBps.length,
+                                    itemBuilder: (context, index) {
+                                      final bp = filteredBps[index];
+                                      final rawId = bp['id'] ?? bp['C_BPartner_ID'];
+                                      final intId = rawId is int ? rawId : int.tryParse(rawId.toString()) ?? 0;
+                                      return CheckboxListTile(title: Text(bp['Name'] ?? 'Tercero $intId'), value: tempSelectedIds.contains(intId), onChanged: (bool? value) => setState(() => value == true ? tempSelectedIds.add(intId) : tempSelectedIds.remove(intId)));
+                                    },
+                                  ),
+                          ),
+                        ],
+                      ),
+              );
+            },
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
+            CustomButton(
+              text: 'Guardar',
+              onPressed: () {
+                ValidationManager.setExceptions(tempSelectedIds);
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   void _showRequestDetails(Map<String, dynamic> record) {
-    final TextEditingController summaryController = TextEditingController(text: record['Summary'] ?? '');
-    final TextEditingController dateStartController = TextEditingController(text: record['DateStartPlan'] ?? '');
-    final TextEditingController dateCompleteController = TextEditingController(text: record['DateCompletePlan'] ?? '');
+    final TextEditingController summaryController = TextEditingController(text: record['description'] ?? '');
+    final TextEditingController dateStartController = TextEditingController(text: record['dateStartPlan'] ?? '');
+    final TextEditingController dateCompleteController = TextEditingController(text: record['dateCompletePlan'] ?? '');
+    final TextEditingController startTimeController = TextEditingController(text: record['startTime'] ?? '');
+    final TextEditingController endTimeController = TextEditingController(text: record['endTime'] ?? '');
 
-    String extractTime(String? val) {
-      if (val == null || val.isEmpty) return '';
-      String t = val;
-      if (t.contains('T')) {
-        t = t.split('T')[1];
-      }
-      return t.replaceAll('Z', '');
-    }
-
-    final TextEditingController startTimeController = TextEditingController(text: extractTime(record['StartTime']));
-    final TextEditingController endTimeController = TextEditingController(text: extractTime(record['EndTime']));
-
-    final double h = (record['QtyPlan'] as num?)?.toDouble() ?? 0.0;
+    final double h = double.tryParse(record['qtyPlan']?.toString() ?? '0.0') ?? 0.0;
     final TextEditingController qtyPlanController = TextEditingController(text: DurationFormatter.format(h));
 
     showDialog(
       context: context,
       builder: (context) => CustomModal(
-        title: 'Detalle del Ticket ${record['DocumentNo'] ?? record['id']}',
+        title: 'Detalle del Ticket ${record['id']}',
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -143,12 +277,72 @@ class _SupportPageState extends State<SupportPage> {
       appBar: AppBar(
         title: const Text('Gestión de Horas de Soporte', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
         actions: [
+          if (AccessControl.isAdmin)
+            PopupMenuButton<AdminViewMode>(
+              tooltip: 'Cambiar modo de vista',
+              onSelected: (AdminViewMode mode) {
+                _adminViewModeManager.saveMode(mode);
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.admin_panel_settings),
+                    const SizedBox(width: 8),
+                    Text(_adminViewModeManager.currentMode == AdminViewMode.support ? 'Modo Soporte' : (_adminViewModeManager.currentMode == AdminViewMode.project ? 'Modo Proyecto' : 'Modo Mixto'), style: const TextStyle(fontWeight: FontWeight.bold)),
+                    const Icon(Icons.arrow_drop_down),
+                  ],
+                ),
+              ),
+              itemBuilder: (BuildContext context) {
+                final current = _adminViewModeManager.currentMode;
+                final colorScheme = Theme.of(context).colorScheme;
+                PopupMenuItem<AdminViewMode> buildItem(AdminViewMode mode, String text) {
+                  final isSelected = current == mode;
+                  return PopupMenuItem<AdminViewMode>(
+                    value: mode,
+                    child: Container(
+                      width: double.infinity,
+                      decoration: BoxDecoration(color: isSelected ? colorScheme.primary.withOpacity(0.1) : Colors.transparent, borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      child: Row(
+                        children: [
+                          Text(
+                            text,
+                            style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? colorScheme.primary : colorScheme.onSurface),
+                          ),
+                          if (isSelected) const Spacer(),
+                          if (isSelected) Icon(Icons.check, size: 18, color: colorScheme.primary),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+
+                return [buildItem(AdminViewMode.mixed, 'Modo Mixto'), buildItem(AdminViewMode.support, 'Modo Soporte'), buildItem(AdminViewMode.project, 'Modo Proyecto')];
+              },
+            ),
+          if (AccessControl.isAdmin)
+            InkWell(
+              onTap: _showExceptionDialog,
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16.0),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.shield_outlined),
+                    SizedBox(width: 8),
+                    Text('Excepción de Horas', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+            ),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Refrescar',
             onPressed: () {
-              setState(() => _isLoading = true);
-              _initData();
+              _refreshData();
             },
           ),
         ],
@@ -283,29 +477,59 @@ class _SupportPageState extends State<SupportPage> {
               CustomContainer(
                 title: 'Registro de Horas Consumidas',
                 child: _isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : CustomTable(
-                        columns: const [
-                          DataColumn(label: Text('Ticket Relacionado')),
-                          DataColumn(label: Text('Actividad/Tarea')),
-                          DataColumn(label: Text('Fecha de inicio Planeada')),
-                          DataColumn(label: Text('Fecha de Terminacion Planeada')),
-                          DataColumn(label: Text('Horas Consumidas')),
-                        ],
-                        rows: _supportRecords.map((record) {
-                          final double h = (record['QtyPlan'] as num?)?.toDouble() ?? 0.0;
-                          final hours = DurationFormatter.format(h);
-                          return DataRow(
-                            onSelectChanged: (value) => _showRequestDetails(record),
-                            cells: [
-                              DataCell(Text(record['DocumentNo'] ?? record['id'].toString())),
-                              DataCell(SizedBox(width: 300, child: Text((record['Summary'] != null && record['Summary'].length > 80) ? '${record['Summary'].substring(0, 80)}...' : record['Summary'] ?? ''))),
-                              DataCell(Text(record['DateStartPlan'] ?? '')),
-                              DataCell(Text(record['DateCompletePlan'] ?? '')),
-                              DataCell(Text(hours)),
+                    ? const Padding(
+                        padding: EdgeInsets.all(50.0),
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (AccessControl.isAdmin)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 16.0),
+                              child: SizedBox(
+                                width: 300,
+                                child: CustomDropdown<int?>(
+                                  label: 'Filtrar por Tercero',
+                                  // Validación estricta para evitar el AssertionError del DropdownButton
+                                  value: _bPartners.any((bp) => bp['id'] == _selectedBpId) ? _selectedBpId : null,
+                                  onChanged: (val) {
+                                    setState(() => _selectedBpId = val);
+                                    _refreshData();
+                                  },
+                                  items: [
+                                    const DropdownMenuItem<int?>(value: null, child: Text('Todos')),
+                                    ..._bPartners.map<DropdownMenuItem<int?>>((bp) {
+                                      return DropdownMenuItem<int?>(value: bp['id'], child: Text(bp['Name'] ?? 'Sin Nombre'));
+                                    }),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          CustomTable(
+                            columns: const [
+                              DataColumn(label: Text('Ticket Relacionado')),
+                              DataColumn(label: Text('Actividad/Tarea')),
+                              DataColumn(label: Text('Fecha de inicio Planeada')),
+                              DataColumn(label: Text('Fecha de Terminacion Planeada')),
+                              DataColumn(label: Text('Horas Consumidas')),
                             ],
-                          );
-                        }).toList(),
+                            rows: _supportRecords.map((record) {
+                              final double h = double.tryParse(record['qtyPlan']?.toString() ?? '0.0') ?? 0.0;
+                              final hours = DurationFormatter.format(h);
+                              return DataRow(
+                                onSelectChanged: (value) => _showRequestDetails(record),
+                                cells: [
+                                  DataCell(Text(record['id']?.toString() ?? '')),
+                                  DataCell(SizedBox(width: 300, child: Text((record['description'] != null && record['description'].length > 80) ? '${record['description'].substring(0, 80)}...' : record['description'] ?? ''))),
+                                  DataCell(Text(record['dateStartPlan'] ?? '')),
+                                  DataCell(Text(record['dateCompletePlan'] ?? '')),
+                                  DataCell(Text(hours)),
+                                ],
+                              );
+                            }).toList(),
+                          ),
+                        ],
                       ),
               ),
             ],

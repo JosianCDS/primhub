@@ -1,9 +1,10 @@
-// /home/alexander/Descargas/primhub/lib/ui/pages/Support/my_requests.dart
-
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/contract_api.dart';
+import 'package:primhub/api/admin_view_mode.dart';
 import 'package:primhub/api/token.dart';
+import 'package:primhub/api/validation_manager.dart';
 import 'package:primhub/ui/pages/Support/calendar.dart';
 import 'package:primhub/ui/pages/Support/Requests/create_request_dialog.dart';
 import 'package:primhub/ui/pages/Support/Requests/edit_request_dialog.dart';
@@ -14,6 +15,8 @@ import 'package:primhub/ui/pages/Support/Request_Widgets/requests_data_table.dar
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import '../../../widgets/custom_drawer.dart';
+import 'package:primhub/ui/pages/Home/Home_Controller/home_controller.dart';
+import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 
 class MyRequestsPage extends StatefulWidget {
   const MyRequestsPage({super.key});
@@ -43,57 +46,145 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   String? _selectedUser;
   final TextEditingController _searchController = TextEditingController();
 
+  int? _bpId;
+  List<Map<String, dynamic>> _bPartners = [];
+
+  final _adminViewModeManager = AdminViewModeManager();
+
   @override
   void initState() {
     super.initState();
-    _initData();
     _searchController.addListener(() => setState(() => _currentPage = 0));
+    _adminViewModeManager.addListener(_onViewModeChanged);
   }
 
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _initData() async {
-    final total = await ContractApi.getContractedHours();
-    final statuses = await fetchStatuses();
-    if (mounted) {
-      setState(() {
-        _contractedHours = total;
-        _statusIdMap = statuses;
-      });
-    }
-    await _refreshRequest();
+  void _onViewModeChanged() {
+    _initData();
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_isInit) {
-      final args = ModalRoute.of(context)?.settings.arguments;
-      if (args is Map && args['showHistory'] == true) _showHistory = true;
+      Object? extra;
+      try {
+        extra = GoRouterState.of(context).extra;
+      } catch (_) {}
+
+      final args = extra ?? ModalRoute.of(context)?.settings.arguments;
+
+      if (args is Map) {
+        if (args['showHistory'] == true) _showHistory = true;
+        if (args['bpId'] != null) _bpId = args['bpId'];
+      }
       _isInit = false;
+      _initData();
     }
   }
 
-  Future<void> _refreshRequest() async {
-    // OPTIMIZACIÓN: Cargar solo las solicitudes del año seleccionado por defecto
-    String filter = "Created ge '${_selectedYear}-01-01T00:00:00Z' and Created le '${_selectedYear}-12-31T23:59:59Z'";
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _adminViewModeManager.removeListener(_onViewModeChanged);
+    super.dispose();
+  }
 
-    if (AccessControl.isProject && User.cBPartnerID != null) {
-      filter += " and C_BPartner_ID eq ${User.cBPartnerID}";
+  Future<void> _initData() async {
+    List<int>? bpFilter = _bpId != null ? [_bpId!] : null;
+    if (AccessControl.isAdmin) {
+      _bPartners = await ContractApi.getBPartnersWithSupportContracts();
     }
-    final requests = await fetchRequest(filter: filter);
-    final processed = await processRequests(requests, _statusIdMap);
+
+    final contracts = await ContractApi.getSupportContracts(bPartnerIds: bpFilter);
+    final double total = contracts.fold(0.0, (sum, contract) => sum + ((contract['contractedHours'] as num?)?.toDouble() ?? 0.0));
+
+    final statuses = await fetchStatuses();
+    if (mounted) {
+      setState(() {
+        _contractedHours = total > 0 ? total : null;
+        _statusIdMap = statuses;
+      });
+    }
+    await _refreshRequest();
+  }
+
+  Future<void> _refreshRequest() async {
+    List<dynamic> allFetchedRequests = [];
+
+    // 1. Fetch all requests based on the initial context (admin home selection, user, or nav args)
+    if (_bpId != null) {
+      allFetchedRequests = await fetchRequest(filter: "C_BPartner_ID eq $_bpId");
+    } else if (AccessControl.isAdmin) {
+      // Para admin, usar los BPs seleccionados en el Home, o todos si no hay selección.
+      final List<int> selectedBPs = HomeController.savedSelectedSupportBpIds;
+      if (selectedBPs.isNotEmpty) {
+        String bpFilter = selectedBPs.map((id) => "C_BPartner_ID eq $id").join(" or ");
+        allFetchedRequests = await fetchRequest(filter: "($bpFilter)");
+      } else {
+        // Si no hay BPs seleccionados en el home, el admin ve todas las solicitudes.
+        allFetchedRequests = await fetchRequest();
+      }
+    } else {
+      if (User.cBPartnerID != null) {
+        allFetchedRequests = await fetchRequest(filter: "C_BPartner_ID eq ${User.cBPartnerID}");
+      } else {
+        allFetchedRequests = await fetchRequest();
+      }
+    }
+
+    // === LA CLAVE: Filtrar las que NO son de proyecto ===
+    final supportRequestsOnly = allFetchedRequests.where((req) {
+      final recordUU = req['Record_UU'];
+      return recordUU == null || recordUU.toString().isEmpty;
+    }).toList();
+
+    // 2. Process ALL support requests to populate the filter bar and serve as the base for the table
+    final processedAll = await processRequests(supportRequestsOnly, _statusIdMap);
+
+    // 3. Calculate stats based on the UI filter (_selectedBP)
+    double contractedForStats;
+    double consumedForStats;
+    double estimatedForStats;
+
+    if (_selectedBP != null) {
+      final requestsForStats = supportRequestsOnly.where((req) {
+        final bpName = req['C_BPartner_ID']?['identifier'] ?? '';
+        return bpName == _selectedBP;
+      }).toList();
+      final processedStats = await processRequests(requestsForStats, _statusIdMap);
+      consumedForStats = processedStats['consumedHours'];
+      estimatedForStats = processedStats['estimatedHours'];
+
+      // Recalculate contracted hours for the selected BP
+      final foundBp = _bPartners.firstWhere((bp) => bp['Name'] == _selectedBP, orElse: () => {});
+      int? bpIdForContract;
+      if (foundBp.isNotEmpty) {
+        bpIdForContract = foundBp['id'];
+      } else if (User.cBPartnerID != null && User.name == _selectedBP) {
+        bpIdForContract = User.cBPartnerID;
+      }
+
+      List<int>? contractBpFilter = bpIdForContract != null ? [bpIdForContract] : null;
+      final contracts = await ContractApi.getSupportContracts(bPartnerIds: contractBpFilter);
+      contractedForStats = contracts.fold(0.0, (sum, contract) => sum + ((contract['contractedHours'] as num?)?.toDouble() ?? 0.0));
+    } else {
+      // If no BP is selected in the filter, stats are based on the full list
+      consumedForStats = processedAll['consumedHours'];
+      estimatedForStats = processedAll['estimatedHours'];
+
+      // Contracted hours should also be for the full context
+      List<int>? contractBpFilter = _bpId != null ? [_bpId!] : (AccessControl.isAdmin ? null : (User.cBPartnerID != null ? [User.cBPartnerID!] : null));
+      final contracts = await ContractApi.getSupportContracts(bPartnerIds: contractBpFilter);
+      contractedForStats = contracts.fold(0.0, (sum, contract) => sum + ((contract['contractedHours'] as num?)?.toDouble() ?? 0.0));
+    }
 
     if (mounted) {
       setState(() {
-        _rawRequests = processed['rawRequests'];
-        _requests = processed['requests'];
-        _consumedHours = processed['consumedHours'];
-        _estimatedHours = processed['estimatedHours'];
+        _rawRequests = processedAll['rawRequests'];
+        _requests = processedAll['requests']; // Full list for UI
+        _consumedHours = consumedForStats; // Filtered for stats
+        _estimatedHours = estimatedForStats; // Filtered for stats
+        _contractedHours = contractedForStats > 0 ? contractedForStats : null; // Filtered for stats
         _isLoading = false;
       });
     }
@@ -136,6 +227,85 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     showDialog(
       context: context,
       builder: (context) => EditRequestDialog(request: req, statusIdMap: _statusIdMap, priorityMap: priorityMap, onSave: _initData, onDelete: () => _deleteRequest(req['realId'])),
+    );
+  }
+
+  Future<void> _showExceptionDialog() async {
+    if (!AccessControl.isAdmin) return;
+
+    final Set<int> tempSelectedIds = Set.from(ValidationManager.hourValidationExceptions);
+    List<dynamic> allBPartners = [];
+    bool isFetching = true;
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        String searchQuery = '';
+        return CustomModal(
+          title: 'Gestionar Excepciones de Horas',
+          width: 500,
+          content: StatefulBuilder(
+            builder: (BuildContext context, StateSetter setState) {
+              if (isFetching && allBPartners.isEmpty) {
+                ProjectsLogic().fetchBPartners().then((bps) {
+                  if (context.mounted) {
+                    setState(() {
+                      allBPartners = bps;
+                      isFetching = false;
+                    });
+                  }
+                });
+              }
+
+              final filteredBps = allBPartners.where((bp) => (bp['Name'] ?? '').toString().toLowerCase().contains(searchQuery.toLowerCase())).toList();
+
+              return SizedBox(
+                height: 400,
+                child: isFetching
+                    ? const Center(child: CircularProgressIndicator())
+                    : Column(
+                        children: [
+                          TextField(
+                            decoration: InputDecoration(
+                              hintText: 'Buscar tercero...',
+                              prefixIcon: const Icon(Icons.search),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            ),
+                            onChanged: (val) => setState(() => searchQuery = val),
+                          ),
+                          const SizedBox(height: 10),
+                          Expanded(
+                            child: filteredBps.isEmpty
+                                ? const Center(child: Text('No se encontraron terceros.'))
+                                : ListView.builder(
+                                    itemCount: filteredBps.length,
+                                    itemBuilder: (context, index) {
+                                      final bp = filteredBps[index];
+                                      final rawId = bp['id'] ?? bp['C_BPartner_ID'];
+                                      final intId = rawId is int ? rawId : int.tryParse(rawId.toString()) ?? 0;
+                                      return CheckboxListTile(title: Text(bp['Name'] ?? 'Tercero $intId'), value: tempSelectedIds.contains(intId), onChanged: (bool? value) => setState(() => value == true ? tempSelectedIds.add(intId) : tempSelectedIds.remove(intId)));
+                                    },
+                                  ),
+                          ),
+                        ],
+                      ),
+              );
+            },
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
+            CustomButton(
+              text: 'Guardar',
+              onPressed: () {
+                ValidationManager.setExceptions(tempSelectedIds);
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Excepciones de validación de horas actualizadas.')));
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -187,6 +357,67 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
             ],
           ),
           actions: [
+            if (AccessControl.isAdmin)
+              PopupMenuButton<AdminViewMode>(
+                tooltip: 'Cambiar modo de vista',
+                onSelected: (AdminViewMode mode) {
+                  _adminViewModeManager.saveMode(mode);
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.admin_panel_settings),
+                      const SizedBox(width: 8),
+                      Text(_adminViewModeManager.currentMode == AdminViewMode.support ? 'Modo Soporte' : (_adminViewModeManager.currentMode == AdminViewMode.project ? 'Modo Proyecto' : 'Modo Mixto'), style: const TextStyle(fontWeight: FontWeight.bold)),
+                      const Icon(Icons.arrow_drop_down),
+                    ],
+                  ),
+                ),
+                itemBuilder: (BuildContext context) {
+                  final current = _adminViewModeManager.currentMode;
+                  final colorScheme = Theme.of(context).colorScheme;
+                  PopupMenuItem<AdminViewMode> buildItem(AdminViewMode mode, String text) {
+                    final isSelected = current == mode;
+                    return PopupMenuItem<AdminViewMode>(
+                      value: mode,
+                      child: Container(
+                        width: double.infinity,
+                        decoration: BoxDecoration(color: isSelected ? colorScheme.primary.withOpacity(0.1) : Colors.transparent, borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        child: Row(
+                          children: [
+                            Text(
+                              text,
+                              style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? colorScheme.primary : colorScheme.onSurface),
+                            ),
+                            if (isSelected) const Spacer(),
+                            if (isSelected) Icon(Icons.check, size: 18, color: colorScheme.primary),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+
+                  return [buildItem(AdminViewMode.mixed, 'Modo Mixto'), buildItem(AdminViewMode.support, 'Modo Soporte'), buildItem(AdminViewMode.project, 'Modo Proyecto')];
+                },
+              ),
+            if (AccessControl.isAdmin)
+              InkWell(
+                onTap: _showExceptionDialog,
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.shield_outlined),
+                      SizedBox(width: 8),
+                      Text('Excepción de Horas', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+              ),
             Padding(
               padding: const EdgeInsets.only(right: 8.0),
               child: IconButton(
@@ -209,7 +440,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (_contractedHours != null) RequestStatsCard(contractedHours: _contractedHours, consumedHours: _consumedHours, estimatedHours: _estimatedHours),
+                    RequestStatsCard(contractedHours: _contractedHours, consumedHours: _consumedHours, estimatedHours: _estimatedHours),
                     RequestFilterBar(
                       searchController: _searchController,
                       selectedYear: _selectedYear,
@@ -227,10 +458,14 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                         _selectedYear = val;
                         _currentPage = 0;
                       }),
-                      onBPChanged: (val) => setState(() {
-                        _selectedBP = val;
-                        _currentPage = 0;
-                      }),
+                      onBPChanged: (val) {
+                        setState(() {
+                          _selectedBP = val;
+                          _currentPage = 0;
+                        });
+                        _isLoading = true; // Mostrar carga
+                        _refreshRequest(); // Recargar datos (contratos y solicitudes)
+                      },
                       onSituationChanged: (val) => setState(() {
                         _selectedSituation = val;
                         _currentPage = 0;
@@ -265,7 +500,12 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                         _currentPage = 0;
                       }),
                       onAddRequest: () async {
-                        if (await showDialog(context: context, builder: (context) => const CreateRequestDialog()) == true) _initData();
+                        if (await showDialog(
+                              context: context,
+                              builder: (context) => CreateRequestDialog(bPartners: _bPartners, selectedBPartnerId: _bpId),
+                            ) ==
+                            true)
+                          _initData();
                       },
                       onToggleHistory: () => setState(() {
                         _showHistory = !_showHistory;
@@ -289,7 +529,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             IconButton(icon: const Icon(Icons.chevron_left), onPressed: _currentPage > 0 ? () => setState(() => _currentPage--) : null),
-                            Text('Página ${_currentPage + 1} de  ( registros)', style: const TextStyle(fontWeight: FontWeight.bold)),
+                            Text('Página ${_currentPage + 1} de $totalPages', style: const TextStyle(fontWeight: FontWeight.bold)),
                             IconButton(icon: const Icon(Icons.chevron_right), onPressed: _currentPage < totalPages - 1 ? () => setState(() => _currentPage++) : null),
                           ],
                         ),

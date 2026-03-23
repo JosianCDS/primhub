@@ -3,50 +3,45 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/contract_api.dart';
+import 'package:primhub/api/api_utils.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class HomeController extends ChangeNotifier {
-  // State variables
   bool isLoading = true;
   bool validationLoading = true;
 
-  // User info
   String username = '';
   int? cBPartnerID;
   String? partnerName;
   String? projectPartnerName;
 
-  // Permissions/Flags
   bool hasSupport = false;
   bool hasProject = false;
 
-  // Projects
   List<dynamic> projects = [];
   List<int> selectedProjectIds = [];
   Map<int, Map<String, dynamic>> projectStats = {};
 
-  // Requests
   List<Map<String, dynamic>> recentRequests = [];
   List<dynamic> allRequests = [];
-  int openRequestsCount = 0;
-  int inProgressRequestsCount = 0;
-  int closedRequestsCount = 0;
+  Map<int, Map<String, num>> requestsStatsByBp = {};
 
-  // Hours
-  double? contractedHours;
-  double consumedHours = 0.0;
+  List<Map<String, dynamic>> supportContracts = [];
 
-  // Filter
-  int? filterSalesRepId = User.userID; // Por defecto "Mis Proyectos"
+  int? filterSalesRepId = User.userID;
 
-  // Static persistence (from original file)
+  List<Map<String, dynamic>> supportBPartners = [];
+  List<int> selectedSupportBpIds = [];
+
   static List<int> savedSelectedProjectIds = [];
+  static List<int> savedSelectedSupportBpIds = [];
 
   HomeController() {
     selectedProjectIds = List.from(savedSelectedProjectIds);
+    selectedSupportBpIds = List.from(savedSelectedSupportBpIds);
     _loadCurrentUser();
   }
 
@@ -59,10 +54,30 @@ class HomeController extends ChangeNotifier {
   }
 
   Future<void> initData() async {
+    validationLoading = true;
+    isLoading = true;
+    notifyListeners();
+
     await loadValidationData();
-    await loadContractedHours();
+    if (AccessControl.isAdmin) {
+      await loadSupportBPartners();
+    }
+
+    validationLoading = false;
+    notifyListeners(); // First render to show page structure
+
     await loadRecentRequests();
     await loadDocumentStats();
+    await loadSupportContracts();
+  }
+
+  Future<void> loadSupportBPartners() async {
+    supportBPartners = await ContractApi.getBPartnersWithSupportContracts();
+    if (selectedSupportBpIds.isEmpty && supportBPartners.isNotEmpty) {
+      selectedSupportBpIds = supportBPartners.map<int>((bp) => bp['id'] as int).toList();
+      savedSelectedSupportBpIds = List.from(selectedSupportBpIds);
+    }
+    notifyListeners();
   }
 
   Future<void> loadValidationData() async {
@@ -79,7 +94,16 @@ class HomeController extends ChangeNotifier {
     if (partnerID != null || isAdmin) {
       try {
         if (partnerID != null) {
-          final pResponse = await http.get(Uri.parse('${Endpoint.cBPartner}?\$filter=C_BPartner_ID eq $partnerID'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+          var pResponse = await http.get(Uri.parse('${Endpoint.cBPartner}?\$filter=C_BPartner_ID eq $partnerID'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+          if (pResponse.statusCode == 401) {
+            final refreshed = await handleTokenRefresh();
+            if (refreshed) {
+              pResponse = await http.get(Uri.parse('${Endpoint.cBPartner}?\$filter=C_BPartner_ID eq $partnerID'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+            } else {
+              return;
+            }
+          }
+
           if (pResponse.statusCode == 200) {
             final data = json.decode(utf8.decode(pResponse.bodyBytes));
             if (data['records'] != null && (data['records'] as List).isNotEmpty) {
@@ -91,8 +115,7 @@ class HomeController extends ChangeNotifier {
         String projectUrl = Endpoint.project;
         List<String> filters = [];
 
-        // Regla: Usuario de proyecto solo ve sus proyectos
-        if (AccessControl.isProject && partnerID != null) {
+        if (Token.primConfig?.toLowerCase() == 'py' && partnerID != null) {
           filters.add('C_BPartner_ID eq $partnerID');
         } else {
           if (filterSalesRepId != null) {
@@ -104,7 +127,16 @@ class HomeController extends ChangeNotifier {
           projectUrl += '?\$filter=${filters.join(' and ')}';
         }
 
-        final projResponse = await http.get(Uri.parse(projectUrl), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+        var projResponse = await http.get(Uri.parse(projectUrl), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+        if (projResponse.statusCode == 401) {
+          final refreshed = await handleTokenRefresh();
+          if (refreshed) {
+            projResponse = await http.get(Uri.parse(projectUrl), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+          } else {
+            return;
+          }
+        }
+
         if (projResponse.statusCode == 200) {
           final data = json.decode(utf8.decode(projResponse.bodyBytes));
           if (data['records'] != null && (data['records'] as List).isNotEmpty) {
@@ -117,12 +149,9 @@ class HomeController extends ChangeNotifier {
             }
           }
         }
-      } catch (e) {
-        debugPrint('Error fetching validation names: ');
-      }
+      } catch (e) {}
     }
 
-    hasSupport = prefs.getBool('has_support') ?? false;
     hasProject = projects.isNotEmpty;
     cBPartnerID = partnerID;
     partnerName = pName;
@@ -132,41 +161,64 @@ class HomeController extends ChangeNotifier {
   }
 
   Future<void> loadRecentRequests() async {
-    // Se limita a los últimos 5 registros para la tabla de "Solicitudes Recientes" para una carga rápida.
-    // Las estadísticas de las tarjetas se calcularán sobre esta pequeña muestra.
-    final requests = await fetchRequest(top: 5, filter: "R_Status_ID ne 103");
+    List<Map<String, dynamic>> allBPartnerRequests = [];
+    List<int>? bpIdsForQuery;
 
-    int open = 0;
-    int others = 0;
-    int closed = 0;
-    double totalConsumed = 0.0;
-
-    for (var req in requests) {
-      if (req['R_Status_Name'] != '9_Final Close' && req['R_Status_ID'] != 103) {
-        // Not closed
-      } else {
-        double hours = (req['QtyPlan'] as num?)?.toDouble() ?? 0.0;
-        totalConsumed += hours;
-      }
-
-      if (req['R_Status_Name'] == '9_Final Close' || req['R_Status_ID'] == 103) {
-        closed++;
-      } else {
-        others++;
+    if (AccessControl.isAdmin) {
+      bpIdsForQuery = selectedSupportBpIds;
+    } else {
+      if (User.cBPartnerID != null) {
+        bpIdsForQuery = [User.cBPartnerID!];
       }
     }
 
-    requests.sort((a, b) {
+    if (bpIdsForQuery != null && bpIdsForQuery.isNotEmpty) {
+      for (final bpId in bpIdsForQuery) {
+        final requestsForBp = await fetchRequest(filter: "C_BPartner_ID eq $bpId");
+        allBPartnerRequests.addAll(requestsForBp);
+      }
+    } else if (AccessControl.isAdmin) {
+      setStateForEmptyRequests();
+      return;
+    }
+
+    requestsStatsByBp.clear();
+    bpIdsForQuery?.forEach((id) {
+      requestsStatsByBp[id] = {'closed': 0, 'inProgress': 0, 'consumedHours': 0.0};
+    });
+
+    for (var req in allBPartnerRequests) {
+      final recordUU = req['Record_UU'];
+      if (recordUU != null && recordUU.toString().isNotEmpty) {
+        continue;
+      }
+
+      final bpId = req['C_BPartner_ID']?['id'];
+      if (bpId == null || !requestsStatsByBp.containsKey(bpId)) continue;
+
+      final statusId = req['R_Status_ID'] is Map ? req['R_Status_ID']['id'] : req['R_Status_ID'];
+      if (statusId == 103 || req['R_Status_Name'] == '9_Final Close') {
+        double hours = (req['QtyPlan'] as num?)?.toDouble() ?? 0.0;
+        requestsStatsByBp[bpId]!['consumedHours'] = (requestsStatsByBp[bpId]!['consumedHours']! as num) + hours;
+        requestsStatsByBp[bpId]!['closed'] = (requestsStatsByBp[bpId]!['closed']! as int) + 1;
+      } else {
+        requestsStatsByBp[bpId]!['inProgress'] = (requestsStatsByBp[bpId]!['inProgress']! as int) + 1;
+      }
+    }
+
+    final nonClosedRequests = allBPartnerRequests.where((r) {
+      final statusId = r['R_Status_ID'] is Map ? r['R_Status_ID']['id'] : r['R_Status_ID'];
+      final recordUU = r['Record_UU'];
+      return (statusId != 103 && r['R_Status_Name'] != '9_Final Close') && (recordUU == null || recordUU.toString().isEmpty);
+    }).toList();
+
+    nonClosedRequests.sort((a, b) {
       final dateA = DateTime.tryParse(a['Created'] ?? '') ?? DateTime(0);
       final dateB = DateTime.tryParse(b['Created'] ?? '') ?? DateTime(0);
       return dateB.compareTo(dateA);
     });
 
-    openRequestsCount = open;
-    inProgressRequestsCount = others;
-    closedRequestsCount = closed;
-    consumedHours = totalConsumed;
-    allRequests = requests.where((r) => r['R_Status_Name'] != '9_Final Close' && r['R_Status_ID'] != 103).toList();
+    allRequests = nonClosedRequests;
 
     _applyFilters();
     isLoading = false;
@@ -175,13 +227,26 @@ class HomeController extends ChangeNotifier {
 
   void _applyFilters() {
     var filtered = List<dynamic>.from(allRequests);
-    filtered = filtered.where((r) {
-      final recordUU = r['Record_UU'];
-      return recordUU == null || recordUU.toString().isEmpty;
-    }).toList();
-
     recentRequests = filtered.take(5).map((r) {
-      String level = r['Priority_Name'] ?? 'Baja';
+      // Extracción robusta de datos para evitar campos vacíos o incorrectos
+      String level = 'Baja'; // Valor por defecto
+      dynamic priorityVal = r['Priority'];
+      if (priorityVal is Map) {
+        level = priorityVal['identifier'] ?? 'Baja';
+      } else if (priorityVal != null) {
+        String pStr = priorityVal.toString();
+        if (pStr == '1')
+          level = 'Urgente';
+        else if (pStr == '3')
+          level = 'Alta';
+        else if (pStr == '5')
+          level = 'Media';
+        else if (pStr == '7')
+          level = 'Baja';
+        else if (pStr == '9')
+          level = 'Menor';
+      }
+
       Color baseColor = Colors.green;
       if (level == 'Urgente')
         baseColor = Colors.purple;
@@ -200,28 +265,76 @@ class HomeController extends ChangeNotifier {
         }
       } catch (_) {}
 
-      return {
-        'code': r['DocumentNo'] ?? r['id'].toString(),
-        'situation': r['R_RequestType_Name'] ?? 'Solicitud',
-        'description': r['Summary'] ?? '',
-        'time': formattedTime,
-        'level': level,
-        'levelColor': baseColor,
-        'levelBgColor': baseColor.withOpacity(0.2),
-        'status': r['R_Status_Name'] ?? '1_Open',
-        'bpName': r['C_BPartner_Name'] ?? '',
-        'userName': r['AD_User_Name'] ?? '',
-        'original': r, // Keep original for editing
-      };
+      String situation = r['R_RequestType_ID'] is Map ? (r['R_RequestType_ID']['identifier'] ?? 'Solicitud') : (r['R_RequestType_Name'] ?? 'Solicitud');
+      String status = r['R_Status_ID'] is Map ? (r['R_Status_ID']['identifier'] ?? '1_Open') : (r['R_Status_Name'] ?? '1_Open');
+      String bpName = '';
+      if (r['C_BPartner_ID'] is Map) {
+        bpName = r['C_BPartner_ID']['identifier'] ?? r['C_BPartner_ID']['Name'] ?? '';
+      }
+      String userName = '';
+      if (r['AD_User_ID'] is Map) {
+        userName = r['AD_User_ID']['identifier'] ?? r['AD_User_ID']['Name'] ?? '';
+      }
+
+      return {'code': r['DocumentNo'] ?? r['id'].toString(), 'situation': situation, 'emailSubject': r['CDS_EmailSubject'] ?? '', 'description': r['Summary'] ?? '', 'time': formattedTime, 'level': level, 'levelColor': baseColor, 'levelBgColor': baseColor.withOpacity(0.2), 'status': status, 'bpName': bpName, 'userName': userName, 'original': r};
     }).toList();
   }
 
-  Future<void> loadContractedHours() async {
-    final total = await ContractApi.getContractedHours();
-    if (total != null) {
-      contractedHours = total;
-      notifyListeners();
+  Future<void> loadSupportContracts() async {
+    List<int>? bpIdsForQuery;
+
+    if (AccessControl.isAdmin) {
+      if (selectedSupportBpIds.isEmpty) {
+        supportContracts = [];
+        hasSupport = false;
+        notifyListeners();
+        return;
+      }
+      bpIdsForQuery = selectedSupportBpIds;
+    } else {
+      if (User.cBPartnerID != null) {
+        bpIdsForQuery = [User.cBPartnerID!];
+      }
     }
+
+    if (bpIdsForQuery == null || bpIdsForQuery.isEmpty) {
+      supportContracts = [];
+      hasSupport = false;
+      notifyListeners();
+      return;
+    }
+
+    final allFetchedContracts = await ContractApi.getSupportContracts(bPartnerIds: bpIdsForQuery);
+    final Map<int, List<Map<String, dynamic>>> contractsByBp = {};
+
+    for (var contract in allFetchedContracts) {
+      final bpId = contract['C_BPartner_ID'];
+      if (bpId != null) {
+        (contractsByBp[bpId] ??= []).add(contract);
+      }
+    }
+
+    List<Map<String, dynamic>> processedContracts = [];
+    contractsByBp.forEach((bpId, bpContracts) {
+      double remainingConsumed = (requestsStatsByBp[bpId]?['consumedHours'] as num?)?.toDouble() ?? 0.0;
+
+      for (var contract in bpContracts) {
+        double contracted = (contract['contractedHours'] as num?)?.toDouble() ?? 0.0;
+        if (remainingConsumed > 0) {
+          double consumedInContract = (remainingConsumed >= contracted) ? contracted : remainingConsumed;
+          contract['consumedHours'] = consumedInContract;
+          remainingConsumed -= consumedInContract;
+        } else {
+          contract['consumedHours'] = 0.0;
+        }
+        processedContracts.add(contract);
+      }
+    });
+
+    supportContracts = processedContracts;
+    hasSupport = allFetchedContracts.isNotEmpty;
+
+    notifyListeners();
   }
 
   Future<void> loadDocumentStats() async {
@@ -237,19 +350,22 @@ class HomeController extends ChangeNotifier {
           int pEt = 0;
           int pSg = 0;
           int pGn = 0;
-          // bool hasPendingEt = false;
-          // bool hasPendingSg = false;
-          // bool hasPendingGn = false;
 
-          final response = await http.get(Uri.parse('${Endpoint.primDocuments}?\$filter=C_Project_ID eq ${projectId}&\$expand=PRIM_Documents_Related'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+          var response = await http.get(Uri.parse('${Endpoint.primDocuments}?\$filter=C_Project_ID eq ${projectId}&\$expand=PRIM_Documents_Related'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+          if (response.statusCode == 401) {
+            final refreshed = await handleTokenRefresh();
+            if (refreshed) {
+              response = await http.get(Uri.parse('${Endpoint.primDocuments}?\$filter=C_Project_ID eq ${projectId}&\$expand=PRIM_Documents_Related'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+            } else {
+              return;
+            }
+          }
 
           if (response.statusCode == 200) {
             final data = json.decode(utf8.decode(response.bodyBytes));
             final records = data['records'] as List;
 
-            // Retorna true si encontró algún pendiente en esta rama
             void countRecursive(List<dynamic> docs, String? inheritedType) {
-              // bool branchHasPending = false;
               for (var doc in docs) {
                 dynamic typeVal = doc['Type'];
                 String typeCode = '';
@@ -265,51 +381,30 @@ class HomeController extends ChangeNotifier {
                 }
 
                 final isFolder = doc['IsSummary'] == true;
-                // final status = doc['Status'];
-                // // Pendiente si NO es 'DL' (Entregado) ni 'Entregado' (por si viene el nombre)
-                // final isPending = status != 'DL' && status != 'Entregado';
-                //
-                // if (isPending) branchHasPending = true;
 
                 if (!isFolder) {
                   if (typeCode == 'ET') {
                     pEt++;
-                    // if (isPending) hasPendingEt = true;
                   }
                   if (typeCode == 'SG') {
                     pSg++;
-                    // if (isPending) hasPendingSg = true;
                   }
                   if (typeCode == 'GN') {
                     pGn++;
-                    // if (isPending) hasPendingGn = true;
                   }
                 }
 
                 final children = doc['PRIM_Documents_Related'] as List? ?? [];
                 if (children.isNotEmpty) {
                   countRecursive(children, typeCode.isNotEmpty ? typeCode : inheritedType);
-                  // if (countRecursive(children, typeCode.isNotEmpty ? typeCode : inheritedType)) {
-                  //   branchHasPending = true;
-                  // }
                 }
               }
-              // return branchHasPending;
             }
 
             countRecursive(records, null);
-            stats[projectId] = {
-              'et': pEt,
-              'sg': pSg,
-              'gn': pGn,
-              // 'pendingEt': hasPendingEt,
-              // 'pendingSg': hasPendingSg,
-              // 'pendingGn': hasPendingGn
-            };
+            stats[projectId] = {'et': pEt, 'sg': pSg, 'gn': pGn};
           }
-        } catch (e) {
-          debugPrint('Error loading document stats for project: ');
-        }
+        } catch (e) {}
       }());
     }
 
@@ -324,10 +419,23 @@ class HomeController extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Helper to update a request locally after edit
+  void updateSelectedSupportBps(List<int> ids) {
+    selectedSupportBpIds = ids;
+    savedSelectedSupportBpIds = List.from(ids);
+    loadSupportContracts();
+    loadRecentRequests();
+    notifyListeners();
+  }
+
+  void setStateForEmptyRequests() {
+    requestsStatsByBp.clear();
+    allRequests = [];
+    recentRequests = [];
+    isLoading = false;
+    notifyListeners();
+  }
+
   void updateRequestLocally(Map<String, dynamic> updatedReq) {
-    // Logic to update local list if needed, though usually we reload.
-    // For now, just notify to refresh UI if we changed something in memory.
     notifyListeners();
   }
 }

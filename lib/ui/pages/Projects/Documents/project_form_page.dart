@@ -227,12 +227,6 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
       "ProjectBalanceAmt": _pDouble(_projectBalanceController.text),
     };
 
-    // ESTO ES LO QUE BUSCAS: VER EL JSON EN CONSOLA
-    debugPrint("---------------------------------------");
-    debugPrint("JSON FINAL ENVIADO:");
-    debugPrint(jsonEncode(data));
-    debugPrint("---------------------------------------");
-
     final result = await _logic.saveProject(data, id: widget.project?['id']);
     if (mounted) {
       setState(() => _isLoading = false);
@@ -474,8 +468,6 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
                                     // LÓGICA DE RESCATE:
                                     // Si item[idKey] es nulo, intentamos con item['id']
                                     final selectedId = item[idKey] ?? item['id'];
-
-                                    debugPrint("MODAL SELECCIÓN ($title): Key buscada: $idKey -> Valor obtenido: $selectedId");
 
                                     onSelected(selectedId, item[displayKey].toString());
                                     Navigator.pop(context);

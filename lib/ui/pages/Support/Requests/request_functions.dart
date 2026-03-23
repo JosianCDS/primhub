@@ -1,7 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
+import 'package:primhub/api/api_utils.dart';
 import 'package:primhub/api/token.dart';
+import 'package:primhub/ImagesManagment/postAttachments.dart';
+import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 
 // --- MAPAS DE REFERENCIA ---
@@ -29,20 +33,29 @@ String ensureIsoDate(String val) {
 }
 
 String ensureIsoTime(String? dateContext, String time) {
-  if (time.isEmpty) return "";
+  if (time.isEmpty) return '';
+
+  // 1. Get a clean time part (HH:mm:ss)
   String timePart = time;
   if (time.contains('T')) {
     timePart = time.split('T')[1];
   }
+  timePart = timePart.replaceAll('Z', '');
   if (timePart.length == 5) timePart = "$timePart:00";
-  if (!timePart.endsWith('Z')) timePart = "${timePart}Z";
-  return timePart;
+
+  // 2. Return format specifically expected by iDempiere for Time fields (HH:mm:ss'Z')
+  return "${timePart}Z";
+}
+
+String? getDropdownValue(dynamic rawValue) {
+  final extracted = DocumentsLogic.extractValue(rawValue);
+  return extracted == 'N/A' ? null : extracted;
 }
 
 // --- LLAMADAS A LA API ---
 
 /// Obtiene las solicitudes usando paginación para asegurar que se traigan todos los registros.
-Future<List<Map<String, dynamic>>> fetchRequest({String? model = 'R_Request', String? filter, int? top, String? select, String? orderBy}) async {
+Future<List<Map<String, dynamic>>> fetchRequest({String? model = 'R_Request', String? filter, int? top, String? select, String? orderBy, String? expand}) async {
   List<Map<String, dynamic>> allRecords = [];
   int skip = 0;
   // Si se especifica 'top', se usa como tamaño de página y no se pagina más.
@@ -60,10 +73,22 @@ Future<List<Map<String, dynamic>>> fetchRequest({String? model = 'R_Request', St
       if (select != null && select.isNotEmpty) {
         queryParams['\$select'] = select;
       }
+      if (expand != null && expand.isNotEmpty) {
+        queryParams['\$expand'] = expand;
+      }
 
       final endpoint = '${Endpoint.baseUrl}/api/v1/models/$model';
       final uri = Uri.parse(endpoint).replace(queryParameters: queryParams);
-      final response = await http.get(uri, headers: {'Content-Type': 'application/json; charset=UTF-8', 'Authorization': Token.token});
+      var response = await http.get(uri, headers: {'Content-Type': 'application/json; charset=UTF-8', 'Authorization': Token.token});
+
+      if (response.statusCode == 401) {
+        final refreshed = await handleTokenRefresh();
+        if (refreshed) {
+          response = await http.get(uri, headers: {'Content-Type': 'application/json; charset=UTF-8', 'Authorization': Token.token});
+        } else {
+          return [];
+        }
+      }
 
       if (response.statusCode == 200) {
         final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
@@ -88,24 +113,29 @@ Future<List<Map<String, dynamic>>> fetchRequest({String? model = 'R_Request', St
         if (allRecords.isEmpty) throw Exception('Error API: ${response.statusCode}');
       }
     }
-  } catch (e) {
-    debugPrint('Error en fetchRequest: $e');
-  }
+  } catch (e) {}
   return allRecords;
 }
 
 Future<Map<String, int>> fetchStatuses() async {
   try {
-    final response = await http.get(Uri.parse('${Endpoint.baseUrl}/api/v1/models/R_Status?\$limit=20&\$orderby=Name'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+    var response = await http.get(Uri.parse('${Endpoint.baseUrl}/api/v1/models/R_Status?\$limit=20&\$orderby=Name'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+
+    if (response.statusCode == 401) {
+      final refreshed = await handleTokenRefresh();
+      if (refreshed) {
+        response = await http.get(Uri.parse('${Endpoint.baseUrl}/api/v1/models/R_Status?\$limit=20&\$orderby=Name'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+      } else {
+        return {};
+      }
+    }
 
     if (response.statusCode == 200) {
       final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
       final records = jsonResponse['records'] as List;
       return {for (var r in records) r['Name']: r['id']};
     }
-  } catch (e) {
-    debugPrint('Error fetching statuses: $e');
-  }
+  } catch (e) {}
   return {};
 }
 
@@ -128,11 +158,13 @@ Future<Map<String, dynamic>> processRequests(List<dynamic> requests, Map<String,
   List<Map<String, dynamic>> processedRequests = [];
 
   for (var req in visibleRequests) {
+    final statusIdFromReq = req['R_Status_ID'] is Map ? req['R_Status_ID']['id'] : req['R_Status_ID'];
     final statusName = req['R_Status_ID']?['identifier'] ?? req['R_Status_Name'] ?? '';
     final qtyPlan = (req['QtyPlan'] as num?)?.toDouble() ?? 0.0;
 
     // Lógica de horas
-    if (statusName == '9_Final Close' || req['R_Status_ID']?['id'] == 103) {
+    // Comprobamos tanto por el nombre como por el ID extraído de forma segura.
+    if (statusName == '9_Final Close' || statusIdFromReq == 103) {
       consumed += qtyPlan;
     } else {
       estimated += qtyPlan;
@@ -141,7 +173,7 @@ Future<Map<String, dynamic>> processRequests(List<dynamic> requests, Map<String,
     // Formateo de UI
     String level = req['Priority']?['identifier'] ?? 'Baja';
     String status = statusName;
-    int? statusId = req['R_Status_ID']?['id'];
+    int? statusId = statusIdFromReq;
 
     if (statusId != null && statusIdMap.isNotEmpty) {
       for (var entry in statusIdMap.entries) {
@@ -191,13 +223,47 @@ Future<Map<String, dynamic>> processRequests(List<dynamic> requests, Map<String,
       'closeDate': req['CloseDate'],
       'userName': req['AD_User_ID']?['identifier'] ?? '',
       'bpName': req['C_BPartner_ID']?['identifier'] ?? '',
+      'result': req['Result'] ?? '',
+      'type': getDropdownValue(req['R_RequestType_ID']),
+      'category': getDropdownValue(req['R_Category_ID']),
+      'group': getDropdownValue(req['R_Group_ID']),
+      'bpId': req['C_BPartner_ID'] is Map ? req['C_BPartner_ID']['id'] : req['C_BPartner_ID'],
+      'userId': req['AD_User_ID'] is Map ? req['AD_User_ID']['id'] : req['AD_User_ID'],
+      'salesRepId': req['SalesRep_ID'] is Map ? req['SalesRep_ID']['id'] : req['SalesRep_ID'],
+      'emailSubject': req['CDS_EmailSubject'] ?? '',
     });
   }
 
   return {'rawRequests': rawRequests, 'requests': processedRequests, 'consumedHours': consumed, 'estimatedHours': estimated};
 }
 
-Future<Map<String, dynamic>> updateRemoteRequest({required dynamic id, String? priority, int? statusId, String? statusIdentifier, String? summary, String? dateStartPlan, String? dateCompletePlan, String? startTime, String? endTime, double? qtyPlan, String? startDate, String? closeDate, int? requestTypeId, int? categoryId, int? groupId}) async {
+Future<List<Map<String, dynamic>>> fetchRequestUpdates(int requestId) async {
+  // Usa la función genérica fetchRequest para obtener las actualizaciones
+  return await fetchRequest(model: 'R_RequestUpdate', filter: "R_Request_ID eq $requestId", orderBy: 'Created desc', select: 'Created,Result,ConfidentialTypeEntry,AD_Image_ID,AD_Image1_ID,AD_Image2_ID,AD_Image3_ID,IsPrinted');
+}
+
+Future<Map<String, dynamic>> updateRemoteRequest({
+  required dynamic id,
+  String? priority,
+  int? statusId,
+  String? statusIdentifier,
+  String? summary,
+  String? dateStartPlan,
+  String? dateCompletePlan,
+  String? startTime,
+  String? endTime,
+  double? qtyPlan,
+  String? startDate,
+  String? closeDate,
+  String? result,
+  int? requestTypeId,
+  int? categoryId,
+  int? groupId,
+  int? salesRepId,
+  int? bPartnerId,
+  int? userId,
+  String? emailSubject,
+}) async {
   try {
     final url = Uri.parse('${Endpoint.request}/$id');
     final Map<String, dynamic> data = {};
@@ -205,8 +271,11 @@ Future<Map<String, dynamic>> updateRemoteRequest({required dynamic id, String? p
     if (priority != null) data['Priority'] = priorityMap[priority];
     if (summary != null) data['Summary'] = summary;
 
+    if (emailSubject != null) data['CDS_EmailSubject'] = emailSubject;
+
+    if (result != null) data['Result'] = result;
     if (statusId != null) {
-      data['R_Status_ID'] = statusId;
+      data['R_Status_ID'] = {'id': statusId};
     } else if (statusIdentifier != null) {
       data['R_Status_ID'] = {'identifier': statusIdentifier};
     }
@@ -214,7 +283,7 @@ Future<Map<String, dynamic>> updateRemoteRequest({required dynamic id, String? p
     if (dateStartPlan != null && dateStartPlan.isNotEmpty) data['DateStartPlan'] = ensureIsoDate(dateStartPlan);
     if (dateCompletePlan != null && dateCompletePlan.isNotEmpty) data['DateCompletePlan'] = ensureIsoDate(dateCompletePlan);
     if (startTime != null && startTime.isNotEmpty) data['StartTime'] = ensureIsoTime(dateStartPlan, startTime);
-    if (endTime != null && endTime.isNotEmpty) data['EndTime'] = ensureIsoTime(dateCompletePlan ?? dateStartPlan, endTime);
+    if (endTime != null && endTime.isNotEmpty) data['EndTime'] = endTime; // El caller ya lo manda como DateTime completo
     if (qtyPlan != null) data['QtyPlan'] = qtyPlan;
 
     if (startDate != null) data['StartDate'] = startDate;
@@ -223,8 +292,20 @@ Future<Map<String, dynamic>> updateRemoteRequest({required dynamic id, String? p
     if (requestTypeId != null) data['R_RequestType_ID'] = {'id': requestTypeId};
     if (categoryId != null) data['R_Category_ID'] = {'id': categoryId};
     if (groupId != null) data['R_Group_ID'] = {'id': groupId};
+    if (salesRepId != null) data['SalesRep_ID'] = {'id': salesRepId};
+    if (bPartnerId != null) data['C_BPartner_ID'] = {'id': bPartnerId};
+    if (userId != null) data['AD_User_ID'] = {'id': userId};
 
-    final response = await http.put(url, headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: jsonEncode(data));
+    var response = await http.put(url, headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: jsonEncode(data));
+
+    if (response.statusCode == 401) {
+      final refreshed = await handleTokenRefresh();
+      if (refreshed) {
+        response = await http.put(url, headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: jsonEncode(data));
+      } else {
+        return {'success': false, 'error': 'Sesión expirada'};
+      }
+    }
 
     if (response.statusCode != 200 && response.statusCode != 201) {
       return {'success': false, 'error': 'Error ${response.statusCode}'};
@@ -235,12 +316,55 @@ Future<Map<String, dynamic>> updateRemoteRequest({required dynamic id, String? p
   }
 }
 
+Future<Map<String, dynamic>> createRequestUpdate({required int requestId, required String resultText, required String confidentialType, required bool isPrinted, required List<PlatformFile?> evidences}) async {
+  try {
+    final url = Uri.parse('${Endpoint.baseUrl}/api/v1/models/R_RequestUpdate');
+    final Map<String, dynamic> body = {"R_Request_ID": requestId, "Result": resultText, "ConfidentialTypeEntry": confidentialType, "IsPrinted": isPrinted};
+
+    // Anidamos las evidencias usando el formato exacto {"data": "base64..."}
+    final List<String> imageKeys = ["AD_Image_ID", "AD_Image1_ID", "AD_Image2_ID", "AD_Image3_ID"];
+    for (int i = 0; i < evidences.length && i < 4; i++) {
+      if (evidences[i] != null && evidences[i]!.bytes != null) {
+        body[imageKeys[i]] = {"data": base64Encode(evidences[i]!.bytes!)};
+      }
+    }
+
+    var response = await http.post(url, headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: jsonEncode(body));
+
+    if (response.statusCode == 401) {
+      final refreshed = await handleTokenRefresh();
+      if (refreshed) {
+        response = await http.post(url, headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: jsonEncode(body));
+      } else {
+        return {'success': false, 'message': 'Sesión expirada'};
+      }
+    }
+
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      return {'success': false, 'message': 'Error creando actualización: ${response.body}'};
+    }
+
+    return {'success': true, 'message': 'Actualización creada'};
+  } catch (e) {
+    return {'success': false, 'message': e.toString()};
+  }
+}
+
 Future<bool> deleteRequestApi(dynamic id) async {
   try {
-    final response = await http.delete(Uri.parse('${Endpoint.request}/$id'), headers: {'Authorization': Token.token});
+    var response = await http.delete(Uri.parse('${Endpoint.request}/$id'), headers: {'Authorization': Token.token});
+
+    if (response.statusCode == 401) {
+      final refreshed = await handleTokenRefresh();
+      if (refreshed) {
+        response = await http.delete(Uri.parse('${Endpoint.request}/$id'), headers: {'Authorization': Token.token});
+      } else {
+        return false;
+      }
+    }
+
     return response.statusCode == 200 || response.statusCode == 204;
   } catch (e) {
-    debugPrint('Error deleting request: $e');
     return false;
   }
 }

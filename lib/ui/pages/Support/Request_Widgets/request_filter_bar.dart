@@ -78,37 +78,34 @@ class RequestFilterBar extends StatelessWidget {
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   DropdownButton<int?>(
-                    hint: const Text('Año'),
+                    hint: const Text('Todos los Años'),
                     value: selectedYear,
                     items: [
-                      const DropdownMenuItem<int?>(
-                        value: null,
-                        child: Text('Limpiar', style: TextStyle(color: Colors.red)),
-                      ),
-                      ...List.generate(10, (index) => 2024 + index).map((int value) {
+                      const DropdownMenuItem<int?>(value: null, child: Text('Todos los Años')),
+                      // Genera desde 3 años atrás hasta 6 en el futuro según el año actual
+                      ...List.generate(10, (index) => (DateTime.now().year - 3) + index).map((int value) {
                         return DropdownMenuItem<int?>(value: value, child: Text(value.toString()));
                       }),
                     ],
                     onChanged: onYearChanged,
                   ),
                   const SizedBox(width: 16),
-                  DropdownButton<String?>(
-                    hint: const Text('Tercero'),
-                    value: selectedBP,
-                    items: [
-                      const DropdownMenuItem<String?>(
-                        value: null,
-                        child: Text('Limpiar', style: TextStyle(color: Colors.red)),
-                      ),
-                      ...requests.map((e) => e['bpName'].toString()).where((e) => e.isNotEmpty).toSet().toList().map((String value) {
-                        return DropdownMenuItem<String?>(value: value, child: Text(value));
-                      }),
-                    ],
-                    onChanged: onBPChanged,
-                  ),
-                  const SizedBox(width: 16),
+                  if (AccessControl.isAdmin) ...[
+                    DropdownButton<String?>(
+                      hint: const Text('Todos los Terceros'),
+                      value: selectedBP,
+                      items: [
+                        const DropdownMenuItem<String?>(value: null, child: Text('Todos los Terceros')),
+                        ...requests.map((e) => e['bpName'].toString()).where((e) => e.isNotEmpty).toSet().toList().map((String value) {
+                          return DropdownMenuItem<String?>(value: value, child: Text(value));
+                        }),
+                      ],
+                      onChanged: onBPChanged,
+                    ),
+                    const SizedBox(width: 16),
+                  ],
                   DropdownButton<String>(
-                    hint: const Text('Asunto'),
+                    hint: const Text('Tipo de solicitud'),
                     value: selectedSituation,
                     items: requests.map((e) => e['situation'].toString()).toSet().toList().map((String value) {
                       return DropdownMenuItem<String>(value: value, child: Text(value));
@@ -166,7 +163,7 @@ class RequestFilterBar extends StatelessWidget {
               ElevatedButton.icon(
                 onPressed: onAddRequest,
                 icon: const Icon(Icons.add, color: Colors.white),
-                label: const Text('Agregar registro', style: TextStyle(color: Colors.white)),
+                label: const Text('Crear Solicitud', style: TextStyle(color: Colors.white)),
                 style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4F47E5)),
               ),
             const SizedBox(width: 16),

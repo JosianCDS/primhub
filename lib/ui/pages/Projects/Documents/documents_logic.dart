@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:primhub/ImagesManagment/postAttachments.dart';
+import 'package:primhub/api/api_utils.dart';
 import 'package:primhub/api/auth_api.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/endpoint/endpoint.dart';
@@ -17,9 +18,11 @@ class ProjectsLogic {
 
       // Manejo de Refresh Token si la sesion expiro (401)
       if (response.statusCode == 401) {
-        final refreshed = await _tryRefreshToken();
+        final refreshed = await handleTokenRefresh();
         if (refreshed) {
           response = await http.get(Uri.parse(url), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+        } else {
+          return [];
         }
       }
 
@@ -27,13 +30,49 @@ class ProjectsLogic {
         final data = json.decode(utf8.decode(response.bodyBytes));
         return data['records'] ?? [];
       } else {
-        debugPrint('Error de iDempiere ($errorLabel): ${response.statusCode} - ${response.body}');
         return [];
       }
     } catch (e) {
-      debugPrint('Excepción en $errorLabel: $e');
       return [];
     }
+  }
+
+  // --- Metodo Auxiliar Privado para peticiones seguras con paginación automática ---
+  Future<List<dynamic>> _safeFetchPaginated(String baseUrl, String errorLabel) async {
+    List<dynamic> allRecords = [];
+    int skip = 0;
+    int pageSize = 100; // Coincidir con el límite duro por defecto de iDempiere
+    bool hasMore = true;
+
+    try {
+      while (hasMore) {
+        String url = '$baseUrl${baseUrl.contains('?') ? '&' : '?'}\$skip=$skip&\$top=$pageSize';
+        var response = await http.get(Uri.parse(url), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+
+        if (response.statusCode == 401) {
+          final refreshed = await handleTokenRefresh();
+          if (refreshed) {
+            response = await http.get(Uri.parse(url), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+          } else {
+            return allRecords;
+          }
+        }
+
+        if (response.statusCode == 200) {
+          final data = json.decode(utf8.decode(response.bodyBytes));
+          final records = data['records'] as List? ?? [];
+          allRecords.addAll(records);
+          if (records.length < pageSize) {
+            hasMore = false; // Ya no hay más páginas
+          } else {
+            skip += pageSize; // Siguiente página
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+    } catch (e) {}
+    return allRecords;
   }
 
   // 1. FETCH PROJECTS
@@ -54,9 +93,10 @@ class ProjectsLogic {
   }
 
   // 1.1 FETCH PROJECTS FOR DROPDOWN (Lista simple para filtros)
-  Future<List<dynamic>> fetchProjectsForDropdown({int? bPartnerId}) async {
+  Future<List<dynamic>> fetchProjectsForDropdown({int? bPartnerId, int? salesRepId}) async {
     String filter = 'IsSummary eq false and IsActive eq true';
     if (bPartnerId != null) filter += ' and C_BPartner_ID eq $bPartnerId';
+    if (salesRepId != null) filter += ' and SalesRep_ID eq $salesRepId';
 
     String url = '${Endpoint.project}?\$filter=$filter&\$select=C_Project_ID,Name&\$orderby=Name';
     final records = await _safeFetch(url, 'lista de proyectos');
@@ -72,21 +112,25 @@ class ProjectsLogic {
       final isEdit = id != null;
       final url = isEdit ? Uri.parse('${Endpoint.project}/$id') : Uri.parse(Endpoint.project);
 
-      final response = isEdit ? await http.put(url, headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: jsonEncode(data)) : await http.post(url, headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: jsonEncode(data));
+      var response = isEdit ? await http.put(url, headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: jsonEncode(data)) : await http.post(url, headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: jsonEncode(data));
+
+      if (response.statusCode == 401) {
+        final refreshed = await handleTokenRefresh();
+        if (refreshed) {
+          response = isEdit ? await http.put(url, headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: jsonEncode(data)) : await http.post(url, headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: jsonEncode(data));
+        } else {
+          return {'success': false, 'error': 'Sesión expirada'};
+        }
+      }
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        debugPrint("Proyecto guardado con éxito");
         return {'success': true};
       } else {
-        // ESTO ES CLAVE: Imprime el error real que devuelve iDempiere
-        // Ejemplo: "C_BPartner_ID is mandatory"
         final errorMsg = json.decode(utf8.decode(response.bodyBytes));
         final detail = errorMsg['detail'] ?? errorMsg['error'] ?? response.body;
-        debugPrint("Error iDempiere Save (${response.statusCode}): $detail");
         return {'success': false, 'error': detail};
       }
     } catch (e) {
-      debugPrint('Error de red al guardar: $e');
       return {'success': false, 'error': e.toString()};
     }
   }
@@ -101,51 +145,36 @@ class ProjectsLogic {
         '\$select=Value,Name&'
         '\$orderby=Name';
 
-    return _safeFetch(url, 'reglas de facturación');
+    return _safeFetchPaginated(url, 'reglas de facturación');
   }
 
-  // 3. REFRESH TOKEN
-  Future<bool> _tryRefreshToken() async {
-    if (Token.refreshToken == null) return false;
-    final response = await refreshToken(Token.refreshToken!);
-    if (response.containsKey('token')) {
-      Token.auth = response['token'];
-      if (response.containsKey('refresh_token')) {
-        Token.refreshToken = response['refresh_token'];
-      }
-      return true;
-    }
-    return false;
-  }
-
-  // 4. FETCH AUXILIARES (Usando _safeFetch para consistencia)
+  // 4. FETCH AUXILIARES (Usando paginación para asegurar que vengan todos)
   Future<List<dynamic>> fetchBPartners() async {
-    // Filtros: Aumentar límite para traer catálogo completo
-    return _safeFetch('${Endpoint.cBPartner}?\$select=C_BPartner_ID,Name,Value&\$orderby=Name&\$filter=IsActive eq true&\$limit=1000', 'terceros');
+    return _safeFetchPaginated('${Endpoint.cBPartner}?\$select=C_BPartner_ID,Name,Value&\$orderby=Name&\$filter=IsActive eq true', 'terceros');
   }
 
   Future<List<dynamic>> fetchUsers() async {
-    return _safeFetch('${Endpoint.baseUrl}/api/v1/models/AD_User?\$select=AD_User_ID,Name&\$filter=IsActive eq true', 'usuarios');
+    return _safeFetchPaginated('${Endpoint.baseUrl}/api/v1/models/AD_User?\$select=AD_User_ID,Name&\$orderby=Name&\$filter=IsActive eq true', 'usuarios');
   }
 
   Future<List<dynamic>> fetchCurrencies() async {
-    return _safeFetch('${Endpoint.baseUrl}/api/v1/models/C_Currency?\$select=C_Currency_ID,ISO_Code', 'monedas');
+    return _safeFetchPaginated('${Endpoint.baseUrl}/api/v1/models/C_Currency?\$select=C_Currency_ID,ISO_Code&\$orderby=ISO_Code', 'monedas');
   }
 
   Future<List<dynamic>> fetchWarehouses() async {
-    return _safeFetch('${Endpoint.baseUrl}/api/v1/models/M_Warehouse?\$select=M_Warehouse_ID,Name', 'almacenes');
+    return _safeFetchPaginated('${Endpoint.baseUrl}/api/v1/models/M_Warehouse?\$select=M_Warehouse_ID,Name&\$orderby=Name', 'almacenes');
   }
 
   Future<List<dynamic>> fetchPriceLists() async {
-    return _safeFetch('${Endpoint.baseUrl}/api/v1/models/M_PriceList_Version?\$select=M_PriceList_Version_ID,Name', 'listas de precios');
+    return _safeFetchPaginated('${Endpoint.baseUrl}/api/v1/models/M_PriceList_Version?\$select=M_PriceList_Version_ID,Name&\$orderby=Name', 'listas de precios');
   }
 
   Future<List<dynamic>> fetchPaymentTerms() async {
-    return _safeFetch('${Endpoint.baseUrl}/api/v1/models/C_PaymentTerm?\$select=C_PaymentTerm_ID,Name', 'términos de pago');
+    return _safeFetchPaginated('${Endpoint.baseUrl}/api/v1/models/C_PaymentTerm?\$select=C_PaymentTerm_ID,Name&\$orderby=Name', 'términos de pago');
   }
 
   // 5. MÉTODOS DE ESTRUCTURA
-  Future<bool> createPhase(int projectId, String name, String description) async {
+  Future<Map<String, dynamic>> createPhase(int projectId, String name, String description) async {
     try {
       final url = Uri.parse('${Endpoint.baseUrl}/api/v1/models/C_ProjectPhase');
       final body = {
@@ -154,14 +183,29 @@ class ProjectsLogic {
         'Description': description,
         'IsActive': true,
       };
-      final response = await http.post(url, headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: jsonEncode(body));
-      return response.statusCode == 200 || response.statusCode == 201;
+      var response = await http.post(url, headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: jsonEncode(body));
+
+      if (response.statusCode == 401) {
+        final refreshed = await handleTokenRefresh();
+        if (refreshed) {
+          response = await http.post(url, headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: jsonEncode(body));
+        } else {
+          return {'success': false, 'error': 'Sesión expirada'};
+        }
+      }
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return {'success': true};
+      } else {
+        final errorMsg = json.decode(utf8.decode(response.bodyBytes));
+        return {'success': false, 'error': errorMsg['detail'] ?? errorMsg['error'] ?? response.body};
+      }
     } catch (e) {
-      return false;
+      return {'success': false, 'error': e.toString()};
     }
   }
 
-  Future<bool> createTask(int phaseId, String name, String description) async {
+  Future<Map<String, dynamic>> createTask(int phaseId, String name, String description) async {
     try {
       final url = Uri.parse('${Endpoint.baseUrl}/api/v1/models/C_ProjectTask');
       final body = {
@@ -170,24 +214,54 @@ class ProjectsLogic {
         'Description': description,
         'IsActive': true,
       };
-      final response = await http.post(url, headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: jsonEncode(body));
-      return response.statusCode == 200 || response.statusCode == 201;
+      var response = await http.post(url, headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: jsonEncode(body));
+
+      if (response.statusCode == 401) {
+        final refreshed = await handleTokenRefresh();
+        if (refreshed) {
+          response = await http.post(url, headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: jsonEncode(body));
+        } else {
+          return {'success': false, 'error': 'Sesión expirada'};
+        }
+      }
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return {'success': true};
+      } else {
+        final errorMsg = json.decode(utf8.decode(response.bodyBytes));
+        return {'success': false, 'error': errorMsg['detail'] ?? errorMsg['error'] ?? response.body};
+      }
     } catch (e) {
-      return false;
+      return {'success': false, 'error': e.toString()};
     }
   }
 
-  Future<bool> updateItem(String type, int id, String name, String description) async {
+  Future<Map<String, dynamic>> updateItem(String type, int id, String name, String description) async {
     try {
       String endpoint = type == 'project'
           ? Endpoint.project
           : type == 'phase'
           ? '${Endpoint.baseUrl}/api/v1/models/C_ProjectPhase'
           : '${Endpoint.baseUrl}/api/v1/models/C_ProjectTask';
-      final response = await http.put(Uri.parse('$endpoint/$id'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: jsonEncode({'Name': name, 'Description': description}));
-      return response.statusCode == 200 || response.statusCode == 201;
+      var response = await http.put(Uri.parse('$endpoint/$id'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: jsonEncode({'Name': name, 'Description': description}));
+
+      if (response.statusCode == 401) {
+        final refreshed = await handleTokenRefresh();
+        if (refreshed) {
+          response = await http.put(Uri.parse('$endpoint/$id'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: jsonEncode({'Name': name, 'Description': description}));
+        } else {
+          return {'success': false, 'error': 'Sesión expirada'};
+        }
+      }
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return {'success': true};
+      } else {
+        final errorMsg = json.decode(utf8.decode(response.bodyBytes));
+        return {'success': false, 'error': errorMsg['detail'] ?? errorMsg['error'] ?? response.body};
+      }
     } catch (e) {
-      return false;
+      return {'success': false, 'error': e.toString()};
     }
   }
 
@@ -195,7 +269,17 @@ class ProjectsLogic {
     if (taskUU == null || taskUU.isEmpty) return [];
     try {
       final url = '${Endpoint.request}?\$filter=Record_UU eq \'$taskUU\'';
-      final response = await http.get(Uri.parse(url), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+      var response = await http.get(Uri.parse(url), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+
+      if (response.statusCode == 401) {
+        final refreshed = await handleTokenRefresh();
+        if (refreshed) {
+          response = await http.get(Uri.parse(url), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+        } else {
+          return [];
+        }
+      }
+
       if (response.statusCode == 200) {
         final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
         final records = jsonResponse['records'] as List?;
@@ -219,6 +303,15 @@ class DocumentsLogic {
     try {
       var response = await http.get(Uri.parse('${Endpoint.primDocuments}?\$filter=C_Project_ID eq $projectId and Type eq \'$typeCode\'&\$expand=PRIM_Documents_Related'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
 
+      if (response.statusCode == 401) {
+        final refreshed = await handleTokenRefresh();
+        if (refreshed) {
+          response = await http.get(Uri.parse('${Endpoint.primDocuments}?\$filter=C_Project_ID eq $projectId and Type eq \'$typeCode\'&\$expand=PRIM_Documents_Related'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+        } else {
+          return [];
+        }
+      }
+
       if (response.statusCode == 200) {
         final data = json.decode(utf8.decode(response.bodyBytes));
         List<dynamic> records = data['records'];
@@ -231,21 +324,27 @@ class DocumentsLogic {
           if (folderIndex != -1) {
             final folderId = records[folderIndex]['id'];
             try {
-              final childrenResponse = await http.get(Uri.parse('${Endpoint.primDocuments}/$folderId/PRIM_Documents_Related'), headers: {'Authorization': Token.token});
+              var childrenResponse = await http.get(Uri.parse('${Endpoint.primDocuments}/$folderId/PRIM_Documents_Related'), headers: {'Authorization': Token.token});
+
+              if (childrenResponse.statusCode == 401) {
+                final refreshed = await handleTokenRefresh();
+                if (refreshed) {
+                  childrenResponse = await http.get(Uri.parse('${Endpoint.primDocuments}/$folderId/PRIM_Documents_Related'), headers: {'Authorization': Token.token});
+                } else {
+                  // No hacer nada, simplemente no se cargarán los hijos
+                }
+              }
+
               if (childrenResponse.statusCode == 200) {
                 final childrenData = json.decode(utf8.decode(childrenResponse.bodyBytes));
                 records[folderIndex]['PRIM_Documents_Related'] = childrenData['records'];
               }
-            } catch (e) {
-              debugPrint('Error fetching folder children: $e');
-            }
+            } catch (e) {}
           }
         }
         return records;
       }
-    } catch (e) {
-      debugPrint('Error fetching documents: $e');
-    }
+    } catch (e) {}
     return [];
   }
 
@@ -268,10 +367,19 @@ class DocumentsLogic {
     };
 
     try {
-      final response = await http.post(createUrl, headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: jsonEncode(payload));
+      var response = await http.post(createUrl, headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: jsonEncode(payload));
+
+      if (response.statusCode == 401) {
+        final refreshed = await handleTokenRefresh();
+        if (refreshed) {
+          response = await http.post(createUrl, headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: jsonEncode(payload));
+        } else {
+          return false;
+        }
+      }
+
       return response.statusCode == 200 || response.statusCode == 201;
     } catch (e) {
-      debugPrint('Error creating folder: $e');
       return false;
     }
   }
@@ -305,22 +413,39 @@ class DocumentsLogic {
     }
 
     try {
-      final createResponse = await http.post(createUrl, headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: jsonEncode(payload));
+      var createResponse = await http.post(createUrl, headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: jsonEncode(payload));
+
+      if (createResponse.statusCode == 401) {
+        final refreshed = await handleTokenRefresh();
+        if (refreshed) {
+          createResponse = await http.post(createUrl, headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: jsonEncode(payload));
+        } else {
+          return false;
+        }
+      }
 
       if (createResponse.statusCode == 200 || createResponse.statusCode == 201) {
         final newRecord = jsonDecode(createResponse.body);
         final newRecordId = newRecord['id'];
         return await postAttachments(recordID: newRecordId, tableName: createUrl.toString(), convertedFile: {'title': fileName, 'base64': base64Encode(fileBytes)});
       }
-    } catch (e) {
-      debugPrint('Error uploading file: $e');
-    }
+    } catch (e) {}
     return false;
   }
 
   static Future<Map<String, dynamic>> deleteFile(int id, String tableName) async {
     try {
-      final response = await http.delete(Uri.parse('$tableName/$id'), headers: {'Authorization': Token.token});
+      var response = await http.delete(Uri.parse('$tableName/$id'), headers: {'Authorization': Token.token});
+
+      if (response.statusCode == 401) {
+        final refreshed = await handleTokenRefresh();
+        if (refreshed) {
+          response = await http.delete(Uri.parse('$tableName/$id'), headers: {'Authorization': Token.token});
+        } else {
+          return {'success': false, 'message': 'Sesión expirada'};
+        }
+      }
+
       if (response.statusCode == 200 || response.statusCode == 204) {
         return {'success': true};
       } else {
@@ -332,7 +457,6 @@ class DocumentsLogic {
         return {'success': false, 'message': 'Error al eliminar: ${response.statusCode}'};
       }
     } catch (e) {
-      debugPrint('Error deleting file: $e');
       return {'success': false, 'message': 'Error de conexión: $e'};
     }
   }
@@ -340,7 +464,17 @@ class DocumentsLogic {
   static Future<bool> updateDocumentRemote(int id, Map<String, dynamic> body, {String? tableName}) async {
     final url = Uri.parse('${tableName ?? Endpoint.primDocuments}/$id');
     try {
-      final response = await http.put(url, headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: jsonEncode(body));
+      var response = await http.put(url, headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: jsonEncode(body));
+
+      if (response.statusCode == 401) {
+        final refreshed = await handleTokenRefresh();
+        if (refreshed) {
+          response = await http.put(url, headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: jsonEncode(body));
+        } else {
+          return false;
+        }
+      }
+
       return response.statusCode == 200 || response.statusCode == 201;
     } catch (e) {
       return false;
@@ -351,7 +485,16 @@ class DocumentsLogic {
   static Future<void> checkAndUpdateFolderStatus(int folderId) async {
     try {
       // 1. Obtener todos los hijos de la carpeta
-      final childrenResponse = await http.get(Uri.parse('${Endpoint.primDocuments}/$folderId/PRIM_Documents_Related'), headers: {'Authorization': Token.token});
+      var childrenResponse = await http.get(Uri.parse('${Endpoint.primDocuments}/$folderId/PRIM_Documents_Related'), headers: {'Authorization': Token.token});
+
+      if (childrenResponse.statusCode == 401) {
+        final refreshed = await handleTokenRefresh();
+        if (refreshed) {
+          childrenResponse = await http.get(Uri.parse('${Endpoint.primDocuments}/$folderId/PRIM_Documents_Related'), headers: {'Authorization': Token.token});
+        } else {
+          return;
+        }
+      }
 
       if (childrenResponse.statusCode == 200) {
         final childrenData = json.decode(utf8.decode(childrenResponse.bodyBytes));
@@ -375,21 +518,27 @@ class DocumentsLogic {
         final newStatus = allDelivered ? 'DL' : 'IR'; // Entregado o En Revisión
         await updateDocumentRemote(folderId, {'Status': newStatus}, tableName: Endpoint.primDocuments);
       }
-    } catch (e) {
-      debugPrint('Error updating folder status: $e');
-    }
+    } catch (e) {}
   }
 
   static Future<Uint8List?> fetchImagePreview(String tableName, int recordId, String fileName) async {
     try {
       final url = '$tableName/$recordId/attachments/${Uri.encodeComponent(fileName)}';
-      final response = await http.get(Uri.parse(url), headers: {'Authorization': Token.token});
+      var response = await http.get(Uri.parse(url), headers: {'Authorization': Token.token});
+
+      if (response.statusCode == 401) {
+        final refreshed = await handleTokenRefresh();
+        if (refreshed) {
+          response = await http.get(Uri.parse(url), headers: {'Authorization': Token.token});
+        } else {
+          return null;
+        }
+      }
+
       if (response.statusCode == 200) {
         return response.bodyBytes;
       }
-    } catch (e) {
-      debugPrint('Error fetching image preview: $e');
-    }
+    } catch (e) {}
     return null;
   }
 
@@ -408,7 +557,17 @@ class DocumentsLogic {
     bool hasPendingGn = false;
 
     try {
-      final response = await http.get(Uri.parse('${Endpoint.primDocuments}?\$filter=C_Project_ID eq $projectId&\$expand=PRIM_Documents_Related'), headers: {'Authorization': Token.token});
+      var response = await http.get(Uri.parse('${Endpoint.primDocuments}?\$filter=C_Project_ID eq $projectId&\$expand=PRIM_Documents_Related'), headers: {'Authorization': Token.token});
+
+      if (response.statusCode == 401) {
+        final refreshed = await handleTokenRefresh();
+        if (refreshed) {
+          response = await http.get(Uri.parse('${Endpoint.primDocuments}?\$filter=C_Project_ID eq $projectId&\$expand=PRIM_Documents_Related'), headers: {'Authorization': Token.token});
+        } else {
+          return {};
+        }
+      }
+
       if (response.statusCode == 200) {
         final data = json.decode(utf8.decode(response.bodyBytes));
         final records = data['records'] as List;
