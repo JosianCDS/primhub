@@ -17,12 +17,12 @@ class SupportHoursCard extends StatelessWidget {
     final String documentNo = contract['DocumentNo'] ?? 'N/A';
 
     double progress = 0.0;
-    if (contractedHours != null && contractedHours! > 0) {
-      progress = consumedHours / contractedHours!;
+    if (contractedHours > 0) {
+      progress = consumedHours / contractedHours;
     }
 
     return InkWell(
-      onTap: () => context.push('/support'),
+      onTap: () => context.push('/support', extra: {'contract': contract, 'bpId': contract['C_BPartner_ID']}),
       borderRadius: BorderRadius.circular(12),
       child: CardCustom(
         hover: true,
@@ -77,17 +77,18 @@ class SupportHoursCard extends StatelessWidget {
 }
 
 class SupportRequestsCard extends StatelessWidget {
+  final int bpId;
   final String? bpName;
   final int closedRequestsCount;
   final int inProgressRequestsCount;
   final Color textColor;
 
-  const SupportRequestsCard({super.key, this.bpName, required this.closedRequestsCount, required this.inProgressRequestsCount, required this.textColor});
+  const SupportRequestsCard({super.key, required this.bpId, this.bpName, required this.closedRequestsCount, required this.inProgressRequestsCount, required this.textColor});
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () => context.push('/my-requests'),
+      onTap: () => context.push('/my-requests', extra: {'bpId': bpId, 'bpName': bpName}),
       borderRadius: BorderRadius.circular(12),
       child: CardCustom(
         hover: true,

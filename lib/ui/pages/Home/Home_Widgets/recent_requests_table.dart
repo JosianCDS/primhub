@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/Shared_Custom/custom_container.dart';
-import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
-import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/Shared_Custom/custom_table.dart';
 
 class RecentRequestsTable extends StatelessWidget {
@@ -12,70 +10,6 @@ class RecentRequestsTable extends StatelessWidget {
   final Function(Map<String, dynamic>) onEdit;
 
   const RecentRequestsTable({super.key, required this.requests, required this.isLoading, required this.onEdit});
-
-  void _editRequest(BuildContext context, Map<String, dynamic> req) {
-    String currentPriority = req['level'];
-    String currentStatus = req['status'];
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setStateDialog) {
-          return CustomModal(
-            title: 'Editar Solicitud ${req['code']}',
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CustomDropdown<String>(
-                  label: 'Nivel de Prioridad',
-                  value: currentPriority,
-                  items: ['Urgente', 'Alta', 'Media', 'Baja', 'Menor'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-                  onChanged: (val) {
-                    if (val != null) setStateDialog(() => currentPriority = val);
-                  },
-                ),
-                const SizedBox(height: 16),
-                CustomDropdown<String>(
-                  label: 'Estado',
-                  value: currentStatus,
-                  items: ['1_Open', '2_Waiting on customer', '3_Closed', '9_Final Close'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-                  onChanged: (val) {
-                    if (val != null) setStateDialog(() => currentStatus = val);
-                  },
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
-              CustomButton(
-                text: 'Guardar',
-                onPressed: () {
-                  // Update local map to reflect changes immediately in UI
-                  req['level'] = currentPriority;
-                  req['status'] = currentStatus;
-                  if (currentPriority == 'Urgente') {
-                    req['levelColor'] = Colors.purple;
-                  } else if (currentPriority == 'Alta') {
-                    req['levelColor'] = Colors.red;
-                  } else if (currentPriority == 'Media') {
-                    req['levelColor'] = Colors.amber.shade800;
-                  } else if (currentPriority == 'Menor') {
-                    req['levelColor'] = Colors.grey;
-                  } else {
-                    req['levelColor'] = Colors.green;
-                  }
-                  req['levelBgColor'] = (req['levelColor'] as Color).withOpacity(0.2);
-
-                  onEdit(req);
-                  Navigator.pop(context);
-                },
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -94,6 +28,7 @@ class RecentRequestsTable extends StatelessWidget {
                 : CustomTable(
                     columns: const [
                       DataColumn(label: Text('Ticket')),
+                      DataColumn(label: Text('Tipo de Solicitud')),
                       DataColumn(label: Text('Asunto')),
                       DataColumn(label: Text('Tercero')),
                       DataColumn(label: Text('Usuario')),
@@ -104,10 +39,11 @@ class RecentRequestsTable extends StatelessWidget {
                     ],
                     rows: requests.map((req) {
                       return DataRow(
-                        onSelectChanged: (value) => _editRequest(context, req),
+                        onSelectChanged: (value) => onEdit(req),
                         cells: [
                           DataCell(Text(req['code'])),
                           DataCell(Text(req['situation'])),
+                          DataCell(Text(req['emailSubject']?.toString() ?? '')),
                           DataCell(Text(req['bpName'])),
                           DataCell(Text(req['userName'])),
                           DataCell(

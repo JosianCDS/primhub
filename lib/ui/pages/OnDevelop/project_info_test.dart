@@ -67,7 +67,6 @@ class _ProjectInfoTestPageState extends State<ProjectInfoTestPage> {
         setState(() => _debugInfo += '\nError ${response.statusCode}: ${response.body}');
       }
     } catch (e) {
-      debugPrint('Error fetching projects: $e');
       setState(() => _debugInfo += '\nExcepción: $e');
     }
   }
@@ -79,9 +78,7 @@ class _ProjectInfoTestPageState extends State<ProjectInfoTestPage> {
         final data = json.decode(utf8.decode(response.bodyBytes));
         if (mounted) setState(() => _productChipList = data['records']);
       }
-    } catch (e) {
-      debugPrint('Error fetching product chip: $e');
-    }
+    } catch (e) {}
   }
 
   Future<void> _fetchOrders() async {
@@ -91,9 +88,7 @@ class _ProjectInfoTestPageState extends State<ProjectInfoTestPage> {
         final data = json.decode(utf8.decode(response.bodyBytes));
         if (mounted) setState(() => _orderList = data['records']);
       }
-    } catch (e) {
-      debugPrint('Error fetching orders: $e');
-    }
+    } catch (e) {}
   }
 
   Future<void> _fetchRequests() async {
@@ -103,9 +98,7 @@ class _ProjectInfoTestPageState extends State<ProjectInfoTestPage> {
         final data = json.decode(utf8.decode(response.bodyBytes));
         if (mounted) setState(() => _requestList = data['records']);
       }
-    } catch (e) {
-      debugPrint('Error fetching requests: $e');
-    }
+    } catch (e) {}
   }
 
   @override
@@ -115,13 +108,7 @@ class _ProjectInfoTestPageState extends State<ProjectInfoTestPage> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Prueba Info Proyecto'),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              tooltip: 'Refrescar',
-              onPressed: _initData,
-            ),
-          ],
+          actions: [IconButton(icon: const Icon(Icons.refresh), tooltip: 'Refrescar', onPressed: _initData)],
           bottom: const TabBar(
             isScrollable: true,
             tabs: [

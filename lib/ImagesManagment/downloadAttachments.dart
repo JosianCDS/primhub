@@ -11,30 +11,14 @@ import 'package:flutter/material.dart';
 Future<void> downloadAttachment({required BuildContext context, required int recordID, required String tableName, required String fileName, VoidCallback? onStatusChanged}) async {
   final String token = Token.token;
 
+  if (context.mounted) {
+    ToastMessage.show(context: context, message: "Descargando: $fileName", type: ToastType.help);
+  }
+
   try {
     final Uri url = Uri.parse('$tableName/$recordID/attachments/${Uri.encodeComponent(fileName)}');
 
     final Response response = await get(url, headers: {'Authorization': token, 'Accept': '*/*'});
-
-    // 🔎 DEBUG CRUDO
-    debugPrint('================ ATTACHMENT DEBUG ================');
-    debugPrint('URL: $url');
-    debugPrint('STATUS: ${response.statusCode}');
-    debugPrint('HEADERS: ${response.headers}');
-    debugPrint('BYTES LENGTH: ${response.bodyBytes.length}');
-
-    // Si el body parece texto, lo mostramos (limitado)
-    try {
-      final String rawBody = String.fromCharCodes(response.bodyBytes);
-      debugPrint(
-        'RAW BODY (first 500 chars):\n'
-        '${rawBody.substring(0, rawBody.length > 500 ? 500 : rawBody.length)}',
-      );
-    } catch (_) {
-      debugPrint('RAW BODY: <binary>');
-    }
-
-    debugPrint('=================================================');
 
     if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
       _triggerWebDownloadFromBytes(response.bodyBytes, fileName);
@@ -45,7 +29,7 @@ Future<void> downloadAttachment({required BuildContext context, required int rec
       }
 
       if (context.mounted) {
-        ToastMessage.show(context: context, message: "Descarga iniciada: $fileName", type: ToastType.success);
+        ToastMessage.show(context: context, message: "Descarga completada: $fileName", type: ToastType.success);
       }
     } else {
       if (response.statusCode == 404 || response.bodyBytes.isEmpty) {
@@ -61,9 +45,6 @@ Future<void> downloadAttachment({required BuildContext context, required int rec
       }
     }
   } catch (e, stack) {
-    debugPrint('❌ DOWNLOAD ERROR: $e');
-    debugPrint('📌 STACKTRACE:\n$stack');
-
     if (context.mounted) {
       ToastMessage.show(
         context: context,
@@ -86,16 +67,12 @@ void _triggerWebDownloadFromBytes(Uint8List bytes, String fileName) {
       ..click();
 
     html.Url.revokeObjectUrl(url);
-  } catch (e) {
-    debugPrint("Error creando descarga: $e");
-  }
+  } catch (e) {}
 }
 
 Future<void> _updateStatus(String tableName, int recordID, String status) async {
   try {
     final Uri url = tableName.startsWith('http') ? Uri.parse('$tableName/$recordID') : Uri.parse('${Endpoint.baseUrl}/api/v1/models/$tableName/$recordID');
     await put(url, headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: jsonEncode({'Status': status}));
-  } catch (e) {
-    debugPrint('Error updating status to $status: $e');
-  }
+  } catch (e) {}
 }

@@ -11,6 +11,8 @@ import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/Shared_Custom/custom_container.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
+import 'package:primhub/ui/widgets/duration_formatter.dart';
+import '../../Shared_Custom/cardcustom.dart' show CardCustom;
 import '../../widgets/custom_drawer.dart';
 
 class HomePage extends StatefulWidget {
@@ -40,11 +42,67 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _onViewModeChanged() {
-    // Cuando el modo cambia, recargamos los datos del home que dependen de los roles
-    // y forzamos un rebuild de la página para que se actualicen los widgets
-    // y el drawer.
-    setState(() {}); // Reconstruye la UI (AppBar, Drawer, etc.) que depende de AccessControl
-    _controller.initData(); // Recarga los datos del dashboard
+    setState(() {});
+    _controller.initData();
+  }
+
+  void _showRequestDetails(Map<String, dynamic> record) {
+    // El mapa record en recentRequests tiene una estructura plana o anidada en 'original'.
+    // Usamos los datos ya procesados en _applyFilters del controller.
+    final description = record['description'] ?? '';
+    final time = record['time'] ?? '';
+    final level = record['level'] ?? '';
+    final status = record['status'] ?? '';
+    final bpName = record['bpName'] ?? '';
+    final userName = record['userName'] ?? '';
+    final code = record['code'] ?? '';
+    final situation = record['situation'] ?? '';
+    final emailSubject = record['emailSubject'] ?? '';
+
+    showDialog(
+      context: context,
+      builder: (context) => CustomModal(
+        title: 'Detalle de Solicitud $code',
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CustomTextField(
+                controller: TextEditingController(text: situation),
+                label: 'Tipo de Solicitud',
+                readOnly: true,
+              ),
+              const SizedBox(height: 16),
+              CustomTextField(
+                controller: TextEditingController(text: emailSubject),
+                label: 'Asunto',
+                readOnly: true,
+              ),
+              const SizedBox(height: 16),
+              CustomTextField(
+                controller: TextEditingController(text: bpName),
+                label: 'Tercero',
+                readOnly: true,
+              ),
+              const SizedBox(height: 16),
+              CustomTextField(
+                controller: TextEditingController(text: userName),
+                label: 'Usuario',
+                readOnly: true,
+              ),
+              const SizedBox(height: 16),
+              CustomTextField(
+                controller: TextEditingController(text: description),
+                label: 'Descripción',
+                readOnly: true,
+                maxLines: 5,
+              ),
+            ],
+          ),
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cerrar'))],
+      ),
+    );
   }
 
   @override
@@ -80,35 +138,108 @@ class _HomePageState extends State<HomePage> {
           actions: [
             if (AccessControl.isAdmin)
               PopupMenuButton<AdminViewMode>(
-                icon: const Icon(Icons.admin_panel_settings),
                 tooltip: 'Cambiar modo de vista',
                 onSelected: (AdminViewMode mode) {
                   _adminViewModeManager.saveMode(mode);
                 },
-                itemBuilder: (BuildContext context) => <PopupMenuEntry<AdminViewMode>>[const PopupMenuItem<AdminViewMode>(value: AdminViewMode.mixed, child: const Text('Modo Mixto')), const PopupMenuItem<AdminViewMode>(value: AdminViewMode.support, child: const Text('Modo Soporte')), const PopupMenuItem<AdminViewMode>(value: AdminViewMode.project, child: const Text('Modo Proyecto'))],
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.admin_panel_settings),
+                      const SizedBox(width: 8),
+                      Text(_adminViewModeManager.currentMode == AdminViewMode.support ? 'Modo Soporte' : (_adminViewModeManager.currentMode == AdminViewMode.project ? 'Modo Proyecto' : 'Modo Mixto'), style: const TextStyle(fontWeight: FontWeight.bold)),
+                      const Icon(Icons.arrow_drop_down),
+                    ],
+                  ),
+                ),
+                itemBuilder: (BuildContext context) {
+                  final current = _adminViewModeManager.currentMode;
+                  final colorScheme = Theme.of(context).colorScheme;
+                  PopupMenuItem<AdminViewMode> buildItem(AdminViewMode mode, String text) {
+                    final isSelected = current == mode;
+                    return PopupMenuItem<AdminViewMode>(
+                      value: mode,
+                      child: Container(
+                        width: double.infinity,
+                        decoration: BoxDecoration(color: isSelected ? colorScheme.primary.withOpacity(0.1) : Colors.transparent, borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        child: Row(
+                          children: [
+                            Text(
+                              text,
+                              style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? colorScheme.primary : colorScheme.onSurface),
+                            ),
+                            if (isSelected) const Spacer(),
+                            if (isSelected) Icon(Icons.check, size: 18, color: colorScheme.primary),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+
+                  return [buildItem(AdminViewMode.mixed, 'Modo Mixto'), buildItem(AdminViewMode.support, 'Modo Soporte'), buildItem(AdminViewMode.project, 'Modo Proyecto')];
+                },
+              ),
+            if (AccessControl.isAdmin)
+              PopupMenuButton<bool>(
+                tooltip: 'Filtrar proyectos',
+                onSelected: (bool viewingMine) {
+                  setState(() {
+                    _controller.filterSalesRepId = viewingMine ? User.userID : null;
+                  });
+                  _controller.initData();
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(_controller.filterSalesRepId != null ? Icons.person : Icons.group),
+                      const SizedBox(width: 8),
+                      Text(_controller.filterSalesRepId != null ? 'Mis Proyectos' : 'Todos los Proyectos', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      const Icon(Icons.arrow_drop_down),
+                    ],
+                  ),
+                ),
+                itemBuilder: (BuildContext context) {
+                  final colorScheme = Theme.of(context).colorScheme;
+                  final isViewingMine = _controller.filterSalesRepId != null;
+                  PopupMenuItem<bool> buildItem(bool isMineOption, String text, IconData icon) {
+                    final isSelected = isViewingMine == isMineOption;
+                    return PopupMenuItem<bool>(
+                      value: isMineOption,
+                      child: Container(
+                        width: double.infinity,
+                        decoration: BoxDecoration(color: isSelected ? colorScheme.primary.withOpacity(0.1) : Colors.transparent, borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        child: Row(
+                          children: [
+                            Icon(icon, size: 20, color: isSelected ? colorScheme.primary : colorScheme.onSurface),
+                            const SizedBox(width: 8),
+                            Text(
+                              text,
+                              style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? colorScheme.primary : colorScheme.onSurface),
+                            ),
+                            if (isSelected) const Spacer(),
+                            if (isSelected) Icon(Icons.check, size: 18, color: colorScheme.primary),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+
+                  return [buildItem(true, 'Mis Proyectos', Icons.person), buildItem(false, 'Todos los Proyectos', Icons.group)];
+                },
               ),
             IconButton(
               icon: const Icon(Icons.refresh),
               tooltip: 'Refrescar',
               onPressed: () {
-                // Forzar recarga completa
                 _controller.initData();
               },
             ),
-            if (AccessControl.isAdmin || Token.primConfig?.toLowerCase() == 'sp')
-              IconButton(
-                icon: Icon(_controller.filterSalesRepId != null ? Icons.person : Icons.group),
-                tooltip: _controller.filterSalesRepId != null ? 'Viendo mis proyectos' : 'Viendo todos',
-                onPressed: () {
-                  setState(() {
-                    // Alternar filtro en el controlador: null (Todos) vs User.userID (Mis Proyectos)
-                    // Funciona igual que en la pantalla de Proyectos
-                    _controller.filterSalesRepId = (_controller.filterSalesRepId == null) ? User.userID : null;
-                  });
-                  // Recargar datos con el nuevo filtro
-                  _controller.initData();
-                },
-              ),
           ],
         ),
         drawer: const CustomDrawer(),
@@ -121,7 +252,7 @@ class _HomePageState extends State<HomePage> {
               }
               return SingleChildScrollView(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center, // Asegura centrado horizontal de hijos directos
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     const SizedBox(height: 20),
                     Center(
@@ -132,40 +263,36 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
                     const SizedBox(height: 20),
-                    // Selector de Tercero para Soporte (Solo Admins)
-                    if (AccessControl.isAdmin && AccessControl.isSupport)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                        child: CustomContainer(
-                          title: 'Filtrar Soporte por Tercero',
-                          child: _SupportBpSelector(bPartners: _controller.supportBPartners, selectedBpIds: _controller.selectedSupportBpIds, onSelectionChanged: (ids) => _controller.updateSelectedSupportBps(ids)),
-                        ),
-                      ),
-                    const SizedBox(height: 20),
-                    if (AccessControl.isSupport || (_controller.hasSupport && Token.primConfig == null)) ...[
-                      Builder(
-                        builder: (context) {
-                          final bpsToRender = AccessControl.isAdmin ? _controller.selectedSupportBpIds : (User.cBPartnerID != null ? [User.cBPartnerID!] : <int>[]);
+                    Builder(
+                      builder: (context) {
+                        bool hasProjectsContent = (AccessControl.isProject || (_controller.hasProject && Token.primConfig == null)) && _controller.projects.isNotEmpty;
+                        bool hasSupportContent = (AccessControl.isSupport || (_controller.hasSupport && Token.primConfig == null)) && (_controller.recentRequests.isNotEmpty || _controller.supportContracts.isNotEmpty || (AccessControl.isAdmin && _controller.supportBPartners.isNotEmpty));
 
-                          return Wrap(
-                            spacing: 20,
-                            runSpacing: 20,
-                            alignment: WrapAlignment.center,
-                            children: bpsToRender.expand<Widget>((bpId) {
-                              final bpContracts = _controller.supportContracts.where((c) => c['C_BPartner_ID'] == bpId).toList();
-                              final stats = _controller.requestsStatsByBp[bpId] ?? {'closed': 0, 'inProgress': 0};
-                              final bpInfo = _controller.supportBPartners.firstWhere((bp) => bp['id'] == bpId, orElse: () => null);
-                              final bpName = bpInfo?['Name'] ?? 'Tercero $bpId';
-
-                              return [...bpContracts.map((contract) => SupportHoursCard(contract: contract, isDark: isDark, textColor: textColor)), if (stats['closed']! > 0 || stats['inProgress']! > 0) SupportRequestsCard(bpName: bpName, closedRequestsCount: stats['closed']!, inProgressRequestsCount: stats['inProgress']!, textColor: textColor)];
-                            }).toList(),
+                        if (!hasProjectsContent && !hasSupportContent && !_controller.isLoading) {
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 60.0),
+                            child: Column(
+                              children: [
+                                Icon(Icons.dashboard_customize_outlined, size: 80, color: textColor.withOpacity(0.4)),
+                                const SizedBox(height: 24),
+                                Text(
+                                  'Tu espacio de trabajo está listo',
+                                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: textColor.withOpacity(0.8)),
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'Actualmente no tienes proyectos activos ni solicitudes de soporte recientes. Cuando interactúes con la plataforma o se te asigne nueva actividad, el panel se actualizará automáticamente.',
+                                  style: TextStyle(fontSize: 16, color: textColor.withOpacity(0.6)),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
                           );
-                        },
-                      ),
-                    ],
-                    if ((AccessControl.isSupport || (_controller.hasSupport && Token.primConfig == null)) && (AccessControl.isProject || (_controller.hasProject && Token.primConfig == null)) && _controller.selectedProjectIds.isNotEmpty) ...[const SizedBox(height: 30), const Divider(indent: 20, endIndent: 20), const SizedBox(height: 30)],
-                    const SizedBox(height: 20),
-                    // Mostrar selector solo si no es usuario de proyecto O si tiene más de 1 proyecto
+                        }
+                        return const SizedBox.shrink();
+                      },
+                    ),
                     if (_controller.projects.isNotEmpty && (AccessControl.isProject || (_controller.hasProject && Token.primConfig == null)) && (AccessControl.isAdmin || _controller.projects.length > 1))
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -184,12 +311,10 @@ class _HomePageState extends State<HomePage> {
 
                             if (activeProjects.isEmpty) return const SizedBox.shrink();
 
-                            // Ajuste dinámico de columnas: Si es 1 proyecto, centramos mejor.
                             int columns = activeProjects.length == 1 ? 1 : (constraints.maxWidth < 900 ? 2 : 4);
                             double spacing = 20;
                             double itemWidth = (constraints.maxWidth - (spacing * (columns - 1))) / columns;
 
-                            // Si es un solo proyecto, limitamos el ancho máximo para que no se estire demasiado
                             if (activeProjects.length == 1 && itemWidth > 400) {
                               itemWidth = 400;
                             }
@@ -219,12 +344,55 @@ class _HomePageState extends State<HomePage> {
                           },
                         ),
                       ),
-                    const SizedBox(height: 30),
+                    if ((AccessControl.isSupport || (_controller.hasSupport && Token.primConfig == null)) && (AccessControl.isProject || (_controller.hasProject && Token.primConfig == null)) && _controller.selectedProjectIds.isNotEmpty) ...[const SizedBox(height: 30), const Divider(indent: 20, endIndent: 20), const SizedBox(height: 30)],
+                    const SizedBox(height: 20),
+                    if (AccessControl.isAdmin && AccessControl.isSupport)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        child: CustomContainer(
+                          title: 'Filtrar Soporte por Tercero',
+                          child: _SupportBpSelector(bPartners: _controller.supportBPartners, selectedBpIds: _controller.selectedSupportBpIds, onSelectionChanged: (ids) => _controller.updateSelectedSupportBps(ids)),
+                        ),
+                      ),
+                    const SizedBox(height: 20),
+                    if (AccessControl.isSupport || (_controller.hasSupport && Token.primConfig == null)) ...[
+                      Builder(
+                        builder: (context) {
+                          final bpsToRender = AccessControl.isAdmin ? _controller.selectedSupportBpIds : (User.cBPartnerID != null ? [User.cBPartnerID!] : <int>[]);
+
+                          return Wrap(
+                            spacing: 20,
+                            runSpacing: 20,
+                            alignment: WrapAlignment.center,
+                            children: bpsToRender.map((bpId) {
+                              final bpContracts = _controller.supportContracts.where((c) => c['C_BPartner_ID'] == bpId);
+                              final stats = _controller.requestsStatsByBp[bpId];
+                              final bpInfo = _controller.supportBPartners.firstWhere((bp) => bp['id'] == bpId, orElse: () => <String, dynamic>{'Name': 'Tercero $bpId'});
+                              final bpName = bpInfo['Name'];
+
+                              final List<Widget> cards = bpContracts.map<Widget>((c) => SupportHoursCard(contract: c, isDark: isDark, textColor: textColor)).toList();
+                              if (_controller.isLoading) {
+                                cards.add(
+                                  const CardCustom(
+                                    hover: false,
+                                    child: SizedBox(height: 200, width: 250, child: Center(child: CircularProgressIndicator())),
+                                  ),
+                                );
+                              } else if (stats != null && (((stats['closed'] as num?)?.toInt() ?? 0) > 0 || ((stats['inProgress'] as num?)?.toInt() ?? 0) > 0)) {
+                                cards.add(SupportRequestsCard(bpId: bpId, bpName: bpName, closedRequestsCount: (stats['closed'] as num?)?.toInt() ?? 0, inProgressRequestsCount: (stats['inProgress'] as num?)?.toInt() ?? 0, textColor: textColor));
+                              }
+
+                              return Wrap(spacing: 20, runSpacing: 20, alignment: WrapAlignment.center, children: cards);
+                            }).toList(),
+                          );
+                        },
+                      ),
+                    ],
                     if (AccessControl.isSupport || (_controller.hasSupport && Token.primConfig == null)) const SizedBox(height: 30),
                     if (AccessControl.isSupport || (_controller.hasSupport && Token.primConfig == null))
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                        child: RecentRequestsTable(requests: _controller.recentRequests, isLoading: _controller.isLoading, onEdit: _controller.updateRequestLocally),
+                        child: RecentRequestsTable(requests: _controller.recentRequests, isLoading: _controller.isLoading, onEdit: _showRequestDetails),
                       ),
                     const SizedBox(height: 20),
                   ],
@@ -238,7 +406,6 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-// Widget para el selector de Terceros de Soporte, similar al de Proyectos
 class _SupportBpSelector extends StatelessWidget {
   final List<dynamic> bPartners;
   final List<int> selectedBpIds;

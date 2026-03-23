@@ -12,15 +12,15 @@ class RequestStatsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (contractedHours == null) return const SizedBox.shrink();
+    final double safeContracted = contractedHours ?? 0.0;
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bool isMobile = MediaQuery.of(context).size.width < 600;
 
-    double availableHours = contractedHours! - consumedHours;
+    double availableHours = safeContracted - consumedHours;
     bool isInsufficient = estimatedHours > availableHours;
 
-    double maxHours = contractedHours!;
+    double maxHours = safeContracted;
     if (maxHours <= 0) maxHours = 1.0;
     double consumedPct = (consumedHours / maxHours).clamp(0.0, 1.0);
     double estimatedPct = (estimatedHours / maxHours).clamp(0.0, 1.0 - consumedPct);

@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:primhub/ui/Shared_Custom/cardcustom.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
+import 'package:primhub/ui/pages/Projects/dialogs/project_calendar_dialog.dart';
 
 class ProjectDurationCard extends StatelessWidget {
   final Map<String, dynamic> project;
@@ -21,27 +22,48 @@ class ProjectDurationCard extends StatelessWidget {
 
     if (dateContract != null) {
       DateTime start = DateTime.parse(dateContract);
-      DateTime end = DateTime.now();
-      bool isClosed = false;
+      DateTime startDay = DateTime(start.year, start.month, start.day);
+      DateTime now = DateTime.now();
+      DateTime today = DateTime(now.year, now.month, now.day);
+      DateTime? endDay;
 
       if (dateFinish != null && dateFinish.isNotEmpty) {
-        end = DateTime.parse(dateFinish);
-        isClosed = true;
+        DateTime end = DateTime.parse(dateFinish);
+        endDay = DateTime(end.year, end.month, end.day);
       }
 
-      int days = end.difference(start).inDays;
-      value = days.toString();
-
-      if (isClosed) {
-        title = 'Proyecto Cerrado';
-        subtitle = 'Del ${start.day}/${start.month}/${start.year} al ${end.day}/${end.month}/${end.year}';
+      if (today.isBefore(startDay)) {
+        title = 'Proyecto Planificado';
+        value = '0';
+        if (endDay != null) {
+          subtitle = 'Del ${startDay.day}/${startDay.month}/${startDay.year} al ${endDay.day}/${endDay.month}/${endDay.year}';
+        } else {
+          subtitle = 'Inicia el ${startDay.day}/${startDay.month}/${startDay.year}';
+        }
+      } else if (endDay != null) {
+        if (today.isBefore(endDay)) {
+          title = 'Proyecto En Curso';
+          value = today.difference(startDay).inDays.toString();
+          subtitle = 'Del ${startDay.day}/${startDay.month}/${startDay.year} al ${endDay.day}/${endDay.month}/${endDay.year}';
+        } else {
+          title = 'Proyecto Cerrado';
+          value = endDay.difference(startDay).inDays.toString();
+          subtitle = 'Del ${startDay.day}/${startDay.month}/${startDay.year} al ${endDay.day}/${endDay.month}/${endDay.year}';
+        }
       } else {
+        title = 'Proyecto En Curso';
+        value = today.difference(startDay).inDays.toString();
         subtitle = 'Desde ${start.day}/${start.month}/${start.year}';
       }
     }
 
     return InkWell(
-      onTap: () => context.push('/deliverables', extra: {'projectId': project['id'], 'view': 'projects'}),
+      onTap: () {
+        showDialog(
+          context: context,
+          builder: (context) => ProjectCalendarDialog(project: project),
+        );
+      },
       borderRadius: BorderRadius.circular(12),
       child: CardCustom(
         hover: true,

@@ -9,14 +9,16 @@ import 'package:primhub/ui/pages/Support/Requests/create_request_dialog.dart';
 
 class TaskItem extends StatefulWidget {
   final Map<String, dynamic> task;
+  final Map<String, dynamic>? phase;
   final bool initiallyExpanded;
   final Map<String, int> statusIdMap;
   final Map<String, String> priorityMap;
   final VoidCallback onRefresh;
   final Function(String type, int id, String name, String desc) onEdit;
   final bool isArchived;
+  final int projectId;
 
-  const TaskItem({super.key, required this.task, required this.initiallyExpanded, required this.statusIdMap, required this.priorityMap, required this.onRefresh, required this.onEdit, this.isArchived = false});
+  const TaskItem({super.key, required this.task, this.phase, required this.initiallyExpanded, required this.statusIdMap, required this.priorityMap, required this.onRefresh, required this.onEdit, this.isArchived = false, required this.projectId});
 
   @override
   State<TaskItem> createState() => _TaskItemState();
@@ -68,7 +70,7 @@ class _TaskItemState extends State<TaskItem> {
   Widget build(BuildContext context) {
     final taskId = widget.task['id'];
     final taskName = widget.task['Name'] ?? 'Tarea sin nombre';
-    final rawUU = widget.task['UUID'] ?? widget.task['uuid'] ?? widget.task['Record_UU'] ?? widget.task['uid'];
+    final rawUU = widget.task['C_ProjectTask_UU'] ?? widget.task['UUID'] ?? widget.task['uuid'] ?? widget.task['Record_UU'] ?? widget.task['uid'];
     String? taskUU;
     if (rawUU is String) taskUU = rawUU;
 
@@ -102,7 +104,7 @@ class _TaskItemState extends State<TaskItem> {
                         onPressed: () async {
                           final result = await showDialog(
                             context: context,
-                            builder: (context) => CreateRequestDialog(linkedRecordUU: taskUU),
+                            builder: (context) => CreateRequestDialog(linkedRecordUU: taskUU, linkedProjectId: widget.projectId, linkedPhaseId: widget.phase?['id'], linkedTaskId: taskId),
                           );
                           if (result == true) {
                             setState(() {}); // Refresca solo esta tarea para evitar colapsar el proyecto
@@ -138,14 +140,30 @@ class _TaskItemState extends State<TaskItem> {
                   onEdit: (req) {
                     if (!AccessControl.canManageRequests) return;
 
+                    final int? currentStatusId = req['R_Status_ID'] is Map ? req['R_Status_ID']['id'] : (req['R_Status_ID'] is int ? req['R_Status_ID'] : null);
+                    String currentStatusName = '1_Open';
+
+                    if (currentStatusId != null) {
+                      for (var entry in widget.statusIdMap.entries) {
+                        if (entry.value == currentStatusId) {
+                          currentStatusName = entry.key;
+                          break;
+                        }
+                      }
+                      if (currentStatusName == '1_Open') {
+                        final extracted = DocumentsLogic.extractValue(req['R_Status_ID']);
+                        if (extracted != 'N/A') currentStatusName = extracted;
+                      }
+                    }
+
                     // Mapeo manual de la solicitud cruda a lo que espera el diálogo de edición
                     final Map<String, dynamic> processedReq = {
                       'realId': req['id'],
                       'id': req['DocumentNo'] ?? req['id'].toString(),
                       'description': req['Summary'] ?? '',
                       'level': DocumentsLogic.extractValue(req['Priority']) == 'N/A' ? 'Media' : DocumentsLogic.extractValue(req['Priority']),
-                      'status': DocumentsLogic.extractValue(req['Status']) == 'N/A' ? '1_Open' : DocumentsLogic.extractValue(req['Status']),
-                      'statusId': req['R_Status_ID'] is Map ? req['R_Status_ID']['id'] : (req['R_Status_ID'] is int ? req['R_Status_ID'] : null),
+                      'status': currentStatusName,
+                      'statusId': currentStatusId,
                       'dateStartPlan': req['DateStartPlan'] ?? '',
                       'dateCompletePlan': req['DateCompletePlan'] ?? '',
                       'startTime': extractTime(req['StartTime']),
@@ -154,6 +172,9 @@ class _TaskItemState extends State<TaskItem> {
                       'type': _getDropdownValue(req['R_RequestType_ID']),
                       'category': _getDropdownValue(req['R_Category_ID']),
                       'group': _getDropdownValue(req['R_Group_ID']),
+                      'salesRepId': req['SalesRep_ID'] is Map ? req['SalesRep_ID']['id'] : (req['SalesRep_ID'] is int ? req['SalesRep_ID'] : null),
+                      'bpId': req['C_BPartner_ID'] is Map ? req['C_BPartner_ID']['id'] : (req['C_BPartner_ID'] is int ? req['C_BPartner_ID'] : null),
+                      'userId': req['AD_User_ID'] is Map ? req['AD_User_ID']['id'] : (req['AD_User_ID'] is int ? req['AD_User_ID'] : null),
                     };
 
                     showDialog(

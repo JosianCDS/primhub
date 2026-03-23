@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
-import '../../Shared_Custom/custom_button.dart';
 
 class CalendarTab extends StatefulWidget {
   final List<dynamic> requests;
@@ -12,155 +10,136 @@ class CalendarTab extends StatefulWidget {
 }
 
 class _CalendarTabState extends State<CalendarTab> {
-  final List<Map<String, dynamic>> _events = [
-    {'date': DateTime(2025, 11, 15), 'description': 'Entrega hito 3'},
-    {'date': DateTime(2025, 11, 20), 'description': 'Reunión de seguimiento semanal'},
-    {'date': DateTime(2025, 12, 1), 'description': 'Cierre de sprint'},
-  ];
-
   DateTime _focusedMonth = DateTime.now();
-  void _editEvent(BuildContext context, Map<String, dynamic> event) {
-    final TextEditingController descController = TextEditingController(text: event['description']);
-    DateTime selectedDate = event['date'];
+  List<Map<String, dynamic>> _processedRequests = [];
 
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setStateDialog) {
-          return CustomModal(
-            title: 'Editar Evento',
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CustomTextField(controller: descController, label: 'Descripción', maxLines: 3),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Text('Fecha: ${selectedDate.day}/${selectedDate.month}/${selectedDate.year}', style: const TextStyle(fontSize: 16)),
-                    const Spacer(),
-                    IconButton(
-                      icon: const Icon(Icons.calendar_today),
-                      onPressed: () async {
-                        final picked = await showDatePicker(context: context, initialDate: selectedDate, firstDate: DateTime(1999), lastDate: DateTime(2100));
-                        if (picked != null) {
-                          setStateDialog(() {
-                            selectedDate = picked;
-                          });
-                        }
-                      },
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  setState(() => _events.remove(event));
-                  Navigator.pop(context);
-                },
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
-                child: const Text('Eliminar'),
-              ),
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
-              CustomButton(
-                text: 'Guardar',
-                onPressed: () {
-                  if (descController.text.isNotEmpty) {
-                    setState(() {
-                      event['description'] = descController.text;
-                      event['date'] = selectedDate;
-                      _events.sort((a, b) => (a['date'] as DateTime).compareTo(b['date'] as DateTime));
-                    });
-                    Navigator.pop(context);
-                  }
-                },
-              ),
-            ],
-          );
-        },
-      ),
-    );
+  @override
+  void initState() {
+    super.initState();
+    _processRequests();
   }
 
-  Future<void> _selectMonthYear(BuildContext context) async {
-    final DateTime? picked = await showDatePicker(context: context, initialDate: _focusedMonth, firstDate: DateTime(1999), lastDate: DateTime(2100), initialDatePickerMode: DatePickerMode.year);
-    if (picked != null && (picked.year != _focusedMonth.year || picked.month != _focusedMonth.month)) {
-      setState(() {
-        _focusedMonth = DateTime(picked.year, picked.month, 1);
-      });
+  @override
+  void didUpdateWidget(CalendarTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.requests != oldWidget.requests) {
+      _processRequests();
     }
   }
 
-  void _showDayDetails(BuildContext context, DateTime date) {
-    final eventsForDay = _events.where((e) => DateUtils.isSameDay(e['date'] as DateTime, date)).toList();
+  void _processRequests() {
+    _processedRequests = [];
+    for (var rawReq in widget.requests) {
+      final req = Map<String, dynamic>.from(rawReq);
+      String? startStr = req['DateStartPlan'];
+      if (startStr == null || startStr.isEmpty) startStr = req['StartDate'];
+      if (startStr == null || startStr.isEmpty) startStr = req['Created'];
 
-    final requestsForDay = widget.requests.where((req) {
-      if (req['DateStartPlan'] == null) return false;
-      try {
-        DateTime start = DateTime.parse(req['DateStartPlan']);
-        DateTime end = req['DateCompletePlan'] != null ? DateTime.parse(req['DateCompletePlan']) : start;
-
-        // Normalizar fechas (sin hora)
-        start = DateTime(start.year, start.month, start.day);
-        end = DateTime(end.year, end.month, end.day);
-        final current = DateTime(date.year, date.month, date.day);
-
-        return (current.isAfter(start) || current.isAtSameMomentAs(start)) && (current.isBefore(end) || current.isAtSameMomentAs(end));
-      } catch (e) {
-        return false;
+      if (startStr != null && startStr.isNotEmpty) {
+        DateTime? start = DateTime.tryParse(startStr);
+        if (start != null) {
+          String? endStr = req['DateCompletePlan'];
+          DateTime end = (endStr != null && endStr.isNotEmpty) ? (DateTime.tryParse(endStr) ?? start) : start;
+          start = DateTime(start.year, start.month, start.day);
+          end = DateTime(end.year, end.month, end.day);
+          if (end.isBefore(start)) end = start;
+          req['_parsedStart'] = start;
+          req['_parsedEnd'] = end;
+          _processedRequests.add(req);
+        }
       }
-    }).toList();
+    }
+    setState(() {});
+  }
 
+  String _getMonthName(int month) {
+    const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    return months[month - 1];
+  }
+
+  void _showDayDetails(BuildContext context, DateTime date, List<Map<String, dynamic>> dayRequests) {
+    int currentIndex = 0;
     showDialog(
       context: context,
       builder: (context) {
-        return CustomModal(
-          title: 'Detalles del ${date.day}/${date.month}/${date.year}',
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (eventsForDay.isEmpty && requestsForDay.isEmpty) const Text('No hay eventos programados para este día.\n\nAquí se muestra una descripción más extensa del día seleccionado, permitiendo ver notas o recordatorios adicionales.'),
-              if (eventsForDay.isNotEmpty)
-                ...eventsForDay.map((e) {
-                  return InkWell(
-                    onTap: () {
-                      Navigator.pop(context); // Close details
-                      _editEvent(context, e); // Open edit
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return CustomModal(
+              title: 'Solicitudes del ${date.day}/${date.month}/${date.year}',
+              width: 600,
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (dayRequests.isEmpty) const Text('No hay solicitudes programadas para este día.'),
+                  if (dayRequests.isNotEmpty) ...[
+                    if (dayRequests.length > 1)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
                         children: [
-                          Text(e['description'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                          const SizedBox(height: 4),
-                          Text('Click para editar. Detalles adicionales del evento: Hora de inicio, ubicación, etc.', style: Theme.of(context).textTheme.bodySmall),
+                          IconButton(icon: const Icon(Icons.chevron_left), onPressed: currentIndex > 0 ? () => setStateDialog(() => currentIndex--) : null),
+                          Text('Solicitud ${currentIndex + 1} de ${dayRequests.length}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                          IconButton(icon: const Icon(Icons.chevron_right), onPressed: currentIndex < dayRequests.length - 1 ? () => setStateDialog(() => currentIndex++) : null),
                         ],
                       ),
+                    const SizedBox(height: 8),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: Builder(
+                        key: ValueKey(currentIndex),
+                        builder: (context) {
+                          final req = dayRequests[currentIndex];
+                          final statusName = req['R_Status_Name'] ?? (req['R_Status_ID'] is Map ? req['R_Status_ID']['identifier'] : '');
+                          final priority = req['Priority'] is Map ? req['Priority']['identifier'] : (req['Priority'] ?? 'Media');
+                          return SizedBox(
+                            height: 220,
+                            child: Card(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              child: Center(
+                                child: SingleChildScrollView(
+                                  child: ListTile(
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    title: Text(req['Summary'] ?? 'Sin asunto', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                    subtitle: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const SizedBox(height: 4),
+                                        Text('Ticket: ${req['DocumentNo'] ?? req['id']?.toString() ?? ''}'),
+                                        if (req['_parsedStart'] != null && req['_parsedEnd'] != null) Text('En Calendario: ${(req['_parsedStart'] as DateTime).day}/${(req['_parsedStart'] as DateTime).month}/${(req['_parsedStart'] as DateTime).year} al ${(req['_parsedEnd'] as DateTime).day}/${(req['_parsedEnd'] as DateTime).month}/${(req['_parsedEnd'] as DateTime).year}'),
+                                        Text('Estado: $statusName | Prioridad: $priority'),
+                                      ],
+                                    ),
+                                    leading: const CircleAvatar(
+                                      backgroundColor: Color(0xFF4F47E5),
+                                      child: Icon(Icons.assignment, color: Colors.white, size: 20),
+                                    ),
+                                    isThreeLine: true,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                     ),
-                  );
-                }),
-              if (requestsForDay.isNotEmpty) ...[
-                const Divider(),
-                const Text('Solicitudes:', style: TextStyle(fontWeight: FontWeight.bold)),
-                ...requestsForDay.map((req) {
-                  return ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(req['Summary'] ?? 'Sin asunto'),
-                    subtitle: Text(req['DocumentNo'] ?? ''),
-                    leading: const Icon(Icons.assignment, color: Colors.blue),
-                    trailing: Text(req['R_Status_Name'] ?? '', style: const TextStyle(fontSize: 12)),
-                  );
-                }),
-              ],
-            ],
-          ),
-          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cerrar'))],
+                  ],
+                ],
+              ),
+              actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cerrar'))],
+            );
+          },
         );
       },
     );
+  }
+
+  List<Map<String, dynamic>> _getRequestsForDay(DateTime currentDayDate) {
+    return _processedRequests.where((req) {
+      if (req['_parsedStart'] == null || req['_parsedEnd'] == null) return false;
+      DateTime start = req['_parsedStart'];
+      DateTime end = req['_parsedEnd'];
+      return (currentDayDate.isAfter(start) || currentDayDate.isAtSameMomentAs(start)) && (currentDayDate.isBefore(end) || currentDayDate.isAtSameMomentAs(end));
+    }).toList();
   }
 
   @override
@@ -168,52 +147,70 @@ class _CalendarTabState extends State<CalendarTab> {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text('Calendario', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 10),
-          Card(
-            elevation: 4,
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      IconButton(icon: const Icon(Icons.chevron_left), onPressed: () => setState(() => _focusedMonth = DateTime(_focusedMonth.year, _focusedMonth.month - 1))),
-                      InkWell(
-                        onTap: () => _selectMonthYear(context),
-                        borderRadius: BorderRadius.circular(8),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-                          child: Text('${_getMonthName(_focusedMonth.month)} ${_focusedMonth.year}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                        ),
-                      ),
-                      IconButton(icon: const Icon(Icons.chevron_right), onPressed: () => setState(() => _focusedMonth = DateTime(_focusedMonth.year, _focusedMonth.month + 1))),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
-                        .map(
-                          (day) => Expanded(
-                            child: Center(
-                              child: Text(day, style: const TextStyle(fontWeight: FontWeight.bold)),
-                            ),
-                          ),
-                        )
-                        .toList(),
-                  ),
-                  const SizedBox(height: 10),
-                  _buildCalendarGrid(),
+                  IconButton(icon: const Icon(Icons.chevron_left), onPressed: () => setState(() => _focusedMonth = DateTime(_focusedMonth.year, _focusedMonth.month - 1))),
+                  Text('${_getMonthName(_focusedMonth.month)} ${_focusedMonth.year}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  IconButton(icon: const Icon(Icons.chevron_right), onPressed: () => setState(() => _focusedMonth = DateTime(_focusedMonth.year, _focusedMonth.month + 1))),
                 ],
               ),
-            ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+                .map(
+                  (day) => Expanded(
+                    child: Center(
+                      child: Text(day, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+          const SizedBox(height: 8),
+          Card(
+            elevation: 4,
+            child: Padding(padding: const EdgeInsets.all(16.0), child: _buildCalendarGrid()),
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            alignment: WrapAlignment.center,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              const Text('Prioridad Solicitudes:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+              _buildLegendItem(Colors.purple, 'Urgente'),
+              _buildLegendItem(Colors.red, 'Alta'),
+              _buildLegendItem(Colors.orange, 'Media'),
+              _buildLegendItem(Colors.blue, 'Baja'),
+              _buildLegendItem(Colors.grey, 'Menor'),
+            ],
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildLegendItem(Color color, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2)),
+        ),
+        const SizedBox(width: 4),
+        Text(label, style: const TextStyle(fontSize: 12)),
+      ],
     );
   }
 
@@ -221,94 +218,78 @@ class _CalendarTabState extends State<CalendarTab> {
     final daysInMonth = DateUtils.getDaysInMonth(_focusedMonth.year, _focusedMonth.month);
     final firstDayOfMonth = DateTime(_focusedMonth.year, _focusedMonth.month, 1);
     final weekdayOffset = firstDayOfMonth.weekday - 1;
+    final theme = Theme.of(context);
     final isMobile = MediaQuery.of(context).size.width < 600;
 
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 7, childAspectRatio: isMobile ? 0.5 : 1.0),
-      itemCount: daysInMonth + weekdayOffset,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 7, childAspectRatio: isMobile ? 0.7 : 1.2),
+      itemCount: 42,
       itemBuilder: (context, index) {
-        if (index < weekdayOffset) return const SizedBox();
+        if (index < weekdayOffset || index >= daysInMonth + weekdayOffset) {
+          return Container(
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
+              border: Border.all(color: theme.dividerColor, width: 0.5),
+            ),
+          );
+        }
 
         final day = index - weekdayOffset + 1;
         final currentDayDate = DateTime(_focusedMonth.year, _focusedMonth.month, day);
-        final hasEvent = _events.any((e) => DateUtils.isSameDay(e['date'] as DateTime, currentDayDate));
 
-        // Filtrar solicitudes que cubren este día
-        final dayRequests = widget.requests.where((req) {
-          if (req['DateStartPlan'] == null) return false;
-          try {
-            DateTime start = DateTime.parse(req['DateStartPlan']);
-            DateTime end = req['DateCompletePlan'] != null ? DateTime.parse(req['DateCompletePlan']) : start;
-
-            start = DateTime(start.year, start.month, start.day);
-            end = DateTime(end.year, end.month, end.day);
-            final current = DateTime(currentDayDate.year, currentDayDate.month, currentDayDate.day);
-
-            return (current.isAfter(start) || current.isAtSameMomentAs(start)) && (current.isBefore(end) || current.isAtSameMomentAs(end));
-          } catch (e) {
-            return false;
-          }
-        }).toList();
-
-        // Ordenar para mantener consistencia visual entre días
-        dayRequests.sort((a, b) => (a['DateStartPlan'] ?? '').compareTo(b['DateStartPlan'] ?? ''));
+        final dayRequests = _getRequestsForDay(currentDayDate);
 
         return InkWell(
-          onTap: () => _showDayDetails(context, currentDayDate),
-          hoverColor: Colors.blue.withOpacity(0.1),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.start,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(child: Text(day.toString())),
-              if (hasEvent)
-                Center(
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 2),
-                    width: 4,
-                    height: 4,
-                    decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle),
-                  ),
+          onTap: () => _showDayDetails(context, currentDayDate, dayRequests),
+          hoverColor: theme.colorScheme.primary.withOpacity(0.2),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.transparent,
+              border: Border.all(color: theme.dividerColor, width: 0.5),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(4.0),
+                  child: Text(day.toString(), style: TextStyle(fontWeight: dayRequests.isNotEmpty ? FontWeight.bold : FontWeight.normal)),
                 ),
-              ...dayRequests.take(3).map((req) {
-                DateTime start = DateTime.parse(req['DateStartPlan']);
-                DateTime end = req['DateCompletePlan'] != null ? DateTime.parse(req['DateCompletePlan']) : start;
-                start = DateTime(start.year, start.month, start.day);
-                end = DateTime(end.year, end.month, end.day);
-                final current = DateTime(currentDayDate.year, currentDayDate.month, currentDayDate.day);
+                ...dayRequests.take(isMobile ? 1 : 3).map((req) {
+                  final priority = req['Priority'] is Map ? req['Priority']['identifier'] : (req['Priority'] ?? 'Media');
+                  Color reqColor = Colors.blue;
+                  if (priority == 'Urgente')
+                    reqColor = Colors.purple;
+                  else if (priority == 'Alta')
+                    reqColor = Colors.red;
+                  else if (priority == 'Media')
+                    reqColor = Colors.orange;
+                  else if (priority == 'Menor')
+                    reqColor = Colors.grey;
 
-                bool isStart = current.isAtSameMomentAs(start);
-                bool isEnd = current.isAtSameMomentAs(end);
-
-                return Container(
-                  margin: EdgeInsets.only(top: 2, left: isStart ? 4 : 0, right: isEnd ? 4 : 0),
-                  height: 14,
-                  alignment: Alignment.centerLeft,
-                  padding: const EdgeInsets.only(left: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.withOpacity(0.7),
-                    borderRadius: BorderRadius.horizontal(left: isStart ? const Radius.circular(4) : Radius.zero, right: isEnd ? const Radius.circular(4) : Radius.zero),
+                  return Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    decoration: BoxDecoration(color: reqColor.withOpacity(0.9), borderRadius: BorderRadius.circular(4)),
+                    child: Text(
+                      req['Summary'] ?? 'Solicitud',
+                      style: const TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.bold),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                  );
+                }),
+                if (dayRequests.length > (isMobile ? 1 : 3))
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4.0),
+                    child: Text('+${dayRequests.length - (isMobile ? 1 : 3)} más', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold)),
                   ),
-                  child: Text(
-                    req['Summary'] ?? '',
-                    style: const TextStyle(fontSize: 8, color: Colors.white),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                  ),
-                );
-              }),
-              if (dayRequests.length > 3) const Center(child: Text('...', style: TextStyle(fontSize: 8, height: 1))),
-            ],
+              ],
+            ),
           ),
         );
       },
     );
-  }
-
-  String _getMonthName(int month) {
-    const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-    return months[month - 1];
   }
 }

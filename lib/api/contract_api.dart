@@ -2,13 +2,13 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:primhub/api/access_control.dart';
+import 'package:primhub/api/api_utils.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 
 class ContractApi {
   static Future<List<Map<String, dynamic>>> getSupportContracts({int? bPartnerId, List<int>? bPartnerIds}) async {
     if (ProductChip.mProductID == null) {
-      debugPrint('No se encontró ID de producto en la ficha. No se pueden obtener las horas contratadas.');
       return [];
     }
 
@@ -27,7 +27,16 @@ class ContractApi {
     final String queryUrl = "$orderLineEndpoint?\$filter=$filter&\$expand=C_Order_ID(\$select=DocumentNo,DateOrdered,Created,C_BPartner_ID,DocStatus,IsSOTrx)";
 
     try {
-      final response = await http.get(Uri.parse(queryUrl), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+      var response = await http.get(Uri.parse(queryUrl), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+
+      if (response.statusCode == 401) {
+        final refreshed = await handleTokenRefresh();
+        if (refreshed) {
+          response = await http.get(Uri.parse(queryUrl), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+        } else {
+          return [];
+        }
+      }
 
       if (response.statusCode == 200) {
         final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
@@ -63,15 +72,12 @@ class ContractApi {
         result.sort((a, b) => (a['DateOrdered'] as String).compareTo(b['DateOrdered'] as String));
         return result;
       }
-    } catch (e) {
-      debugPrint('Error loading contracted hours: $e');
-    }
+    } catch (e) {}
     return [];
   }
 
   static Future<List<Map<String, dynamic>>> getBPartnersWithSupportContracts() async {
     if (ProductChip.mProductID == null) {
-      debugPrint("getBPartnersWithSupportContracts: ProductChip.mProductID is null. Cannot proceed.");
       return [];
     }
 
@@ -80,18 +86,23 @@ class ContractApi {
     final String orderLineEndpoint = "${Endpoint.baseUrl}/api/v1/models/C_OrderLine";
     // CORRECCIÓN: Se elimina el $expand anidado que causa el error 400. El expand simple en C_Order_ID es suficiente.
     final String queryUrl = "$orderLineEndpoint?\$filter=M_Product_ID eq ${ProductChip.mProductID}&\$expand=C_Order_ID(\$select=C_BPartner_ID,DocStatus,IsSOTrx)";
-    debugPrint("Querying for BPs with support contracts: $queryUrl");
 
     try {
-      final response = await http.get(Uri.parse(queryUrl), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+      var response = await http.get(Uri.parse(queryUrl), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+
+      if (response.statusCode == 401) {
+        final refreshed = await handleTokenRefresh();
+        if (refreshed) {
+          response = await http.get(Uri.parse(queryUrl), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+        } else {
+          return [];
+        }
+      }
 
       if (response.statusCode == 200) {
         final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
         final records = jsonResponse['records'] as List;
         final Map<int, Map<String, dynamic>> bPartners = {};
-
-        debugPrint("Found ${records.length} order lines with the support product.");
-
         for (var line in records) {
           final orderInfo = line['C_Order_ID'];
           if (orderInfo != null) {
@@ -103,29 +114,15 @@ class ContractApi {
               final bpInfo = orderInfo['C_BPartner_ID'];
               if (bpInfo != null && bpInfo['id'] != null) {
                 final bpId = bpInfo['id'];
-                if (!bPartners.containsKey(bpId)) {
-                  debugPrint("Adding BPartner: ID=${bpInfo['id']}, Name=${bpInfo['identifier'] ?? bpInfo['Name']}");
-                }
                 bPartners[bpId] = {'id': bpId, 'Name': bpInfo['identifier'] ?? bpInfo['Name'] ?? 'Tercero ${bpInfo['id']}'};
-              } else {
-                debugPrint("Skipping line: BPartner info is missing. OrderInfo: $orderInfo");
               }
-            } else {
-              debugPrint("Skipping line: Not a valid SO or status. isSOTrx: $isSOTrx, docStatus: $docStatus");
             }
-          } else {
-            debugPrint("Skipping line: C_Order_ID is null.");
           }
         }
         final result = bPartners.values.toList()..sort((a, b) => a['Name'].compareTo(b['Name']));
-        debugPrint("Returning ${result.length} unique BPartners.");
         return result;
-      } else {
-        debugPrint("Failed to load BPs. Status: ${response.statusCode}, Body: ${response.body}");
-      }
-    } catch (e) {
-      debugPrint('Error loading BPs with support contracts: $e');
-    }
+      } else {}
+    } catch (e) {}
     return [];
   }
 }

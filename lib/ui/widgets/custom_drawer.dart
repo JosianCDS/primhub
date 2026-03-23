@@ -104,9 +104,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
         _role = payload['roleName'] ?? (roleId == 102 ? 'GardenWorld Admin' : 'Usuario');
         _client = clientId == 11 ? 'GardenWorld' : 'Cliente $clientId';
       });
-    } catch (e) {
-      debugPrint('Error decoding token: $e');
-    }
+    } catch (e) {}
   }
 
   void _showLogoutDialog(BuildContext context) {

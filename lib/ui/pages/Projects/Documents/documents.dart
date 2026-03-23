@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/admin_view_mode.dart';
 import 'package:primhub/api/token.dart';
@@ -94,7 +95,13 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
           _loadProjectStats();
 
           _isLoadingProjects = false;
-          final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+
+          Object? extra;
+          try {
+            extra = GoRouterState.of(context).extra;
+          } catch (_) {}
+
+          final args = (extra ?? ModalRoute.of(context)?.settings.arguments) as Map<String, dynamic>?;
           if (args != null && _isInit) {
             _applyPendingArgs(args);
             _isInit = false;
@@ -177,11 +184,14 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
       _isLoadingProjects = true;
       _targetExpandedProjectId = projectId; // Asegurar que este proyecto se expanda
     });
-    final success = await _logic.createPhase(projectId, name, description);
-    if (success) {
+    final result = await _logic.createPhase(projectId, name, description);
+    if (result['success'] == true) {
       _loadProjects();
     } else {
-      if (mounted) setState(() => _isLoadingProjects = false);
+      if (mounted) {
+        setState(() => _isLoadingProjects = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al crear fase: ${result['error']}'), backgroundColor: Colors.red));
+      }
     }
   }
 
@@ -193,11 +203,14 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
       _isLoadingProjects = true;
       if (project != null) _targetExpandedProjectId = project['id'];
     });
-    final success = await _logic.createTask(phaseId, name, description);
-    if (success) {
+    final result = await _logic.createTask(phaseId, name, description);
+    if (result['success'] == true) {
       _loadProjects();
     } else {
-      if (mounted) setState(() => _isLoadingProjects = false);
+      if (mounted) {
+        setState(() => _isLoadingProjects = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al crear tarea: ${result['error']}'), backgroundColor: Colors.red));
+      }
     }
   }
 
@@ -215,17 +228,102 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
               )
             : null,
         actions: [
+          if (AccessControl.isAdmin)
+            PopupMenuButton<AdminViewMode>(
+              tooltip: 'Cambiar modo de vista',
+              onSelected: (AdminViewMode mode) {
+                _adminViewModeManager.saveMode(mode);
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.admin_panel_settings),
+                    const SizedBox(width: 8),
+                    Text(_adminViewModeManager.currentMode == AdminViewMode.support ? 'Modo Soporte' : (_adminViewModeManager.currentMode == AdminViewMode.project ? 'Modo Proyecto' : 'Modo Mixto'), style: const TextStyle(fontWeight: FontWeight.bold)),
+                    const Icon(Icons.arrow_drop_down),
+                  ],
+                ),
+              ),
+              itemBuilder: (BuildContext context) {
+                final current = _adminViewModeManager.currentMode;
+                final colorScheme = Theme.of(context).colorScheme;
+                PopupMenuItem<AdminViewMode> buildItem(AdminViewMode mode, String text) {
+                  final isSelected = current == mode;
+                  return PopupMenuItem<AdminViewMode>(
+                    value: mode,
+                    child: Container(
+                      width: double.infinity,
+                      decoration: BoxDecoration(color: isSelected ? colorScheme.primary.withOpacity(0.1) : Colors.transparent, borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      child: Row(
+                        children: [
+                          Text(
+                            text,
+                            style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? colorScheme.primary : colorScheme.onSurface),
+                          ),
+                          if (isSelected) const Spacer(),
+                          if (isSelected) Icon(Icons.check, size: 18, color: colorScheme.primary),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+
+                return [buildItem(AdminViewMode.mixed, 'Modo Mixto'), buildItem(AdminViewMode.support, 'Modo Soporte'), buildItem(AdminViewMode.project, 'Modo Proyecto')];
+              },
+            ),
           if (!_showingFiles) ...[
-            if (AccessControl.isAdmin || Token.primConfig?.toLowerCase() == 'sp')
-              IconButton(
-                icon: Icon(_filterSalesRepId != null ? Icons.person : Icons.group),
-                tooltip: _filterSalesRepId != null ? 'Viendo mis proyectos' : 'Viendo todos',
-                onPressed: () {
+            if (AccessControl.isAdmin)
+              PopupMenuButton<bool>(
+                tooltip: 'Filtrar proyectos',
+                onSelected: (bool viewingMine) {
                   setState(() {
-                    // Alternar entre filtro de mi usuario o ver todos (null)
-                    _filterSalesRepId = (_filterSalesRepId == null) ? User.userID : null;
+                    _filterSalesRepId = viewingMine ? User.userID : null;
                   });
                   _loadProjects();
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(_filterSalesRepId != null ? Icons.person : Icons.group),
+                      const SizedBox(width: 8),
+                      Text(_filterSalesRepId != null ? 'Mis Proyectos' : 'Todos los Proyectos', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      const Icon(Icons.arrow_drop_down),
+                    ],
+                  ),
+                ),
+                itemBuilder: (BuildContext context) {
+                  final colorScheme = Theme.of(context).colorScheme;
+                  final isViewingMine = _filterSalesRepId != null;
+                  PopupMenuItem<bool> buildItem(bool isMineOption, String text, IconData icon) {
+                    final isSelected = isViewingMine == isMineOption;
+                    return PopupMenuItem<bool>(
+                      value: isMineOption,
+                      child: Container(
+                        width: double.infinity,
+                        decoration: BoxDecoration(color: isSelected ? colorScheme.primary.withOpacity(0.1) : Colors.transparent, borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        child: Row(
+                          children: [
+                            Icon(icon, size: 20, color: isSelected ? colorScheme.primary : colorScheme.onSurface),
+                            const SizedBox(width: 8),
+                            Text(
+                              text,
+                              style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? colorScheme.primary : colorScheme.onSurface),
+                            ),
+                            if (isSelected) const Spacer(),
+                            if (isSelected) Icon(Icons.check, size: 18, color: colorScheme.primary),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+
+                  return [buildItem(true, 'Mis Proyectos', Icons.person), buildItem(false, 'Todos los Proyectos', Icons.group)];
                 },
               ),
             if (!AccessControl.isProject)
@@ -305,11 +403,13 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
                             _isLoadingProjects = true;
                             _targetExpandedProjectId = project['id']; // Mantener expandido
                           });
-                          final success = await _logic.updateItem(type, id, name, desc);
-                          if (success) {
+                          final result = await _logic.updateItem(type, id, name, desc);
+                          if (result['success'] == true) {
                             _loadProjects();
-                          } else if (mounted)
+                          } else if (mounted) {
                             setState(() => _isLoadingProjects = false);
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al actualizar: ${result['error']}'), backgroundColor: Colors.red));
+                          }
                         }
                       },
                       onCreatePhase: _createPhase,

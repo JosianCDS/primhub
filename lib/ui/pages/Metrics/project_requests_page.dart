@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
 import 'package:primhub/ui/Shared_Custom/custom_table.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
@@ -125,6 +126,7 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
                   DataColumn(label: Text('Estado')),
                   DataColumn(label: Text('Prioridad')),
                   DataColumn(label: Text('Fecha')),
+                  DataColumn(label: Text('Acciones')),
                 ],
                 rows: _requests.map((req) {
                   return DataRow(
@@ -134,6 +136,16 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
                       DataCell(Text(req['status'] ?? '')),
                       DataCell(Text(req['level'] ?? '')),
                       DataCell(Text(req['time'] ?? '')),
+                      DataCell(
+                        IconButton(
+                          icon: const Icon(Icons.reply),
+                          tooltip: 'Responder Solicitud',
+                          onPressed: () {
+                            final id = Uri.encodeComponent(req['realId'].toString());
+                            GoRouter.of(context).push('/request-updates/$id', extra: {'docNo': req['id']});
+                          },
+                        ),
+                      ),
                     ],
                   );
                 }).toList(),

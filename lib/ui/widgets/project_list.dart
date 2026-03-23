@@ -42,9 +42,7 @@ class _ProjectListViewState extends State<ProjectListView> {
     try {
       final reqs = await fetchRequest();
       if (mounted) setState(() => _requests = reqs);
-    } catch (e) {
-      debugPrint('Error fetching requests for projects: $e');
-    }
+    } catch (e) {}
   }
 
   @override
@@ -97,8 +95,19 @@ class ProjectCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final phases = project['C_ProjectPhase'] as List? ?? [];
-    final directTasks = project['C_ProjectTask'] as List? ?? [];
+    final phases = List<Map<String, dynamic>>.from(project['C_ProjectPhase'] as List? ?? []);
+    phases.sort((a, b) {
+      final idA = a['id'] is int ? a['id'] : int.tryParse(a['id']?.toString() ?? '0') ?? 0;
+      final idB = b['id'] is int ? b['id'] : int.tryParse(b['id']?.toString() ?? '0') ?? 0;
+      return idA.compareTo(idB);
+    });
+
+    final directTasks = List<Map<String, dynamic>>.from(project['C_ProjectTask'] as List? ?? []);
+    directTasks.sort((a, b) {
+      final idA = a['id'] is int ? a['id'] : int.tryParse(a['id']?.toString() ?? '0') ?? 0;
+      final idB = b['id'] is int ? b['id'] : int.tryParse(b['id']?.toString() ?? '0') ?? 0;
+      return idA.compareTo(idB);
+    });
     final String name = project['Name'] ?? 'Proyecto sin nombre';
     final String description = project['Description'] ?? '';
     final bool isComplete = project['IsComplete'] == true;
@@ -146,7 +155,13 @@ class PhaseItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tasks = phase['C_ProjectTask'] as List? ?? [];
+    final tasks = List<Map<String, dynamic>>.from(phase['C_ProjectTask'] as List? ?? []);
+    tasks.sort((a, b) {
+      final idA = a['id'] is int ? a['id'] : int.tryParse(a['id']?.toString() ?? '0') ?? 0;
+      final idB = b['id'] is int ? b['id'] : int.tryParse(b['id']?.toString() ?? '0') ?? 0;
+      return idA.compareTo(idB);
+    });
+
     final bool isComplete = phase['IsComplete'] == true;
 
     return ExpansionTile(
