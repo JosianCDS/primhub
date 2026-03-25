@@ -20,7 +20,7 @@ class ContractApi {
     List<int> finalBpIds = [];
     if (bPartnerId != null) finalBpIds.add(bPartnerId);
     if (bPartnerIds != null) finalBpIds.addAll(bPartnerIds);
-    if (finalBpIds.isEmpty && Token.primConfig?.toLowerCase() != 'ad' && Token.primConfig?.toLowerCase() != 'sp' && User.cBPartnerID != null) {
+    if (finalBpIds.isEmpty && !AccessControl.isAdmin && !AccessControl.isRealSupport && User.cBPartnerID != null) {
       finalBpIds.add(User.cBPartnerID!);
     }
     // NOTA: Si finalBpIds está vacío (admin, sin selección), no se filtra por tercero en las líneas, se filtra después.

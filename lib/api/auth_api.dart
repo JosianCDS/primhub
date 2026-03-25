@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
 import 'package:http/http.dart';
 import 'package:primhub/api/token.dart';
+import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/contract_api.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -80,7 +81,7 @@ Future<bool> finalizeLogin(String username, String password, Map<String, dynamic
 
       final bool config = await getPrimConfig(rolId: Token.rol!, context: context);
 
-      if (config == false) {
+      if (config == false && !AccessControl.adminRoles.contains(Token.rol)) {
         Token.primConfig = null;
         Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const LoginPage()));
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('El Rol no tiene configuración.'), backgroundColor: Colors.red));
@@ -92,7 +93,7 @@ Future<bool> finalizeLogin(String username, String password, Map<String, dynamic
         return false;
       }
 
-      if (Token.primConfig?.toLowerCase() == 'ad' || Token.primConfig?.toLowerCase() == 'sp') {
+      if (AccessControl.isAdmin || AccessControl.isRealSupport) {
         // For Admin or Support users, we assume they can see support features.
         // Set the product ID so subsequent API calls work.
         ProductChip.mProductID = 1000816;

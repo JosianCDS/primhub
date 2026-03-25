@@ -22,6 +22,7 @@ class RequestUpdatesPage extends StatefulWidget {
 
 class _RequestUpdatesPageState extends State<RequestUpdatesPage> {
   late Future<List<Map<String, dynamic>>> _updatesFuture;
+  int _currentIndex = 0;
 
   @override
   void initState() {
@@ -31,6 +32,7 @@ class _RequestUpdatesPageState extends State<RequestUpdatesPage> {
 
   void _refreshUpdates() {
     setState(() {
+      _currentIndex = 0;
       _updatesFuture = fetchRequestUpdates(widget.requestId);
     });
   }
@@ -65,13 +67,31 @@ class _RequestUpdatesPageState extends State<RequestUpdatesPage> {
           }
 
           final updates = snapshot.data!;
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: updates.length,
-            itemBuilder: (context, index) {
-              final update = updates[index];
-              return _UpdateCard(update: update);
-            },
+          return Column(
+            children: [
+              if (updates.length > 1)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(icon: const Icon(Icons.chevron_left), onPressed: _currentIndex > 0 ? () => setState(() => _currentIndex--) : null),
+                      Text('Actualización ${_currentIndex + 1} de ${updates.length}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      IconButton(icon: const Icon(Icons.chevron_right), onPressed: _currentIndex < updates.length - 1 ? () => setState(() => _currentIndex++) : null),
+                    ],
+                  ),
+                ),
+              Expanded(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 300),
+                  child: SingleChildScrollView(
+                    key: ValueKey<int>(_currentIndex),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: _UpdateCard(update: updates[_currentIndex]),
+                  ),
+                ),
+              ),
+            ],
           );
         },
       ),

@@ -77,7 +77,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
       int? salesRepIdForQuery;
 
       // Si es un usuario de proyecto real (no un admin en modo proyecto)
-      if (Token.primConfig?.toLowerCase() == 'py' && User.cBPartnerID != null) {
+      if (AccessControl.isRealProject && User.cBPartnerID != null) {
         bPartnerIdForQuery = User.cBPartnerID;
         salesRepIdForQuery = null;
       } else {

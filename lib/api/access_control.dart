@@ -7,10 +7,12 @@ class AccessControl {
   static int? get cBPartnerID => User.cBPartnerID;
   static int? get userID => User.userID;
 
+  static const List<int> adminRoles = [1000034, 1000032, 1000044, 1000033];
+
   // Roles reales basados en la configuración del Token
-  static bool get isRealAdmin => Token.primConfig?.toLowerCase() == 'ad';
-  static bool get isRealSupport => Token.primConfig?.toLowerCase() == 'sp';
-  static bool get isRealProject => Token.primConfig?.toLowerCase() == 'py';
+  static bool get isRealAdmin => Token.primConfig?.toLowerCase() == 'ad' || (Token.rol != null && adminRoles.contains(Token.rol));
+  static bool get isRealSupport => !isRealAdmin && Token.primConfig?.toLowerCase() == 'sp';
+  static bool get isRealProject => !isRealAdmin && Token.primConfig?.toLowerCase() == 'py';
 
   static bool get isAdmin => isRealAdmin;
 

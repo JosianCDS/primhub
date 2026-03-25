@@ -19,6 +19,15 @@ class _CalendarTabState extends State<CalendarTab> {
     _processRequests();
   }
 
+  DateTime? _parseDateSafely(String? dateStr) {
+    if (dateStr == null || dateStr.isEmpty) return null;
+    String cleanStr = dateStr;
+    if (cleanStr.contains(' ') && !cleanStr.contains('T')) {
+      cleanStr = cleanStr.replaceFirst(' ', 'T');
+    }
+    return DateTime.tryParse(cleanStr);
+  }
+
   @override
   void didUpdateWidget(CalendarTab oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -36,10 +45,10 @@ class _CalendarTabState extends State<CalendarTab> {
       if (startStr == null || startStr.isEmpty) startStr = req['Created'];
 
       if (startStr != null && startStr.isNotEmpty) {
-        DateTime? start = DateTime.tryParse(startStr);
+        DateTime? start = _parseDateSafely(startStr);
         if (start != null) {
           String? endStr = req['DateCompletePlan'];
-          DateTime end = (endStr != null && endStr.isNotEmpty) ? (DateTime.tryParse(endStr) ?? start) : start;
+          DateTime end = (endStr != null && endStr.isNotEmpty) ? (_parseDateSafely(endStr) ?? start) : start;
           start = DateTime(start.year, start.month, start.day);
           end = DateTime(end.year, end.month, end.day);
           if (end.isBefore(start)) end = start;

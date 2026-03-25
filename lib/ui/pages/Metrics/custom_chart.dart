@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../widgets/charts.dart';
+import 'charts.dart';
 import 'dart:math';
 
 class CustomBarChart extends StatefulWidget {
@@ -8,8 +8,10 @@ class CustomBarChart extends StatefulWidget {
   final List<double> values;
   final List<Color> colors;
   final double maxWidth;
+  final String leftAxisSuffix;
+  final String tooltipSuffix;
 
-  const CustomBarChart({super.key, required this.labels, required this.values, required this.colors, this.maxWidth = 1000.0, this.fullLabels});
+  const CustomBarChart({super.key, required this.labels, required this.values, required this.colors, this.maxWidth = 1000.0, this.fullLabels, this.leftAxisSuffix = '', this.tooltipSuffix = ''});
 
   @override
   State<CustomBarChart> createState() => _CustomBarChartState();
@@ -42,7 +44,8 @@ class _CustomBarChartState extends State<CustomBarChart> with SingleTickerProvid
       child: AnimatedBuilder(
         animation: _animation!,
         builder: (context, child) => CustomPaint(
-          painter: BarChartPainter(labels: widget.labels, fullLabels: widget.fullLabels, values: widget.values, colors: widget.colors, textColor: Theme.of(context).colorScheme.onSurfaceVariant, touchPosition: _touchPosition, animationValue: _animation!.value),
+          size: Size.infinite,
+          painter: BarChartPainter(labels: widget.labels, fullLabels: widget.fullLabels, values: widget.values, colors: widget.colors, textColor: Theme.of(context).colorScheme.onSurfaceVariant, touchPosition: _touchPosition, animationValue: _animation!.value, leftAxisSuffix: widget.leftAxisSuffix, tooltipSuffix: widget.tooltipSuffix),
         ),
       ),
     );
@@ -85,6 +88,7 @@ class _CustomDonutChartState extends State<CustomDonutChart> with SingleTickerPr
       child: AnimatedBuilder(
         animation: _controller!,
         builder: (context, child) => CustomPaint(
+          size: Size.infinite,
           painter: DonutChartPainter(values: widget.values, labels: widget.labels, colors: widget.colors, touchPosition: _touchPosition, animationValue: _controller!.value),
         ),
       ),

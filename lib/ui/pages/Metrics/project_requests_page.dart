@@ -45,7 +45,8 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
 
   Future<void> _loadRequests() async {
     // Construir filtro
-    List<String> filters = ["IsActive eq true"];
+    // Aseguramos que la tabla de detalles también limite a Requerimientos de Cliente
+    List<String> filters = ["IsActive eq true", "R_Group_ID eq 1000006"];
 
     // Filtro por proyecto
     if (widget.projectId != null && widget.taskUUIDs != null && widget.taskUUIDs!.isNotEmpty) {

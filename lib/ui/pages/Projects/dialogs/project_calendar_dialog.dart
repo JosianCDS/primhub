@@ -19,17 +19,36 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
   DateTime? _projEnd;
   final Map<String, String> _uuidToTaskName = {};
   bool _isGanttView = false;
+  final ScrollController _verticalScrollController = ScrollController();
+  final ScrollController _horizontalScrollController = ScrollController();
+
+  DateTime? _parseDateSafely(String? dateStr) {
+    if (dateStr == null || dateStr.isEmpty) return null;
+    String cleanStr = dateStr;
+    // Reemplaza el espacio con 'T' para cumplir el estándar ISO 8601 que requiere Mac/Safari
+    if (cleanStr.contains(' ') && !cleanStr.contains('T')) {
+      cleanStr = cleanStr.replaceFirst(' ', 'T');
+    }
+    return DateTime.tryParse(cleanStr);
+  }
 
   @override
   void initState() {
     super.initState();
     if (widget.project['DateContract'] != null) {
-      _projStart = DateTime.tryParse(widget.project['DateContract']);
+      _projStart = _parseDateSafely(widget.project['DateContract']);
     }
     if (widget.project['DateFinish'] != null) {
-      _projEnd = DateTime.tryParse(widget.project['DateFinish']);
+      _projEnd = _parseDateSafely(widget.project['DateFinish']);
     }
     _fetchProjectRequests();
+  }
+
+  @override
+  void dispose() {
+    _verticalScrollController.dispose();
+    _horizontalScrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchProjectRequests() async {
@@ -82,10 +101,10 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
         if (startStr == null || startStr.isEmpty) startStr = req['Created'];
 
         if (startStr != null && startStr.isNotEmpty) {
-          DateTime? start = DateTime.tryParse(startStr);
+          DateTime? start = _parseDateSafely(startStr);
           if (start != null) {
             String? endStr = req['DateCompletePlan'];
-            DateTime end = (endStr != null && endStr.isNotEmpty) ? (DateTime.tryParse(endStr) ?? start) : start;
+            DateTime end = (endStr != null && endStr.isNotEmpty) ? (_parseDateSafely(endStr) ?? start) : start;
             start = DateTime(start.year, start.month, start.day);
             end = DateTime(end.year, end.month, end.day);
             if (end.isBefore(start)) end = start; // Previene errores humanos donde el fin es antes del inicio
@@ -251,7 +270,9 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
                     ),
                     const SizedBox(height: 8),
                   ],
-                  Expanded(child: _isGanttView ? _buildGanttView() : SingleChildScrollView(child: _buildCalendarGrid())),
+                  Expanded(
+                    child: _isGanttView ? _buildGanttView() : SingleChildScrollView(controller: _verticalScrollController, child: _buildCalendarGrid()),
+                  ),
                   const SizedBox(height: 16),
                   Wrap(
                     spacing: 12,
@@ -448,6 +469,7 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
     bool showToday = !now.isBefore(minDate) && !now.isAfter(maxDate);
 
     return SingleChildScrollView(
+      controller: _verticalScrollController,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -497,6 +519,7 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
           // Columna Derecha (Gantt)
           Expanded(
             child: SingleChildScrollView(
+              controller: _horizontalScrollController,
               scrollDirection: Axis.horizontal,
               child: SizedBox(
                 width: chartWidth,

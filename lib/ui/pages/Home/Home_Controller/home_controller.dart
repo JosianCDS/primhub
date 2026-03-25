@@ -115,7 +115,7 @@ class HomeController extends ChangeNotifier {
         String projectUrl = Endpoint.project;
         List<String> filters = [];
 
-        if (Token.primConfig?.toLowerCase() == 'py' && partnerID != null) {
+        if (AccessControl.isRealProject && partnerID != null) {
           filters.add('C_BPartner_ID eq $partnerID');
         } else {
           if (filterSalesRepId != null) {
