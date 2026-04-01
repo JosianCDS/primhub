@@ -1,4 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:primhub/api/api_utils.dart';
+import 'package:primhub/api/token.dart';
+import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
 
@@ -19,17 +24,41 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
   DateTime? _projEnd;
   final Map<String, String> _uuidToTaskName = {};
   bool _isGanttView = false;
+  final ScrollController _verticalScrollController = ScrollController();
+  final ScrollController _horizontalScrollController = ScrollController();
+
+  DateTime? _parseDateSafely(String? dateStr) {
+    if (dateStr == null || dateStr.isEmpty) return null;
+    // Extraer YYYY-MM-DD es la forma más segura en Safari/macOS (WebKit)
+    // ya que no requiere información de zona horaria o microsegundos estrictos.
+    if (dateStr.length >= 10) {
+      String datePart = dateStr.substring(0, 10);
+      if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(datePart)) {
+        return DateTime.tryParse(datePart);
+      }
+    }
+    // Fallback
+    String cleanStr = dateStr.replaceAll(' ', 'T');
+    return DateTime.tryParse(cleanStr);
+  }
 
   @override
   void initState() {
     super.initState();
     if (widget.project['DateContract'] != null) {
-      _projStart = DateTime.tryParse(widget.project['DateContract']);
+      _projStart = _parseDateSafely(widget.project['DateContract']);
     }
     if (widget.project['DateFinish'] != null) {
-      _projEnd = DateTime.tryParse(widget.project['DateFinish']);
+      _projEnd = _parseDateSafely(widget.project['DateFinish']);
     }
     _fetchProjectRequests();
+  }
+
+  @override
+  void dispose() {
+    _verticalScrollController.dispose();
+    _horizontalScrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchProjectRequests() async {
@@ -42,22 +71,44 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
       allReqs.addAll(pReqs);
 
       // 2. Obtener UUIDs de las tareas anidadas para buscar sus solicitudes
-      List<String> uuids = [];
       final phases = widget.project['C_ProjectPhase'] as List? ?? [];
-      for (var phase in phases) {
+      final directTasks = widget.project['C_ProjectTask'] as List? ?? [];
+
+      // Si no vienen expandidos (ej. si se abrió desde el Dashboard de Inicio), las buscamos en la API
+      List<dynamic> loadedPhases = List.from(phases);
+      List<dynamic> loadedTasks = List.from(directTasks);
+      if (loadedPhases.isEmpty && loadedTasks.isEmpty) {
+        try {
+          final url = '${Endpoint.project}/${widget.project['id']}?\$expand=C_ProjectPhase(\$expand=C_ProjectTask),C_ProjectTask';
+          var response = await http.get(Uri.parse(url), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+          if (response.statusCode == 401) {
+            final refreshed = await handleTokenRefresh();
+            if (refreshed) {
+              response = await http.get(Uri.parse(url), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+            }
+          }
+          if (response.statusCode == 200) {
+            final data = json.decode(utf8.decode(response.bodyBytes));
+            loadedPhases = data['C_ProjectPhase'] as List? ?? [];
+            loadedTasks = data['C_ProjectTask'] as List? ?? [];
+          }
+        } catch (e) {}
+      }
+
+      List<String> uuids = [];
+      for (var phase in loadedPhases) {
         final tasks = phase['C_ProjectTask'] as List? ?? [];
         for (var task in tasks) {
           final uuid = task['Record_UU'] ?? task['UUID'] ?? task['uuid'] ?? task['uid'];
-          if (uuid != null) {
+          if (uuid != null && uuid.toString().isNotEmpty) {
             uuids.add(uuid.toString());
             _uuidToTaskName[uuid.toString()] = task['Name'] ?? 'Tarea sin nombre';
           }
         }
       }
-      final directTasks = widget.project['C_ProjectTask'] as List? ?? [];
-      for (var task in directTasks) {
+      for (var task in loadedTasks) {
         final uuid = task['Record_UU'] ?? task['UUID'] ?? task['uuid'] ?? task['uid'];
-        if (uuid != null) {
+        if (uuid != null && uuid.toString().isNotEmpty) {
           uuids.add(uuid.toString());
           _uuidToTaskName[uuid.toString()] = task['Name'] ?? 'Tarea sin nombre';
         }
@@ -75,28 +126,47 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
     } catch (e) {}
 
     if (mounted) {
+      // Deduplicar por si una solicitud viene tanto por C_Project_ID como por Record_UU
+      final uniqueReqsMap = <int, Map<String, dynamic>>{};
+      for (var r in allReqs) {
+        final id = r['id'];
+        if (id != null) uniqueReqsMap[id] = r;
+      }
+
+      final uniqueReqs = uniqueReqsMap.values.toList();
+      final List<Map<String, dynamic>> validReqs = [];
+
       // Preprocesar fechas una sola vez para garantizar consistencia entre Calendario y Gantt
-      for (var req in allReqs) {
+      for (var rawReq in uniqueReqs) {
+        final req = Map<String, dynamic>.from(rawReq);
+
+        if (req['DateCompletePlan'] != null && req['DateCompletePlan'].toString().isNotEmpty) {
+          if (req['DateStartPlan'] == null || req['DateStartPlan'].toString().isEmpty) {
+            req['DateStartPlan'] = req['DateCompletePlan'];
+          }
+        }
+
         String? startStr = req['DateStartPlan'];
         if (startStr == null || startStr.isEmpty) startStr = req['StartDate'];
         if (startStr == null || startStr.isEmpty) startStr = req['Created'];
 
         if (startStr != null && startStr.isNotEmpty) {
-          DateTime? start = DateTime.tryParse(startStr);
+          DateTime? start = _parseDateSafely(startStr);
           if (start != null) {
             String? endStr = req['DateCompletePlan'];
-            DateTime end = (endStr != null && endStr.isNotEmpty) ? (DateTime.tryParse(endStr) ?? start) : start;
+            DateTime end = (endStr != null && endStr.isNotEmpty) ? (_parseDateSafely(endStr) ?? start) : start;
             start = DateTime(start.year, start.month, start.day);
             end = DateTime(end.year, end.month, end.day);
             if (end.isBefore(start)) end = start; // Previene errores humanos donde el fin es antes del inicio
             req['_parsedStart'] = start;
             req['_parsedEnd'] = end;
+            validReqs.add(req);
           }
         }
       }
 
       setState(() {
-        _requests = allReqs;
+        _requests = validReqs;
         _isLoading = false;
       });
     }
@@ -251,7 +321,9 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
                     ),
                     const SizedBox(height: 8),
                   ],
-                  Expanded(child: _isGanttView ? _buildGanttView() : SingleChildScrollView(child: _buildCalendarGrid())),
+                  Expanded(
+                    child: _isGanttView ? _buildGanttView() : SingleChildScrollView(controller: _verticalScrollController, child: _buildCalendarGrid()),
+                  ),
                   const SizedBox(height: 16),
                   Wrap(
                     spacing: 12,
@@ -448,6 +520,7 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
     bool showToday = !now.isBefore(minDate) && !now.isAfter(maxDate);
 
     return SingleChildScrollView(
+      controller: _verticalScrollController,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -497,6 +570,7 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
           // Columna Derecha (Gantt)
           Expanded(
             child: SingleChildScrollView(
+              controller: _horizontalScrollController,
               scrollDirection: Axis.horizontal,
               child: SizedBox(
                 width: chartWidth,

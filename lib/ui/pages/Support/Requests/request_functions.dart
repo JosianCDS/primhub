@@ -152,8 +152,8 @@ Future<Map<String, dynamic>> processRequests(List<dynamic> requests, Map<String,
   double consumed = 0.0;
   double estimated = 0.0;
 
-  // Filtrar las que NO están vinculadas a tareas de proyecto (según tu lógica original)
-  final visibleRequests = requests.where((req) => req['Record_UU'] == null || req['Record_UU'].toString().isEmpty).toList();
+  // El filtrado de soporte (Record_UU) se realiza en la UI o Controller respectivo antes de llamar a processRequests.
+  final visibleRequests = requests;
 
   List<Map<String, dynamic>> processedRequests = [];
 
@@ -230,6 +230,7 @@ Future<Map<String, dynamic>> processRequests(List<dynamic> requests, Map<String,
       'bpId': req['C_BPartner_ID'] is Map ? req['C_BPartner_ID']['id'] : req['C_BPartner_ID'],
       'userId': req['AD_User_ID'] is Map ? req['AD_User_ID']['id'] : req['AD_User_ID'],
       'salesRepId': req['SalesRep_ID'] is Map ? req['SalesRep_ID']['id'] : req['SalesRep_ID'],
+      'salesRepName': req['SalesRep_ID'] is Map ? (req['SalesRep_ID']['identifier'] ?? '') : '',
       'emailSubject': req['CDS_EmailSubject'] ?? '',
     });
   }

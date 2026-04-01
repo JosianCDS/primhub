@@ -28,6 +28,8 @@ class MyRequestsPage extends StatefulWidget {
 class _MyRequestsPageState extends State<MyRequestsPage> {
   List<Map<String, dynamic>> _requests = [];
   List<dynamic> _rawRequests = [];
+  List<dynamic> _allFetchedRequests = [];
+  List<Map<String, dynamic>> _allContracts = [];
   bool _isLoading = true;
   bool _isAscending = false;
   bool _showHistory = false;
@@ -90,50 +92,79 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   }
 
   Future<void> _initData() async {
+    setState(() => _isLoading = true);
+
     List<int>? bpFilter = _bpId != null ? [_bpId!] : null;
-    if (AccessControl.isAdmin) {
-      _bPartners = await ContractApi.getBPartnersWithSupportContracts();
+
+    // 1. Determinar el filtro de solicitudes para traerlas en paralelo
+    Future<List<dynamic>> fetchReqFuture;
+    if (_bpId != null) {
+      fetchReqFuture = fetchRequest(filter: "C_BPartner_ID eq $_bpId");
+    } else if (AccessControl.isAdmin) {
+      final List<int> selectedBPs = HomeController.savedSelectedSupportBpIds;
+      if (selectedBPs.isNotEmpty) {
+        String reqBpFilter = selectedBPs.map((id) => "C_BPartner_ID eq $id").join(" or ");
+        fetchReqFuture = fetchRequest(filter: "($reqBpFilter)");
+      } else {
+        fetchReqFuture = fetchRequest();
+      }
+    } else {
+      if (User.cBPartnerID != null) {
+        fetchReqFuture = fetchRequest(filter: "C_BPartner_ID eq ${User.cBPartnerID}");
+      } else {
+        fetchReqFuture = fetchRequest();
+      }
     }
 
-    final contracts = await ContractApi.getSupportContracts(bPartnerIds: bpFilter);
-    final double total = contracts.fold(0.0, (sum, contract) => sum + ((contract['contractedHours'] as num?)?.toDouble() ?? 0.0));
+    // 2. Ejecutar todas las peticiones a la API simultáneamente (Reduce el tiempo de carga drásticamente)
+    final futures = await Future.wait<dynamic>([AccessControl.isAdmin ? ContractApi.getBPartnersWithSupportContracts() : Future.value(<Map<String, dynamic>>[]), ContractApi.getSupportContracts(bPartnerIds: bpFilter), fetchStatuses(), fetchReqFuture]);
 
-    final statuses = await fetchStatuses();
+    if (AccessControl.isAdmin) {
+      _bPartners = futures[0] as List<Map<String, dynamic>>;
+    }
+    _allContracts = futures[1] as List<Map<String, dynamic>>;
+    final statuses = futures[2] as Map<String, int>;
+    _allFetchedRequests = futures[3] as List<dynamic>;
+
+    final double total = _allContracts.fold(0.0, (sum, contract) => sum + ((contract['contractedHours'] as num?)?.toDouble() ?? 0.0));
+
     if (mounted) {
       setState(() {
         _contractedHours = total > 0 ? total : null;
         _statusIdMap = statuses;
       });
     }
-    await _refreshRequest();
+
+    // 3. Procesar la data (sin volver a consultar la red)
+    await _refreshRequest(fetchNetwork: false);
   }
 
-  Future<void> _refreshRequest() async {
-    List<dynamic> allFetchedRequests = [];
+  Future<void> _refreshRequest({bool fetchNetwork = true}) async {
+    if (fetchNetwork) {
+      List<dynamic> allFetchedRequests = [];
 
-    // 1. Fetch all requests based on the initial context (admin home selection, user, or nav args)
-    if (_bpId != null) {
-      allFetchedRequests = await fetchRequest(filter: "C_BPartner_ID eq $_bpId");
-    } else if (AccessControl.isAdmin) {
-      // Para admin, usar los BPs seleccionados en el Home, o todos si no hay selección.
-      final List<int> selectedBPs = HomeController.savedSelectedSupportBpIds;
-      if (selectedBPs.isNotEmpty) {
-        String bpFilter = selectedBPs.map((id) => "C_BPartner_ID eq $id").join(" or ");
-        allFetchedRequests = await fetchRequest(filter: "($bpFilter)");
+      if (_bpId != null) {
+        allFetchedRequests = await fetchRequest(filter: "C_BPartner_ID eq $_bpId");
+      } else if (AccessControl.isAdmin) {
+        final List<int> selectedBPs = HomeController.savedSelectedSupportBpIds;
+        if (selectedBPs.isNotEmpty) {
+          String bpFilter = selectedBPs.map((id) => "C_BPartner_ID eq $id").join(" or ");
+          allFetchedRequests = await fetchRequest(filter: "($bpFilter)");
+        } else {
+          allFetchedRequests = await fetchRequest();
+        }
       } else {
-        // Si no hay BPs seleccionados en el home, el admin ve todas las solicitudes.
-        allFetchedRequests = await fetchRequest();
+        if (User.cBPartnerID != null) {
+          allFetchedRequests = await fetchRequest(filter: "C_BPartner_ID eq ${User.cBPartnerID}");
+        } else {
+          allFetchedRequests = await fetchRequest();
+        }
       }
-    } else {
-      if (User.cBPartnerID != null) {
-        allFetchedRequests = await fetchRequest(filter: "C_BPartner_ID eq ${User.cBPartnerID}");
-      } else {
-        allFetchedRequests = await fetchRequest();
-      }
+      _allFetchedRequests = allFetchedRequests;
     }
 
     // === LA CLAVE: Filtrar las que NO son de proyecto ===
-    final supportRequestsOnly = allFetchedRequests.where((req) {
+    final supportRequestsOnly = _allFetchedRequests.where((req) {
       final recordUU = req['Record_UU'];
       return recordUU == null || recordUU.toString().isEmpty;
     }).toList();
@@ -141,21 +172,34 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     // 2. Process ALL support requests to populate the filter bar and serve as the base for the table
     final processedAll = await processRequests(supportRequestsOnly, _statusIdMap);
 
-    // 3. Calculate stats based on the UI filter (_selectedBP)
-    double contractedForStats;
-    double consumedForStats;
-    double estimatedForStats;
+    if (mounted) {
+      setState(() {
+        _rawRequests = processedAll['rawRequests'];
+        _requests = processedAll['requests']; // Full list for UI
+      });
+      _updateStatsLocally();
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _updateStatsLocally() {
+    double contractedForStats = 0.0;
+    double consumedForStats = 0.0;
+    double estimatedForStats = 0.0;
 
     if (_selectedBP != null) {
-      final requestsForStats = supportRequestsOnly.where((req) {
-        final bpName = req['C_BPartner_ID']?['identifier'] ?? '';
-        return bpName == _selectedBP;
-      }).toList();
-      final processedStats = await processRequests(requestsForStats, _statusIdMap);
-      consumedForStats = processedStats['consumedHours'];
-      estimatedForStats = processedStats['estimatedHours'];
+      final bpRequests = _requests.where((r) => r['bpName'] == _selectedBP).toList();
+      for (var r in bpRequests) {
+        double qty = double.tryParse(r['qtyPlan']?.toString() ?? '0.0') ?? 0.0;
+        if (r['status'] == '9_Final Close' || r['statusId'] == 103) {
+          consumedForStats += qty;
+        } else {
+          estimatedForStats += qty;
+        }
+      }
 
-      // Recalculate contracted hours for the selected BP
       final foundBp = _bPartners.firstWhere((bp) => bp['Name'] == _selectedBP, orElse: () => {});
       int? bpIdForContract;
       if (foundBp.isNotEmpty) {
@@ -164,30 +208,26 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
         bpIdForContract = User.cBPartnerID;
       }
 
-      List<int>? contractBpFilter = bpIdForContract != null ? [bpIdForContract] : null;
-      final contracts = await ContractApi.getSupportContracts(bPartnerIds: contractBpFilter);
-      contractedForStats = contracts.fold(0.0, (sum, contract) => sum + ((contract['contractedHours'] as num?)?.toDouble() ?? 0.0));
+      if (bpIdForContract != null) {
+        contractedForStats = _allContracts.where((c) => c['C_BPartner_ID'] == bpIdForContract).fold(0.0, (sum, c) => sum + ((c['contractedHours'] as num?)?.toDouble() ?? 0.0));
+      }
     } else {
-      // If no BP is selected in the filter, stats are based on the full list
-      consumedForStats = processedAll['consumedHours'];
-      estimatedForStats = processedAll['estimatedHours'];
-
-      // Contracted hours should also be for the full context
-      List<int>? contractBpFilter = _bpId != null ? [_bpId!] : (AccessControl.isAdmin ? null : (User.cBPartnerID != null ? [User.cBPartnerID!] : null));
-      final contracts = await ContractApi.getSupportContracts(bPartnerIds: contractBpFilter);
-      contractedForStats = contracts.fold(0.0, (sum, contract) => sum + ((contract['contractedHours'] as num?)?.toDouble() ?? 0.0));
+      for (var r in _requests) {
+        double qty = double.tryParse(r['qtyPlan']?.toString() ?? '0.0') ?? 0.0;
+        if (r['status'] == '9_Final Close' || r['statusId'] == 103) {
+          consumedForStats += qty;
+        } else {
+          estimatedForStats += qty;
+        }
+      }
+      contractedForStats = _allContracts.fold(0.0, (sum, contract) => sum + ((contract['contractedHours'] as num?)?.toDouble() ?? 0.0));
     }
 
-    if (mounted) {
-      setState(() {
-        _rawRequests = processedAll['rawRequests'];
-        _requests = processedAll['requests']; // Full list for UI
-        _consumedHours = consumedForStats; // Filtered for stats
-        _estimatedHours = estimatedForStats; // Filtered for stats
-        _contractedHours = contractedForStats > 0 ? contractedForStats : null; // Filtered for stats
-        _isLoading = false;
-      });
-    }
+    setState(() {
+      _consumedHours = consumedForStats;
+      _estimatedHours = estimatedForStats;
+      _contractedHours = contractedForStats > 0 ? contractedForStats : null;
+    });
   }
 
   Future<void> _deleteRequest(dynamic id) async {
@@ -463,8 +503,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                           _selectedBP = val;
                           _currentPage = 0;
                         });
-                        _isLoading = true; // Mostrar carga
-                        _refreshRequest(); // Recargar datos (contratos y solicitudes)
+                        _updateStatsLocally();
                       },
                       onSituationChanged: (val) => setState(() {
                         _selectedSituation = val;
@@ -490,15 +529,19 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                         _rowsPerPage = val!;
                         _currentPage = 0;
                       }),
-                      onClearFilters: () => setState(() {
-                        _selectedLevel = null;
-                        _selectedStatus = null;
-                        _selectedSituation = null;
-                        _selectedUser = null;
-                        _searchController.clear();
-                        _isAscending = false;
-                        _currentPage = 0;
-                      }),
+                      onClearFilters: () {
+                        setState(() {
+                          _selectedBP = null;
+                          _selectedLevel = null;
+                          _selectedStatus = null;
+                          _selectedSituation = null;
+                          _selectedUser = null;
+                          _searchController.clear();
+                          _isAscending = false;
+                          _currentPage = 0;
+                        });
+                        _updateStatsLocally();
+                      },
                       onAddRequest: () async {
                         if (await showDialog(
                               context: context,

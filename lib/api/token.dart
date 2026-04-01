@@ -8,6 +8,7 @@ class Token {
   static int? client;
   static int? rol;
   static String? primConfig;
+  static int? primConfigId;
   static int? organitation;
   static int? warehouseID;
 
@@ -18,6 +19,7 @@ class Token {
     client = null;
     rol = null;
     primConfig = null;
+    primConfigId = null;
     organitation = null;
     warehouseID = null;
   }

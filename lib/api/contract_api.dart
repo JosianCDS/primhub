@@ -7,6 +7,9 @@ import 'package:primhub/api/token.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 
 class ContractApi {
+  /// Filtro unificado con los IDs válidos para productos de soporte (Mensual y Por Horas)
+  static const String validSupportProductsFilter = "(M_Product_ID eq 1000816 or M_Product_ID eq 1000161 or M_Product_ID eq 1000814 or M_Product_ID eq 1000693)";
+
   static Future<List<Map<String, dynamic>>> getSupportContracts({int? bPartnerId, List<int>? bPartnerIds}) async {
     if (ProductChip.mProductID == null) {
       return [];
@@ -14,13 +17,13 @@ class ContractApi {
 
     // Nuevo enfoque: Consultar C_OrderLine directamente y expandir hacia arriba para obtener la información del Pedido.
     final String orderLineEndpoint = "${Endpoint.baseUrl}/api/v1/models/C_OrderLine";
-    String filter = "M_Product_ID eq ${ProductChip.mProductID}";
+    String filter = validSupportProductsFilter;
 
     // Construimos el filtro de terceros para la consulta de líneas
     List<int> finalBpIds = [];
     if (bPartnerId != null) finalBpIds.add(bPartnerId);
     if (bPartnerIds != null) finalBpIds.addAll(bPartnerIds);
-    if (finalBpIds.isEmpty && Token.primConfig?.toLowerCase() != 'ad' && Token.primConfig?.toLowerCase() != 'sp' && User.cBPartnerID != null) {
+    if (finalBpIds.isEmpty && !AccessControl.isAdmin && !AccessControl.isRealSupport && User.cBPartnerID != null) {
       finalBpIds.add(User.cBPartnerID!);
     }
     // NOTA: Si finalBpIds está vacío (admin, sin selección), no se filtra por tercero en las líneas, se filtra después.
@@ -84,8 +87,7 @@ class ContractApi {
     // Nuevo enfoque: Consultar C_OrderLine directamente y expandir hacia arriba para obtener la información del Tercero.
     // Esto es más robusto si el filtro 'any' no funciona como se espera.
     final String orderLineEndpoint = "${Endpoint.baseUrl}/api/v1/models/C_OrderLine";
-    // CORRECCIÓN: Se elimina el $expand anidado que causa el error 400. El expand simple en C_Order_ID es suficiente.
-    final String queryUrl = "$orderLineEndpoint?\$filter=M_Product_ID eq ${ProductChip.mProductID}&\$expand=C_Order_ID(\$select=C_BPartner_ID,DocStatus,IsSOTrx)";
+    final String queryUrl = "$orderLineEndpoint?\$filter=$validSupportProductsFilter&\$expand=C_Order_ID(\$select=C_BPartner_ID,DocStatus,IsSOTrx)";
 
     try {
       var response = await http.get(Uri.parse(queryUrl), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});

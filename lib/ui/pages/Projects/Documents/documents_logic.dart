@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:primhub/ImagesManagment/postAttachments.dart';
 import 'package:primhub/api/api_utils.dart';
+import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/auth_api.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/endpoint/endpoint.dart';
@@ -47,6 +48,8 @@ class ProjectsLogic {
     try {
       while (hasMore) {
         String url = '$baseUrl${baseUrl.contains('?') ? '&' : '?'}\$skip=$skip&\$top=$pageSize';
+        debugPrint("DEBUG API REQ [$errorLabel]: $url");
+
         var response = await http.get(Uri.parse(url), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
 
         if (response.statusCode == 401) {
@@ -68,28 +71,40 @@ class ProjectsLogic {
             skip += pageSize; // Siguiente página
           }
         } else {
+          debugPrint("DEBUG API ERROR [$errorLabel] ${response.statusCode}: ${response.body}");
           hasMore = false;
         }
       }
-    } catch (e) {}
+    } catch (e) {
+      debugPrint("DEBUG API EXCEPTION [$errorLabel]: $e");
+    }
     return allRecords;
   }
 
   // 1. FETCH PROJECTS
-  Future<List<dynamic>> fetchProjects(BuildContext context, {int? projectId, int? bPartnerId, int? salesRepId, bool showInactive = false, bool onlyInactive = false}) async {
-    String filter = 'IsSummary eq false';
+  Future<List<dynamic>> fetchProjects(BuildContext context, {int? projectId, bool showInactive = false, bool onlyInactive = false, required bool isViewingMine}) async {
+    List<String> filters = ['IsSummary eq false'];
     if (onlyInactive) {
-      filter += ' and IsActive eq false';
+      filters.add('IsActive eq false');
     } else if (!showInactive) {
-      filter += ' and IsActive eq true';
+      filters.add('IsActive eq true');
     }
-    if (projectId != null) filter += ' and C_Project_ID eq $projectId';
-    if (bPartnerId != null) filter += ' and C_BPartner_ID eq $bPartnerId';
-    if (salesRepId != null) filter += ' and SalesRep_ID eq $salesRepId';
+    if (projectId != null) filters.add('C_Project_ID eq $projectId');
 
-    String url = '${Endpoint.project}?\$expand=C_ProjectPhase(\$expand=C_ProjectTask)&\$filter=$filter&\$orderby=Created desc';
+    if (AccessControl.isRealProject && User.cBPartnerID != null) {
+      filters.add('C_BPartner_ID eq ${User.cBPartnerID}');
+    } else if (isViewingMine) {
+      List<String> mineFilters = [];
+      if (User.cBPartnerID != null) mineFilters.add('C_BPartner_ID eq ${User.cBPartnerID}');
+      if (User.userID != null) mineFilters.add('SalesRep_ID eq ${User.userID}');
+      if (mineFilters.isNotEmpty) {
+        filters.add('(${mineFilters.join(' or ')})');
+      }
+    }
 
-    return _safeFetch(url, 'proyectos');
+    String url = '${Endpoint.project}?\$expand=C_ProjectPhase(\$expand=C_ProjectTask)&\$filter=${filters.join(' and ')}&\$orderby=Created desc';
+
+    return _safeFetchPaginated(url, 'proyectos');
   }
 
   // 1.1 FETCH PROJECTS FOR DROPDOWN (Lista simple para filtros)
@@ -98,11 +113,27 @@ class ProjectsLogic {
     if (bPartnerId != null) filter += ' and C_BPartner_ID eq $bPartnerId';
     if (salesRepId != null) filter += ' and SalesRep_ID eq $salesRepId';
 
-    String url = '${Endpoint.project}?\$filter=$filter&\$select=C_Project_ID,Name&\$orderby=Name';
-    final records = await _safeFetch(url, 'lista de proyectos');
+    // Evitamos el $select anidado dentro de $expand, ya que causa errores 400 al traer volumenes grandes en iDempiere
+    String url = '${Endpoint.project}?\$filter=$filter&\$select=C_Project_ID,Name,C_BPartner_ID&\$expand=C_BPartner_ID&\$orderby=Name';
+    final records = await _safeFetchPaginated(url, 'lista de proyectos');
+
+    debugPrint("DEBUG Total de proyectos devueltos por iDempiere: ${records.length}");
 
     return records.map((e) {
-      return {'id': e['id'] ?? e['C_Project_ID'], 'Name': e['Name'] ?? 'Sin Nombre'};
+      try {
+        final bpData = e['C_BPartner_ID'];
+
+        debugPrint("DEBUG C_BPartner_ID para proyecto '${e['Name']}': $bpData");
+
+        String bpName = '';
+        if (bpData is Map)
+          bpName = ' (${bpData['identifier'] ?? bpData['Name'] ?? 'Sin Nombre'})';
+        else if (bpData != null)
+          bpName = ' (Tercero $bpData)'; // Fallback si la API solo devuelve el ID
+        return {'id': e['id'] ?? e['C_Project_ID'], 'Name': '${e['Name'] ?? 'Sin Nombre'}$bpName'};
+      } catch (_) {
+        return {'id': e['id'] ?? e['C_Project_ID'], 'Name': e['Name'] ?? 'Sin Nombre'};
+      }
     }).toList();
   }
 

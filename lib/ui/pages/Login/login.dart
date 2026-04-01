@@ -205,7 +205,19 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     final theme = Theme.of(context);
 
     return Scaffold(
-      floatingActionButton: Envirioment.isProduction ? null : FloatingActionButton(onPressed: _showChangeUrlDialog, child: const Icon(Icons.settings)),
+      floatingActionButton: Envirioment.isProduction
+          ? null
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'v1.3.0',
+                  style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(width: 8),
+                FloatingActionButton(onPressed: _showChangeUrlDialog, child: const Icon(Icons.settings)),
+              ],
+            ),
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [theme.colorScheme.surface, theme.colorScheme.surfaceContainerLow]),

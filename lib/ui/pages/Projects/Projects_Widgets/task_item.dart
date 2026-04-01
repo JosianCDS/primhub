@@ -77,7 +77,13 @@ class _TaskItemState extends State<TaskItem> {
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: _logic.fetchRequestsForTask(taskUU),
       builder: (context, snapshot) {
-        final requests = snapshot.data ?? [];
+        final rawRequests = snapshot.data ?? [];
+        final requests = rawRequests.map((r) {
+          final newR = Map<String, dynamic>.from(r);
+          newR['_rawId'] = r['id'];
+          newR['id'] = r['DocumentNo'] ?? r['id'].toString();
+          return newR;
+        }).toList();
         final countText = snapshot.connectionState == ConnectionState.waiting ? '...' : '${requests.length}';
 
         return ExpansionTile(
@@ -158,8 +164,8 @@ class _TaskItemState extends State<TaskItem> {
 
                     // Mapeo manual de la solicitud cruda a lo que espera el diálogo de edición
                     final Map<String, dynamic> processedReq = {
-                      'realId': req['id'],
-                      'id': req['DocumentNo'] ?? req['id'].toString(),
+                      'realId': req['_rawId'] ?? req['id'],
+                      'id': req['id'].toString(), // Ya contiene el DocumentNo por el mapeo superior
                       'description': req['Summary'] ?? '',
                       'level': DocumentsLogic.extractValue(req['Priority']) == 'N/A' ? 'Media' : DocumentsLogic.extractValue(req['Priority']),
                       'status': currentStatusName,
@@ -184,7 +190,7 @@ class _TaskItemState extends State<TaskItem> {
                         statusIdMap: widget.statusIdMap,
                         priorityMap: widget.priorityMap,
                         onSave: () => setState(() {}), // Recargar al guardar
-                        onDelete: () => _deleteRequest(req['id']),
+                        onDelete: () => _deleteRequest(req['_rawId'] ?? req['id']),
                       ),
                     );
                   },

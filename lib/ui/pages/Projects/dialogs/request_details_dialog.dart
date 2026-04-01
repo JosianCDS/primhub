@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
@@ -23,6 +24,33 @@ class RequestDetailsDialog extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.5)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Ticket N°: ${req['DocumentNo'] ?? req['id']}',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Theme.of(context).colorScheme.onSurface),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.copy),
+                    tooltip: 'Copiar Ticket',
+                    color: Theme.of(context).colorScheme.primary,
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: (req['DocumentNo'] ?? req['id']).toString()));
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Número de ticket copiado al portapapeles')));
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
             CustomTextField(
               controller: TextEditingController(text: summary),
               label: 'Resumen',

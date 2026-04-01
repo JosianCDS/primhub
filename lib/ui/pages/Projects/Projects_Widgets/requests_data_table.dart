@@ -39,6 +39,8 @@ class RequestsDataTable extends StatelessWidget {
           DataColumn(label: Text('Tipo')),
           DataColumn(label: Text('Asunto')),
           DataColumn(label: Text('Categoría')),
+          DataColumn(label: Text('Usuario')),
+          DataColumn(label: Text('Representante Comercial')),
           DataColumn(label: Text('Grupo')),
           DataColumn(label: Text('Estado')),
           DataColumn(label: Text('Prioridad')),
@@ -62,14 +64,27 @@ class RequestsDataTable extends StatelessWidget {
             cells: [
               DataCell(Text(req['id'].toString())),
               DataCell(
-                Text(() {
-                  final text = DocumentsLogic.extractValue(req['Summary']);
-                  return text.length > 35 ? '${text.substring(0, 35)}...' : text;
-                }()),
+                Tooltip(
+                  message: DocumentsLogic.extractValue(req['Summary']),
+                  child: Text(() {
+                    final text = DocumentsLogic.extractValue(req['Summary']);
+                    return text.length > 35 ? '${text.substring(0, 35)}...' : text;
+                  }()),
+                ),
               ),
               DataCell(Text(DocumentsLogic.extractValue(req['R_RequestType_ID']))),
-              DataCell(Text(req['CDS_EmailSubject']?.toString() ?? '')),
+              DataCell(
+                Tooltip(
+                  message: req['CDS_EmailSubject']?.toString() ?? '',
+                  child: Text(() {
+                    final text = req['CDS_EmailSubject']?.toString() ?? '';
+                    return text.length > 25 ? '${text.substring(0, 25)}...' : text;
+                  }()),
+                ),
+              ),
               DataCell(Text(DocumentsLogic.extractValue(req['R_Category_ID']))),
+              DataCell(Text(DocumentsLogic.extractValue(req['AD_User_ID']))),
+              DataCell(Text(DocumentsLogic.extractValue(req['SalesRep_ID']))),
               DataCell(Text(DocumentsLogic.extractValue(req['R_Group_ID']))),
               DataCell(Text(DocumentsLogic.extractValue(req['R_Status_ID']))),
               DataCell(Text(DocumentsLogic.extractValue(req['Priority']))),

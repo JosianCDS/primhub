@@ -5,6 +5,10 @@ import 'package:primhub/ui/Shared_Custom/custom_table.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/token.dart';
+import 'package:primhub/ui/pages/Support/Requests/create_request_dialog.dart';
+import 'package:primhub/ui/pages/Support/Requests/edit_request_dialog.dart';
+import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
+import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 
 class ProjectRequestsPage extends StatefulWidget {
   final String? filterType;
@@ -22,6 +26,7 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
   List<Map<String, dynamic>> _requests = [];
   bool _isLoading = true;
   Map<int, String> _statusNameMap = {};
+  Map<String, int> _statusIdMap = {};
 
   @override
   void initState() {
@@ -38,6 +43,7 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
     final statuses = await fetchStatuses();
     if (mounted) {
       setState(() {
+        _statusIdMap = statuses;
         _statusNameMap = statuses.map((key, value) => MapEntry(value, key));
       });
     }
@@ -45,7 +51,13 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
 
   Future<void> _loadRequests() async {
     // Construir filtro
-    List<String> filters = ["IsActive eq true"];
+    // Aseguramos que la tabla de detalles también limite a Requerimientos de Cliente
+    List<String> filters = ["IsActive eq true", "R_Group_ID eq 1000006"];
+
+    // Para un usuario de proyecto, SIEMPRE se debe filtrar por su tercero asociado.
+    if (AccessControl.isProject && User.cBPartnerID != null) {
+      filters.add("C_BPartner_ID eq ${User.cBPartnerID}");
+    }
 
     // Filtro por proyecto
     if (widget.projectId != null && widget.taskUUIDs != null && widget.taskUUIDs!.isNotEmpty) {
@@ -55,8 +67,6 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
       filters.add("($uuidsCondition)");
     } else if (widget.projectId != null) {
       filters.add("C_Project_ID eq ${widget.projectId}");
-    } else if (AccessControl.isProject && User.cBPartnerID != null) {
-      filters.add("C_BPartner_ID eq ${User.cBPartnerID}");
     }
 
     String filter = filters.join(" and ");
@@ -71,13 +81,13 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
     final filtered = rawRequests.where((req) {
       bool matchesType = true;
       if (widget.filterType != null) {
-        String typeName = req['R_RequestType_Name'] ?? '';
-        if (typeName.isEmpty) {
-          final typeObj = req['R_RequestType_ID'];
-          if (typeObj is Map) typeName = typeObj['identifier'] ?? typeObj['name'] ?? '';
+        String categoryName = '';
+        final categoryObj = req['R_Category_ID'];
+        if (categoryObj is Map) {
+          categoryName = categoryObj['identifier'] ?? categoryObj['name'] ?? '';
         }
-        if (typeName.isEmpty) typeName = 'Otros';
-        matchesType = typeName == widget.filterType;
+        if (categoryName.isEmpty) categoryName = 'Sin Módulo';
+        matchesType = categoryName == widget.filterType;
       }
 
       bool matchesStatus = true;
@@ -92,14 +102,15 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
           }
         }
         if (statusName.isEmpty) statusName = 'Sin Estado';
-        matchesStatus = statusName == widget.filterStatus;
+        final cleanStatusName = statusName.contains('_') ? statusName.split('_').last.trim() : statusName.trim();
+        matchesStatus = cleanStatusName == widget.filterStatus;
       }
 
       return matchesType && matchesStatus;
     }).toList();
 
     // Procesar para tabla
-    final processed = await processRequests(filtered, {}); // Pasamos mapa vacío de estados por ahora
+    final processed = await processRequests(filtered, _statusIdMap);
 
     if (mounted) {
       setState(() {
@@ -109,10 +120,68 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
     }
   }
 
+  Future<void> _deleteRequest(dynamic id) async {
+    if (!AccessControl.canManageRequests) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No tienes permisos para eliminar solicitudes.')));
+      return;
+    }
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => CustomModal(
+        title: 'Confirmar Eliminación',
+        content: const Text('¿Está seguro de que desea eliminar esta solicitud?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+          CustomButton(text: 'Eliminar', backgroundColor: Colors.red, onPressed: () => Navigator.pop(context, true)),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      setState(() => _isLoading = true);
+      final success = await deleteRequestApi(id);
+      if (mounted) {
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Solicitud eliminada correctamente')));
+          _initData();
+        } else {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al eliminar'), backgroundColor: Colors.red));
+        }
+      }
+    }
+  }
+
+  void _editRequest(Map<String, dynamic> req) {
+    if (!AccessControl.canManageRequests) return;
+    showDialog(
+      context: context,
+      builder: (context) => EditRequestDialog(request: req, statusIdMap: _statusIdMap, priorityMap: priorityMap, onSave: _initData, onDelete: () => _deleteRequest(req['realId'])),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Solicitudes: ${widget.filterType ?? widget.filterStatus ?? "Detalle"}')),
+      appBar: AppBar(
+        title: Text('Solicitudes: ${widget.filterType ?? widget.filterStatus ?? "Detalle"}'),
+        actions: [IconButton(icon: const Icon(Icons.refresh), tooltip: 'Refrescar', onPressed: _initData)],
+      ),
+      floatingActionButton: AccessControl.canCreateRequests
+          ? FloatingActionButton(
+              onPressed: () async {
+                if (await showDialog(
+                      context: context,
+                      builder: (context) => CreateRequestDialog(linkedProjectId: widget.projectId),
+                    ) ==
+                    true) {
+                  _initData();
+                }
+              },
+              tooltip: 'Crear Solicitud',
+              child: const Icon(Icons.add),
+            )
+          : null,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _requests.isEmpty
@@ -123,6 +192,8 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
                 columns: const [
                   DataColumn(label: Text('Ticket')),
                   DataColumn(label: Text('Resumen')),
+                  DataColumn(label: Text('Usuario')),
+                  DataColumn(label: Text('Representante Comercial')),
                   DataColumn(label: Text('Estado')),
                   DataColumn(label: Text('Prioridad')),
                   DataColumn(label: Text('Fecha')),
@@ -132,18 +203,31 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
                   return DataRow(
                     cells: [
                       DataCell(Text(req['id'].toString())),
-                      DataCell(SizedBox(width: 300, child: Text(req['description'] ?? ''))),
+                      DataCell(
+                        Tooltip(
+                          message: req['description'] ?? '',
+                          child: SizedBox(width: 300, child: Text((req['description'] ?? '').length > 40 ? '${(req['description'] ?? '').substring(0, 40)}...' : (req['description'] ?? ''))),
+                        ),
+                      ),
+                      DataCell(Text(req['userName'] ?? '')),
+                      DataCell(Text(req['salesRepName'] ?? '')),
                       DataCell(Text(req['status'] ?? '')),
                       DataCell(Text(req['level'] ?? '')),
                       DataCell(Text(req['time'] ?? '')),
                       DataCell(
-                        IconButton(
-                          icon: const Icon(Icons.reply),
-                          tooltip: 'Responder Solicitud',
-                          onPressed: () {
-                            final id = Uri.encodeComponent(req['realId'].toString());
-                            GoRouter.of(context).push('/request-updates/$id', extra: {'docNo': req['id']});
-                          },
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.reply),
+                              tooltip: 'Responder Solicitud',
+                              onPressed: () {
+                                final id = Uri.encodeComponent(req['realId'].toString());
+                                GoRouter.of(context).push('/request-updates/$id', extra: {'docNo': req['id']});
+                              },
+                            ),
+                            if (AccessControl.canManageRequests) IconButton(icon: const Icon(Icons.edit), tooltip: 'Editar Solicitud', onPressed: () => _editRequest(req)),
+                          ],
                         ),
                       ),
                     ],
