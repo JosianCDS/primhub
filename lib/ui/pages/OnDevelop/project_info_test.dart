@@ -1,8 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:primhub/api/token.dart';
 import 'package:primhub/endpoint/endpoint.dart';
+import 'package:primhub/ui/Shared_Custom/custom_table.dart';
+import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
 import '../../widgets/custom_drawer.dart';
 
 class ProjectInfoTestPage extends StatefulWidget {
@@ -17,6 +20,7 @@ class _ProjectInfoTestPageState extends State<ProjectInfoTestPage> {
   List<dynamic> _productChipList = [];
   List<dynamic> _orderList = [];
   List<dynamic> _requestList = [];
+  List<Map<String, dynamic>> _processedRequests = [];
   bool _isLoading = false;
   String _debugInfo = '';
 
@@ -29,6 +33,15 @@ class _ProjectInfoTestPageState extends State<ProjectInfoTestPage> {
   Future<void> _initData() async {
     setState(() => _isLoading = true);
     await Future.wait([_fetchProjects(), _fetchProductChip(), _fetchOrders(), _fetchRequests()]);
+
+    if (_requestList.isNotEmpty) {
+      final processedData = await processRequests(_requestList, {});
+      if (mounted) {
+        setState(() {
+          _processedRequests = processedData['requests'];
+        });
+      }
+    }
     if (mounted) setState(() => _isLoading = false);
   }
 
@@ -92,11 +105,13 @@ class _ProjectInfoTestPageState extends State<ProjectInfoTestPage> {
   }
 
   Future<void> _fetchRequests() async {
+    if (User.cBPartnerID == null) return;
     try {
-      final response = await http.get(Uri.parse('${Endpoint.request}?\$filter=C_BPartner_ID eq ${User.cBPartnerID}&\$top=20'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
-      if (response.statusCode == 200) {
-        final data = json.decode(utf8.decode(response.bodyBytes));
-        if (mounted) setState(() => _requestList = data['records']);
+      final requests = await fetchRequest(filter: 'C_BPartner_ID eq ${User.cBPartnerID}');
+      if (mounted) {
+        setState(() {
+          _requestList = requests;
+        });
       }
     } catch (e) {}
   }
@@ -121,7 +136,7 @@ class _ProjectInfoTestPageState extends State<ProjectInfoTestPage> {
           ),
         ),
         drawer: const CustomDrawer(),
-        body: _isLoading ? const Center(child: CircularProgressIndicator()) : TabBarView(children: [_buildProjectList(), _buildProjectPhasesTab(), _buildDebugList(_productChipList), _buildDebugList(_orderList), _buildDebugList(_requestList)]),
+        body: _isLoading ? const Center(child: CircularProgressIndicator()) : TabBarView(children: [_buildProjectList(), _buildProjectPhasesTab(), _buildDebugList(_productChipList), _buildDebugList(_orderList), _buildRequestsTab()]),
       ),
     );
   }
@@ -292,6 +307,61 @@ class _ProjectInfoTestPageState extends State<ProjectInfoTestPage> {
       title: Text(task['Name'] ?? 'Tarea sin nombre', style: const TextStyle(fontSize: 13)),
       subtitle: task['Description'] != null ? Text(task['Description'], maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11)) : null,
       dense: true,
+    );
+  }
+
+  Widget _buildRequestsTab() {
+    if (_processedRequests.isEmpty) {
+      return const Center(child: Text('No se encontraron solicitudes para sus proyectos.'));
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0),
+      child: CustomTable(
+        columns: const [
+          DataColumn(label: Text('Solicitud')),
+          DataColumn(label: Text('Resumen')),
+          DataColumn(label: Text('Tipo')),
+          DataColumn(label: Text('Asunto')),
+          DataColumn(label: Text('Categoría')),
+          DataColumn(label: Text('Grupo')),
+          DataColumn(label: Text('Usuario')),
+          DataColumn(label: Text('Representante Comercial')),
+          DataColumn(label: Text('Estado')),
+          DataColumn(label: Text('Prioridad')),
+          DataColumn(label: Text('Fecha Fin Plan')),
+          DataColumn(label: Text('Acciones')),
+        ],
+        rows: _processedRequests.map((req) {
+          return DataRow(
+            cells: [
+              DataCell(Text(req['id']?.toString() ?? '')),
+              DataCell(
+                Tooltip(
+                  message: req['description'] ?? '',
+                  child: SizedBox(width: 250, child: Text((req['description'] ?? '').length > 35 ? '${(req['description'] ?? '').substring(0, 35)}...' : (req['description'] ?? ''))),
+                ),
+              ),
+              DataCell(Text(req['type'] ?? '')),
+              DataCell(Tooltip(message: req['emailSubject'] ?? '', child: Text((req['emailSubject'] ?? '').length > 25 ? '${(req['emailSubject'] ?? '').substring(0, 25)}...' : (req['emailSubject'] ?? '')))),
+              DataCell(Text(req['category'] ?? '')),
+              DataCell(Text(req['group'] ?? '')),
+              DataCell(Text(req['userName'] ?? '')),
+              DataCell(Text(req['salesRepName'] ?? '')),
+              DataCell(Text(req['status'] ?? '')),
+              DataCell(Text(req['level'] ?? '')),
+              DataCell(Text(req['dateCompletePlan']?.toString().split('T').first ?? '')),
+              DataCell(
+                IconButton(
+                  icon: const Icon(Icons.reply),
+                  tooltip: 'Ver Actualizaciones',
+                  onPressed: () => GoRouter.of(context).push('/request-updates/${Uri.encodeComponent(req['realId'].toString())}', extra: {'docNo': req['id']}),
+                ),
+              ),
+            ],
+          );
+        }).toList(),
+      ),
     );
   }
 

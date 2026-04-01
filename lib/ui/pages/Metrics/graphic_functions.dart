@@ -16,8 +16,8 @@ class GraphicsFunctions {
     String filter = "C_Project_ID eq $projectId and IsActive eq true and R_Group_ID eq 1000006";
 
     // Select y Expand optimizados
-    String select = "R_Request_ID,R_Status_ID,R_Group_ID,R_RequestType_ID,Priority,QtyPlan";
-    String expand = "R_Status_ID(\$select=Name,IsOpen),R_Group_ID(\$select=Name),R_RequestType_ID(\$select=Name)";
+    String select = "R_Request_ID,R_Status_ID,R_Group_ID,R_RequestType_ID,R_Category_ID,Priority,QtyPlan";
+    String expand = "R_Status_ID(\$select=Name,IsOpen),R_Group_ID(\$select=Name),R_RequestType_ID(\$select=Name),R_Category_ID(\$select=Name)";
 
     try {
       while (hasMore) {

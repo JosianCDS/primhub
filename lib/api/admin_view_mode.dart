@@ -11,6 +11,9 @@ class AdminViewModeManager extends ChangeNotifier {
   AdminViewMode _currentMode = AdminViewMode.mixed;
   AdminViewMode get currentMode => _currentMode;
 
+  bool _isViewingMine = false;
+  bool get isViewingMine => _isViewingMine;
+
   Future<void> loadMode() async {
     final prefs = await SharedPreferences.getInstance();
     final modeString = prefs.getString('admin_view_mode');
@@ -25,6 +28,7 @@ class AdminViewModeManager extends ChangeNotifier {
         _currentMode = AdminViewMode.mixed;
         break;
     }
+    _isViewingMine = prefs.getBool('is_viewing_mine') ?? false;
     notifyListeners();
   }
 
@@ -48,6 +52,14 @@ class AdminViewModeManager extends ChangeNotifier {
         break;
     }
     await prefs.setString('admin_view_mode', modeString);
+  }
+
+  Future<void> setViewingMine(bool value) async {
+    if (_isViewingMine == value) return;
+    _isViewingMine = value;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('is_viewing_mine', value);
   }
 
   String getModeName(AdminViewMode mode) {

@@ -47,7 +47,13 @@ class RequestsDataTable extends StatelessWidget {
             cells: [
               DataCell(Text(alert['id'])),
               DataCell(Text(alert['situation'])),
-              DataCell(Text(alert['emailSubject']?.toString() ?? '')),
+              DataCell(
+                Tooltip(
+                  message: (alert['emailSubject'] != null && alert['emailSubject'].toString().trim().isNotEmpty) ? alert['emailSubject'].toString() : 'Sin asunto',
+                  preferBelow: false,
+                  child: SizedBox(width: 200, child: Text((alert['emailSubject']?.toString() ?? '').length > 25 ? '${(alert['emailSubject']?.toString() ?? '').substring(0, 25)}...' : (alert['emailSubject']?.toString() ?? ''))),
+                ),
+              ),
               DataCell(Text(alert['bpName']?.toString() ?? '')),
               DataCell(Text(alert['userName']?.toString() ?? '')),
               DataCell(
@@ -62,12 +68,10 @@ class RequestsDataTable extends StatelessWidget {
               ),
               DataCell(Text(alert['time'] ?? '')),
               DataCell(
-                SizedBox(
-                  width: 300,
-                  child: Text(() {
-                    final text = alert['description']?.toString() ?? '';
-                    return text.length > 70 ? '${text.substring(0, 70)}...' : text;
-                  }()),
+                Tooltip(
+                  message: (alert['description'] != null && alert['description'].toString().trim().isNotEmpty) ? alert['description'].toString() : 'Sin descripción',
+                  preferBelow: false,
+                  child: SizedBox(width: 300, child: Text((alert['description']?.toString() ?? '').length > 70 ? '${(alert['description']?.toString() ?? '').substring(0, 70)}...' : (alert['description']?.toString() ?? ''))),
                 ),
               ),
               DataCell(Row(mainAxisSize: MainAxisSize.min, children: [const SizedBox(width: 8), Text(alert['status'])])),

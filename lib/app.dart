@@ -6,6 +6,7 @@ import 'package:primhub/theme/theme.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents.dart';
 import 'package:primhub/ui/pages/Home/home_page.dart';
 import 'package:primhub/ui/pages/OnDevelop/knowledge_base.dart';
+import 'package:primhub/ui/pages/Metrics/project_requests_page.dart';
 import 'package:primhub/ui/pages/Login/login.dart';
 import 'package:primhub/ui/pages/Login/login_selection_page.dart';
 import 'package:primhub/ui/pages/OnDevelop/marketplace.dart';
@@ -58,6 +59,13 @@ final _router = GoRouter(
       pageBuilder: (context, state) => MaterialPage(key: state.pageKey, child: const DeliverablesPage(), arguments: state.extra),
     ),
     GoRoute(path: '/metrics', builder: (context, state) => const MetricsPage()),
+    GoRoute(
+      path: '/project-requests',
+      builder: (context, state) {
+        final extra = state.extra as Map<String, dynamic>?;
+        return ProjectRequestsPage(projectId: extra?['projectId'] as int?, filterStatus: extra?['filterStatus'] as String?, filterType: extra?['filterType'] as String?);
+      },
+    ),
     GoRoute(path: '/marketplace', builder: (context, state) => const MarketplacePage()),
     GoRoute(path: '/profile', builder: (context, state) => const ProfilePage()),
   ],

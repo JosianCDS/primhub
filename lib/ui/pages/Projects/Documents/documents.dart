@@ -30,8 +30,6 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
   final TextEditingController _searchController = TextEditingController();
 
   // FILTROS DE ADMINISTRADOR
-  // Usamos el ID del usuario logueado desde la clase Token/User
-  int? _filterSalesRepId = User.userID; // Verifica si en tu clase Token es userID o User.userID
   bool _showInactive = false;
   bool _viewingInactive = false;
 
@@ -73,20 +71,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
       _projectsErrorMessage = null;
     });
     try {
-      int? bPartnerIdForQuery;
-      int? salesRepIdForQuery;
-
-      // Si es un usuario de proyecto real (no un admin en modo proyecto)
-      if (AccessControl.isRealProject && User.cBPartnerID != null) {
-        bPartnerIdForQuery = User.cBPartnerID;
-        salesRepIdForQuery = null;
-      } else {
-        // Para usuarios internos (Admin, Soporte), usar el estado del botón de filtro
-        bPartnerIdForQuery = null;
-        salesRepIdForQuery = _filterSalesRepId;
-      }
-
-      final projects = await _logic.fetchProjects(context, bPartnerId: bPartnerIdForQuery, salesRepId: salesRepIdForQuery, showInactive: _showInactive, onlyInactive: _viewingInactive);
+      final projects = await _logic.fetchProjects(context, showInactive: _showInactive, onlyInactive: _viewingInactive, isViewingMine: _adminViewModeManager.isViewingMine);
 
       if (mounted) {
         setState(() {
@@ -278,27 +263,22 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
             if (AccessControl.isAdmin)
               PopupMenuButton<bool>(
                 tooltip: 'Filtrar proyectos',
-                onSelected: (bool viewingMine) {
-                  setState(() {
-                    _filterSalesRepId = viewingMine ? User.userID : null;
-                  });
-                  _loadProjects();
-                },
+                onSelected: (bool viewingMine) => _adminViewModeManager.setViewingMine(viewingMine),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16.0),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(_filterSalesRepId != null ? Icons.person : Icons.group),
+                      Icon(_adminViewModeManager.isViewingMine ? Icons.person : Icons.group),
                       const SizedBox(width: 8),
-                      Text(_filterSalesRepId != null ? 'Mis Proyectos' : 'Todos los Proyectos', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      Text(_adminViewModeManager.isViewingMine ? 'Mis Proyectos' : 'Todos los Proyectos', style: const TextStyle(fontWeight: FontWeight.bold)),
                       const Icon(Icons.arrow_drop_down),
                     ],
                   ),
                 ),
                 itemBuilder: (BuildContext context) {
                   final colorScheme = Theme.of(context).colorScheme;
-                  final isViewingMine = _filterSalesRepId != null;
+                  final isViewingMine = _adminViewModeManager.isViewingMine;
                   PopupMenuItem<bool> buildItem(bool isMineOption, String text, IconData icon) {
                     final isSelected = isViewingMine == isMineOption;
                     return PopupMenuItem<bool>(

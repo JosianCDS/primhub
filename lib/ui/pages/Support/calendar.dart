@@ -21,10 +21,14 @@ class _CalendarTabState extends State<CalendarTab> {
 
   DateTime? _parseDateSafely(String? dateStr) {
     if (dateStr == null || dateStr.isEmpty) return null;
-    String cleanStr = dateStr;
-    if (cleanStr.contains(' ') && !cleanStr.contains('T')) {
-      cleanStr = cleanStr.replaceFirst(' ', 'T');
+    // Extracción estricta para compatibilidad universal con macOS
+    if (dateStr.length >= 10) {
+      String datePart = dateStr.substring(0, 10);
+      if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(datePart)) {
+        return DateTime.tryParse(datePart);
+      }
     }
+    String cleanStr = dateStr.replaceAll(' ', 'T');
     return DateTime.tryParse(cleanStr);
   }
 

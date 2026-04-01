@@ -43,7 +43,7 @@ class RecentRequestsTable extends StatelessWidget {
                         cells: [
                           DataCell(Text(req['code'])),
                           DataCell(Text(req['situation'])),
-                          DataCell(Text(req['emailSubject']?.toString() ?? '')),
+                          DataCell(Tooltip(message: req['emailSubject']?.toString() ?? '', child: Text((req['emailSubject']?.toString() ?? '').length > 25 ? '${(req['emailSubject']?.toString() ?? '').substring(0, 25)}...' : (req['emailSubject']?.toString() ?? '')))),
                           DataCell(Text(req['bpName'])),
                           DataCell(Text(req['userName'])),
                           DataCell(
@@ -57,7 +57,12 @@ class RecentRequestsTable extends StatelessWidget {
                             ),
                           ),
                           DataCell(Text(req['time'])),
-                          DataCell(SizedBox(width: 300, child: Text(req['description'].length > 70 ? '${req['description'].substring(0, 70)}...' : req['description']))),
+                          DataCell(
+                            Tooltip(
+                              message: req['description'] ?? '',
+                              child: SizedBox(width: 300, child: Text((req['description'] ?? '').length > 70 ? '${(req['description'] ?? '').substring(0, 70)}...' : (req['description'] ?? ''))),
+                            ),
+                          ),
                           DataCell(Text(req['status'])),
                         ],
                       );

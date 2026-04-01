@@ -81,8 +81,9 @@ Future<bool> finalizeLogin(String username, String password, Map<String, dynamic
 
       final bool config = await getPrimConfig(rolId: Token.rol!, context: context);
 
-      if (config == false && !AccessControl.adminRoles.contains(Token.rol)) {
+      if (config == false && !AccessControl.hasHardcodedRole(Token.rol)) {
         Token.primConfig = null;
+        Token.primConfigId = null;
         Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const LoginPage()));
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('El Rol no tiene configuración.'), backgroundColor: Colors.red));
         Token.auth = null;
@@ -160,9 +161,14 @@ Future<bool> getPrimConfig({required int rolId, required BuildContext context}) 
     if (response.statusCode == 200) {
       final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
       final records = jsonResponse['records'] as List;
-      Token.primConfig = records.isNotEmpty ? records[0]['ConfigurationLevel']['id'] : null;
-
-      return Token.primConfig != null;
+      if (records.isNotEmpty) {
+        Token.primConfig = records[0]['ConfigurationLevel']?['id'];
+        Token.primConfigId = records[0]['id'];
+      } else {
+        Token.primConfig = null;
+        Token.primConfigId = null;
+      }
+      return Token.primConfig != null || Token.primConfigId != null;
     }
   } catch (e) {}
   return false;
@@ -171,7 +177,7 @@ Future<bool> getPrimConfig({required int rolId, required BuildContext context}) 
 //Ficha de Producto
 Future<void> getProductChip() async {
   try {
-    final response = await get(Uri.parse('${Endpoint.productChip}?\$filter=C_BPartner_ID eq ${User.cBPartnerID} and M_Product_ID eq 1000816&\$orderBy=Created desc'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+    final response = await get(Uri.parse('${Endpoint.productChip}?\$filter=C_BPartner_ID eq ${User.cBPartnerID} and ${ContractApi.validSupportProductsFilter}&\$orderBy=Created desc'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
     if (response.statusCode == 200) {
       final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
       final records = jsonResponse['records'] as List;

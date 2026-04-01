@@ -186,26 +186,23 @@ class _HomePageState extends State<HomePage> {
               PopupMenuButton<bool>(
                 tooltip: 'Filtrar proyectos',
                 onSelected: (bool viewingMine) {
-                  setState(() {
-                    _controller.filterSalesRepId = viewingMine ? User.userID : null;
-                  });
-                  _controller.initData();
+                  _adminViewModeManager.setViewingMine(viewingMine);
                 },
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16.0),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(_controller.filterSalesRepId != null ? Icons.person : Icons.group),
+                      Icon(_adminViewModeManager.isViewingMine ? Icons.person : Icons.group),
                       const SizedBox(width: 8),
-                      Text(_controller.filterSalesRepId != null ? 'Mis Proyectos' : 'Todos los Proyectos', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      Text(_adminViewModeManager.isViewingMine ? 'Mis Proyectos' : 'Todos los Proyectos', style: const TextStyle(fontWeight: FontWeight.bold)),
                       const Icon(Icons.arrow_drop_down),
                     ],
                   ),
                 ),
                 itemBuilder: (BuildContext context) {
                   final colorScheme = Theme.of(context).colorScheme;
-                  final isViewingMine = _controller.filterSalesRepId != null;
+                  final isViewingMine = _adminViewModeManager.isViewingMine;
                   PopupMenuItem<bool> buildItem(bool isMineOption, String text, IconData icon) {
                     final isSelected = isViewingMine == isMineOption;
                     return PopupMenuItem<bool>(
@@ -265,8 +262,8 @@ class _HomePageState extends State<HomePage> {
                     const SizedBox(height: 20),
                     Builder(
                       builder: (context) {
-                        bool hasProjectsContent = (AccessControl.isProject || (_controller.hasProject && Token.primConfig == null)) && _controller.projects.isNotEmpty;
-                        bool hasSupportContent = (AccessControl.isSupport || (_controller.hasSupport && Token.primConfig == null)) && (_controller.recentRequests.isNotEmpty || _controller.supportContracts.isNotEmpty || (AccessControl.isAdmin && _controller.supportBPartners.isNotEmpty));
+                        bool hasProjectsContent = (AccessControl.isProject || (_controller.hasProject && !AccessControl.hasAnyConfig)) && _controller.projects.isNotEmpty;
+                        bool hasSupportContent = (AccessControl.isSupport || (_controller.hasSupport && !AccessControl.hasAnyConfig)) && (_controller.recentRequests.isNotEmpty || _controller.supportContracts.isNotEmpty || (AccessControl.isAdmin && _controller.supportBPartners.isNotEmpty));
 
                         if (!hasProjectsContent && !hasSupportContent && !_controller.isLoading) {
                           return Padding(
@@ -293,16 +290,16 @@ class _HomePageState extends State<HomePage> {
                         return const SizedBox.shrink();
                       },
                     ),
-                    if (_controller.projects.isNotEmpty && (AccessControl.isProject || (_controller.hasProject && Token.primConfig == null)) && (AccessControl.isAdmin || _controller.projects.length > 1))
+                    if (_controller.projects.isNotEmpty && (AccessControl.isProject || (_controller.hasProject && !AccessControl.hasAnyConfig)) && (AccessControl.isAdmin || _controller.projects.length > 1))
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16.0),
                         child: CustomContainer(
                           title: 'Proyectos a Visualizar',
-                          child: ProjectSelector(projects: _controller.projects, selectedProjectIds: _controller.selectedProjectIds, onSelectionChanged: _controller.updateSelectedProjects),
+                          child: ProjectSelector(selectedProjectIds: _controller.selectedProjectIds, projects: _controller.projects, onSelectionChanged: _controller.updateSelectedProjects),
                         ),
                       ),
                     const SizedBox(height: 20),
-                    if (AccessControl.isProject || (_controller.hasProject && Token.primConfig == null))
+                    if (AccessControl.isProject || (_controller.hasProject && !AccessControl.hasAnyConfig))
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16.0),
                         child: LayoutBuilder(
@@ -331,7 +328,7 @@ class _HomePageState extends State<HomePage> {
                                   for (final proj in activeProjects) ...[
                                     SizedBox(
                                       width: itemWidth,
-                                      child: ProjectDurationCard(project: proj, textColor: textColor),
+                                      child: ProjectDurationCard(project: proj, textColor: textColor, hasMetrics: _controller.projectStats[proj['id']]?['hasMetrics'] ?? false),
                                     ),
                                     SizedBox(
                                       width: itemWidth,
@@ -344,7 +341,7 @@ class _HomePageState extends State<HomePage> {
                           },
                         ),
                       ),
-                    if ((AccessControl.isSupport || (_controller.hasSupport && Token.primConfig == null)) && (AccessControl.isProject || (_controller.hasProject && Token.primConfig == null)) && _controller.selectedProjectIds.isNotEmpty) ...[const SizedBox(height: 30), const Divider(indent: 20, endIndent: 20), const SizedBox(height: 30)],
+                    if ((AccessControl.isSupport || (_controller.hasSupport && !AccessControl.hasAnyConfig)) && (AccessControl.isProject || (_controller.hasProject && !AccessControl.hasAnyConfig)) && _controller.selectedProjectIds.isNotEmpty) ...[const SizedBox(height: 30), const Divider(indent: 20, endIndent: 20), const SizedBox(height: 30)],
                     const SizedBox(height: 20),
                     if (AccessControl.isAdmin && AccessControl.isSupport)
                       Padding(
@@ -355,10 +352,22 @@ class _HomePageState extends State<HomePage> {
                         ),
                       ),
                     const SizedBox(height: 20),
-                    if (AccessControl.isSupport || (_controller.hasSupport && Token.primConfig == null)) ...[
+                    if (AccessControl.isSupport || (_controller.hasSupport && !AccessControl.hasAnyConfig)) ...[
                       Builder(
                         builder: (context) {
                           final bpsToRender = AccessControl.isAdmin ? _controller.selectedSupportBpIds : (User.cBPartnerID != null ? [User.cBPartnerID!] : <int>[]);
+
+                          if (AccessControl.isAdmin && bpsToRender.isEmpty && !_controller.isLoading) {
+                            return Center(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 40.0),
+                                child: Text(
+                                  "Selecciona el tercero para ver su informacion",
+                                  style: TextStyle(fontSize: 16, color: textColor.withOpacity(0.6), fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            );
+                          }
 
                           return Wrap(
                             spacing: 20,
@@ -388,8 +397,8 @@ class _HomePageState extends State<HomePage> {
                         },
                       ),
                     ],
-                    if (AccessControl.isSupport || (_controller.hasSupport && Token.primConfig == null)) const SizedBox(height: 30),
-                    if (AccessControl.isSupport || (_controller.hasSupport && Token.primConfig == null))
+                    if ((AccessControl.isSupport || (_controller.hasSupport && !AccessControl.hasAnyConfig)) && (!AccessControl.isAdmin || _controller.selectedSupportBpIds.isNotEmpty)) const SizedBox(height: 30),
+                    if ((AccessControl.isSupport || (_controller.hasSupport && !AccessControl.hasAnyConfig)) && (!AccessControl.isAdmin || _controller.selectedSupportBpIds.isNotEmpty))
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16.0),
                         child: RecentRequestsTable(requests: _controller.recentRequests, isLoading: _controller.isLoading, onEdit: _showRequestDetails),
@@ -427,26 +436,56 @@ class _SupportBpSelector extends StatelessWidget {
           content: StatefulBuilder(
             builder: (BuildContext context, StateSetter setState) {
               return SizedBox(
-                height: 300,
-                child: SingleChildScrollView(
-                  child: ListBody(
-                    children: sortedBps.map((bp) {
-                      final bool isSelected = tempSelectedBpIds.contains(bp['id']);
-                      return CheckboxListTile(
-                        title: Text(bp['Name'] ?? 'Tercero sin nombre'),
-                        value: isSelected,
-                        onChanged: (bool? value) {
-                          setState(() {
-                            if (value == true) {
-                              tempSelectedBpIds.add(bp['id']);
-                            } else {
-                              tempSelectedBpIds.remove(bp['id']);
-                            }
-                          });
-                        },
-                      );
-                    }).toList(),
-                  ),
+                height: 350,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        TextButton(
+                          onPressed: () {
+                            setState(() {
+                              tempSelectedBpIds.clear();
+                              tempSelectedBpIds.addAll(sortedBps.map<int>((bp) => bp['id'] as int));
+                            });
+                          },
+                          child: const Text('Seleccionar Todos'),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            setState(() {
+                              tempSelectedBpIds.clear();
+                            });
+                          },
+                          child: const Text('Deseleccionar Todos', style: TextStyle(color: Colors.red)),
+                        ),
+                      ],
+                    ),
+                    const Divider(),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: ListBody(
+                          children: sortedBps.map((bp) {
+                            final bool isSelected = tempSelectedBpIds.contains(bp['id']);
+                            return CheckboxListTile(
+                              title: Text(bp['Name'] ?? 'Tercero sin nombre'),
+                              value: isSelected,
+                              onChanged: (bool? value) {
+                                setState(() {
+                                  if (value == true) {
+                                    tempSelectedBpIds.add(bp['id']);
+                                  } else {
+                                    tempSelectedBpIds.remove(bp['id']);
+                                  }
+                                });
+                              },
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               );
             },

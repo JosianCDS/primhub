@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:primhub/ui/pages/Metrics/custom_chart.dart';
+import 'package:go_router/go_router.dart';
 import 'package:primhub/ui/Shared_Custom/custom_container.dart';
 import '../../../theme/colors.dart';
 import '../../widgets/custom_drawer.dart';
@@ -28,6 +29,8 @@ class _MetricsPageState extends State<MetricsPage> {
 
   final _adminViewModeManager = AdminViewModeManager();
 
+  bool _isInit = true;
+
   bool _isLoadingSupport = true;
   List<double> _supportPriorityValues = [];
   List<String> _supportPriorityLabels = [];
@@ -43,9 +46,12 @@ class _MetricsPageState extends State<MetricsPage> {
   List<String> _statusLabels = [];
   List<double> _complianceValues = [];
   List<String> _complianceLabels = [];
-  List<double> _moduleValues = [];
+  List<double> _modulePercentageValues = [];
   List<String> _moduleLabels = [];
   List<String> _moduleFullLabels = [];
+  List<double> _moduleTerminadaValues = [];
+  List<double> _modulePendienteValues = [];
+  List<double> _moduleEsperaValues = [];
 
   @override
   void initState() {
@@ -61,6 +67,22 @@ class _MetricsPageState extends State<MetricsPage> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_isInit) {
+      Object? extra;
+      try {
+        extra = GoRouterState.of(context).extra;
+      } catch (_) {}
+
+      if (extra is Map && extra['projectId'] != null) {
+        _selectedProjectId = extra['projectId'];
+      }
+      _isInit = false;
+    }
+  }
+
+  @override
   void dispose() {
     _adminViewModeManager.removeListener(_onViewModeChanged);
     super.dispose();
@@ -68,10 +90,10 @@ class _MetricsPageState extends State<MetricsPage> {
 
   void _onViewModeChanged() {
     setState(() {});
-    if (AccessControl.canViewProjectCharts && _projects.isEmpty) {
+    if (AccessControl.canViewProjectCharts) {
       _loadProjects();
     }
-    if (AccessControl.canViewSupportCharts && _supportStatusLabels.isEmpty) {
+    if (AccessControl.canViewSupportCharts) {
       _loadSupportBPartners();
       _loadSupportMetrics();
     }
@@ -98,19 +120,51 @@ class _MetricsPageState extends State<MetricsPage> {
 
   Future<void> _loadProjects() async {
     try {
-      // Nota: Asegúrate de que fetchProjectsForDropdown traiga el campo 'Value'
-      final projects = await ProjectsLogic().fetchProjectsForDropdown();
+      int? bPartnerIdForQuery;
+      if (AccessControl.isAdmin) {
+        bPartnerIdForQuery = _adminViewModeManager.isViewingMine ? (User.cBPartnerID ?? -1) : null;
+      } else if (AccessControl.isProject) {
+        bPartnerIdForQuery = User.cBPartnerID;
+      }
+
+      final projects = await ProjectsLogic().fetchProjectsForDropdown(bPartnerId: bPartnerIdForQuery);
       if (mounted) {
         setState(() {
           _projects = projects ?? [];
-          if (_projects.isNotEmpty && _selectedProjectId == null) {
-            _selectedProjectId = _projects.first['id'];
+          if (_projects.isNotEmpty) {
+            if (_selectedProjectId == null || !_projects.any((p) => p['id'] == _selectedProjectId)) {
+              _selectedProjectId = _projects.first['id'];
+            }
+          } else {
+            _selectedProjectId = null;
           }
         });
-        _loadMetrics();
+        if (_selectedProjectId != null) {
+          _loadMetrics();
+        } else {
+          setState(() {
+            _isLoading = false;
+            _statusLabels = [];
+            _statusValues = [];
+            _complianceLabels = [];
+            _complianceValues = [];
+            _moduleLabels = [];
+            _modulePercentageValues = [];
+            _moduleTerminadaValues = [];
+            _modulePendienteValues = [];
+            _moduleEsperaValues = [];
+            _moduleFullLabels = [];
+          });
+        }
       }
     } catch (e) {
       debugPrint("Error cargando proyectos: $e");
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _projects = [];
+        });
+      }
     }
   }
 
@@ -126,9 +180,8 @@ class _MetricsPageState extends State<MetricsPage> {
       print("DEBUG: Registros recibidos de API (Processed=false): ${requests.length}");
 
       final Map<String, int> statusCounts = {};
-      final Map<String, double> moduleCounts = {};
-      final Map<String, double> moduleTotalCounts = {};
       final Map<String, int> compliancePieData = {'TERMINADA': 0, 'PENDIENTE': 0, 'ESPERA DE CLIENTE': 0};
+      final Map<String, Map<String, int>> moduleStatusCounts = {};
       final Map<String, String> debugStatusMapping = {};
       int totalForCompliance = 0;
       int ignoredByGroup = 0;
@@ -137,13 +190,13 @@ class _MetricsPageState extends State<MetricsPage> {
         final statusData = req['R_Status_ID'] as Map?;
         final groupData = req['R_Group_ID'] as Map?;
         final typeData = req['R_RequestType_ID'] as Map?;
+        final categoryData = req['R_Category_ID'] as Map?;
 
         // Limpieza de nombres (quitar 10_, 20_, etc)
         String rawStatusName = statusData?['Name'] ?? statusData?['identifier'] ?? 'Sin Estado';
         String statusName = rawStatusName.contains('_') ? rawStatusName.split('_').last.trim() : rawStatusName.trim();
 
-        String groupName = groupData?['Name'] ?? groupData?['identifier'] ?? 'Sin Grupo';
-        String typeName = typeData?['Name'] ?? typeData?['identifier'] ?? 'Otros';
+        String categoryName = categoryData?['Name'] ?? categoryData?['identifier'] ?? 'Sin Módulo';
         bool isOpen = (statusData?['IsOpen'] == 'Y' || statusData?['IsOpen'] == true);
 
         // Validación robusta por ID de Grupo (1000006 = Requerimiento de cliente)
@@ -176,12 +229,9 @@ class _MetricsPageState extends State<MetricsPage> {
 
           if (!statusName.toLowerCase().contains('anulada')) {
             statusCounts[statusName] = (statusCounts[statusName] ?? 0) + 1;
-            moduleTotalCounts[typeName] = (moduleTotalCounts[typeName] ?? 0) + 1;
 
-            // Para el gráfico de barras por módulo, usamos la misma lógica de resolución
-            if (!isOpen || statusName.toLowerCase().contains('archivada')) {
-              moduleCounts[typeName] = (moduleCounts[typeName] ?? 0) + 1;
-            }
+            moduleStatusCounts.putIfAbsent(categoryName, () => {'TERMINADA': 0, 'PENDIENTE': 0, 'ESPERA DE CLIENTE': 0});
+            moduleStatusCounts[categoryName]![category] = (moduleStatusCounts[categoryName]![category] ?? 0) + 1;
           }
         } else {
           ignoredByGroup++;
@@ -201,9 +251,28 @@ class _MetricsPageState extends State<MetricsPage> {
           _statusValues = statusCounts.values.map((v) => v.toDouble()).toList();
           _complianceLabels = compliancePieData.keys.where((k) => compliancePieData[k]! > 0).toList();
           _complianceValues = _complianceLabels.map((k) => compliancePieData[k]!.toDouble()).toList();
-          _moduleFullLabels = moduleTotalCounts.keys.toList();
+
+          _moduleFullLabels = moduleStatusCounts.keys.toList();
           _moduleLabels = _moduleFullLabels.map((l) => l.length > 8 ? '${l.substring(0, 8)}.' : l).toList();
-          _moduleValues = _moduleFullLabels.map((k) => (moduleTotalCounts[k]! > 0) ? (moduleCounts[k] ?? 0) / moduleTotalCounts[k]! * 100 : 0.0).toList();
+
+          _moduleTerminadaValues = [];
+          _modulePendienteValues = [];
+          _moduleEsperaValues = [];
+          _modulePercentageValues = [];
+
+          for (String mod in _moduleFullLabels) {
+            int term = moduleStatusCounts[mod]!['TERMINADA'] ?? 0;
+            int pend = moduleStatusCounts[mod]!['PENDIENTE'] ?? 0;
+            int esp = moduleStatusCounts[mod]!['ESPERA DE CLIENTE'] ?? 0;
+            int total = term + pend + esp;
+
+            _moduleTerminadaValues.add(term.toDouble());
+            _modulePendienteValues.add(pend.toDouble());
+            _moduleEsperaValues.add(esp.toDouble());
+
+            double pct = total > 0 ? (term / total) * 100 : 0.0;
+            _modulePercentageValues.add(pct);
+          }
           _isLoading = false;
         });
       }
@@ -350,6 +419,61 @@ class _MetricsPageState extends State<MetricsPage> {
     );
   }
 
+  void _showProjectSearchModal() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        String searchQuery = "";
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final filteredProjects = _projects.where((p) {
+              final name = (p['Name'] ?? '').toString().toLowerCase();
+              return name.contains(searchQuery.toLowerCase());
+            }).toList();
+
+            return CustomModal(
+              title: 'Seleccionar Proyecto',
+              width: 500,
+              content: SizedBox(
+                height: 400,
+                child: Column(
+                  children: [
+                    TextField(
+                      decoration: InputDecoration(
+                        hintText: 'Buscar proyecto...',
+                        prefixIcon: const Icon(Icons.search),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onChanged: (val) => setModalState(() => searchQuery = val),
+                    ),
+                    const SizedBox(height: 10),
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: filteredProjects.length,
+                        itemBuilder: (context, index) {
+                          final p = filteredProjects[index];
+                          return ListTile(
+                            title: Text(p['Name'] ?? 'Sin Nombre'),
+                            onTap: () {
+                              setState(() => _selectedProjectId = p['id']);
+                              _loadMetrics();
+                              Navigator.pop(context);
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar'))],
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isLargeScreen = MediaQuery.of(context).size.width >= 1100;
@@ -401,6 +525,56 @@ class _MetricsPageState extends State<MetricsPage> {
                 }
 
                 return [buildItem(AdminViewMode.mixed, 'Modo Mixto'), buildItem(AdminViewMode.support, 'Modo Soporte'), buildItem(AdminViewMode.project, 'Modo Proyecto')];
+              },
+            ),
+          if (AccessControl.isAdmin)
+            PopupMenuButton<bool>(
+              tooltip: 'Filtrar proyectos',
+              onSelected: (bool viewingMine) {
+                _selectedProjectId = null; // Fuerza a la UI a reiniciar la selección visualmente
+                _projects = []; // Evita retener proyectos de la vista anterior
+                _adminViewModeManager.setViewingMine(viewingMine);
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(_adminViewModeManager.isViewingMine ? Icons.person : Icons.group),
+                    const SizedBox(width: 8),
+                    Text(_adminViewModeManager.isViewingMine ? 'Mis Proyectos' : 'Todos los Proyectos', style: const TextStyle(fontWeight: FontWeight.bold)),
+                    const Icon(Icons.arrow_drop_down),
+                  ],
+                ),
+              ),
+              itemBuilder: (BuildContext context) {
+                final colorScheme = Theme.of(context).colorScheme;
+                final isViewingMine = _adminViewModeManager.isViewingMine;
+                PopupMenuItem<bool> buildItem(bool isMineOption, String text, IconData icon) {
+                  final isSelected = isViewingMine == isMineOption;
+                  return PopupMenuItem<bool>(
+                    value: isMineOption,
+                    child: Container(
+                      width: double.infinity,
+                      decoration: BoxDecoration(color: isSelected ? colorScheme.primary.withOpacity(0.1) : Colors.transparent, borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      child: Row(
+                        children: [
+                          Icon(icon, size: 20, color: isSelected ? colorScheme.primary : colorScheme.onSurface),
+                          const SizedBox(width: 8),
+                          Text(
+                            text,
+                            style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? colorScheme.primary : colorScheme.onSurface),
+                          ),
+                          if (isSelected) const Spacer(),
+                          if (isSelected) Icon(Icons.check, size: 18, color: colorScheme.primary),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+
+                return [buildItem(true, 'Mis Proyectos', Icons.person), buildItem(false, 'Todos los Proyectos', Icons.group)];
               },
             ),
           IconButton(icon: const Icon(Icons.refresh), onPressed: _loadMetrics),
@@ -468,11 +642,72 @@ class _MetricsPageState extends State<MetricsPage> {
       return Colors.blue; // ESPERA DE CLIENTE (Azul)
     }).toList();
 
-    Widget complianceChart = _buildChartCard('Porcentaje de Cumplimiento', 300, _complianceValues.isEmpty ? _buildEmptyView() : _buildDonutWithLegend(_complianceValues, _complianceLabels, mappedComplianceColors));
+    Widget complianceChart = _buildChartCard(
+      'Porcentaje de Cumplimiento',
+      300,
+      _complianceValues.isEmpty
+          ? _buildEmptyView()
+          : _buildDonutWithLegend(
+              _complianceValues,
+              _complianceLabels,
+              mappedComplianceColors,
+              onSliceTapped: (label) {
+                // NOTA: Este gráfico agrupa estados. Navegar por 'TERMINADA' es complejo
+                // ya que implicaría filtrar por múltiples estados ('Archivada', 'Aprobada', etc.)
+                // lo cual la página de destino no soporta actualmente.
+                // Por ahora, solo el gráfico de 'Solicitudes por estado' será interactivo.
+              },
+            ),
+    );
 
-    Widget statusChart = _buildChartCard('Solicitudes por estado', 300, _statusValues.isEmpty ? _buildEmptyView() : _buildDonutWithLegend(_statusValues, _statusLabels, pieColors));
+    Widget statusChart = _buildChartCard(
+      'Solicitudes por estado',
+      300,
+      _statusValues.isEmpty
+          ? _buildEmptyView()
+          : _buildDonutWithLegend(
+              _statusValues,
+              _statusLabels,
+              pieColors,
+              onSliceTapped: (label) {
+                context.push('/project-requests', extra: {'projectId': _selectedProjectId, 'filterStatus': label});
+              },
+            ),
+    );
 
-    Widget moduleChart = _buildChartCard('Cumplimiento por Módulo (%)', 300, _moduleValues.isEmpty ? _buildEmptyView() : CustomBarChart(labels: _moduleLabels, fullLabels: _moduleFullLabels, values: _moduleValues, colors: [const Color(0xFF673AB7)], leftAxisSuffix: '%', tooltipSuffix: '%'));
+    Widget moduleStackedChart = _buildChartCard(
+      'Estado de Solicitudes por Módulo',
+      300,
+      _modulePercentageValues.isEmpty
+          ? _buildEmptyView()
+          : Column(
+              children: [
+                Row(mainAxisAlignment: MainAxisAlignment.center, children: [_buildLegendDot('Terminada', ColorTheme.success), const SizedBox(width: 8), _buildLegendDot('Pendiente', ColorTheme.atention), const SizedBox(width: 8), _buildLegendDot('Espera de Cliente', Colors.blue)]),
+                const SizedBox(height: 10),
+                Expanded(
+                  child: CustomStackedBarChart(labels: _moduleLabels, fullLabels: _moduleFullLabels, seriesValues: [_moduleTerminadaValues, _modulePendienteValues, _moduleEsperaValues], seriesNames: const ['Terminada', 'Pendiente', 'Espera de Cliente'], colors: const [ColorTheme.success, ColorTheme.atention, Colors.blue]),
+                ),
+              ],
+            ),
+    );
+
+    Widget modulePctChart = _buildChartCard(
+      'Avance del Proyecto por Módulo (%)',
+      300,
+      _modulePercentageValues.isEmpty
+          ? _buildEmptyView()
+          : CustomBarChart(
+              labels: _moduleLabels,
+              fullLabels: _moduleFullLabels,
+              values: _modulePercentageValues,
+              colors: const [Color(0xFF673AB7)],
+              leftAxisSuffix: '%',
+              tooltipSuffix: '%',
+              onBarTapped: (label) {
+                context.push('/project-requests', extra: {'projectId': _selectedProjectId, 'filterType': label});
+              },
+            ),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -492,7 +727,20 @@ class _MetricsPageState extends State<MetricsPage> {
           statusChart,
         ],
         const SizedBox(height: 20),
-        moduleChart,
+        if (isLargeScreen)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: moduleStackedChart),
+              const SizedBox(width: 20),
+              Expanded(child: modulePctChart),
+            ],
+          )
+        else ...[
+          moduleStackedChart,
+          const SizedBox(height: 20),
+          modulePctChart,
+        ],
       ],
     );
   }
@@ -533,12 +781,12 @@ class _MetricsPageState extends State<MetricsPage> {
     );
   }
 
-  Widget _buildDonutWithLegend(List<double> values, List<String> labels, List<Color> colors, {String suffix = 'sol.'}) {
+  Widget _buildDonutWithLegend(List<double> values, List<String> labels, List<Color> colors, {String suffix = 'sol.', Function(String label)? onSliceTapped}) {
     return Row(
       children: [
         Expanded(
           flex: 5,
-          child: CustomDonutChart(values: values, labels: labels, colors: colors),
+          child: CustomDonutChart(values: values, labels: labels, colors: colors, onSliceTapped: onSliceTapped),
         ),
         Expanded(
           flex: 6,
@@ -581,19 +829,44 @@ class _MetricsPageState extends State<MetricsPage> {
     child: Text("Sin datos relevantes para este proyecto", style: TextStyle(color: Colors.grey)),
   );
 
+  Widget _buildLegendDot(String text, Color color) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 4),
+        Text(text, style: const TextStyle(fontSize: 10)),
+      ],
+    );
+  }
+
   Widget _buildProjectFilters() {
     return Row(
       children: [
         const Text("Proyecto:", style: TextStyle(fontWeight: FontWeight.bold)),
         const SizedBox(width: 15),
         Expanded(
-          child: CustomDropdown<int?>(
-            value: _selectedProjectId,
-            items: _projects.map((p) => DropdownMenuItem<int>(value: p['id'], child: Text(p['Name'] ?? 'Sin Nombre'))).toList(),
-            onChanged: (val) {
-              setState(() => _selectedProjectId = val);
-              _loadMetrics();
-            },
+          child: InkWell(
+            onTap: _projects.isEmpty ? null : _showProjectSearchModal,
+            child: InputDecorator(
+              decoration: InputDecoration(
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(_selectedProjectId == null ? 'Seleccione un Proyecto' : (_projects.firstWhere((p) => p['id'] == _selectedProjectId, orElse: () => {'Name': 'Desconocido'})['Name'] ?? 'Sin Nombre'), overflow: TextOverflow.ellipsis),
+                  ),
+                  const Icon(Icons.search, color: Colors.grey),
+                ],
+              ),
+            ),
           ),
         ),
       ],

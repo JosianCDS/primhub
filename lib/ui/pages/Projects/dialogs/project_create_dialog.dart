@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:primhub/api/token.dart';
+import 'package:primhub/api/admin_view_mode.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
@@ -40,7 +41,7 @@ class _ProjectCreateDialogState extends State<ProjectCreateDialog> {
   }
 
   Future<void> _loadData() async {
-    final results = await Future.wait([_logic.fetchBPartners(), _logic.fetchProjects(context)]);
+    final results = await Future.wait([_logic.fetchBPartners(), _logic.fetchProjects(context, isViewingMine: AdminViewModeManager().isViewingMine)]);
     if (mounted) {
       setState(() {
         _bPartners = results[0];

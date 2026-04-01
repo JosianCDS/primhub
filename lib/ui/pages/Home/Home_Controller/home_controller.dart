@@ -5,6 +5,7 @@ import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/contract_api.dart';
 import 'package:primhub/api/api_utils.dart';
 import 'package:primhub/api/token.dart';
+import 'package:primhub/api/admin_view_mode.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -30,8 +31,6 @@ class HomeController extends ChangeNotifier {
   Map<int, Map<String, num>> requestsStatsByBp = {};
 
   List<Map<String, dynamic>> supportContracts = [];
-
-  int? filterSalesRepId = User.userID;
 
   List<Map<String, dynamic>> supportBPartners = [];
   List<int> selectedSupportBpIds = [];
@@ -73,10 +72,6 @@ class HomeController extends ChangeNotifier {
 
   Future<void> loadSupportBPartners() async {
     supportBPartners = await ContractApi.getBPartnersWithSupportContracts();
-    if (selectedSupportBpIds.isEmpty && supportBPartners.isNotEmpty) {
-      selectedSupportBpIds = supportBPartners.map<int>((bp) => bp['id'] as int).toList();
-      savedSelectedSupportBpIds = List.from(selectedSupportBpIds);
-    }
     notifyListeners();
   }
 
@@ -118,8 +113,13 @@ class HomeController extends ChangeNotifier {
         if (AccessControl.isRealProject && partnerID != null) {
           filters.add('C_BPartner_ID eq $partnerID');
         } else {
-          if (filterSalesRepId != null) {
-            filters.add('SalesRep_ID eq $filterSalesRepId');
+          if (AdminViewModeManager().isViewingMine) {
+            List<String> mineFilters = [];
+            if (partnerID != null) mineFilters.add('C_BPartner_ID eq $partnerID');
+            if (User.userID != null) mineFilters.add('SalesRep_ID eq ${User.userID}');
+            if (mineFilters.isNotEmpty) {
+              filters.add('(${mineFilters.join(' or ')})');
+            }
           }
         }
 
@@ -139,11 +139,16 @@ class HomeController extends ChangeNotifier {
 
         if (projResponse.statusCode == 200) {
           final data = json.decode(utf8.decode(projResponse.bodyBytes));
-          if (data['records'] != null && (data['records'] as List).isNotEmpty) {
-            projPName = data['records'][0]['C_BPartner_ID']?['identifier'];
+          if (data['records'] != null) {
             projects = data['records'];
+            if (projects.isNotEmpty) {
+              projPName = projects[0]['C_BPartner_ID']?['identifier'];
+            }
 
-            if (selectedProjectIds.isEmpty) {
+            final validProjectIds = projects.map<int>((p) => p['id'] as int).toSet();
+            selectedProjectIds = selectedProjectIds.where((id) => validProjectIds.contains(id)).toList();
+
+            if (selectedProjectIds.isEmpty && projects.isNotEmpty) {
               selectedProjectIds = projects.map<int>((p) => p['id'] as int).toList();
               savedSelectedProjectIds = List.from(selectedProjectIds);
             }
@@ -350,60 +355,59 @@ class HomeController extends ChangeNotifier {
           int pEt = 0;
           int pSg = 0;
           int pGn = 0;
+          bool hasMetrics = false;
 
-          var response = await http.get(Uri.parse('${Endpoint.primDocuments}?\$filter=C_Project_ID eq ${projectId}&\$expand=PRIM_Documents_Related'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
-          if (response.statusCode == 401) {
-            final refreshed = await handleTokenRefresh();
-            if (refreshed) {
-              response = await http.get(Uri.parse('${Endpoint.primDocuments}?\$filter=C_Project_ID eq ${projectId}&\$expand=PRIM_Documents_Related'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
-            } else {
-              return;
-            }
-          }
-
-          if (response.statusCode == 200) {
-            final data = json.decode(utf8.decode(response.bodyBytes));
-            final records = data['records'] as List;
-
-            void countRecursive(List<dynamic> docs, String? inheritedType) {
-              for (var doc in docs) {
-                dynamic typeVal = doc['Type'];
-                String typeCode = '';
-
-                if (typeVal is Map) {
-                  typeCode = typeVal['id']?.toString() ?? '';
-                } else if (typeVal != null) {
-                  typeCode = typeVal.toString();
-                }
-
-                if (typeCode.isEmpty && inheritedType != null) {
-                  typeCode = inheritedType;
-                }
-
-                final isFolder = doc['IsSummary'] == true;
-
-                if (!isFolder) {
-                  if (typeCode == 'ET') {
-                    pEt++;
-                  }
-                  if (typeCode == 'SG') {
-                    pSg++;
-                  }
-                  if (typeCode == 'GN') {
-                    pGn++;
-                  }
-                }
-
-                final children = doc['PRIM_Documents_Related'] as List? ?? [];
-                if (children.isNotEmpty) {
-                  countRecursive(children, typeCode.isNotEmpty ? typeCode : inheritedType);
-                }
+          try {
+            var response = await http.get(Uri.parse('${Endpoint.primDocuments}?\$filter=C_Project_ID eq ${projectId}&\$expand=PRIM_Documents_Related'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+            if (response.statusCode == 401) {
+              final refreshed = await handleTokenRefresh();
+              if (refreshed) {
+                response = await http.get(Uri.parse('${Endpoint.primDocuments}?\$filter=C_Project_ID eq ${projectId}&\$expand=PRIM_Documents_Related'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
               }
             }
 
-            countRecursive(records, null);
-            stats[projectId] = {'et': pEt, 'sg': pSg, 'gn': pGn};
-          }
+            if (response.statusCode == 200) {
+              final data = json.decode(utf8.decode(response.bodyBytes));
+              final records = data['records'] as List;
+
+              void countRecursive(List<dynamic> docs, String? inheritedType) {
+                for (var doc in docs) {
+                  dynamic typeVal = doc['Type'];
+                  String typeCode = '';
+                  if (typeVal is Map) {
+                    typeCode = typeVal['id']?.toString() ?? '';
+                  } else if (typeVal != null) {
+                    typeCode = typeVal.toString();
+                  }
+                  if (typeCode.isEmpty && inheritedType != null) {
+                    typeCode = inheritedType;
+                  }
+                  final isFolder = doc['IsSummary'] == true;
+                  if (!isFolder) {
+                    if (typeCode == 'ET') pEt++;
+                    if (typeCode == 'SG') pSg++;
+                    if (typeCode == 'GN') pGn++;
+                  }
+                  final children = doc['PRIM_Documents_Related'] as List? ?? [];
+                  if (children.isNotEmpty) {
+                    countRecursive(children, typeCode.isNotEmpty ? typeCode : inheritedType);
+                  }
+                }
+              }
+
+              countRecursive(records, null);
+            }
+          } catch (e) {}
+
+          try {
+            var metricsRes = await http.get(Uri.parse('${Endpoint.request}?\$filter=C_Project_ID eq $projectId and R_Group_ID eq 1000006&\$top=1&\$select=R_Request_ID'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+            if (metricsRes.statusCode == 200) {
+              final mData = json.decode(utf8.decode(metricsRes.bodyBytes));
+              hasMetrics = (mData['records'] as List).isNotEmpty;
+            }
+          } catch (_) {}
+
+          stats[projectId] = {'et': pEt, 'sg': pSg, 'gn': pGn, 'hasMetrics': hasMetrics};
         } catch (e) {}
       }());
     }

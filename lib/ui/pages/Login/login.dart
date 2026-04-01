@@ -211,7 +211,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Text(
-                  'v1.0.1',
+                  'v1.3.0',
                   style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(width: 8),
