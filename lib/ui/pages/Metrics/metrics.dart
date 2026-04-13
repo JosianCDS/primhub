@@ -326,7 +326,8 @@ class _MetricsPageState extends State<MetricsPage> {
         } else if (AccessControl.isAdmin && _supportSelectedBpId != null) {
           filter += " and C_BPartner_ID eq $_supportSelectedBpId";
         }
-        rawRequests = await fetchRequest(filter: filter, top: 500);
+        String expand = "R_Status_ID(\$select=Name,IsOpen),Priority(\$select=Name)";
+        rawRequests = await fetchRequest(filter: filter, top: 500, expand: expand);
       }
 
       final Map<String, double> priorityCounts = {};
@@ -345,8 +346,32 @@ class _MetricsPageState extends State<MetricsPage> {
           }
         }
 
-        String priorityStr = req['Priority'] is Map ? (req['Priority']['identifier'] ?? 'Media') : (req['Priority']?.toString() ?? '5');
-        String status = req['R_Status_Name'] ?? (req['R_Status_ID'] is Map ? req['R_Status_ID']['identifier'] : 'Desconocido') ?? 'Desconocido';
+        // Extracción robusta de Estado
+        final statusObj = req['R_Status_ID'];
+        final statusData = statusObj is Map ? statusObj : null;
+        String rawStatusName = req['R_Status_Name'] ?? '';
+
+        if (statusData != null) {
+          rawStatusName = statusData['Name'] ?? statusData['identifier'] ?? rawStatusName;
+        }
+
+        if (rawStatusName.isEmpty && statusObj is int) {
+          // Buscar en caché global si solo llega el ID entero
+          rawStatusName = GlobalCache.statuses.keys.firstWhere((k) => GlobalCache.statuses[k] == statusObj, orElse: () => 'Desconocido');
+        }
+
+        if (rawStatusName.isEmpty) rawStatusName = 'Desconocido';
+
+        String cleanStatus = rawStatusName.contains('_') ? rawStatusName.split('_').last.trim() : rawStatusName.trim();
+        String lowerStatus = rawStatusName.toLowerCase();
+
+        // Excluir "Anuladas" para no ensuciar las métricas de soporte
+        if (lowerStatus.contains('anulada')) {
+          continue;
+        }
+
+        // Prioridad robusta
+        String priorityStr = req['Priority'] is Map ? (req['Priority']['identifier'] ?? req['Priority']['Name'] ?? 'Media') : (req['Priority']?.toString() ?? '5');
 
         String priority = 'Media';
         final pLower = priorityStr.toLowerCase();
@@ -362,8 +387,6 @@ class _MetricsPageState extends State<MetricsPage> {
           priority = 'Menor';
         else
           priority = priorityStr;
-
-        String cleanStatus = status.contains('_') ? status.split('_').last.trim() : status.trim();
 
         priorityCounts[priority] = (priorityCounts[priority] ?? 0) + 1;
         statusCounts[cleanStatus] = (statusCounts[cleanStatus] ?? 0) + 1;
