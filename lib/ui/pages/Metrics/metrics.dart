@@ -694,6 +694,8 @@ class _MetricsPageState extends State<MetricsPage> {
   Widget _buildDashboardGrid(bool isLargeScreen) {
     final List<Color> pieColors = [const Color(0xFF42A5F5), const Color(0xFF66BB6A), const Color(0xFFFFA726), const Color(0xFFAB47BC), const Color(0xFFEF5350), const Color(0xFF26A69A), const Color(0xFFEC407A), const Color(0xFFFFCA28), const Color(0xFF5C6BC0), const Color(0xFF8D6E63)];
 
+    int? hoveredStackedSeriesIndex;
+
     final List<Color> mappedComplianceColors = _complianceLabels.map((l) {
       if (l == 'TERMINADA') return ColorTheme.success; // Verde
       if (l == 'PENDIENTE') return ColorTheme.atention; // Naranja
@@ -735,23 +737,46 @@ class _MetricsPageState extends State<MetricsPage> {
       300,
       _modulePercentageValues.isEmpty
           ? _buildEmptyView()
-          : Column(
-              children: [
-                Row(mainAxisAlignment: MainAxisAlignment.center, children: [_buildLegendDot('Terminada', ColorTheme.success), const SizedBox(width: 8), _buildLegendDot('Pendiente', ColorTheme.atention), const SizedBox(width: 8), _buildLegendDot('Espera de Cliente', Colors.blue)]),
-                const SizedBox(height: 10),
-                Expanded(
-                  child: CustomStackedBarChart(
-                    labels: _moduleLabels,
-                    fullLabels: _moduleFullLabels,
-                    seriesValues: [_moduleTerminadaValues, _modulePendienteValues, _moduleEsperaValues],
-                    seriesNames: const ['Terminada', 'Pendiente', 'Espera de Cliente'],
-                    colors: const [ColorTheme.success, ColorTheme.atention, Colors.blue],
-                    onBarTapped: (category, series) {
-                      context.push('/metric-requests', extra: {'projectId': _selectedProjectId, 'filterType': category, 'filterCompliance': series.toUpperCase()});
-                    },
-                  ),
-                ),
-              ],
+          : StatefulBuilder(
+              builder: (context, setStateLegend) {
+                return Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _buildInteractiveLegendDot(context, 'Terminada', ColorTheme.success, hoveredStackedSeriesIndex == 0, hoveredStackedSeriesIndex != null, () => setStateLegend(() => hoveredStackedSeriesIndex = 0), () => setStateLegend(() => hoveredStackedSeriesIndex = null), () => context.push('/metric-requests', extra: {'projectId': _selectedProjectId, 'filterCompliance': 'TERMINADA'})),
+                        const SizedBox(width: 8),
+                        _buildInteractiveLegendDot(context, 'Pendiente', ColorTheme.atention, hoveredStackedSeriesIndex == 1, hoveredStackedSeriesIndex != null, () => setStateLegend(() => hoveredStackedSeriesIndex = 1), () => setStateLegend(() => hoveredStackedSeriesIndex = null), () => context.push('/metric-requests', extra: {'projectId': _selectedProjectId, 'filterCompliance': 'PENDIENTE'})),
+                        const SizedBox(width: 8),
+                        _buildInteractiveLegendDot(
+                          context,
+                          'Espera de Cliente',
+                          Colors.blue,
+                          hoveredStackedSeriesIndex == 2,
+                          hoveredStackedSeriesIndex != null,
+                          () => setStateLegend(() => hoveredStackedSeriesIndex = 2),
+                          () => setStateLegend(() => hoveredStackedSeriesIndex = null),
+                          () => context.push('/metric-requests', extra: {'projectId': _selectedProjectId, 'filterCompliance': 'ESPERA DE CLIENTE'}),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Expanded(
+                      child: CustomStackedBarChart(
+                        labels: _moduleLabels,
+                        fullLabels: _moduleFullLabels,
+                        seriesValues: [_moduleTerminadaValues, _modulePendienteValues, _moduleEsperaValues],
+                        seriesNames: const ['Terminada', 'Pendiente', 'Espera de Cliente'],
+                        colors: const [ColorTheme.success, ColorTheme.atention, Colors.blue],
+                        hoveredSeriesIndex: hoveredStackedSeriesIndex,
+                        onBarTapped: (category, series) {
+                          context.push('/metric-requests', extra: {'projectId': _selectedProjectId, 'filterType': category, 'filterCompliance': series.toUpperCase()});
+                        },
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
     );
 
@@ -846,42 +871,7 @@ class _MetricsPageState extends State<MetricsPage> {
   }
 
   Widget _buildDonutWithLegend(List<double> values, List<String> labels, List<Color> colors, {String suffix = 'sol.', Function(String label)? onSliceTapped}) {
-    return Row(
-      children: [
-        Expanded(
-          flex: 5,
-          child: CustomDonutChart(values: values, labels: labels, colors: colors, onSliceTapped: onSliceTapped),
-        ),
-        Expanded(
-          flex: 6,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: List.generate(labels.length, (i) {
-                final val = values[i];
-                final total = values.reduce((a, b) => a + b);
-                final pct = total > 0 ? (val / total * 100) : 0.0;
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6.0),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 12,
-                        height: 12,
-                        decoration: BoxDecoration(color: colors[i % colors.length], shape: BoxShape.circle),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(child: Text('${labels[i]}\n${val.toInt()} $suffix (${pct.toStringAsFixed(1)}%)', style: const TextStyle(fontSize: 11, height: 1.2))),
-                    ],
-                  ),
-                );
-              }),
-            ),
-          ),
-        ),
-      ],
-    );
+    return _DonutWithLegendWidget(values: values, labels: labels, colors: colors, suffix: suffix, onSliceTapped: onSliceTapped);
   }
 
   Widget _buildChartCard(String title, double height, Widget child) => CustomContainer(
@@ -893,18 +883,36 @@ class _MetricsPageState extends State<MetricsPage> {
     child: Text("Sin datos relevantes para este proyecto", style: TextStyle(color: Colors.grey)),
   );
 
-  Widget _buildLegendDot(String text, Color color) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+  Widget _buildInteractiveLegendDot(BuildContext context, String text, Color color, bool isHovered, bool isAnyHovered, VoidCallback onEnter, VoidCallback onExit, VoidCallback onTap) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => onEnter(),
+      onExit: (_) => onExit(),
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
+          decoration: BoxDecoration(color: isHovered ? color.withOpacity(0.1) : Colors.transparent, borderRadius: BorderRadius.circular(8)),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: isHovered ? 14 : 10,
+                height: isHovered ? 14 : 10,
+                decoration: BoxDecoration(color: isAnyHovered && !isHovered ? Colors.grey.withOpacity(0.3) : color, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 6),
+              AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 200),
+                style: TextStyle(fontSize: 11, fontWeight: isHovered ? FontWeight.bold : FontWeight.normal, color: isAnyHovered && !isHovered ? Theme.of(context).colorScheme.onSurface.withOpacity(0.4) : Theme.of(context).colorScheme.onSurface),
+                child: Text(text),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(width: 4),
-        Text(text, style: const TextStyle(fontSize: 10)),
-      ],
+      ),
     );
   }
 
@@ -979,6 +987,157 @@ class _MetricsPageState extends State<MetricsPage> {
           ),
         ],
       ],
+    );
+  }
+}
+
+class _DonutWithLegendWidget extends StatefulWidget {
+  final List<double> values;
+  final List<String> labels;
+  final List<Color> colors;
+  final String suffix;
+  final Function(String label)? onSliceTapped;
+
+  const _DonutWithLegendWidget({required this.values, required this.labels, required this.colors, this.suffix = 'sol.', this.onSliceTapped});
+
+  @override
+  State<_DonutWithLegendWidget> createState() => _DonutWithLegendWidgetState();
+}
+
+class _DonutWithLegendWidgetState extends State<_DonutWithLegendWidget> {
+  int? _hoveredIndex;
+  final ScrollController _scrollController = ScrollController();
+  bool _showTopArrow = false;
+  bool _showBottomArrow = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_updateArrows);
+    // Evaluar las flechas justo después del primer renderizado
+    WidgetsBinding.instance.addPostFrameCallback((_) => _updateArrows());
+  }
+
+  @override
+  void didUpdateWidget(covariant _DonutWithLegendWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _updateArrows());
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_updateArrows);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _updateArrows() {
+    if (!mounted || !_scrollController.hasClients) return;
+    final position = _scrollController.position;
+
+    final showTop = position.pixels > 0;
+    final showBottom = position.pixels < position.maxScrollExtent;
+
+    if (_showTopArrow != showTop || _showBottomArrow != showBottom) {
+      setState(() {
+        _showTopArrow = showTop;
+        _showBottomArrow = showBottom;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          flex: 5,
+          child: CustomDonutChart(values: widget.values, labels: widget.labels, colors: widget.colors, onSliceTapped: widget.onSliceTapped, hoveredIndex: _hoveredIndex),
+        ),
+        Expanded(
+          flex: 6,
+          child: Stack(
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: NotificationListener<ScrollUpdateNotification>(
+                  onNotification: (notification) {
+                    _updateArrows();
+                    return false;
+                  },
+                  child: SingleChildScrollView(
+                    controller: _scrollController,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: List.generate(widget.labels.length, (i) {
+                        final val = widget.values[i];
+                        final total = widget.values.reduce((a, b) => a + b);
+                        final pct = total > 0 ? (val / total * 100) : 0.0;
+
+                        final isHovered = _hoveredIndex == i;
+                        final isAnyHovered = _hoveredIndex != null;
+                        final textLabel = '${widget.labels[i]}\n${val.toInt()} ${widget.suffix} (${pct.toStringAsFixed(1)}%)';
+
+                        return MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          onEnter: (_) => setState(() => _hoveredIndex = i),
+                          onExit: (_) => setState(() => _hoveredIndex = null),
+                          child: GestureDetector(
+                            onTap: () {
+                              if (widget.onSliceTapped != null) widget.onSliceTapped!(widget.labels[i]);
+                            },
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 8.0),
+                              margin: const EdgeInsets.only(bottom: 4.0),
+                              decoration: BoxDecoration(color: isHovered ? widget.colors[i % widget.colors.length].withOpacity(0.1) : Colors.transparent, borderRadius: BorderRadius.circular(8)),
+                              child: Row(
+                                children: [
+                                  AnimatedContainer(
+                                    duration: const Duration(milliseconds: 200),
+                                    width: isHovered ? 16 : 12,
+                                    height: isHovered ? 16 : 12,
+                                    decoration: BoxDecoration(color: isAnyHovered && !isHovered ? Colors.grey.withOpacity(0.3) : widget.colors[i % widget.colors.length], shape: BoxShape.circle),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: AnimatedDefaultTextStyle(
+                                      duration: const Duration(milliseconds: 200),
+                                      style: TextStyle(fontSize: 11, height: 1.2, fontWeight: isHovered ? FontWeight.bold : FontWeight.normal, color: isAnyHovered && !isHovered ? Theme.of(context).colorScheme.onSurface.withOpacity(0.4) : Theme.of(context).colorScheme.onSurface),
+                                      child: Text(textLabel),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                  ),
+                ),
+              ),
+              if (_showTopArrow) Positioned(top: 0, right: 10, child: _buildScrollArrow(Icons.keyboard_arrow_up_rounded)),
+              if (_showBottomArrow) Positioned(bottom: 0, right: 10, child: _buildScrollArrow(Icons.keyboard_arrow_down_rounded)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildScrollArrow(IconData icon) {
+    return IgnorePointer(
+      child: Container(
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface.withOpacity(0.85),
+          shape: BoxShape.circle,
+          boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2))],
+        ),
+        child: Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
+      ),
     );
   }
 }

@@ -70,8 +70,9 @@ class CustomDonutChart extends StatefulWidget {
   final List<Color> colors;
   final double maxWidth;
   final Function(String label)? onSliceTapped;
+  final int? hoveredIndex;
 
-  const CustomDonutChart({super.key, required this.values, required this.colors, this.maxWidth = 300.0, this.labels, this.onSliceTapped});
+  const CustomDonutChart({super.key, required this.values, required this.colors, this.maxWidth = 300.0, this.labels, this.onSliceTapped, this.hoveredIndex});
 
   @override
   State<CustomDonutChart> createState() => _CustomDonutChartState();
@@ -98,7 +99,7 @@ class _CustomDonutChartState extends State<CustomDonutChart> with SingleTickerPr
     return GestureDetector(
       onTapUp: (details) {
         if (widget.onSliceTapped != null) {
-          final painter = DonutChartPainter(values: widget.values, labels: widget.labels, colors: widget.colors, animationValue: 1.0);
+          final painter = DonutChartPainter(values: widget.values, labels: widget.labels, colors: widget.colors, animationValue: 1.0, hoveredIndex: widget.hoveredIndex);
           final tappedLabel = painter.getLabelForTap(details.localPosition, context.size ?? Size.zero);
           if (tappedLabel != null) {
             widget.onSliceTapped!(tappedLabel);
@@ -112,7 +113,7 @@ class _CustomDonutChartState extends State<CustomDonutChart> with SingleTickerPr
           animation: _controller!,
           builder: (context, child) => CustomPaint(
             size: Size.infinite,
-            painter: DonutChartPainter(values: widget.values, labels: widget.labels, colors: widget.colors, touchPosition: _touchPosition, animationValue: _controller!.value),
+            painter: DonutChartPainter(values: widget.values, labels: widget.labels, colors: widget.colors, touchPosition: _touchPosition, animationValue: _controller!.value, hoveredIndex: widget.hoveredIndex),
           ),
         ),
       ),
@@ -127,8 +128,9 @@ class CustomStackedBarChart extends StatefulWidget {
   final List<String> seriesNames;
   final List<Color> colors;
   final Function(String category, String series)? onBarTapped;
+  final int? hoveredSeriesIndex;
 
-  const CustomStackedBarChart({super.key, required this.labels, this.fullLabels, required this.seriesValues, required this.seriesNames, required this.colors, this.onBarTapped});
+  const CustomStackedBarChart({super.key, required this.labels, this.fullLabels, required this.seriesValues, required this.seriesNames, required this.colors, this.onBarTapped, this.hoveredSeriesIndex});
 
   @override
   State<CustomStackedBarChart> createState() => _CustomStackedBarChartState();
@@ -158,7 +160,7 @@ class _CustomStackedBarChartState extends State<CustomStackedBarChart> with Sing
     return GestureDetector(
       onTapUp: (details) {
         if (widget.onBarTapped != null) {
-          final painter = StackedBarChartPainter(labels: widget.labels, fullLabels: widget.fullLabels, seriesValues: widget.seriesValues, seriesNames: widget.seriesNames, colors: widget.colors, textColor: Theme.of(context).colorScheme.onSurfaceVariant, animationValue: 1.0);
+          final painter = StackedBarChartPainter(labels: widget.labels, fullLabels: widget.fullLabels, seriesValues: widget.seriesValues, seriesNames: widget.seriesNames, colors: widget.colors, textColor: Theme.of(context).colorScheme.onSurfaceVariant, animationValue: 1.0, hoveredSeriesIndex: widget.hoveredSeriesIndex);
           final tapDetails = painter.getTapDetails(details.localPosition, context.size ?? Size.zero);
           if (tapDetails != null) {
             widget.onBarTapped!(tapDetails.category, tapDetails.series);
@@ -172,7 +174,7 @@ class _CustomStackedBarChartState extends State<CustomStackedBarChart> with Sing
           animation: _animation!,
           builder: (context, child) => CustomPaint(
             size: Size.infinite,
-            painter: StackedBarChartPainter(labels: widget.labels, fullLabels: widget.fullLabels, seriesValues: widget.seriesValues, seriesNames: widget.seriesNames, colors: widget.colors, textColor: Theme.of(context).colorScheme.onSurfaceVariant, touchPosition: _touchPosition, animationValue: _animation!.value),
+            painter: StackedBarChartPainter(labels: widget.labels, fullLabels: widget.fullLabels, seriesValues: widget.seriesValues, seriesNames: widget.seriesNames, colors: widget.colors, textColor: Theme.of(context).colorScheme.onSurfaceVariant, touchPosition: _touchPosition, animationValue: _animation!.value, hoveredSeriesIndex: widget.hoveredSeriesIndex),
           ),
         ),
       ),
