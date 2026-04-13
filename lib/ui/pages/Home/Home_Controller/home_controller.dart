@@ -9,6 +9,7 @@ import 'package:primhub/api/admin_view_mode.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:primhub/api/global_cache.dart';
 
 class HomeController extends ChangeNotifier {
   bool isLoading = true;
@@ -52,10 +53,12 @@ class HomeController extends ChangeNotifier {
     } catch (_) {}
   }
 
-  Future<void> initData() async {
+  Future<void> initData({bool forceRefresh = false}) async {
     validationLoading = true;
     isLoading = true;
     notifyListeners();
+
+    await GlobalCache.syncData(force: forceRefresh);
 
     await loadValidationData();
     if (AccessControl.isAdmin) {
@@ -71,7 +74,7 @@ class HomeController extends ChangeNotifier {
   }
 
   Future<void> loadSupportBPartners() async {
-    supportBPartners = await ContractApi.getBPartnersWithSupportContracts();
+    supportBPartners = GlobalCache.bPartners;
     notifyListeners();
   }
 
@@ -89,69 +92,35 @@ class HomeController extends ChangeNotifier {
     if (partnerID != null || isAdmin) {
       try {
         if (partnerID != null) {
-          var pResponse = await http.get(Uri.parse('${Endpoint.cBPartner}?\$filter=C_BPartner_ID eq $partnerID'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
-          if (pResponse.statusCode == 401) {
-            final refreshed = await handleTokenRefresh();
-            if (refreshed) {
-              pResponse = await http.get(Uri.parse('${Endpoint.cBPartner}?\$filter=C_BPartner_ID eq $partnerID'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
-            } else {
-              return;
-            }
-          }
-
-          if (pResponse.statusCode == 200) {
-            final data = json.decode(utf8.decode(pResponse.bodyBytes));
-            if (data['records'] != null && (data['records'] as List).isNotEmpty) {
-              pName = data['records'][0]['Name'];
-            }
-          }
+          final found = GlobalCache.bPartners.firstWhere((bp) => bp['id'] == partnerID, orElse: () => <String, dynamic>{});
+          if (found.isNotEmpty) pName = found['Name'];
         }
 
-        String projectUrl = Endpoint.project;
-        List<String> filters = [];
+        List<dynamic> allProjects = GlobalCache.projects;
 
         if (AccessControl.isRealProject && partnerID != null) {
-          filters.add('C_BPartner_ID eq $partnerID');
+          projects = allProjects.where((p) => p['C_BPartner_ID'] is Map ? p['C_BPartner_ID']['id'] == partnerID : p['C_BPartner_ID'] == partnerID).toList();
         } else {
           if (AdminViewModeManager().isViewingMine) {
-            List<String> mineFilters = [];
-            if (partnerID != null) mineFilters.add('C_BPartner_ID eq $partnerID');
-            if (User.userID != null) mineFilters.add('SalesRep_ID eq ${User.userID}');
-            if (mineFilters.isNotEmpty) {
-              filters.add('(${mineFilters.join(' or ')})');
-            }
-          }
-        }
-
-        if (filters.isNotEmpty) {
-          projectUrl += '?\$filter=${filters.join(' and ')}';
-        }
-
-        var projResponse = await http.get(Uri.parse(projectUrl), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
-        if (projResponse.statusCode == 401) {
-          final refreshed = await handleTokenRefresh();
-          if (refreshed) {
-            projResponse = await http.get(Uri.parse(projectUrl), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+            projects = allProjects.where((p) {
+              final bpId = p['C_BPartner_ID'] is Map ? p['C_BPartner_ID']['id'] : p['C_BPartner_ID'];
+              final repId = p['SalesRep_ID'] is Map ? p['SalesRep_ID']['id'] : p['SalesRep_ID'];
+              return (partnerID != null && bpId == partnerID) || (User.userID != null && repId == User.userID);
+            }).toList();
           } else {
-            return;
+            projects = allProjects;
           }
         }
 
-        if (projResponse.statusCode == 200) {
-          final data = json.decode(utf8.decode(projResponse.bodyBytes));
-          if (data['records'] != null) {
-            projects = data['records'];
-            if (projects.isNotEmpty) {
-              projPName = projects[0]['C_BPartner_ID']?['identifier'];
-            }
+        if (projects.isNotEmpty) {
+          projPName = projects[0]['C_BPartner_ID'] is Map ? projects[0]['C_BPartner_ID']['identifier'] : null;
 
-            final validProjectIds = projects.map<int>((p) => p['id'] as int).toSet();
-            selectedProjectIds = selectedProjectIds.where((id) => validProjectIds.contains(id)).toList();
+          final validProjectIds = projects.map<int>((p) => p['id'] is int ? p['id'] as int : int.tryParse(p['id'].toString()) ?? 0).toSet();
+          selectedProjectIds = selectedProjectIds.where((id) => validProjectIds.contains(id)).toList();
 
-            if (selectedProjectIds.isEmpty && projects.isNotEmpty) {
-              selectedProjectIds = projects.map<int>((p) => p['id'] as int).toList();
-              savedSelectedProjectIds = List.from(selectedProjectIds);
-            }
+          if (selectedProjectIds.isEmpty && projects.isNotEmpty) {
+            selectedProjectIds = projects.map<int>((p) => p['id'] is int ? p['id'] as int : int.tryParse(p['id'].toString()) ?? 0).toList();
+            savedSelectedProjectIds = List.from(selectedProjectIds);
           }
         }
       } catch (e) {}
@@ -178,10 +147,10 @@ class HomeController extends ChangeNotifier {
     }
 
     if (bpIdsForQuery != null && bpIdsForQuery.isNotEmpty) {
-      for (final bpId in bpIdsForQuery) {
-        final requestsForBp = await fetchRequest(filter: "C_BPartner_ID eq $bpId");
-        allBPartnerRequests.addAll(requestsForBp);
-      }
+      allBPartnerRequests = GlobalCache.requests.where((r) {
+        final rBpId = r['C_BPartner_ID'] is Map ? r['C_BPartner_ID']['id'] : r['C_BPartner_ID'];
+        return bpIdsForQuery!.contains(rBpId);
+      }).toList();
     } else if (AccessControl.isAdmin) {
       setStateForEmptyRequests();
       return;
@@ -237,7 +206,7 @@ class HomeController extends ChangeNotifier {
       String level = 'Baja'; // Valor por defecto
       dynamic priorityVal = r['Priority'];
       if (priorityVal is Map) {
-        level = priorityVal['identifier'] ?? 'Baja';
+        level = priorityVal['identifier'] ?? priorityVal['Name'] ?? 'Baja';
       } else if (priorityVal != null) {
         String pStr = priorityVal.toString();
         if (pStr == '1')
@@ -270,8 +239,8 @@ class HomeController extends ChangeNotifier {
         }
       } catch (_) {}
 
-      String situation = r['R_RequestType_ID'] is Map ? (r['R_RequestType_ID']['identifier'] ?? 'Solicitud') : (r['R_RequestType_Name'] ?? 'Solicitud');
-      String status = r['R_Status_ID'] is Map ? (r['R_Status_ID']['identifier'] ?? '1_Open') : (r['R_Status_Name'] ?? '1_Open');
+      String situation = r['R_RequestType_ID'] is Map ? (r['R_RequestType_ID']['identifier'] ?? r['R_RequestType_ID']['Name'] ?? r['R_RequestType_Name'] ?? 'Solicitud') : (r['R_RequestType_Name'] ?? 'Solicitud');
+      String status = r['R_Status_ID'] is Map ? (r['R_Status_ID']['identifier'] ?? r['R_Status_ID']['Name'] ?? '1_Open') : (r['R_Status_Name'] ?? '1_Open');
       String bpName = '';
       if (r['C_BPartner_ID'] is Map) {
         bpName = r['C_BPartner_ID']['identifier'] ?? r['C_BPartner_ID']['Name'] ?? '';
@@ -281,7 +250,21 @@ class HomeController extends ChangeNotifier {
         userName = r['AD_User_ID']['identifier'] ?? r['AD_User_ID']['Name'] ?? '';
       }
 
-      return {'code': r['DocumentNo'] ?? r['id'].toString(), 'situation': situation, 'emailSubject': r['CDS_EmailSubject'] ?? '', 'description': r['Summary'] ?? '', 'time': formattedTime, 'level': level, 'levelColor': baseColor, 'levelBgColor': baseColor.withOpacity(0.2), 'status': status, 'bpName': bpName, 'userName': userName, 'original': r};
+      return {
+        'code': r['DocumentNo'] ?? r['id'].toString(),
+        'situation': situation,
+        'emailSubject': r['CDS_EmailSubject'] ?? '',
+        'description': r['Summary'] ?? '',
+        'descriptionClean': stripHtmlTags(r['Summary'] ?? ''),
+        'time': formattedTime,
+        'level': level,
+        'levelColor': baseColor,
+        'levelBgColor': baseColor.withOpacity(0.2),
+        'status': status,
+        'bpName': bpName,
+        'userName': userName,
+        'original': r,
+      };
     }).toList();
   }
 
@@ -309,7 +292,9 @@ class HomeController extends ChangeNotifier {
       return;
     }
 
-    final allFetchedContracts = await ContractApi.getSupportContracts(bPartnerIds: bpIdsForQuery);
+    final allFetchedContracts = GlobalCache.contracts.where((c) {
+      return bpIdsForQuery!.contains(c['C_BPartner_ID']);
+    }).toList();
     final Map<int, List<Map<String, dynamic>>> contractsByBp = {};
 
     for (var contract in allFetchedContracts) {
@@ -351,7 +336,7 @@ class HomeController extends ChangeNotifier {
     for (var project in projects) {
       futures.add(() async {
         try {
-          final projectId = project['id'];
+          final projectId = project['id'] is int ? project['id'] as int : int.tryParse(project['id'].toString()) ?? 0;
           int pEt = 0;
           int pSg = 0;
           int pGn = 0;

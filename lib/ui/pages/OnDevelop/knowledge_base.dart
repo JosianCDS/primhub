@@ -87,8 +87,16 @@ class _HoverableListItemState extends State<_HoverableListItem> {
     final color = _isHovered ? Colors.deepPurple.shade900 : Colors.deepPurple;
 
     return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
+      onEnter: (_) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() => _isHovered = true);
+        });
+      },
+      onExit: (_) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() => _isHovered = false);
+        });
+      },
       cursor: SystemMouseCursors.click,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 4.0),

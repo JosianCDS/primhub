@@ -126,8 +126,9 @@ class CustomStackedBarChart extends StatefulWidget {
   final List<List<double>> seriesValues;
   final List<String> seriesNames;
   final List<Color> colors;
+  final Function(String category, String series)? onBarTapped;
 
-  const CustomStackedBarChart({super.key, required this.labels, this.fullLabels, required this.seriesValues, required this.seriesNames, required this.colors});
+  const CustomStackedBarChart({super.key, required this.labels, this.fullLabels, required this.seriesValues, required this.seriesNames, required this.colors, this.onBarTapped});
 
   @override
   State<CustomStackedBarChart> createState() => _CustomStackedBarChartState();
@@ -154,14 +155,25 @@ class _CustomStackedBarChartState extends State<CustomStackedBarChart> with Sing
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      onHover: (e) => setState(() => _touchPosition = e.localPosition),
-      onExit: (e) => setState(() => _touchPosition = null),
-      child: AnimatedBuilder(
-        animation: _animation!,
-        builder: (context, child) => CustomPaint(
-          size: Size.infinite,
-          painter: StackedBarChartPainter(labels: widget.labels, fullLabels: widget.fullLabels, seriesValues: widget.seriesValues, seriesNames: widget.seriesNames, colors: widget.colors, textColor: Theme.of(context).colorScheme.onSurfaceVariant, touchPosition: _touchPosition, animationValue: _animation!.value),
+    return GestureDetector(
+      onTapUp: (details) {
+        if (widget.onBarTapped != null) {
+          final painter = StackedBarChartPainter(labels: widget.labels, fullLabels: widget.fullLabels, seriesValues: widget.seriesValues, seriesNames: widget.seriesNames, colors: widget.colors, textColor: Theme.of(context).colorScheme.onSurfaceVariant, animationValue: 1.0);
+          final tapDetails = painter.getTapDetails(details.localPosition, context.size ?? Size.zero);
+          if (tapDetails != null) {
+            widget.onBarTapped!(tapDetails.category, tapDetails.series);
+          }
+        }
+      },
+      child: MouseRegion(
+        onHover: (e) => setState(() => _touchPosition = e.localPosition),
+        onExit: (e) => setState(() => _touchPosition = null),
+        child: AnimatedBuilder(
+          animation: _animation!,
+          builder: (context, child) => CustomPaint(
+            size: Size.infinite,
+            painter: StackedBarChartPainter(labels: widget.labels, fullLabels: widget.fullLabels, seriesValues: widget.seriesValues, seriesNames: widget.seriesNames, colors: widget.colors, textColor: Theme.of(context).colorScheme.onSurfaceVariant, touchPosition: _touchPosition, animationValue: _animation!.value),
+          ),
         ),
       ),
     );

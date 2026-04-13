@@ -7,8 +7,9 @@ class SupportHoursCard extends StatelessWidget {
   final Map<String, dynamic> contract;
   final bool isDark;
   final Color textColor;
+  final String bpName;
 
-  const SupportHoursCard({super.key, required this.contract, required this.isDark, required this.textColor});
+  const SupportHoursCard({super.key, required this.contract, required this.isDark, required this.textColor, required this.bpName});
 
   @override
   Widget build(BuildContext context) {
@@ -26,50 +27,62 @@ class SupportHoursCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(12),
       child: CardCustom(
         hover: true,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: const BoxDecoration(color: Color.fromRGBO(223, 231, 255, 1), shape: BoxShape.circle),
-              child: const Icon(Icons.access_time, color: Color.fromRGBO(79, 71, 229, 1), size: 36),
-            ),
-            const SizedBox(height: 16),
-            Column(
+        child: Center(
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(color: progress >= 1.0 ? Colors.red.withOpacity(0.1) : const Color.fromRGBO(223, 231, 255, 1), shape: BoxShape.circle),
+                  child: Icon(progress >= 1.0 ? Icons.warning_amber_rounded : Icons.access_time, color: progress >= 1.0 ? Colors.red : const Color.fromRGBO(79, 71, 229, 1), size: 36),
+                ),
+                const SizedBox(height: 12),
+                if (bpName.isNotEmpty) ...[
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                    child: Text(
+                      bpName,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: textColor.withOpacity(0.7)),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                ],
                 Text(
                   'Horas De soporte Disponibles',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: textColor),
                 ),
                 Text(
                   DurationFormatter.format(contractedHours - consumedHours),
-                  style: Theme.of(context).textTheme.displayMedium?.copyWith(color: const Color(0xff4F47E5), fontWeight: FontWeight.bold),
+                  style: Theme.of(context).textTheme.displayMedium?.copyWith(color: progress >= 1.0 ? Colors.red : const Color(0xff4F47E5), fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween<double>(begin: 0, end: progress.clamp(0.0, 1.0)),
+                    duration: const Duration(seconds: 2),
+                    builder: (context, value, _) => LinearProgressIndicator(value: value, backgroundColor: isDark ? Colors.grey.shade800 : Colors.grey.shade200, valueColor: AlwaysStoppedAnimation<Color>(progress >= 1.0 ? Colors.red : const Color.fromARGB(255, 200, 42, 42)), minHeight: 8, borderRadius: BorderRadius.circular(4)),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Contrato: $documentNo',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: textColor, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Total: ${DurationFormatter.format(contractedHours)}',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: textColor, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0),
-              child: TweenAnimationBuilder<double>(
-                tween: Tween<double>(begin: 0, end: progress.clamp(0.0, 1.0)),
-                duration: const Duration(seconds: 2),
-                builder: (context, value, _) => LinearProgressIndicator(value: value, backgroundColor: isDark ? Colors.grey.shade800 : Colors.grey.shade200, valueColor: AlwaysStoppedAnimation<Color>(progress > 1.0 ? Colors.red : const Color.fromARGB(255, 200, 42, 42)), minHeight: 8, borderRadius: BorderRadius.circular(4)),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              'Contrato: $documentNo',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: textColor, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Total: ${DurationFormatter.format(contractedHours)}',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: textColor, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-          ],
+          ),
         ),
       ),
     );

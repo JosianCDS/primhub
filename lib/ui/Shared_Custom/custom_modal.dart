@@ -28,11 +28,9 @@ class CustomModal extends StatelessWidget {
             if (content != null) Flexible(child: SingleChildScrollView(child: content!)),
             if (actions != null && actions!.isNotEmpty) ...[
               const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: actions!.map((action) {
-                  return Padding(padding: const EdgeInsets.only(left: 10.0), child: action);
-                }).toList(),
+              SizedBox(
+                width: double.infinity,
+                child: Wrap(alignment: WrapAlignment.end, spacing: 10.0, runSpacing: 10.0, children: actions!),
               ),
             ],
           ],

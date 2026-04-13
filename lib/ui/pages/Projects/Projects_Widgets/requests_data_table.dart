@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
@@ -15,109 +16,249 @@ import 'package:primhub/endpoint/endpoint.dart';
 import 'package:http/http.dart' as http;
 import 'package:primhub/api/token.dart';
 import 'package:primhub/ui/pages/Projects/Projects_Widgets/file_preview_manager.dart';
+import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
+import 'package:primhub/ui/pages/Support/Requests/bulk_edit_request_dialog.dart';
+import 'dart:math';
 
-class RequestsDataTable extends StatelessWidget {
+class RequestsDataTable extends StatefulWidget {
   final List<Map<String, dynamic>> requests;
   final Map<String, int> statusIdMap;
   final Map<String, String> priorityMap;
   final Function(Map<String, dynamic>) onEdit;
+  final VoidCallback? onRefresh;
+  final bool showProjectContext;
 
-  const RequestsDataTable({super.key, required this.requests, required this.statusIdMap, required this.priorityMap, required this.onEdit});
+  const RequestsDataTable({super.key, required this.requests, required this.statusIdMap, required this.priorityMap, required this.onEdit, this.onRefresh, this.showProjectContext = false});
+
+  @override
+  State<RequestsDataTable> createState() => _RequestsDataTableState();
+}
+
+class _RequestsDataTableState extends State<RequestsDataTable> {
+  final ScrollController _scrollController = ScrollController();
+  final Set<int> _selectedIds = {};
+  int? _lastSelectedIndex;
+
+  int _getRealId(Map<String, dynamic> req) => req['realId'] ?? req['_rawId'] ?? int.tryParse(req['id'].toString()) ?? 0;
+
+  void _handleRowSelection(bool? selected, int index, int realId) {
+    final isShiftPressed = HardwareKeyboard.instance.logicalKeysPressed.contains(LogicalKeyboardKey.shiftLeft) || HardwareKeyboard.instance.logicalKeysPressed.contains(LogicalKeyboardKey.shiftRight);
+
+    setState(() {
+      if (isShiftPressed && _lastSelectedIndex != null) {
+        int start = min(_lastSelectedIndex!, index);
+        int end = max(_lastSelectedIndex!, index);
+        for (int i = start; i <= end; i++) {
+          final id = _getRealId(widget.requests[i]);
+          if (selected == true)
+            _selectedIds.add(id);
+          else
+            _selectedIds.remove(id);
+        }
+      } else {
+        if (selected == true)
+          _selectedIds.add(realId);
+        else
+          _selectedIds.remove(realId);
+        _lastSelectedIndex = index;
+      }
+    });
+  }
+
+  void _handleSelectAll(bool? selected) {
+    setState(() {
+      if (selected == true) {
+        _selectedIds.addAll(widget.requests.map((r) => _getRealId(r)));
+      } else {
+        _selectedIds.clear();
+      }
+      _lastSelectedIndex = null;
+    });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: DataTable(
-        showCheckboxColumn: false,
-        headingRowHeight: 30,
-        dataRowMinHeight: 30,
-        dataRowMaxHeight: 40,
-        columns: const [
-          DataColumn(label: Text('Solicitud')),
-          DataColumn(label: Text('Resumen')),
-          DataColumn(label: Text('Tipo')),
-          DataColumn(label: Text('Asunto')),
-          DataColumn(label: Text('Categoría')),
-          DataColumn(label: Text('Usuario')),
-          DataColumn(label: Text('Representante Comercial')),
-          DataColumn(label: Text('Grupo')),
-          DataColumn(label: Text('Estado')),
-          DataColumn(label: Text('Prioridad')),
-          DataColumn(label: Text('Fecha Fin Plan')),
-          DataColumn(label: Text('Acciones')),
-        ],
-        rows: requests.map((req) {
-          return DataRow(
-            onSelectChanged: (selected) {
-              if (selected == true) {
-                if (AccessControl.canManageRequests) {
-                  onEdit(req);
-                } else if (AccessControl.canViewRequestDetails) {
-                  showDialog(
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (_selectedIds.isNotEmpty && AccessControl.canManageRequests)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(color: Theme.of(context).colorScheme.secondaryContainer, borderRadius: BorderRadius.circular(8)),
+            child: Row(
+              children: [
+                Icon(Icons.check_box, color: Theme.of(context).colorScheme.onSecondaryContainer),
+                const SizedBox(width: 8),
+                Text(
+                  '${_selectedIds.length} solicitudes seleccionadas',
+                  style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSecondaryContainer),
+                ),
+                const Spacer(),
+                TextButton(
+                  onPressed: () => setState(() {
+                    _selectedIds.clear();
+                    _lastSelectedIndex = null;
+                  }),
+                  child: const Text('Cancelar'),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.edit),
+                  label: const Text('Edición Masiva'),
+                  onPressed: () => showDialog(
                     context: context,
-                    builder: (context) => RequestDetailsDialog(req: req),
-                  );
-                }
-              }
-            },
-            cells: [
-              DataCell(Text(req['id'].toString())),
-              DataCell(
-                Tooltip(
-                  message: DocumentsLogic.extractValue(req['Summary']),
-                  child: Text(() {
-                    final text = DocumentsLogic.extractValue(req['Summary']);
-                    return text.length > 35 ? '${text.substring(0, 35)}...' : text;
-                  }()),
-                ),
-              ),
-              DataCell(Text(DocumentsLogic.extractValue(req['R_RequestType_ID']))),
-              DataCell(
-                Tooltip(
-                  message: req['CDS_EmailSubject']?.toString() ?? '',
-                  child: Text(() {
-                    final text = req['CDS_EmailSubject']?.toString() ?? '';
-                    return text.length > 25 ? '${text.substring(0, 25)}...' : text;
-                  }()),
-                ),
-              ),
-              DataCell(Text(DocumentsLogic.extractValue(req['R_Category_ID']))),
-              DataCell(Text(DocumentsLogic.extractValue(req['AD_User_ID']))),
-              DataCell(Text(DocumentsLogic.extractValue(req['SalesRep_ID']))),
-              DataCell(Text(DocumentsLogic.extractValue(req['R_Group_ID']))),
-              DataCell(Text(DocumentsLogic.extractValue(req['R_Status_ID']))),
-              DataCell(Text(DocumentsLogic.extractValue(req['Priority']))),
-              DataCell(Text(req['DateCompletePlan']?.toString().split('T')[0] ?? '')),
-              DataCell(
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: Icon(AccessControl.canAddUpdates ? Icons.reply : Icons.forum),
-                      tooltip: AccessControl.canAddUpdates ? 'Responder Solicitud' : 'Ver Actualizaciones',
-                      onPressed: () {
-                        final id = Uri.encodeComponent(req['id'].toString());
-                        GoRouter.of(context).push('/request-updates/$id', extra: {'docNo': req['DocumentNo'] ?? req['id'].toString()});
+                    builder: (context) => BulkEditRequestDialog(
+                      selectedIds: _selectedIds,
+                      onSaved: () {
+                        setState(() {
+                          _selectedIds.clear();
+                          _lastSelectedIndex = null;
+                        });
+                        widget.onRefresh?.call();
                       },
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.attach_file),
-                      tooltip: 'Ver / Añadir Adjuntos',
-                      onPressed: () {
-                        showDialog(
-                          context: context,
-                          builder: (context) => _RequestAttachmentsDialog(requestId: req['id'], documentNo: req['DocumentNo'] ?? req['id'].toString()),
-                        );
-                      },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        Scrollbar(
+          controller: _scrollController,
+          thumbVisibility: true,
+          trackVisibility: true,
+          child: SingleChildScrollView(
+            controller: _scrollController,
+            scrollDirection: Axis.horizontal,
+            child: DataTable(
+              showCheckboxColumn: AccessControl.canManageRequests || AccessControl.canViewRequestDetails,
+              onSelectAll: _handleSelectAll,
+              headingRowHeight: 30,
+              dataRowMinHeight: 30,
+              dataRowMaxHeight: 40,
+              columns: [
+                const DataColumn(label: Text('#')),
+                const DataColumn(label: Text('Acciones')),
+                const DataColumn(label: Text('Solicitud')),
+                const DataColumn(label: Text('Resumen')),
+                if (widget.showProjectContext) const DataColumn(label: Text('Fase')),
+                if (widget.showProjectContext) const DataColumn(label: Text('Tarea')),
+                const DataColumn(label: Text('Tipo')),
+                const DataColumn(label: Text('Asunto')),
+                const DataColumn(label: Text('Categoría')),
+                const DataColumn(label: Text('Usuario')),
+                const DataColumn(label: Text('Representante Comercial')),
+                const DataColumn(label: Text('Grupo')),
+                const DataColumn(label: Text('Estado')),
+                const DataColumn(label: Text('Prioridad')),
+                const DataColumn(label: Text('Fecha Fin Plan')),
+              ],
+              rows: widget.requests.asMap().entries.map((entry) {
+                final int index = entry.key;
+                final Map<String, dynamic> req = entry.value;
+                final int realId = _getRealId(req);
+                return DataRow(
+                  selected: _selectedIds.contains(realId),
+                  onSelectChanged: (selected) => _handleRowSelection(selected, index, realId),
+                  cells: [
+                    DataCell(Text('${index + 1}', style: const TextStyle(fontWeight: FontWeight.bold))),
+                    DataCell(
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: Icon(AccessControl.canAddUpdates ? Icons.reply : Icons.forum),
+                            tooltip: AccessControl.canAddUpdates ? 'Responder Solicitud' : 'Ver Actualizaciones',
+                            onPressed: () {
+                              final id = Uri.encodeComponent(req['id'].toString());
+                              GoRouter.of(context).push('/request-updates/$id', extra: {'docNo': req['DocumentNo'] ?? req['id'].toString()});
+                            },
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.attach_file),
+                            tooltip: 'Ver / Añadir Adjuntos',
+                            onPressed: () {
+                              showDialog(
+                                context: context,
+                                builder: (context) => _RequestAttachmentsDialog(requestId: req['_rawId'] ?? req['realId'] ?? int.tryParse(req['id'].toString()) ?? 0, documentNo: req['DocumentNo']?.toString() ?? req['id'].toString()),
+                              );
+                            },
+                          ),
+                          if (AccessControl.canManageRequests)
+                            IconButton(icon: const Icon(Icons.edit), tooltip: 'Editar', onPressed: () => widget.onEdit(req))
+                          else if (AccessControl.canViewRequestDetails)
+                            IconButton(
+                              icon: const Icon(Icons.visibility),
+                              tooltip: 'Ver Detalles',
+                              onPressed: () => showDialog(
+                                context: context,
+                                builder: (context) => RequestDetailsDialog(req: req),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
+                    DataCell(
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(req['id'].toString()),
+                          const SizedBox(width: 8),
+                          InkWell(
+                            borderRadius: BorderRadius.circular(4),
+                            onTap: () {
+                              Clipboard.setData(ClipboardData(text: req['id'].toString()));
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Código copiado al portapapeles')));
+                            },
+                            child: const Padding(
+                              padding: EdgeInsets.all(4.0),
+                              child: Icon(Icons.copy, size: 16, color: Colors.grey),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    DataCell(
+                      Tooltip(
+                        message: stripHtmlTags(DocumentsLogic.extractValue(req['Summary'])),
+                        child: Text(() {
+                          final text = stripHtmlTags(DocumentsLogic.extractValue(req['Summary']));
+                          return text.length > 35 ? '${text.substring(0, 35)}...' : text;
+                        }()),
+                      ),
+                    ),
+                    if (widget.showProjectContext) DataCell(Text(req['phaseName'] ?? '-')),
+                    if (widget.showProjectContext) DataCell(Text(req['taskName'] ?? 'General')),
+                    DataCell(Text(DocumentsLogic.extractValue(req['R_RequestType_ID']))),
+                    DataCell(
+                      Tooltip(
+                        message: req['CDS_EmailSubject']?.toString() ?? '',
+                        child: Text(() {
+                          final text = req['CDS_EmailSubject']?.toString() ?? '';
+                          return text.length > 25 ? '${text.substring(0, 25)}...' : text;
+                        }()),
+                      ),
+                    ),
+                    DataCell(Text(DocumentsLogic.extractValue(req['R_Category_ID']))),
+                    DataCell(Text(DocumentsLogic.extractValue(req['AD_User_ID']))),
+                    DataCell(Text(DocumentsLogic.extractValue(req['SalesRep_ID']))),
+                    DataCell(Text(DocumentsLogic.extractValue(req['R_Group_ID']))),
+                    DataCell(Text(DocumentsLogic.extractValue(req['R_Status_ID']))),
+                    DataCell(Text(DocumentsLogic.extractValue(req['Priority']))),
+                    DataCell(Text(req['DateCompletePlan']?.toString().split('T')[0] ?? '')),
                   ],
-                ),
-              ),
-            ],
-          );
-        }).toList(),
-      ),
+                );
+              }).toList(),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

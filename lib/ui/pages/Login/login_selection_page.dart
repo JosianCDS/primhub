@@ -4,6 +4,7 @@ import 'package:primhub/api/auth_api.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
+import 'package:primhub/api/global_cache.dart';
 
 class LoginSelectionPage extends StatefulWidget {
   const LoginSelectionPage({super.key});
@@ -142,13 +143,14 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
     final response = await finalizeLogin(_username!, _password!, params, context);
 
     if (mounted) {
-      setState(() => _isLoading = false);
       if (response == false) {
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Credenciales Incorrectas.'), backgroundColor: Colors.red));
       } else {
+        setState(() => _isLoading = false);
         CurrentLogMessage.add("Login exitoso. Token guardado.");
 
-        context.go('/');
+        context.go('/splash');
       }
     }
   }

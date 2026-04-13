@@ -9,6 +9,7 @@ import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
+import 'package:flutter_html/flutter_html.dart';
 
 class RequestUpdatesPage extends StatefulWidget {
   final int requestId;
@@ -155,7 +156,10 @@ class _UpdateCard extends StatelessWidget {
               ],
             ),
             const Divider(),
-            SelectableText(result),
+            Html(
+              data: result,
+              style: {"body": Style(margin: Margins.zero, padding: HtmlPaddings.zero)},
+            ),
             if (imageIds.isNotEmpty) ...[const SizedBox(height: 12), Wrap(spacing: 8, runSpacing: 8, children: imageIds.map((id) => _ImagePreview(imageId: id)).toList())],
           ],
         ),

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:primhub/ui/Shared_Custom/custom_table.dart';
 import 'package:go_router/go_router.dart';
@@ -14,96 +15,224 @@ import 'package:http/http.dart' as http;
 import 'package:primhub/api/token.dart';
 import 'package:primhub/ui/pages/Projects/Projects_Widgets/file_preview_manager.dart';
 import 'package:primhub/ui/widgets/duration_formatter.dart';
+import 'package:primhub/ui/pages/Support/Requests/bulk_edit_request_dialog.dart';
+import 'dart:math';
 
-class RequestsDataTable extends StatelessWidget {
+class RequestsDataTable extends StatefulWidget {
   final List<Map<String, dynamic>> requests;
   final Function(Map<String, dynamic>) onEdit;
+  final VoidCallback? onRefresh;
 
-  const RequestsDataTable({super.key, required this.requests, required this.onEdit});
+  const RequestsDataTable({super.key, required this.requests, required this.onEdit, this.onRefresh});
+
+  @override
+  State<RequestsDataTable> createState() => _RequestsDataTableState();
+}
+
+class _RequestsDataTableState extends State<RequestsDataTable> {
+  final Set<int> _selectedIds = {};
+  int? _lastSelectedIndex;
+
+  int _getRealId(Map<String, dynamic> req) => req['realId'] ?? req['_rawId'] ?? int.tryParse(req['id'].toString()) ?? 0;
+
+  void _handleRowSelection(bool? selected, int index, int realId) {
+    final isShiftPressed = HardwareKeyboard.instance.logicalKeysPressed.contains(LogicalKeyboardKey.shiftLeft) || HardwareKeyboard.instance.logicalKeysPressed.contains(LogicalKeyboardKey.shiftRight);
+
+    setState(() {
+      if (isShiftPressed && _lastSelectedIndex != null) {
+        int start = min(_lastSelectedIndex!, index);
+        int end = max(_lastSelectedIndex!, index);
+        for (int i = start; i <= end; i++) {
+          final id = _getRealId(widget.requests[i]);
+          if (selected == true)
+            _selectedIds.add(id);
+          else
+            _selectedIds.remove(id);
+        }
+      } else {
+        if (selected == true)
+          _selectedIds.add(realId);
+        else
+          _selectedIds.remove(realId);
+        _lastSelectedIndex = index;
+      }
+    });
+  }
+
+  void _handleSelectAll(bool? selected) {
+    setState(() {
+      if (selected == true) {
+        _selectedIds.addAll(widget.requests.map((r) => _getRealId(r)));
+      } else {
+        _selectedIds.clear();
+      }
+      _lastSelectedIndex = null;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Card(
       elevation: 4,
-      child: CustomTable(
-        columns: [
-          const DataColumn(label: Text('Ticket')),
-          const DataColumn(label: Text('Tipo de Solicitud')),
-          const DataColumn(label: Text('Asunto')),
-          const DataColumn(label: Text('Tercero')),
-          const DataColumn(label: Text('Usuario')),
-          const DataColumn(label: Text('Nivel')),
-          const DataColumn(label: Text('Ultima Actualización')),
-          const DataColumn(label: Text('Descripción')),
-          const DataColumn(label: Text('Estado')),
-          const DataColumn(label: Text('Horas')),
-          const DataColumn(label: Text('Acciones')),
-        ],
-        rows: requests.map((alert) {
-          final double h = double.tryParse(alert['qtyPlan']?.toString() ?? '0.0') ?? 0.0;
-          final String hoursStr = DurationFormatter.format(h);
-          return DataRow(
-            onSelectChanged: (value) => AccessControl.canManageRequests ? onEdit(alert) : null,
-            cells: [
-              DataCell(Text(alert['id'])),
-              DataCell(Text(alert['situation'])),
-              DataCell(
-                Tooltip(
-                  message: (alert['emailSubject'] != null && alert['emailSubject'].toString().trim().isNotEmpty) ? alert['emailSubject'].toString() : 'Sin asunto',
-                  preferBelow: false,
-                  child: SizedBox(width: 200, child: Text((alert['emailSubject']?.toString() ?? '').length > 25 ? '${(alert['emailSubject']?.toString() ?? '').substring(0, 25)}...' : (alert['emailSubject']?.toString() ?? ''))),
-                ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (_selectedIds.isNotEmpty && AccessControl.canManageRequests)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.secondaryContainer,
+                borderRadius: const BorderRadius.only(topLeft: Radius.circular(12), topRight: Radius.circular(12)),
               ),
-              DataCell(Text(alert['bpName']?.toString() ?? '')),
-              DataCell(Text(alert['userName']?.toString() ?? '')),
-              DataCell(
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(color: alert['levelBgColor'], borderRadius: BorderRadius.circular(30)),
-                  child: Text(
-                    alert['level'],
-                    style: TextStyle(color: alert['levelColor'], fontWeight: FontWeight.bold),
+              child: Row(
+                children: [
+                  Icon(Icons.check_box, color: Theme.of(context).colorScheme.onSecondaryContainer),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${_selectedIds.length} solicitudes seleccionadas',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSecondaryContainer),
                   ),
-                ),
-              ),
-              DataCell(Text(alert['time'] ?? '')),
-              DataCell(
-                Tooltip(
-                  message: (alert['description'] != null && alert['description'].toString().trim().isNotEmpty) ? alert['description'].toString() : 'Sin descripción',
-                  preferBelow: false,
-                  child: SizedBox(width: 300, child: Text((alert['description']?.toString() ?? '').length > 70 ? '${(alert['description']?.toString() ?? '').substring(0, 70)}...' : (alert['description']?.toString() ?? ''))),
-                ),
-              ),
-              DataCell(Row(mainAxisSize: MainAxisSize.min, children: [const SizedBox(width: 8), Text(alert['status'])])),
-              DataCell(Text(hoursStr)),
-              DataCell(
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: Icon(AccessControl.canAddUpdates ? Icons.reply : Icons.forum),
-                      tooltip: AccessControl.canAddUpdates ? 'Responder Solicitud' : 'Ver Actualizaciones',
-                      onPressed: () {
-                        final id = Uri.encodeComponent(alert['realId'].toString());
-                        GoRouter.of(context).push('/request-updates/$id', extra: {'docNo': alert['id']});
-                      },
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () => setState(() {
+                      _selectedIds.clear();
+                      _lastSelectedIndex = null;
+                    }),
+                    child: const Text('Cancelar'),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.edit),
+                    label: const Text('Edición Masiva'),
+                    onPressed: () => showDialog(
+                      context: context,
+                      builder: (context) => BulkEditRequestDialog(
+                        selectedIds: _selectedIds,
+                        onSaved: () {
+                          setState(() {
+                            _selectedIds.clear();
+                            _lastSelectedIndex = null;
+                          });
+                          widget.onRefresh?.call();
+                        },
+                      ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.attach_file),
-                      tooltip: 'Ver / Añadir Adjuntos',
-                      onPressed: () {
-                        showDialog(
-                          context: context,
-                          builder: (context) => _RequestAttachmentsDialog(requestId: alert['realId'], documentNo: alert['id']),
-                        );
-                      },
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
+            ),
+          CustomTable(
+            showCheckboxColumn: AccessControl.canManageRequests,
+            onSelectAll: _handleSelectAll,
+            columns: [
+              const DataColumn(label: Text('#')),
+              const DataColumn(label: Text('Acciones')),
+              const DataColumn(label: Text('Ticket')),
+              const DataColumn(label: Text('Tipo de Solicitud')),
+              const DataColumn(label: Text('Asunto')),
+              const DataColumn(label: Text('Categoría')),
+              const DataColumn(label: Text('Tercero')),
+              const DataColumn(label: Text('Usuario')),
+              const DataColumn(label: Text('Nivel')),
+              const DataColumn(label: Text('Ultima Actualización')),
+              const DataColumn(label: Text('Descripción')),
+              const DataColumn(label: Text('Estado')),
+              const DataColumn(label: Text('Horas')),
             ],
-          );
-        }).toList(),
+            rows: widget.requests.asMap().entries.map((entry) {
+              final int index = entry.key;
+              final Map<String, dynamic> alert = entry.value;
+              final double h = double.tryParse(alert['qtyPlan']?.toString() ?? '0.0') ?? 0.0;
+              final String hoursStr = DurationFormatter.format(h);
+              final int realId = _getRealId(alert);
+              return DataRow(
+                selected: _selectedIds.contains(realId),
+                onSelectChanged: AccessControl.canManageRequests ? (selected) => _handleRowSelection(selected, index, realId) : null,
+                cells: [
+                  DataCell(Text('${index + 1}', style: const TextStyle(fontWeight: FontWeight.bold))),
+                  DataCell(
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: Icon(AccessControl.canAddUpdates ? Icons.reply : Icons.forum),
+                          tooltip: AccessControl.canAddUpdates ? 'Responder Solicitud' : 'Ver Actualizaciones',
+                          onPressed: () {
+                            final id = Uri.encodeComponent(alert['realId'].toString());
+                            GoRouter.of(context).push('/request-updates/$id', extra: {'docNo': alert['id']});
+                          },
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.attach_file),
+                          tooltip: 'Ver / Añadir Adjuntos',
+                          onPressed: () {
+                            showDialog(
+                              context: context,
+                              builder: (context) => _RequestAttachmentsDialog(requestId: alert['realId'], documentNo: alert['id']),
+                            );
+                          },
+                        ),
+                        if (AccessControl.canManageRequests) IconButton(icon: const Icon(Icons.edit), tooltip: 'Editar', onPressed: () => widget.onEdit(alert)),
+                      ],
+                    ),
+                  ),
+                  DataCell(
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(alert['id'].toString()),
+                        const SizedBox(width: 8),
+                        InkWell(
+                          borderRadius: BorderRadius.circular(4),
+                          onTap: () {
+                            Clipboard.setData(ClipboardData(text: alert['id'].toString()));
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Código copiado al portapapeles')));
+                          },
+                          child: const Padding(
+                            padding: EdgeInsets.all(4.0),
+                            child: Icon(Icons.copy, size: 16, color: Colors.grey),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  DataCell(Text(alert['situation'])),
+                  DataCell(
+                    Tooltip(
+                      message: (alert['emailSubject'] != null && alert['emailSubject'].toString().trim().isNotEmpty) ? alert['emailSubject'].toString() : 'Sin asunto',
+                      preferBelow: false,
+                      child: SizedBox(width: 200, child: Text((alert['emailSubject']?.toString() ?? '').length > 25 ? '${(alert['emailSubject']?.toString() ?? '').substring(0, 25)}...' : (alert['emailSubject']?.toString() ?? ''))),
+                    ),
+                  ),
+                  DataCell(Text(alert['category']?.toString() ?? 'Sin categoría')),
+                  DataCell(Text(alert['bpName']?.toString() ?? '')),
+                  DataCell(Text(alert['userName']?.toString() ?? '')),
+                  DataCell(
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(color: alert['levelBgColor'], borderRadius: BorderRadius.circular(30)),
+                      child: Text(
+                        alert['level'],
+                        style: TextStyle(color: alert['levelColor'], fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                  DataCell(Text(alert['time'] ?? '')),
+                  DataCell(
+                    Tooltip(
+                      message: (alert['descriptionClean'] != null && alert['descriptionClean'].toString().trim().isNotEmpty) ? alert['descriptionClean'].toString() : 'Sin descripción',
+                      preferBelow: false,
+                      child: SizedBox(width: 300, child: Text((alert['descriptionClean']?.toString() ?? '').length > 70 ? '${(alert['descriptionClean']?.toString() ?? '').substring(0, 70)}...' : (alert['descriptionClean']?.toString() ?? ''))),
+                    ),
+                  ),
+                  DataCell(Row(mainAxisSize: MainAxisSize.min, children: [const SizedBox(width: 8), Text(alert['status'])])),
+                  DataCell(Text(hoursStr)),
+                ],
+              );
+            }).toList(),
+          ),
+        ],
       ),
     );
   }

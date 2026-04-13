@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:primhub/ImagesManagment/postAttachments.dart';
+import 'package:primhub/ImagesManagment/fecthAttachments.dart';
 import 'package:primhub/api/api_utils.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/auth_api.dart';
 import 'package:primhub/api/token.dart';
@@ -82,7 +84,7 @@ class ProjectsLogic {
   }
 
   // 1. FETCH PROJECTS
-  Future<List<dynamic>> fetchProjects(BuildContext context, {int? projectId, bool showInactive = false, bool onlyInactive = false, required bool isViewingMine}) async {
+  Future<List<dynamic>> fetchProjects({int? projectId, bool showInactive = false, bool onlyInactive = false, required bool isViewingMine}) async {
     List<String> filters = ['IsSummary eq false'];
     if (onlyInactive) {
       filters.add('IsActive eq false');
@@ -202,6 +204,35 @@ class ProjectsLogic {
 
   Future<List<dynamic>> fetchPaymentTerms() async {
     return _safeFetchPaginated('${Endpoint.baseUrl}/api/v1/models/C_PaymentTerm?\$select=C_PaymentTerm_ID,Name&\$orderby=Name', 'términos de pago');
+  }
+
+  Future<List<String>> fetchProjectTaskUUIDs(int projectId) async {
+    List<String> uuids = [];
+    try {
+      final url = '${Endpoint.project}/$projectId?\$expand=C_ProjectPhase(\$expand=C_ProjectTask),C_ProjectTask';
+      var response = await http.get(Uri.parse(url), headers: {'Authorization': Token.token});
+      if (response.statusCode == 401) {
+        if (await handleTokenRefresh()) {
+          response = await http.get(Uri.parse(url), headers: {'Authorization': Token.token});
+        }
+      }
+      if (response.statusCode == 200) {
+        final data = json.decode(utf8.decode(response.bodyBytes));
+        final phases = data['C_ProjectPhase'] as List? ?? [];
+        final directTasks = data['C_ProjectTask'] as List? ?? [];
+
+        void addUUIDs(List<dynamic> tasks) {
+          for (var task in tasks) {
+            final uuid = task['Record_UU'] ?? task['UUID'] ?? task['uuid'] ?? task['uid'];
+            if (uuid != null && uuid.toString().isNotEmpty) uuids.add(uuid.toString());
+          }
+        }
+
+        for (var phase in phases) addUUIDs(phase['C_ProjectTask'] as List? ?? []);
+        addUUIDs(directTasks);
+      }
+    } catch (e) {}
+    return uuids;
   }
 
   // 5. MÉTODOS DE ESTRUCTURA
@@ -347,6 +378,13 @@ class DocumentsLogic {
         final data = json.decode(utf8.decode(response.bodyBytes));
         List<dynamic> records = data['records'];
 
+        // Inyectar nombres visuales (etiquetas) locales
+        final prefs = await SharedPreferences.getInstance();
+        for (var doc in records) {
+          final vName = prefs.getString('doc_visual_${doc['id']}');
+          if (vName != null && vName.isNotEmpty) doc['Description'] = vName;
+        }
+
         // Lógica recursiva original para carpetas
         if (currentPath.length > 3) {
           final folderName = currentPath.last;
@@ -368,7 +406,13 @@ class DocumentsLogic {
 
               if (childrenResponse.statusCode == 200) {
                 final childrenData = json.decode(utf8.decode(childrenResponse.bodyBytes));
-                records[folderIndex]['PRIM_Documents_Related'] = childrenData['records'];
+                List<dynamic> children = childrenData['records'] ?? [];
+
+                for (var child in children) {
+                  final vName = prefs.getString('doc_visual_${child['id']}');
+                  if (vName != null && vName.isNotEmpty) child['Description'] = vName;
+                }
+                records[folderIndex]['PRIM_Documents_Related'] = children;
               }
             } catch (e) {}
           }
@@ -415,7 +459,7 @@ class DocumentsLogic {
     }
   }
 
-  static Future<bool> uploadFile({required String fileName, required Uint8List fileBytes, required int projectId, required String viewType, required List<String> currentPath, required List<dynamic> documents}) async {
+  static Future<bool> uploadFile({required String fileName, required String displayName, required Uint8List fileBytes, required int projectId, required String viewType, required List<String> currentPath, required List<dynamic> documents}) async {
     final String extension = fileName.contains('.') ? fileName.split('.').last.toLowerCase() : '';
     final typeCode = getTypeCode(viewType);
     Uri createUrl = Uri.parse(Endpoint.primDocuments);
@@ -458,7 +502,12 @@ class DocumentsLogic {
       if (createResponse.statusCode == 200 || createResponse.statusCode == 201) {
         final newRecord = jsonDecode(createResponse.body);
         final newRecordId = newRecord['id'];
-        return await postAttachments(recordID: newRecordId, tableName: createUrl.toString(), convertedFile: {'title': fileName, 'base64': base64Encode(fileBytes)});
+        final success = await postAttachments(recordID: newRecordId, tableName: createUrl.toString(), convertedFile: {'title': fileName, 'base64': base64Encode(fileBytes)});
+        if (success) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('doc_visual_$newRecordId', displayName);
+        }
+        return success;
       }
     } catch (e) {}
     return false;
@@ -512,6 +561,117 @@ class DocumentsLogic {
     }
   }
 
+  /// Mueve un documento copiando su contenido a un nuevo registro y eliminando el original (Flujo requerido por iDempiere)
+  static Future<Map<String, dynamic>> moveDocument({required Map<String, dynamic> doc, required String currentTableName, required int? targetFolderId, required int projectId, required String viewType}) async {
+    final int docId = doc['id'];
+    final String docName = doc['Name'] ?? 'Archivo';
+
+    try {
+      // 1. Obtener el archivo adjunto original en bytes
+      final attachments = await fetchAttachments(recordID: docId, tableName: currentTableName);
+      Uint8List? fileBytes;
+      String attachName = docName;
+
+      if (attachments.isNotEmpty) {
+        attachName = attachments.first['name'] ?? docName;
+        final url = '$currentTableName/$docId/attachments/${Uri.encodeComponent(attachName)}';
+        var response = await http.get(Uri.parse(url), headers: {'Authorization': Token.token});
+        if (response.statusCode == 401) {
+          if (await handleTokenRefresh()) response = await http.get(Uri.parse(url), headers: {'Authorization': Token.token});
+        }
+        if (response.statusCode == 200) fileBytes = response.bodyBytes;
+      }
+
+      // Verificación de seguridad: Evitar pérdida de datos si falla la descarga
+      if (fileBytes == null) {
+        debugPrint("Error: No se pudo descargar el archivo original. Se aborta movimiento.");
+        return {'success': false, 'error': 'No se pudo descargar el archivo adjunto original.'};
+      }
+
+      // Función interna para extraer datos limpios (IDs) y evitar objetos Map anidados
+      dynamic safeExtract(String key, {dynamic fallback}) {
+        if (doc[key] == null) return fallback;
+        if (doc[key] is Map) return doc[key]['id'] ?? doc[key]['identifier'] ?? fallback;
+        return doc[key];
+      }
+
+      // 2. Preparar payload copiando estrictamente los campos del archivo original a PRIM_Documents_Related
+      Uri createUrl = Uri.parse(Endpoint.primDocuments);
+
+      final Map<String, dynamic> payload = {'Name': docName, 'IsActive': doc['IsActive'] ?? true};
+
+      final typeCode = safeExtract('Type', fallback: getTypeCode(viewType));
+      if (typeCode != null && typeCode.toString().isNotEmpty) payload['Type'] = typeCode;
+
+      final status = safeExtract('Status', fallback: 'PD');
+      if (status != null && status.toString().isNotEmpty) {
+        String statusCode = 'PD';
+        if (status.toString().toLowerCase().contains('entregado'))
+          statusCode = 'DL';
+        else if (status.toString().toLowerCase().contains('revisión') || status.toString().toLowerCase().contains('revision'))
+          statusCode = 'IR';
+        else
+          statusCode = status.toString();
+        payload['Status'] = statusCode;
+      }
+
+      if (doc['Description'] != null) payload['Description'] = doc['Description'];
+
+      String ext = safeExtract('Extension', fallback: '');
+      if (ext.isEmpty && docName.contains('.')) ext = docName.split('.').last.toLowerCase();
+      if (ext.isNotEmpty) payload['Extension'] = ext;
+
+      final version = safeExtract('VersionNo', fallback: '1.0');
+      if (version != null && version.toString().isNotEmpty) payload['VersionNo'] = version.toString();
+
+      if (targetFolderId != null) {
+        createUrl = Uri.parse(Endpoint.primDocumentsRelated);
+        payload['PRIM_Documents_ID'] = {'id': targetFolderId};
+      } else {
+        payload['C_Project_ID'] = {'id': projectId};
+      }
+
+      var createResponse = await http.post(createUrl, headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: jsonEncode(payload));
+      if (createResponse.statusCode == 401) {
+        if (await handleTokenRefresh()) createResponse = await http.post(createUrl, headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: jsonEncode(payload));
+      }
+
+      if (createResponse.statusCode == 200 || createResponse.statusCode == 201) {
+        final newRecordId = jsonDecode(createResponse.body)['id'];
+
+        // 3. Subir el adjunto al nuevo registro
+        final uploadSuccess = await postAttachments(recordID: newRecordId, tableName: createUrl.toString(), convertedFile: {'title': attachName, 'base64': base64Encode(fileBytes)});
+
+        if (!uploadSuccess) {
+          debugPrint("Error: No se pudo adjuntar el archivo al nuevo registro. Se aborta eliminación original.");
+          // Rollback: Eliminar el registro nuevo huérfano
+          await deleteFile(newRecordId, createUrl.toString());
+          return {'success': false, 'error': 'No se pudo subir el archivo a la nueva ubicación.'};
+        }
+
+        // 4. Migrar la etiqueta visual local y eliminar el original
+        final prefs = await SharedPreferences.getInstance();
+        final visualName = prefs.getString('doc_visual_$docId');
+        if (visualName != null) {
+          await prefs.setString('doc_visual_$newRecordId', visualName);
+          await prefs.remove('doc_visual_$docId');
+        }
+
+        // Comprobación estricta de eliminación del archivo original
+        final deleteResponse = await deleteFile(docId, currentTableName);
+        if (deleteResponse['success'] != true) {
+          return {'success': false, 'error': 'El archivo se copió, pero falló al borrar el original: ${deleteResponse['message']}'};
+        }
+
+        return {'success': true};
+      } else {
+        return {'success': false, 'error': 'Error de Base de Datos: ${createResponse.body}'};
+      }
+    } catch (e) {
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
   // Nueva función para actualizar el estado de la carpeta padre
   static Future<void> checkAndUpdateFolderStatus(int folderId) async {
     try {
@@ -529,7 +689,7 @@ class DocumentsLogic {
 
       if (childrenResponse.statusCode == 200) {
         final childrenData = json.decode(utf8.decode(childrenResponse.bodyBytes));
-        final List<dynamic> children = childrenData['records'] ?? [];
+        List<dynamic> children = childrenData['records'] ?? [];
 
         if (children.isEmpty) return;
 
@@ -654,14 +814,14 @@ class DocumentsLogic {
   static String extractStatus(dynamic val) {
     if (val == null) return 'Pendiente';
     if (val is String) return val;
-    if (val is Map) return val['identifier']?.toString() ?? val['name']?.toString() ?? 'Pendiente';
+    if (val is Map) return val['identifier']?.toString() ?? val['Name']?.toString() ?? val['name']?.toString() ?? 'Pendiente';
     return 'Pendiente';
   }
 
   static String extractIdentifier(dynamic val, {String defaultValue = 'N/A'}) {
     if (val == null) return defaultValue;
     if (val is String) return val.isEmpty ? defaultValue : val;
-    if (val is Map) return val['identifier']?.toString() ?? val['name']?.toString() ?? defaultValue;
+    if (val is Map) return val['identifier']?.toString() ?? val['Name']?.toString() ?? val['name']?.toString() ?? defaultValue;
     return val.toString();
   }
 

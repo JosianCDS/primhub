@@ -6,8 +6,10 @@ import 'package:primhub/ImagesManagment/downloadAttachments.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
+import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:printing/printing.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class FilePreviewManager {
   static void showPreview(BuildContext context, Map<String, dynamic> details, String tableName, String name, VoidCallback onDelete, VoidCallback onStatusChanged) {
@@ -18,17 +20,23 @@ class FilePreviewManager {
     final isText = ['txt', 'json', 'xml', 'md', 'log'].contains(extension);
     bool isDownloading = false;
 
+    String currentVisualName = (details['Description'] != null && details['Description'].toString().trim().isNotEmpty) ? details['Description'].toString() : name.split('.').first;
+    final TextEditingController visualNameController = TextEditingController(text: currentVisualName);
+    bool isSavingName = false;
+
     showDialog(
       context: context,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setStateDialog) {
             return CustomModal(
-              title: name,
+              title: 'Vista Previa: $currentVisualName',
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    CustomTextField(controller: visualNameController, label: 'Nombre Visual (Etiqueta)', readOnly: !AccessControl.canManageFiles),
+                    const SizedBox(height: 16),
                     if (isImage || isPdf || isText || isCsv)
                       FutureBuilder<Uint8List?>(
                         future: DocumentsLogic.fetchImagePreview(tableName, details['id'], name),
@@ -37,7 +45,7 @@ class FilePreviewManager {
                           if (snapshot.hasData && snapshot.data != null) {
                             if (isImage)
                               return ConstrainedBox(
-                                constraints: const BoxConstraints(maxHeight: 400),
+                                constraints: const BoxConstraints(maxHeight: 800), // Aumentado al doble de tamaño
                                 child: Image.memory(snapshot.data!, fit: BoxFit.contain),
                               );
                             if (isPdf) return SizedBox(height: 500, child: PdfPreview(build: (format) async => snapshot.data!, allowPrinting: false, allowSharing: false, canChangeOrientation: false, canChangePageFormat: false, canDebug: false));
@@ -50,32 +58,69 @@ class FilePreviewManager {
                     else
                       _buildNoPreviewWidget(extension),
                     const SizedBox(height: 20),
+                    _buildPropertyRow('Nombre Real', name),
                     _buildPropertyRow('Estado', DocumentsLogic.extractStatus(details['Status'])),
                     _buildPropertyRow('Versión', DocumentsLogic.extractIdentifier(details['VersionNo'])),
                   ],
                 ),
               ),
               actions: [
-                if (AccessControl.canManageFiles)
-                  IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () {
-                      Navigator.pop(context);
-                      onDelete();
-                    },
+                SizedBox(
+                  width: double.infinity,
+                  child: Wrap(
+                    alignment: WrapAlignment.end,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8.0,
+                    runSpacing: 8.0,
+                    children: [
+                      if (AccessControl.canManageFiles)
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          tooltip: 'Eliminar',
+                          onPressed: () {
+                            Navigator.pop(context);
+                            onDelete();
+                          },
+                        ),
+                      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cerrar')),
+                      if (AccessControl.canManageFiles)
+                        CustomButton(
+                          text: 'Guardar',
+                          icon: Icons.save,
+                          onPressed: () async {
+                            setStateDialog(() {
+                              currentVisualName = visualNameController.text;
+                            });
+                            details['Description'] = currentVisualName;
+                            final prefs = await SharedPreferences.getInstance();
+                            await prefs.setString('doc_visual_${details['id']}', currentVisualName);
+                            onStatusChanged(); // Recarga la lista en la UI localmente
+                            if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nombre visual actualizado')));
+                          },
+                        ),
+                      CustomButton(
+                        text: 'Descargar',
+                        icon: Icons.download,
+                        isLoading: isDownloading,
+                        onPressed: !AccessControl.canDownloadFiles
+                            ? null
+                            : () async {
+                                setStateDialog(() => isDownloading = true);
+                                await downloadAttachment(
+                                  context: context,
+                                  recordID: details['id'],
+                                  tableName: tableName,
+                                  fileName: name,
+                                  onStatusChanged: () {
+                                    if (AccessControl.isProject) details['Status'] = 'Entregado';
+                                    onStatusChanged();
+                                  },
+                                );
+                                if (context.mounted) setStateDialog(() => isDownloading = false);
+                              },
+                      ),
+                    ],
                   ),
-                TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cerrar')),
-                CustomButton(
-                  text: 'Descargar',
-                  icon: Icons.download,
-                  isLoading: isDownloading,
-                  onPressed: !AccessControl.canDownloadFiles
-                      ? null
-                      : () async {
-                          setStateDialog(() => isDownloading = true);
-                          await downloadAttachment(context: context, recordID: details['id'], tableName: tableName, fileName: name, onStatusChanged: onStatusChanged);
-                          if (context.mounted) setStateDialog(() => isDownloading = false);
-                        },
                 ),
               ],
             );

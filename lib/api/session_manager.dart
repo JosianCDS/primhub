@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
+import 'package:primhub/api/global_cache.dart';
 
 class SessionManager {
   // Singleton pattern
@@ -46,6 +47,7 @@ class SessionManager {
                 onPressed: () {
                   _isDialogShowing = false;
                   Token.clear();
+                  GlobalCache.clear();
                   GoRouter.of(context).go('/login');
                 },
               ),

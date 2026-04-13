@@ -12,6 +12,7 @@ import 'package:primhub/api/admin_view_mode.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/api/contract_api.dart';
+import 'package:primhub/api/global_cache.dart';
 
 // Importante: Asegúrate de que esta ruta sea la correcta para tu clase GraphicsFunctions
 import 'graphic_functions.dart';
@@ -101,19 +102,28 @@ class _MetricsPageState extends State<MetricsPage> {
 
   Future<void> _loadSupportBPartners() async {
     if (AccessControl.isAdmin) {
-      final bps = await ContractApi.getBPartnersWithSupportContracts();
-      if (mounted) {
-        setState(() {
-          _supportBPartners = bps;
-        });
-        try {
-          final bps = await ProjectsLogic().fetchBPartners();
-          if (mounted) {
-            setState(() {
-              _supportBPartners = bps.map<Map<String, dynamic>>((e) => {'id': e['id'] ?? e['C_BPartner_ID'], 'Name': e['Name'] ?? 'Sin Nombre'}).toList();
-            });
-          }
-        } catch (_) {}
+      // Aprovechamos los terceros ya cacheados si están disponibles
+      if (GlobalCache.isDataLoaded && GlobalCache.bPartners.isNotEmpty) {
+        if (mounted) {
+          setState(() {
+            _supportBPartners = GlobalCache.bPartners.map<Map<String, dynamic>>((e) => {'id': e['id'] ?? e['C_BPartner_ID'], 'Name': e['Name'] ?? 'Sin Nombre'}).toList();
+          });
+        }
+      } else {
+        final bps = await ContractApi.getBPartnersWithSupportContracts();
+        if (mounted) {
+          setState(() {
+            _supportBPartners = bps;
+          });
+          try {
+            final extraBps = await ProjectsLogic().fetchBPartners();
+            if (mounted) {
+              setState(() {
+                _supportBPartners = extraBps.map<Map<String, dynamic>>((e) => {'id': e['id'] ?? e['C_BPartner_ID'], 'Name': e['Name'] ?? 'Sin Nombre'}).toList();
+              });
+            }
+          } catch (_) {}
+        }
       }
     }
   }
@@ -193,11 +203,21 @@ class _MetricsPageState extends State<MetricsPage> {
         final categoryData = req['R_Category_ID'] as Map?;
 
         // Limpieza de nombres (quitar 10_, 20_, etc)
-        String rawStatusName = statusData?['Name'] ?? statusData?['identifier'] ?? 'Sin Estado';
+        String rawStatusName = statusData?['Name'] ?? statusData?['identifier'] ?? req['R_Status_Name'] ?? 'Sin Estado';
         String statusName = rawStatusName.contains('_') ? rawStatusName.split('_').last.trim() : rawStatusName.trim();
 
         String categoryName = categoryData?['Name'] ?? categoryData?['identifier'] ?? 'Sin Módulo';
-        bool isOpen = (statusData?['IsOpen'] == 'Y' || statusData?['IsOpen'] == true);
+
+        bool isOpen = true;
+        String lowerStatusTemp = rawStatusName.toLowerCase();
+
+        if (statusData != null && statusData['IsOpen'] != null) {
+          isOpen = (statusData['IsOpen'] == 'Y' || statusData['IsOpen'] == true);
+        } else {
+          if (req['R_Status_ID'] == 103 || lowerStatusTemp.contains('close') || lowerStatusTemp.contains('cerrad') || lowerStatusTemp.contains('archivada') || lowerStatusTemp.contains('aprobada') || lowerStatusTemp.contains('implementada') || lowerStatusTemp.contains('entregad')) {
+            isOpen = false;
+          }
+        }
 
         // Validación robusta por ID de Grupo (1000006 = Requerimiento de cliente)
         // Evita depender del texto que puede cambiar o no expandirse correctamente
@@ -206,33 +226,30 @@ class _MetricsPageState extends State<MetricsPage> {
         final bool isClientReq = groupId == '1000006';
 
         if (isClientReq) {
+          String lowerStatus = rawStatusName.toLowerCase();
+
           totalForCompliance++;
 
           // --- LÓGICA DE AGRUPACIÓN PARA EL PIE CHART ---
           String category = 'PENDIENTE';
-          String lowerStatus = rawStatusName.toLowerCase();
 
-          // Prioridad 1: Aislamos estrictamente "Espera" para que no sea absorbida por las cerradas
-          if (lowerStatus.contains('espera de cliente') || lowerStatus.contains('espera del cliente')) {
+          if (lowerStatus.contains('asignad')) {
+            category = 'PENDIENTE';
+          } else if (lowerStatus.contains('espera de cliente') || lowerStatus.contains('espera del cliente')) {
             category = 'ESPERA DE CLIENTE';
-            // Prioridad 2: Si está cerrada (!isOpen) o tiene un nombre final, es TERMINADA (Aquí caerán las 19 de evaluación)
-          } else if (!isOpen || lowerStatus.contains('archivada') || lowerStatus.contains('aprobada') || lowerStatus.contains('implementada') || lowerStatus.contains('entregad')) {
+          } else if (!isOpen || lowerStatus.contains('close') || lowerStatus.contains('cerrad') || lowerStatus.contains('archivada') || lowerStatus.contains('aprobada') || lowerStatus.contains('implementada') || lowerStatus.contains('entregad') || lowerStatus.contains('anulada')) {
             category = 'TERMINADA';
           }
 
           compliancePieData[category] = (compliancePieData[category] ?? 0) + 1;
-
           if (!debugStatusMapping.containsKey(rawStatusName)) {
             debugStatusMapping[rawStatusName] = category;
             print("DEBUG MAPPING: Estado Original: '$rawStatusName' -> Asignado a: $category");
           }
+          moduleStatusCounts.putIfAbsent(categoryName, () => {'TERMINADA': 0, 'PENDIENTE': 0, 'ESPERA DE CLIENTE': 0});
+          moduleStatusCounts[categoryName]![category] = (moduleStatusCounts[categoryName]![category] ?? 0) + 1;
 
-          if (!statusName.toLowerCase().contains('anulada')) {
-            statusCounts[statusName] = (statusCounts[statusName] ?? 0) + 1;
-
-            moduleStatusCounts.putIfAbsent(categoryName, () => {'TERMINADA': 0, 'PENDIENTE': 0, 'ESPERA DE CLIENTE': 0});
-            moduleStatusCounts[categoryName]![category] = (moduleStatusCounts[categoryName]![category] ?? 0) + 1;
-          }
+          statusCounts[statusName] = (statusCounts[statusName] ?? 0) + 1;
         } else {
           ignoredByGroup++;
         }
@@ -285,14 +302,32 @@ class _MetricsPageState extends State<MetricsPage> {
   Future<void> _loadSupportMetrics() async {
     setState(() => _isLoadingSupport = true);
     try {
-      String filter = "IsActive eq true";
-      if (!AccessControl.isAdmin && User.cBPartnerID != null) {
-        filter += " and C_BPartner_ID eq ${User.cBPartnerID}";
-      } else if (AccessControl.isAdmin && _supportSelectedBpId != null) {
-        filter += " and C_BPartner_ID eq $_supportSelectedBpId";
-      }
+      List<Map<String, dynamic>> rawRequests = [];
 
-      final rawRequests = await fetchRequest(filter: filter, top: 500);
+      if (GlobalCache.isDataLoaded) {
+        // Extraer desde la caché pre-cargada
+        rawRequests = GlobalCache.requests.where((req) {
+          bool isActive = req['IsActive'] == true || req['IsActive'] == 'Y';
+          if (!isActive) return false;
+
+          int? bpId = req['C_BPartner_ID'] is Map ? req['C_BPartner_ID']['id'] : req['C_BPartner_ID'];
+
+          if (!AccessControl.isAdmin && User.cBPartnerID != null) {
+            if (bpId != User.cBPartnerID) return false;
+          } else if (AccessControl.isAdmin && _supportSelectedBpId != null) {
+            if (bpId != _supportSelectedBpId) return false;
+          }
+          return true;
+        }).toList();
+      } else {
+        String filter = "IsActive eq true";
+        if (!AccessControl.isAdmin && User.cBPartnerID != null) {
+          filter += " and C_BPartner_ID eq ${User.cBPartnerID}";
+        } else if (AccessControl.isAdmin && _supportSelectedBpId != null) {
+          filter += " and C_BPartner_ID eq $_supportSelectedBpId";
+        }
+        rawRequests = await fetchRequest(filter: filter, top: 500);
+      }
 
       final Map<String, double> priorityCounts = {};
       final Map<String, double> statusCounts = {};
@@ -652,10 +687,7 @@ class _MetricsPageState extends State<MetricsPage> {
               _complianceLabels,
               mappedComplianceColors,
               onSliceTapped: (label) {
-                // NOTA: Este gráfico agrupa estados. Navegar por 'TERMINADA' es complejo
-                // ya que implicaría filtrar por múltiples estados ('Archivada', 'Aprobada', etc.)
-                // lo cual la página de destino no soporta actualmente.
-                // Por ahora, solo el gráfico de 'Solicitudes por estado' será interactivo.
+                context.push('/metric-requests', extra: {'projectId': _selectedProjectId, 'filterCompliance': label});
               },
             ),
     );
@@ -670,7 +702,7 @@ class _MetricsPageState extends State<MetricsPage> {
               _statusLabels,
               pieColors,
               onSliceTapped: (label) {
-                context.push('/project-requests', extra: {'projectId': _selectedProjectId, 'filterStatus': label});
+                context.push('/metric-requests', extra: {'projectId': _selectedProjectId, 'filterStatus': label});
               },
             ),
     );
@@ -685,7 +717,16 @@ class _MetricsPageState extends State<MetricsPage> {
                 Row(mainAxisAlignment: MainAxisAlignment.center, children: [_buildLegendDot('Terminada', ColorTheme.success), const SizedBox(width: 8), _buildLegendDot('Pendiente', ColorTheme.atention), const SizedBox(width: 8), _buildLegendDot('Espera de Cliente', Colors.blue)]),
                 const SizedBox(height: 10),
                 Expanded(
-                  child: CustomStackedBarChart(labels: _moduleLabels, fullLabels: _moduleFullLabels, seriesValues: [_moduleTerminadaValues, _modulePendienteValues, _moduleEsperaValues], seriesNames: const ['Terminada', 'Pendiente', 'Espera de Cliente'], colors: const [ColorTheme.success, ColorTheme.atention, Colors.blue]),
+                  child: CustomStackedBarChart(
+                    labels: _moduleLabels,
+                    fullLabels: _moduleFullLabels,
+                    seriesValues: [_moduleTerminadaValues, _modulePendienteValues, _moduleEsperaValues],
+                    seriesNames: const ['Terminada', 'Pendiente', 'Espera de Cliente'],
+                    colors: const [ColorTheme.success, ColorTheme.atention, Colors.blue],
+                    onBarTapped: (category, series) {
+                      context.push('/metric-requests', extra: {'projectId': _selectedProjectId, 'filterType': category, 'filterCompliance': series.toUpperCase()});
+                    },
+                  ),
                 ),
               ],
             ),
@@ -704,7 +745,7 @@ class _MetricsPageState extends State<MetricsPage> {
               leftAxisSuffix: '%',
               tooltipSuffix: '%',
               onBarTapped: (label) {
-                context.push('/project-requests', extra: {'projectId': _selectedProjectId, 'filterType': label});
+                context.push('/metric-requests', extra: {'projectId': _selectedProjectId, 'filterType': label});
               },
             ),
     );

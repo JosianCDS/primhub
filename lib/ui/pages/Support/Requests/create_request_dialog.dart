@@ -13,6 +13,7 @@ import '../../../../api/validation_manager.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 import '../../../../api/token.dart';
 import 'package:primhub/api/api_utils.dart';
+import 'package:primhub/api/global_cache.dart';
 
 class CreateRequestDialog extends StatefulWidget {
   final String? linkedRecordUU;
@@ -83,7 +84,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
       _selectedUserId = payload['AD_User_ID'];
     }
 
-    if (widget.linkedRecordUU == null && AccessControl.isAdmin) {
+    if (AccessControl.isAdmin || AccessControl.isRealSupport) {
       _fetchBPartners();
     } else {
       _isLoadingBPartners = false;
@@ -93,6 +94,23 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
 
   Future<void> _fetchBPartners() async {
     try {
+      int? resolvedBpId = widget.selectedBPartnerId;
+
+      // Si la solicitud nace desde un proyecto, heredamos obligatoriamente su tercero
+      if (resolvedBpId == null && widget.linkedProjectId != null) {
+        var projRes = await http.get(Uri.parse('${Endpoint.project}/${widget.linkedProjectId}?\$select=C_BPartner_ID'), headers: {'Authorization': Token.token});
+        if (projRes.statusCode == 401) {
+          if (await handleTokenRefresh()) {
+            projRes = await http.get(Uri.parse('${Endpoint.project}/${widget.linkedProjectId}?\$select=C_BPartner_ID'), headers: {'Authorization': Token.token});
+          }
+        }
+        if (projRes.statusCode == 200) {
+          final data = jsonDecode(utf8.decode(projRes.bodyBytes));
+          final bpField = data['C_BPartner_ID'];
+          resolvedBpId = (bpField is Map) ? bpField['id'] : (bpField is int ? bpField : null);
+        }
+      }
+
       final logic = ProjectsLogic();
       final bps = await logic.fetchBPartners();
       if (mounted) {
@@ -100,8 +118,12 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
           _bPartnersList = bps;
           _isLoadingBPartners = false;
           if (_selectedBpId == null && _bPartnersList.isNotEmpty) {
-            // Intentar preseleccionar el del filtro si existe
-            _selectedBpId = widget.selectedBPartnerId != null && _bPartnersList.any((bp) => bp['id'] == widget.selectedBPartnerId) ? widget.selectedBPartnerId : _bPartnersList.first['id'];
+            _selectedBpId = resolvedBpId != null && _bPartnersList.any((bp) => bp['id'] == resolvedBpId) ? resolvedBpId : (widget.linkedProjectId != null ? resolvedBpId : _bPartnersList.first['id']);
+          }
+
+          // Rescate: Si el tercero del proyecto no estaba en la lista de activos, lo añadimos para evitar errores en el dropdown
+          if (_selectedBpId != null && !_bPartnersList.any((bp) => bp['id'] == _selectedBpId)) {
+            _bPartnersList.add({'id': _selectedBpId, 'Name': 'Tercero $_selectedBpId (Vinculado)'});
           }
         });
       }
@@ -406,6 +428,14 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     final response = await http.post(url, headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: body);
 
     if (response.statusCode == 200 || response.statusCode == 201) {
+      try {
+        final data = jsonDecode(utf8.decode(response.bodyBytes));
+        final newId = data['id'];
+        if (newId != null) {
+          await GlobalCache.syncSingleRequest(newId);
+        }
+      } catch (_) {}
+
       if (mounted) {
         Navigator.of(context).pop(true);
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Solicitud creada correctamente')));
@@ -419,7 +449,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final bool isFullAccess = AccessControl.isAdmin;
+    final bool isFullAccess = AccessControl.isAdmin || AccessControl.isRealSupport;
     return CustomModal(
       title: widget.linkedRecordUU != null ? 'Nueva Solicitud De Tarea' : 'Nueva Solicitud de Soporte',
       width: 700,
@@ -433,19 +463,17 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (widget.linkedRecordUU == null) ...[
-                      Expanded(
-                        child: CustomDropdown<int>(
-                          label: 'Tercero',
-                          hintText: _isLoadingBPartners ? 'Cargando terceros...' : 'Seleccione Tercero',
-                          value: _isLoadingBPartners || !_bPartnersList.any((bp) => bp['id'] == _selectedBpId) ? null : _selectedBpId,
-                          items: _bPartnersList.map((bp) => DropdownMenuItem<int>(value: bp['id'], child: Text(bp['Name'] ?? 'Tercero ${bp['id']}'))).toList(),
-                          onChanged: _isLoadingBPartners ? null : (value) => setState(() => _selectedBpId = value),
-                          validator: (value) => value == null ? 'Debe seleccionar un tercero.' : null,
-                        ),
+                    Expanded(
+                      child: CustomDropdown<int>(
+                        label: 'Tercero',
+                        hintText: _isLoadingBPartners ? 'Cargando terceros...' : 'Seleccione Tercero',
+                        value: _isLoadingBPartners || !_bPartnersList.any((bp) => bp['id'] == _selectedBpId) ? null : _selectedBpId,
+                        items: _bPartnersList.map((bp) => DropdownMenuItem<int>(value: bp['id'], child: Text(bp['Name'] ?? 'Tercero ${bp['id']}'))).toList(),
+                        onChanged: (_isLoadingBPartners || widget.linkedProjectId != null) ? null : (value) => setState(() => _selectedBpId = value),
+                        validator: (value) => value == null ? 'Debe seleccionar un tercero.' : null,
                       ),
-                      const SizedBox(width: 16),
-                    ],
+                    ),
+                    const SizedBox(width: 16),
                     Expanded(
                       child: CustomDropdown<int>(
                         label: 'Usuario',

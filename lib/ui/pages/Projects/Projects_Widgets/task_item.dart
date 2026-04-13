@@ -68,7 +68,7 @@ class _TaskItemState extends State<TaskItem> {
 
   @override
   Widget build(BuildContext context) {
-    final taskId = widget.task['id'];
+    final taskId = widget.task['id'] is int ? widget.task['id'] as int : int.tryParse(widget.task['id'].toString()) ?? 0;
     final taskName = widget.task['Name'] ?? 'Tarea sin nombre';
     final rawUU = widget.task['C_ProjectTask_UU'] ?? widget.task['UUID'] ?? widget.task['uuid'] ?? widget.task['Record_UU'] ?? widget.task['uid'];
     String? taskUU;
@@ -143,6 +143,7 @@ class _TaskItemState extends State<TaskItem> {
                   requests: requests,
                   statusIdMap: widget.statusIdMap,
                   priorityMap: widget.priorityMap,
+                  onRefresh: () => setState(() {}),
                   onEdit: (req) {
                     if (!AccessControl.canManageRequests) return;
 

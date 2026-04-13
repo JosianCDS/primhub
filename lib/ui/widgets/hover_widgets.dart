@@ -14,8 +14,16 @@ class _HoverScaleCardState extends State<HoverScaleCard> {
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
+      onEnter: (_) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() => _isHovered = true);
+        });
+      },
+      onExit: (_) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() => _isHovered = false);
+        });
+      },
       child: AnimatedScale(scale: _isHovered ? 1.05 : 1.0, duration: const Duration(milliseconds: 200), curve: Curves.easeInOut, child: widget.child),
     );
   }
@@ -36,8 +44,16 @@ class _HoverListTileState extends State<HoverListTile> {
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
+      onEnter: (_) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() => _isHovered = true);
+        });
+      },
+      onExit: (_) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() => _isHovered = false);
+        });
+      },
       child: AnimatedContainer(duration: const Duration(milliseconds: 200), color: _isHovered ? Colors.blue.withOpacity(0.1) : Colors.transparent, child: widget.builder(_isHovered)),
     );
   }

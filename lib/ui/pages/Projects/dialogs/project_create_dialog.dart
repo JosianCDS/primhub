@@ -41,7 +41,7 @@ class _ProjectCreateDialogState extends State<ProjectCreateDialog> {
   }
 
   Future<void> _loadData() async {
-    final results = await Future.wait([_logic.fetchBPartners(), _logic.fetchProjects(context, isViewingMine: AdminViewModeManager().isViewingMine)]);
+    final results = await Future.wait([_logic.fetchBPartners(), _logic.fetchProjects(isViewingMine: AdminViewModeManager().isViewingMine)]);
     if (mounted) {
       setState(() {
         _bPartners = results[0];
@@ -158,8 +158,9 @@ class _ProjectCreateDialogState extends State<ProjectCreateDialog> {
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 items: widget.projects.map<DropdownMenuItem<int>>((p) {
+                  final pId = p['id'] is int ? p['id'] as int : int.tryParse(p['id'].toString()) ?? 0;
                   return DropdownMenuItem<int>(
-                    value: p['id'],
+                    value: pId,
                     child: Text(p['Name'] ?? 'Sin Nombre', overflow: TextOverflow.ellipsis),
                   );
                 }).toList(),
@@ -182,12 +183,20 @@ class _ProjectCreateDialogState extends State<ProjectCreateDialog> {
                 ),
                 items: selectedProjectId == null
                     ? []
-                    : (widget.projects.firstWhere((p) => p['id'] == selectedProjectId)['C_ProjectPhase'] as List? ?? []).map<DropdownMenuItem<int>>((ph) {
-                        return DropdownMenuItem<int>(
-                          value: ph['id'],
-                          child: Text(ph['Name'] ?? 'Sin Nombre', overflow: TextOverflow.ellipsis),
-                        );
-                      }).toList(),
+                    : (widget.projects.firstWhere((p) {
+                                    final pId = p['id'] is int ? p['id'] as int : int.tryParse(p['id'].toString()) ?? 0;
+                                    return pId == selectedProjectId;
+                                  }, orElse: () => {'C_ProjectPhase': []})['C_ProjectPhase']
+                                  as List? ??
+                              [])
+                          .map<DropdownMenuItem<int>>((ph) {
+                            final phId = ph['id'] is int ? ph['id'] as int : int.tryParse(ph['id'].toString()) ?? 0;
+                            return DropdownMenuItem<int>(
+                              value: phId,
+                              child: Text(ph['Name'] ?? 'Sin Nombre', overflow: TextOverflow.ellipsis),
+                            );
+                          })
+                          .toList(),
                 onChanged: (val) => setState(() => selectedPhaseId = val),
               ),
               const SizedBox(height: 16),
