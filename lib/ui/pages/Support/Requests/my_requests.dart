@@ -17,6 +17,7 @@ import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import '../../../widgets/custom_drawer.dart';
 import 'package:primhub/ui/pages/Home/Home_Controller/home_controller.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
+import 'package:primhub/api/global_cache.dart';
 
 class MyRequestsPage extends StatefulWidget {
   const MyRequestsPage({super.key});
@@ -45,11 +46,13 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   String? _selectedLevel;
   String? _selectedStatus;
   String? _selectedSituation;
+  String? _selectedSalesRep;
   String? _selectedUser;
   final TextEditingController _searchController = TextEditingController();
 
   int? _bpId;
   List<Map<String, dynamic>> _bPartners = [];
+  List<dynamic> _users = [];
 
   final _adminViewModeManager = AdminViewModeManager();
 
@@ -78,6 +81,13 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       if (args is Map) {
         if (args['showHistory'] == true) _showHistory = true;
         if (args['bpId'] != null) _bpId = args['bpId'];
+        if (args['selectedStatus'] != null) {
+          _selectedStatus = args['selectedStatus'];
+          // Si tocamos un estado final, aseguramos que se vea la bitácora
+          if (_selectedStatus!.toLowerCase().contains('close') || _selectedStatus!.toLowerCase().contains('cerrad')) _showHistory = true;
+        }
+        if (args['selectedLevel'] != null) _selectedLevel = args['selectedLevel'];
+        _selectedYear = null; // Reiniciar año para que el gráfico aplique libremente
       }
       _isInit = false;
       _initData();
@@ -94,44 +104,31 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   Future<void> _initData() async {
     setState(() => _isLoading = true);
 
-    List<int>? bpFilter = _bpId != null ? [_bpId!] : null;
-
-    // 1. Determinar el filtro de solicitudes para traerlas en paralelo
-    Future<List<dynamic>> fetchReqFuture;
-    if (_bpId != null) {
-      fetchReqFuture = fetchRequest(filter: "C_BPartner_ID eq $_bpId");
-    } else if (AccessControl.isAdmin) {
-      final List<int> selectedBPs = HomeController.savedSelectedSupportBpIds;
-      if (selectedBPs.isNotEmpty) {
-        String reqBpFilter = selectedBPs.map((id) => "C_BPartner_ID eq $id").join(" or ");
-        fetchReqFuture = fetchRequest(filter: "($reqBpFilter)");
-      } else {
-        fetchReqFuture = fetchRequest();
-      }
-    } else {
-      if (User.cBPartnerID != null) {
-        fetchReqFuture = fetchRequest(filter: "C_BPartner_ID eq ${User.cBPartnerID}");
-      } else {
-        fetchReqFuture = fetchRequest();
-      }
-    }
-
-    // 2. Ejecutar todas las peticiones a la API simultáneamente (Reduce el tiempo de carga drásticamente)
-    final futures = await Future.wait<dynamic>([AccessControl.isAdmin ? ContractApi.getBPartnersWithSupportContracts() : Future.value(<Map<String, dynamic>>[]), ContractApi.getSupportContracts(bPartnerIds: bpFilter), fetchStatuses(), fetchReqFuture]);
+    await GlobalCache.syncData();
 
     if (AccessControl.isAdmin) {
-      _bPartners = futures[0] as List<Map<String, dynamic>>;
+      _bPartners = GlobalCache.bPartners;
+      _users = GlobalCache.users;
+
+      // Auto-configurar el filtro visual local si entramos desde un atajo
+      if (_bpId != null && _selectedBP == null) {
+        final found = _bPartners.firstWhere((bp) => bp['id'] == _bpId, orElse: () => <String, dynamic>{});
+        if (found.isNotEmpty) {
+          _selectedBP = found['Name'];
+        }
+      }
     }
-    _allContracts = futures[1] as List<Map<String, dynamic>>;
-    final statuses = futures[2] as Map<String, int>;
-    _allFetchedRequests = futures[3] as List<dynamic>;
+    _allContracts = GlobalCache.contracts;
+    if (_bpId != null && AccessControl.isAdmin) {
+      _allContracts = _allContracts.where((c) => c['C_BPartner_ID'] == _bpId).toList();
+    }
+    _statusIdMap = GlobalCache.statuses;
 
     final double total = _allContracts.fold(0.0, (sum, contract) => sum + ((contract['contractedHours'] as num?)?.toDouble() ?? 0.0));
 
     if (mounted) {
       setState(() {
         _contractedHours = total > 0 ? total : null;
-        _statusIdMap = statuses;
       });
     }
 
@@ -141,27 +138,14 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
 
   Future<void> _refreshRequest({bool fetchNetwork = true}) async {
     if (fetchNetwork) {
-      List<dynamic> allFetchedRequests = [];
-
-      if (_bpId != null) {
-        allFetchedRequests = await fetchRequest(filter: "C_BPartner_ID eq $_bpId");
-      } else if (AccessControl.isAdmin) {
-        final List<int> selectedBPs = HomeController.savedSelectedSupportBpIds;
-        if (selectedBPs.isNotEmpty) {
-          String bpFilter = selectedBPs.map((id) => "C_BPartner_ID eq $id").join(" or ");
-          allFetchedRequests = await fetchRequest(filter: "($bpFilter)");
-        } else {
-          allFetchedRequests = await fetchRequest();
-        }
-      } else {
-        if (User.cBPartnerID != null) {
-          allFetchedRequests = await fetchRequest(filter: "C_BPartner_ID eq ${User.cBPartnerID}");
-        } else {
-          allFetchedRequests = await fetchRequest();
-        }
-      }
-      _allFetchedRequests = allFetchedRequests;
+      await GlobalCache.syncData(force: true);
     }
+
+    List<dynamic> allFetchedRequests = GlobalCache.requests;
+    if (AccessControl.isAdmin && _bpId != null) {
+      allFetchedRequests = allFetchedRequests.where((r) => r['C_BPartner_ID'] is Map ? r['C_BPartner_ID']['id'] == _bpId : r['C_BPartner_ID'] == _bpId).toList();
+    }
+    _allFetchedRequests = allFetchedRequests;
 
     // === LA CLAVE: Filtrar las que NO son de proyecto ===
     final supportRequestsOnly = _allFetchedRequests.where((req) {
@@ -362,6 +346,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
         } catch (_) {}
       }
       if (_selectedSituation != null && alert['situation'] != _selectedSituation) return false;
+      if (_selectedSalesRep != null && alert['salesRepName'] != _selectedSalesRep) return false;
       if (_selectedUser != null && alert['userName'] != _selectedUser) return false;
       if (_searchController.text.isNotEmpty && !alert['id'].toString().toLowerCase().contains(_searchController.text.toLowerCase())) return false;
       return true;
@@ -489,10 +474,13 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                       selectedUser: _selectedUser,
                       selectedLevel: _selectedLevel,
                       selectedStatus: _selectedStatus,
+                      selectedSalesRep: _selectedSalesRep,
                       isAscending: _isAscending,
                       rowsPerPage: _rowsPerPage,
                       showHistory: _showHistory,
                       requests: _requests,
+                      users: _users,
+                      bPartners: _bPartners,
                       statusIdMap: _statusIdMap,
                       onYearChanged: (val) => setState(() {
                         _selectedYear = val;
@@ -502,8 +490,17 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                         setState(() {
                           _selectedBP = val;
                           _currentPage = 0;
+                          _isLoading = true;
+                          if (val != null) {
+                            final found = _bPartners.firstWhere((bp) => bp['Name'] == val, orElse: () => <String, dynamic>{});
+                            if (found.isNotEmpty) {
+                              _bpId = found['id'];
+                            }
+                          } else {
+                            _bpId = null;
+                          }
                         });
-                        _updateStatsLocally();
+                        _initData();
                       },
                       onSituationChanged: (val) => setState(() {
                         _selectedSituation = val;
@@ -515,6 +512,10 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                       }),
                       onLevelChanged: (val) => setState(() {
                         _selectedLevel = val;
+                        _currentPage = 0;
+                      }),
+                      onSalesRepChanged: (val) => setState(() {
+                        _selectedSalesRep = val;
                         _currentPage = 0;
                       }),
                       onStatusChanged: (val) => setState(() {
@@ -535,12 +536,15 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                           _selectedLevel = null;
                           _selectedStatus = null;
                           _selectedSituation = null;
+                          _selectedSalesRep = null;
                           _selectedUser = null;
                           _searchController.clear();
                           _isAscending = false;
                           _currentPage = 0;
+                          _bpId = null; // Reiniciar memoria de navegación
+                          _isLoading = true;
                         });
-                        _updateStatsLocally();
+                        _initData();
                       },
                       onAddRequest: () async {
                         if (await showDialog(
@@ -563,7 +567,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                               padding: EdgeInsets.all(50.0),
                               child: Center(child: CircularProgressIndicator()),
                             )
-                          : RequestsDataTable(requests: paginatedAlerts, onEdit: _editRequest),
+                          : RequestsDataTable(requests: paginatedAlerts, onEdit: _editRequest, onRefresh: _initData),
                     ),
                     if (totalPages > 1)
                       Padding(

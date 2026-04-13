@@ -6,7 +6,8 @@ import 'package:primhub/theme/theme.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents.dart';
 import 'package:primhub/ui/pages/Home/home_page.dart';
 import 'package:primhub/ui/pages/OnDevelop/knowledge_base.dart';
-import 'package:primhub/ui/pages/Metrics/project_requests_page.dart';
+import 'package:primhub/ui/pages/Projects/project_requests_view.dart';
+import 'package:primhub/ui/pages/Metrics/metrics_requests_page.dart';
 import 'package:primhub/ui/pages/Login/login.dart';
 import 'package:primhub/ui/pages/Login/login_selection_page.dart';
 import 'package:primhub/ui/pages/OnDevelop/marketplace.dart';
@@ -15,6 +16,7 @@ import 'package:primhub/ui/pages/OnDevelop/profile_page.dart';
 import 'package:primhub/ui/pages/Support/Requests/my_requests.dart';
 import 'package:primhub/ui/pages/Support/support_dashboard.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_updates_page.dart';
+import 'package:primhub/api/splash_loading_page.dart';
 
 final _router = GoRouter(
   navigatorKey: SessionManager.navigatorKey,
@@ -27,12 +29,13 @@ final _router = GoRouter(
       return '/login';
     }
     if (isLoggedIn && isLoggingIn) {
-      return '/';
+      return '/splash';
     }
     return null;
   },
   routes: [
     GoRoute(path: '/', builder: (context, state) => const HomePage()),
+    GoRoute(path: '/splash', builder: (context, state) => const SplashLoadingPage()),
     GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
     GoRoute(
       path: '/login-selection',
@@ -60,10 +63,25 @@ final _router = GoRouter(
     ),
     GoRoute(path: '/metrics', builder: (context, state) => const MetricsPage()),
     GoRoute(
+      path: '/metric-requests',
+      builder: (context, state) {
+        final extra = state.extra as Map<String, dynamic>?;
+        final rawId = extra?['projectId'];
+        final projId = rawId is int ? rawId : (rawId != null ? int.tryParse(rawId.toString()) : null);
+        return ProjectRequestsPage(
+          projectId: projId,
+          filterStatus: extra?['filterStatus'] as String?,
+          filterType: extra?['filterType'] as String?,
+        );
+      },
+    ),
+    GoRoute(
       path: '/project-requests',
       builder: (context, state) {
         final extra = state.extra as Map<String, dynamic>?;
-        return ProjectRequestsPage(projectId: extra?['projectId'] as int?, filterStatus: extra?['filterStatus'] as String?, filterType: extra?['filterType'] as String?);
+        final rawId = extra?['projectId'];
+        final projId = rawId is int ? rawId : (rawId != null ? int.tryParse(rawId.toString()) : null);
+        return ProjectRequestsView(projectId: projId, filterStatus: extra?['filterStatus'] as String?, filterType: extra?['filterType'] as String?, filterCompliance: extra?['filterCompliance'] as String?, showAllGroups: extra?['showAllGroups'] as bool? ?? false);
       },
     ),
     GoRoute(path: '/marketplace', builder: (context, state) => const MarketplacePage()),

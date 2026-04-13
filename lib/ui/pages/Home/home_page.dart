@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/admin_view_mode.dart';
@@ -12,6 +13,7 @@ import 'package:primhub/ui/Shared_Custom/custom_container.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/widgets/duration_formatter.dart';
+import 'package:card_stack_swiper/card_stack_swiper.dart';
 import '../../Shared_Custom/cardcustom.dart' show CardCustom;
 import '../../widgets/custom_drawer.dart';
 
@@ -25,6 +27,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   late final HomeController _controller;
   final _adminViewModeManager = AdminViewModeManager();
+  final Set<int> _expandedBps = {};
 
   @override
   void initState() {
@@ -234,7 +237,7 @@ class _HomePageState extends State<HomePage> {
               icon: const Icon(Icons.refresh),
               tooltip: 'Refrescar',
               onPressed: () {
-                _controller.initData();
+                _controller.initData(forceRefresh: true);
               },
             ),
           ],
@@ -326,13 +329,23 @@ class _HomePageState extends State<HomePage> {
                                 crossAxisAlignment: WrapCrossAlignment.center,
                                 children: [
                                   for (final proj in activeProjects) ...[
-                                    SizedBox(
-                                      width: itemWidth,
-                                      child: ProjectDurationCard(project: proj, textColor: textColor, hasMetrics: _controller.projectStats[proj['id']]?['hasMetrics'] ?? false),
-                                    ),
-                                    SizedBox(
-                                      width: itemWidth,
-                                      child: ProjectDeliverablesCard(projectId: proj['id'], stats: _controller.projectStats[proj['id']] ?? {}, textColor: textColor),
+                                    Builder(
+                                      builder: (context) {
+                                        final projId = proj['id'] is int ? proj['id'] as int : int.tryParse(proj['id'].toString()) ?? 0;
+                                        return Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            SizedBox(
+                                              width: itemWidth,
+                                              child: ProjectDurationCard(project: proj, textColor: textColor, hasMetrics: _controller.projectStats[projId]?['hasMetrics'] ?? false),
+                                            ),
+                                            SizedBox(
+                                              width: itemWidth,
+                                              child: ProjectDeliverablesCard(projectId: projId, stats: _controller.projectStats[projId] ?? {}, textColor: textColor),
+                                            ),
+                                          ],
+                                        );
+                                      },
                                     ),
                                   ],
                                 ],
@@ -374,12 +387,13 @@ class _HomePageState extends State<HomePage> {
                             runSpacing: 20,
                             alignment: WrapAlignment.center,
                             children: bpsToRender.map((bpId) {
-                              final bpContracts = _controller.supportContracts.where((c) => c['C_BPartner_ID'] == bpId);
+                              final bpContracts = _controller.supportContracts.where((c) => c['C_BPartner_ID'] == bpId).toList();
                               final stats = _controller.requestsStatsByBp[bpId];
                               final bpInfo = _controller.supportBPartners.firstWhere((bp) => bp['id'] == bpId, orElse: () => <String, dynamic>{'Name': 'Tercero $bpId'});
                               final bpName = bpInfo['Name'];
 
-                              final List<Widget> cards = bpContracts.map<Widget>((c) => SupportHoursCard(contract: c, isDark: isDark, textColor: textColor)).toList();
+                              final List<Widget> cards = [];
+
                               if (_controller.isLoading) {
                                 cards.add(
                                   const CardCustom(
@@ -387,8 +401,90 @@ class _HomePageState extends State<HomePage> {
                                     child: SizedBox(height: 200, width: 250, child: Center(child: CircularProgressIndicator())),
                                   ),
                                 );
-                              } else if (stats != null && (((stats['closed'] as num?)?.toInt() ?? 0) > 0 || ((stats['inProgress'] as num?)?.toInt() ?? 0) > 0)) {
-                                cards.add(SupportRequestsCard(bpId: bpId, bpName: bpName, closedRequestsCount: (stats['closed'] as num?)?.toInt() ?? 0, inProgressRequestsCount: (stats['inProgress'] as num?)?.toInt() ?? 0, textColor: textColor));
+                              } else {
+                                if (bpContracts.isNotEmpty) {
+                                  if (bpContracts.length == 1) {
+                                    cards.add(
+                                      Stack(
+                                        children: [
+                                          SupportHoursCard(contract: bpContracts.first, isDark: isDark, textColor: textColor, bpName: bpName),
+                                          Positioned(
+                                            top: 8,
+                                            right: 8,
+                                            child: IconButton(
+                                              icon: const Icon(Icons.copy, size: 20),
+                                              color: textColor.withOpacity(0.5),
+                                              tooltip: 'Copiar código de contrato',
+                                              onPressed: () {
+                                                final code = bpContracts.first['DocumentNo']?.toString() ?? '';
+                                                Clipboard.setData(ClipboardData(text: code));
+                                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Código de contrato copiado')));
+                                              },
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  } else {
+                                    final bool isExpanded = _expandedBps.contains(bpId);
+
+                                    // Botón para alternar la vista
+                                    cards.add(
+                                      SizedBox(
+                                        width: MediaQuery.of(context).size.width,
+                                        child: Center(
+                                          child: TextButton.icon(
+                                            icon: Icon(isExpanded ? Icons.layers : Icons.grid_view),
+                                            label: Text(isExpanded ? 'Apilar contratos' : 'Desplegar contratos (${bpContracts.length})'),
+                                            onPressed: () {
+                                              setState(() {
+                                                if (isExpanded) {
+                                                  _expandedBps.remove(bpId);
+                                                } else {
+                                                  _expandedBps.add(bpId);
+                                                }
+                                              });
+                                            },
+                                          ),
+                                        ),
+                                      ),
+                                    );
+
+                                    if (isExpanded) {
+                                      // Vista de Cuadrícula (Individual)
+                                      for (var contract in bpContracts) {
+                                        cards.add(
+                                          Stack(
+                                            children: [
+                                              SupportHoursCard(contract: contract, isDark: isDark, textColor: textColor, bpName: bpName),
+                                              Positioned(
+                                                top: 8,
+                                                right: 8,
+                                                child: IconButton(
+                                                  icon: const Icon(Icons.copy, size: 20),
+                                                  color: textColor.withOpacity(0.5),
+                                                  tooltip: 'Copiar código de contrato',
+                                                  onPressed: () {
+                                                    final code = contract['DocumentNo']?.toString() ?? '';
+                                                    Clipboard.setData(ClipboardData(text: code));
+                                                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Código de contrato copiado')));
+                                                  },
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      }
+                                    } else {
+                                      // Vista Apilada (Swiper)
+                                      cards.add(_SupportContractsSwiper(contracts: bpContracts, isDark: isDark, textColor: textColor, bpName: bpName));
+                                    }
+                                  }
+                                }
+
+                                if (stats != null && (((stats['closed'] as num?)?.toInt() ?? 0) > 0 || ((stats['inProgress'] as num?)?.toInt() ?? 0) > 0)) {
+                                  cards.add(SupportRequestsCard(bpId: bpId, bpName: bpName, closedRequestsCount: (stats['closed'] as num?)?.toInt() ?? 0, inProgressRequestsCount: (stats['inProgress'] as num?)?.toInt() ?? 0, textColor: textColor));
+                                }
                               }
 
                               return Wrap(spacing: 20, runSpacing: 20, alignment: WrapAlignment.center, children: cards);
@@ -410,6 +506,90 @@ class _HomePageState extends State<HomePage> {
             },
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _SupportContractsSwiper extends StatefulWidget {
+  final List<Map<String, dynamic>> contracts;
+  final bool isDark;
+  final Color textColor;
+  final String bpName;
+
+  const _SupportContractsSwiper({required this.contracts, required this.isDark, required this.textColor, required this.bpName});
+
+  @override
+  State<_SupportContractsSwiper> createState() => _SupportContractsSwiperState();
+}
+
+class _SupportContractsSwiperState extends State<_SupportContractsSwiper> {
+  final CardStackSwiperController _swiperController = CardStackSwiperController();
+  int _currentIndex = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 310, // Altura incrementada para evitar overflow y dar espacio a los botones de navegación
+      width: 280,
+      child: Column(
+        children: [
+          Expanded(
+            child: CardStackSwiper(
+              controller: _swiperController,
+              onSwipe: (previousIndex, currentIndex, direction) {
+                setState(() => _currentIndex = currentIndex ?? 0);
+                return true; // Permite que se complete la animación
+              },
+              onUndo: (previousIndex, currentIndex, direction) {
+                setState(() => _currentIndex = currentIndex ?? 0);
+                return true;
+              },
+              cardBuilder: (context, index, _, __) {
+                return Stack(
+                  children: [
+                    SupportHoursCard(contract: widget.contracts[index], isDark: widget.isDark, textColor: widget.textColor, bpName: widget.bpName),
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: IconButton(
+                        icon: const Icon(Icons.copy, size: 20),
+                        color: widget.textColor.withOpacity(0.5),
+                        tooltip: 'Copiar código de contrato',
+                        onPressed: () {
+                          final code = widget.contracts[index]['DocumentNo']?.toString() ?? '';
+                          Clipboard.setData(ClipboardData(text: code));
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Código de contrato copiado')));
+                        },
+                      ),
+                    ),
+                  ],
+                );
+              },
+              cardsCount: widget.contracts.length,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.5), shape: BoxShape.circle),
+                child: IconButton(icon: const Icon(Icons.arrow_back_ios_new, size: 18), onPressed: _swiperController.undo, tooltip: 'Atrás'),
+              ),
+              const SizedBox(width: 16),
+              Text(
+                '${_currentIndex + 1} / ${widget.contracts.length}',
+                style: TextStyle(fontWeight: FontWeight.bold, color: widget.textColor),
+              ),
+              const SizedBox(width: 16),
+              Container(
+                decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.5), shape: BoxShape.circle),
+                child: IconButton(icon: const Icon(Icons.arrow_forward_ios, size: 18), onPressed: () => _swiperController.swipe(CardStackSwiperDirection.right), tooltip: 'Adelante'),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

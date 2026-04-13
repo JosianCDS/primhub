@@ -9,6 +9,7 @@ import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 import 'package:primhub/ui/pages/Projects/Projects_Widgets/project_item.dart';
 import 'package:primhub/ui/pages/Projects/Documents/project_form_page.dart';
 import '../../../widgets/custom_drawer.dart';
+import 'package:primhub/api/global_cache.dart';
 
 class DeliverablesPage extends StatefulWidget {
   const DeliverablesPage({super.key});
@@ -64,14 +65,30 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
   }
 
   // Carga de proyectos con filtros aplicados
-  Future<void> _loadProjects() async {
+  Future<void> _loadProjects({bool forceRefresh = false}) async {
     if (!mounted) return;
     setState(() {
       _isLoadingProjects = true;
       _projectsErrorMessage = null;
     });
     try {
-      final projects = await _logic.fetchProjects(context, showInactive: _showInactive, onlyInactive: _viewingInactive, isViewingMine: _adminViewModeManager.isViewingMine);
+      await GlobalCache.syncData(force: forceRefresh);
+
+      List<dynamic> projects = [];
+      if (_showInactive || _viewingInactive) {
+        projects = await _logic.fetchProjects(showInactive: _showInactive, onlyInactive: _viewingInactive, isViewingMine: _adminViewModeManager.isViewingMine);
+      } else {
+        projects = GlobalCache.projects;
+        if (_adminViewModeManager.isViewingMine && AccessControl.isAdmin) {
+          int? partnerID = User.cBPartnerID;
+          int? userID = User.userID;
+          projects = projects.where((p) {
+            final bpId = p['C_BPartner_ID'] is Map ? p['C_BPartner_ID']['id'] : p['C_BPartner_ID'];
+            final repId = p['SalesRep_ID'] is Map ? p['SalesRep_ID']['id'] : p['SalesRep_ID'];
+            return (partnerID != null && bpId == partnerID) || (userID != null && repId == userID);
+          }).toList();
+        }
+      }
 
       if (mounted) {
         setState(() {
@@ -137,7 +154,8 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
 
     if (view == 'projects') {
       setState(() {
-        _targetExpandedProjectId = project['id'];
+        final rawId = project['id'];
+        _targetExpandedProjectId = rawId is int ? rawId : int.tryParse(rawId.toString());
         _expandAll = false;
         _exitFileManager();
       });
@@ -186,7 +204,10 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
     final project = _projects.firstWhere((p) => (p['C_ProjectPhase'] as List? ?? []).any((ph) => ph['id'] == phaseId), orElse: () => null);
     setState(() {
       _isLoadingProjects = true;
-      if (project != null) _targetExpandedProjectId = project['id'];
+      if (project != null) {
+        final rawId = project['id'];
+        _targetExpandedProjectId = rawId is int ? rawId : int.tryParse(rawId.toString());
+      }
     });
     final result = await _logic.createTask(phaseId, name, description);
     if (result['success'] == true) {
@@ -329,7 +350,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
             ),
           ],
           if (_showingFiles && AccessControl.canManageFiles) ...[if (_isFileManagerRoot) IconButton(icon: const Icon(Icons.create_new_folder_outlined), tooltip: 'Nueva Carpeta', onPressed: () => _fileManagerKey.currentState?.createFolderDialog()), IconButton(icon: const Icon(Icons.upload_file), tooltip: 'Subir Archivo', onPressed: () => _fileManagerKey.currentState?.pickAndUploadFile())],
-          IconButton(icon: const Icon(Icons.refresh), tooltip: 'Refrescar', onPressed: () => _showingFiles ? _fileManagerKey.currentState?.refresh() : _loadProjects()),
+          IconButton(icon: const Icon(Icons.refresh), tooltip: 'Refrescar', onPressed: () => _showingFiles ? _fileManagerKey.currentState?.refresh() : _loadProjects(forceRefresh: true)),
         ],
       ),
       drawer: _showingFiles ? null : const CustomDrawer(),
@@ -367,10 +388,11 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
                   itemCount: filteredProjects.length,
                   itemBuilder: (context, index) {
                     final project = filteredProjects[index];
+                    final projId = project['id'] is int ? project['id'] as int : int.tryParse(project['id'].toString()) ?? 0;
                     return ProjectItem(
-                      key: ValueKey('pj-${project['id']}-$_expandAll'),
+                      key: ValueKey('pj-$projId-$_expandAll'),
                       project: project,
-                      isExpanded: _expandAll || (_targetExpandedProjectId == project['id']),
+                      isExpanded: _expandAll || (_targetExpandedProjectId == projId),
                       statusIdMap: _statusIdMap,
                       priorityMap: _priorityMap,
                       onRefresh: _loadProjects,
@@ -381,7 +403,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
                         } else {
                           setState(() {
                             _isLoadingProjects = true;
-                            _targetExpandedProjectId = project['id']; // Mantener expandido
+                            _targetExpandedProjectId = projId; // Mantener expandido
                           });
                           final result = await _logic.updateItem(type, id, name, desc);
                           if (result['success'] == true) {
@@ -396,7 +418,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
                       onCreateTask: _createTask,
                       onShowFiles: _onShowFiles,
                       isArchived: _viewingInactive,
-                      stats: _projectStats[project['id']], // Pasar stats
+                      stats: _projectStats[projId], // Pasar stats
                     );
                   },
                 ),

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:primhub/api/token.dart';
@@ -335,11 +336,30 @@ class _ProjectInfoTestPageState extends State<ProjectInfoTestPage> {
         rows: _processedRequests.map((req) {
           return DataRow(
             cells: [
-              DataCell(Text(req['id']?.toString() ?? '')),
+              DataCell(
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(req['id']?.toString() ?? ''),
+                    const SizedBox(width: 8),
+                    InkWell(
+                      borderRadius: BorderRadius.circular(4),
+                      onTap: () {
+                        Clipboard.setData(ClipboardData(text: req['id']?.toString() ?? ''));
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Código copiado al portapapeles')));
+                      },
+                      child: const Padding(
+                        padding: EdgeInsets.all(4.0),
+                        child: Icon(Icons.copy, size: 16, color: Colors.grey),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               DataCell(
                 Tooltip(
-                  message: req['description'] ?? '',
-                  child: SizedBox(width: 250, child: Text((req['description'] ?? '').length > 35 ? '${(req['description'] ?? '').substring(0, 35)}...' : (req['description'] ?? ''))),
+                  message: stripHtmlTags(req['description'] ?? ''),
+                  child: SizedBox(width: 250, child: Text(stripHtmlTags(req['description'] ?? '').length > 35 ? '${stripHtmlTags(req['description'] ?? '').substring(0, 35)}...' : stripHtmlTags(req['description'] ?? ''))),
                 ),
               ),
               DataCell(Text(req['type'] ?? '')),

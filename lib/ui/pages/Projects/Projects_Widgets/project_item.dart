@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/ui/pages/Projects/Projects_Widgets/phase_item.dart';
 import 'package:primhub/ui/pages/Projects/Projects_Widgets/task_item.dart';
 import 'package:primhub/ui/pages/Projects/dialogs/item_edit_dialog.dart';
 import 'package:primhub/ui/pages/Projects/dialogs/phase_create_dialog.dart';
 import 'package:primhub/ui/pages/Projects/dialogs/project_calendar_dialog.dart';
+import 'package:primhub/ui/pages/Projects/dialogs/project_info_dialog.dart';
 
 class ProjectItem extends StatelessWidget {
   final Map<String, dynamic> project;
@@ -45,12 +47,13 @@ class ProjectItem extends StatelessWidget {
       return idA.compareTo(idB);
     });
 
+    final int projId = project['id'] is int ? project['id'] as int : int.tryParse(project['id'].toString()) ?? 0;
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ExpansionTile(
-        key: Key('project-${project['id'] ?? project.hashCode}'),
+        key: Key('project-$projId'),
         initiallyExpanded: isExpanded,
         leading: const Icon(Icons.folder, color: Color(0xFF4F47E5)),
         title: Row(
@@ -79,6 +82,16 @@ class ProjectItem extends StatelessWidget {
                     builder: (context) => ProjectCalendarDialog(project: project),
                   );
                 }),
+                _buildActionButton(Icons.list_alt, 'Solicitudes', Colors.indigo, () {
+                  context.push('/project-requests', extra: {'projectId': projId, 'showAllGroups': true});
+                }),
+                if (AccessControl.isAdmin)
+                  _buildActionButton(Icons.info_outline, 'Información', Colors.teal, () {
+                    showDialog(
+                      context: context,
+                      builder: (context) => ProjectInfoDialog(project: project),
+                    );
+                  }),
               ],
             ),
           ],
@@ -96,7 +109,7 @@ class ProjectItem extends StatelessWidget {
                     onPressed: () {
                       showDialog(
                         context: context,
-                        builder: (context) => PhaseCreateDialog(onSave: (name, desc) => onCreatePhase(project['id'], name, desc)),
+                        builder: (context) => PhaseCreateDialog(onSave: (name, desc) => onCreatePhase(projId, name, desc)),
                       );
                     },
                   ),
@@ -105,7 +118,7 @@ class ProjectItem extends StatelessWidget {
                     icon: const Icon(Icons.edit, size: 20),
                     tooltip: isArchived ? 'Reactivar Proyecto' : 'Editar Proyecto',
                     onPressed: () {
-                      onEdit('project', project['id'], project['Name'] ?? '', project['Description'] ?? '');
+                      onEdit('project', projId, project['Name'] ?? '', project['Description'] ?? '');
                     },
                   ),
               ],
@@ -113,8 +126,8 @@ class ProjectItem extends StatelessWidget {
           ),
           const Divider(),
           if (phases.isEmpty && directTasks.isEmpty) const Padding(padding: EdgeInsets.all(16.0), child: Text('No hay fases ni tareas registradas.')),
-          ...phases.map((phase) => PhaseItem(phase: phase, initiallyExpanded: isExpanded, statusIdMap: statusIdMap, priorityMap: priorityMap, onRefresh: onRefresh, onEdit: onEdit, onCreateTask: onCreateTask, isArchived: isArchived, projectId: project['id'])),
-          ...directTasks.map((task) => TaskItem(task: task, initiallyExpanded: isExpanded, statusIdMap: statusIdMap, priorityMap: priorityMap, onRefresh: onRefresh, onEdit: onEdit, isArchived: isArchived, projectId: project['id'])),
+          ...phases.map((phase) => PhaseItem(phase: phase, initiallyExpanded: isExpanded, statusIdMap: statusIdMap, priorityMap: priorityMap, onRefresh: onRefresh, onEdit: onEdit, onCreateTask: onCreateTask, isArchived: isArchived, projectId: projId)),
+          ...directTasks.map((task) => TaskItem(task: task, initiallyExpanded: isExpanded, statusIdMap: statusIdMap, priorityMap: priorityMap, onRefresh: onRefresh, onEdit: onEdit, isArchived: isArchived, projectId: projId)),
         ],
       ),
     );

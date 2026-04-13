@@ -22,8 +22,20 @@ class _CardCustomState extends State<CardCustom> {
       width: widget.width,
       height: widget.height,
       child: MouseRegion(
-        onEnter: widget.hover ? (_) => setState(() => _isHovered = true) : null,
-        onExit: widget.hover ? (_) => setState(() => _isHovered = false) : null,
+        onEnter: widget.hover
+            ? (_) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) setState(() => _isHovered = true);
+                });
+              }
+            : null,
+        onExit: widget.hover
+            ? (_) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) setState(() => _isHovered = false);
+                });
+              }
+            : null,
         child: AnimatedScale(
           scale: _isHovered ? 1.05 : 1.0,
           duration: const Duration(milliseconds: 200),

@@ -7,6 +7,7 @@ import 'package:primhub/api/token.dart';
 import 'package:primhub/ImagesManagment/postAttachments.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 import 'package:primhub/endpoint/endpoint.dart';
+import 'package:primhub/api/global_cache.dart';
 
 // --- MAPAS DE REFERENCIA ---
 
@@ -50,6 +51,11 @@ String ensureIsoTime(String? dateContext, String time) {
 String? getDropdownValue(dynamic rawValue) {
   final extracted = DocumentsLogic.extractValue(rawValue);
   return extracted == 'N/A' ? null : extracted;
+}
+
+String stripHtmlTags(String htmlString) {
+  RegExp exp = RegExp(r"<[^>]*>", multiLine: true, caseSensitive: true);
+  return htmlString.replaceAll(exp, ' ').replaceAll(RegExp(r'\s+'), ' ').replaceAll('&nbsp;', ' ').trim();
 }
 
 // --- LLAMADAS A LA API ---
@@ -117,6 +123,44 @@ Future<List<Map<String, dynamic>>> fetchRequest({String? model = 'R_Request', St
   return allRecords;
 }
 
+Future<List<Map<String, dynamic>>> fetchProjectAndTaskRequests(int projectId, {List<String>? taskUUIDs, String? additionalFilter, String? select, String? expand}) async {
+  List<Map<String, dynamic>> allReqs = [];
+
+  if (taskUUIDs == null) {
+    taskUUIDs = await ProjectsLogic().fetchProjectTaskUUIDs(projectId);
+  }
+
+  String baseFilter = "C_Project_ID eq $projectId";
+  if (additionalFilter != null && additionalFilter.isNotEmpty) {
+    baseFilter = "($baseFilter) and $additionalFilter";
+  }
+
+  // 1. Solicitudes vinculadas a nivel de proyecto (Cabecera)
+  final pReqs = await fetchRequest(filter: baseFilter, select: select, expand: expand);
+  allReqs.addAll(pReqs);
+
+  // 2. Solicitudes vinculadas a nivel de Tareas (Record_UU) particionadas de a 10
+  if (taskUUIDs.isNotEmpty) {
+    for (var i = 0; i < taskUUIDs.length; i += 10) {
+      final chunk = taskUUIDs.sublist(i, i + 10 > taskUUIDs.length ? taskUUIDs.length : i + 10);
+      String chunkFilter = chunk.map((u) => "Record_UU eq '$u'").join(' or ');
+      chunkFilter = "($chunkFilter)";
+      if (additionalFilter != null && additionalFilter.isNotEmpty) {
+        chunkFilter = "$chunkFilter and $additionalFilter";
+      }
+      final tReqs = await fetchRequest(filter: chunkFilter, select: select, expand: expand);
+      allReqs.addAll(tReqs);
+    }
+  }
+
+  // 3. Deduplicación por si hay un ticket que tiene tanto C_Project_ID como Record_UU
+  final uniqueReqsMap = <int, Map<String, dynamic>>{};
+  for (var r in allReqs) {
+    if (r['id'] != null) uniqueReqsMap[r['id']] = r;
+  }
+  return uniqueReqsMap.values.toList();
+}
+
 Future<Map<String, int>> fetchStatuses() async {
   try {
     var response = await http.get(Uri.parse('${Endpoint.baseUrl}/api/v1/models/R_Status?\$limit=20&\$orderby=Name'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
@@ -159,7 +203,7 @@ Future<Map<String, dynamic>> processRequests(List<dynamic> requests, Map<String,
 
   for (var req in visibleRequests) {
     final statusIdFromReq = req['R_Status_ID'] is Map ? req['R_Status_ID']['id'] : req['R_Status_ID'];
-    final statusName = req['R_Status_ID']?['identifier'] ?? req['R_Status_Name'] ?? '';
+    final statusName = req['R_Status_ID'] is Map ? (req['R_Status_ID']['identifier'] ?? req['R_Status_ID']['Name'] ?? req['R_Status_Name'] ?? '') : (req['R_Status_Name'] ?? '');
     final qtyPlan = (req['QtyPlan'] as num?)?.toDouble() ?? 0.0;
 
     // Lógica de horas
@@ -171,7 +215,7 @@ Future<Map<String, dynamic>> processRequests(List<dynamic> requests, Map<String,
     }
 
     // Formateo de UI
-    String level = req['Priority']?['identifier'] ?? 'Baja';
+    String level = req['Priority'] is Map ? (req['Priority']['identifier'] ?? req['Priority']['Name'] ?? 'Baja') : 'Baja';
     String status = statusName;
     int? statusId = statusIdFromReq;
 
@@ -203,9 +247,10 @@ Future<Map<String, dynamic>> processRequests(List<dynamic> requests, Map<String,
     } catch (_) {}
 
     processedRequests.add({
+      'descriptionClean': stripHtmlTags(req['Summary'] ?? ''),
       'id': req['DocumentNo'] ?? req['id'].toString(),
       'realId': req['id'],
-      'situation': req['R_RequestType_ID']?['identifier'] ?? 'Solicitud',
+      'situation': req['R_RequestType_ID'] is Map ? (req['R_RequestType_ID']['identifier'] ?? req['R_RequestType_ID']['Name'] ?? 'Solicitud') : 'Solicitud',
       'description': req['Summary'] ?? '',
       'level': level,
       'status': status,
@@ -221,8 +266,8 @@ Future<Map<String, dynamic>> processRequests(List<dynamic> requests, Map<String,
       'qtyPlan': req['QtyPlan']?.toString() ?? '',
       'startDate': req['StartDate'],
       'closeDate': req['CloseDate'],
-      'userName': req['AD_User_ID']?['identifier'] ?? '',
-      'bpName': req['C_BPartner_ID']?['identifier'] ?? '',
+      'userName': req['AD_User_ID'] is Map ? (req['AD_User_ID']['identifier'] ?? req['AD_User_ID']['Name'] ?? '') : '',
+      'bpName': req['C_BPartner_ID'] is Map ? (req['C_BPartner_ID']['identifier'] ?? req['C_BPartner_ID']['Name'] ?? '') : '',
       'result': req['Result'] ?? '',
       'type': getDropdownValue(req['R_RequestType_ID']),
       'category': getDropdownValue(req['R_Category_ID']),
@@ -230,8 +275,10 @@ Future<Map<String, dynamic>> processRequests(List<dynamic> requests, Map<String,
       'bpId': req['C_BPartner_ID'] is Map ? req['C_BPartner_ID']['id'] : req['C_BPartner_ID'],
       'userId': req['AD_User_ID'] is Map ? req['AD_User_ID']['id'] : req['AD_User_ID'],
       'salesRepId': req['SalesRep_ID'] is Map ? req['SalesRep_ID']['id'] : req['SalesRep_ID'],
-      'salesRepName': req['SalesRep_ID'] is Map ? (req['SalesRep_ID']['identifier'] ?? '') : '',
+      'salesRepName': req['SalesRep_ID'] is Map ? (req['SalesRep_ID']['identifier'] ?? req['SalesRep_ID']['Name'] ?? '') : '',
       'emailSubject': req['CDS_EmailSubject'] ?? '',
+      'recordUU': req['Record_UU'],
+      'original': req,
     });
   }
 
@@ -364,7 +411,12 @@ Future<bool> deleteRequestApi(dynamic id) async {
       }
     }
 
-    return response.statusCode == 200 || response.statusCode == 204;
+    if (response.statusCode == 200 || response.statusCode == 204) {
+      int parsedId = id is int ? id : int.tryParse(id.toString()) ?? 0;
+      GlobalCache.removeRequest(parsedId);
+      return true;
+    }
+    return false;
   } catch (e) {
     return false;
   }

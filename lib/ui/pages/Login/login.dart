@@ -9,6 +9,7 @@ import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:primhub/api/global_cache.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -26,6 +27,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   late AnimationController _borderAnimationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
+  String _loadingMessage = 'Bienvenido';
 
   @override
   void initState() {
@@ -125,7 +127,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                 if (mounted) {
                   setState(() => _isLoading = false);
                   CurrentLogMessage.add("Login exitoso (Auto).");
-                  context.go('/');
+                  context.go('/splash');
                 }
               }
               return;
@@ -150,7 +152,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
       });
 
       CurrentLogMessage.add("Login exitoso. Token guardado.");
-      context.go('/');
+      context.go('/splash');
     }
   }
 
@@ -205,19 +207,16 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     final theme = Theme.of(context);
 
     return Scaffold(
-      floatingActionButton: Envirioment.isProduction
-          ? null
-          : Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'v1.3.0',
-                  style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(width: 8),
-                FloatingActionButton(onPressed: _showChangeUrlDialog, child: const Icon(Icons.settings)),
-              ],
-            ),
+      floatingActionButton: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'v1.4.0',
+            style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+          ),
+          if (!Envirioment.isProduction) ...[const SizedBox(width: 8), FloatingActionButton(onPressed: _showChangeUrlDialog, child: const Icon(Icons.settings))],
+        ],
+      ),
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [theme.colorScheme.surface, theme.colorScheme.surfaceContainerLow]),
@@ -325,7 +324,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                           mainAxisAlignment: MainAxisAlignment.center,
                                           children: [
                                             Text(
-                                              'Bienvenido',
+                                              _loadingMessage,
                                               style: TextStyle(color: theme.colorScheme.onPrimary, fontWeight: FontWeight.bold, fontSize: 16),
                                             ),
                                             const SizedBox(width: 12),

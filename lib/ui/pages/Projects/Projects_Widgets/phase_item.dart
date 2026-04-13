@@ -20,8 +20,9 @@ class PhaseItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tasks = phase['C_ProjectTask'] as List? ?? [];
+    final int phaseId = phase['id'] is int ? phase['id'] as int : int.tryParse(phase['id'].toString()) ?? 0;
     return ExpansionTile(
-      key: Key('phase-${phase['id']}'),
+      key: Key('phase-$phaseId'),
       initiallyExpanded: initiallyExpanded,
       title: Row(
         children: [
@@ -43,7 +44,7 @@ class PhaseItem extends StatelessWidget {
                   onPressed: () {
                     showDialog(
                       context: context,
-                      builder: (context) => TaskCreateDialog(onSave: (name, desc) => onCreateTask(phase['id'], name, desc)),
+                      builder: (context) => TaskCreateDialog(onSave: (name, desc) => onCreateTask(phaseId, name, desc)),
                     );
                   },
                 ),
@@ -52,7 +53,7 @@ class PhaseItem extends StatelessWidget {
                   onPressed: () {
                     showDialog(
                       context: context,
-                      builder: (context) => ItemEditDialog(type: 'phase', currentName: phase['Name'], currentDesc: phase['Description'] ?? '', onSave: (name, desc) => onEdit('phase', phase['id'], name, desc)),
+                      builder: (context) => ItemEditDialog(type: 'phase', currentName: phase['Name'], currentDesc: phase['Description'] ?? '', onSave: (name, desc) => onEdit('phase', phaseId, name, desc)),
                     );
                   },
                 ),

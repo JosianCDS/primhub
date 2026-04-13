@@ -12,6 +12,8 @@ import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
+import 'package:flutter_html/flutter_html.dart';
+import 'package:primhub/api/global_cache.dart';
 
 class EditRequestDialog extends StatefulWidget {
   final Map<String, dynamic> request;
@@ -105,6 +107,10 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
       if (mounted) {
         setState(() {
           _bPartnersList = bps;
+          // Rescate: Añadir el Tercero actual si no vino en la paginación de activos
+          if (_selectedBpId != null && !_bPartnersList.any((bp) => bp['id'] == _selectedBpId)) {
+            _bPartnersList.add({'id': _selectedBpId, 'Name': widget.request['bpName'] ?? 'Tercero $_selectedBpId'});
+          }
           _isLoadingBPartners = false;
         });
       }
@@ -203,6 +209,13 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
       if (mounted) {
         setState(() {
           _users = users;
+          // Rescate: Añadir usuarios actuales si no vinieron en la lista de activos
+          if (_selectedUserId != null && !_users.any((u) => (u['AD_User_ID'] ?? u['id']) == _selectedUserId)) {
+            _users.add({'id': _selectedUserId, 'AD_User_ID': _selectedUserId, 'Name': widget.request['userName'] ?? 'Usuario $_selectedUserId'});
+          }
+          if (_selectedSalesRepId != null && !_users.any((u) => (u['AD_User_ID'] ?? u['id']) == _selectedSalesRepId)) {
+            _users.add({'id': _selectedSalesRepId, 'AD_User_ID': _selectedSalesRepId, 'Name': widget.request['salesRepName'] ?? 'Rep. Comercial $_selectedSalesRepId'});
+          }
           _isLoadingUsers = false;
         });
       }
@@ -236,7 +249,15 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
         return CustomModal(
           title: 'Descripción Completa',
           width: 600,
-          content: SizedBox(height: 400, child: SingleChildScrollView(child: SelectableText(_summaryController.text))),
+          content: SizedBox(
+            height: 400,
+            child: SingleChildScrollView(
+              child: Html(
+                data: _summaryController.text,
+                style: {"body": Style(margin: Margins.zero, padding: HtmlPaddings.zero)},
+              ),
+            ),
+          ),
           actions: [CustomButton(text: 'Cerrar', onPressed: () => Navigator.of(dialogContext).pop())],
         );
       },
@@ -371,6 +392,11 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
       );
     }
 
+    if (result['success'] == true) {
+      // Sincronizar el caché local con este ticket específico
+      await GlobalCache.syncSingleRequest(widget.request['realId']);
+    }
+
     setState(() => _isSaving = false);
 
     if (mounted) {
@@ -390,7 +416,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
     if (_currentStatus.isNotEmpty && !statusItems.contains(_currentStatus)) {
       statusItems.add(_currentStatus);
     }
-    final bool isFullAccess = AccessControl.isAdmin;
+    final bool isFullAccess = AccessControl.isAdmin || AccessControl.isRealSupport;
 
     return CustomModal(
       title: 'Editar Solicitud ${widget.request['id']}',

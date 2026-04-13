@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/contract_api.dart';
 import 'package:primhub/api/token.dart';
@@ -14,6 +16,8 @@ import '../../widgets/custom_drawer.dart';
 import 'package:primhub/ui/widgets/duration_formatter.dart';
 import 'Requests/request_functions.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
+import 'package:flutter_html/flutter_html.dart';
+import 'package:primhub/api/global_cache.dart';
 
 class SupportDashboardPage extends StatefulWidget {
   const SupportDashboardPage({super.key});
@@ -57,8 +61,17 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_isInit) {
-      // Para administradores es mejor iniciar sin filtro (Todos)
-      _selectedBpId = AccessControl.isAdmin ? null : User.cBPartnerID;
+      Object? extra;
+      try {
+        extra = GoRouterState.of(context).extra;
+      } catch (_) {}
+
+      final args = extra as Map<String, dynamic>?;
+      if (args != null && args['bpId'] != null) {
+        _selectedBpId = args['bpId'];
+      } else {
+        _selectedBpId = AccessControl.isAdmin ? null : User.cBPartnerID;
+      }
       _initData();
       _isInit = false;
     }
@@ -86,19 +99,13 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
   }
 
   Future<void> _loadSupportData() async {
-    String? filter;
-    if (_selectedBpId != null) {
-      filter = "C_BPartner_ID eq $_selectedBpId";
-    } else if (!AccessControl.isAdmin && User.cBPartnerID != null) {
-      // Si no es admin y tiene BP, filtrar por defecto
-      filter = "C_BPartner_ID eq ${User.cBPartnerID}";
-    }
-    // Si es admin y _selectedBpId es null, fetchRequest sin filtro traerá todo (o paginado),
-    // pero para gestión de horas global podría ser mucho.
-    // El requerimiento dice "filtro como el de my request... del tercero seleccionado".
-    // Si no hay seleccionado, mostramos todo lo que traiga.
+    List<Map<String, dynamic>> rawRequests = GlobalCache.requests;
 
-    final rawRequests = await fetchRequest(filter: filter);
+    if (_selectedBpId != null) {
+      rawRequests = rawRequests.where((r) => (r['C_BPartner_ID'] is Map ? r['C_BPartner_ID']['id'] : r['C_BPartner_ID']) == _selectedBpId).toList();
+    } else if (!AccessControl.isAdmin && User.cBPartnerID != null) {
+      rawRequests = rawRequests.where((r) => (r['C_BPartner_ID'] is Map ? r['C_BPartner_ID']['id'] : r['C_BPartner_ID']) == User.cBPartnerID).toList();
+    }
 
     // Usar la misma función de procesamiento que my_requests.dart para consistencia
     final processedData = await processRequests(rawRequests, _statusIdMap);
@@ -126,7 +133,11 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
   }
 
   Future<void> _loadContractedHours() async {
-    final contracts = await ContractApi.getSupportContracts(bPartnerId: _selectedBpId);
+    final contracts = GlobalCache.contracts.where((c) {
+      if (_selectedBpId != null) return c['C_BPartner_ID'] == _selectedBpId;
+      if (!AccessControl.isAdmin && User.cBPartnerID != null) return c['C_BPartner_ID'] == User.cBPartnerID;
+      return true;
+    }).toList();
 
     if (mounted) {
       final double totalHours = contracts.fold(0.0, (sum, contract) => sum + ((contract['contractedHours'] as num?)?.toDouble() ?? 0.0));
@@ -232,7 +243,26 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              CustomTextField(controller: summaryController, label: 'Descripción / Resumen', readOnly: true, maxLines: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Theme.of(context).colorScheme.outline.withOpacity(0.5)),
+                  borderRadius: BorderRadius.circular(8),
+                  color: Theme.of(context).colorScheme.surface,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Descripción / Resumen', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                    const SizedBox(height: 8),
+                    Html(
+                      data: record['description'] ?? '',
+                      style: {"body": Style(margin: Margins.zero, padding: HtmlPaddings.zero)},
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(height: 16),
               Row(
                 children: [
@@ -476,61 +506,101 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
               const SizedBox(height: 30),
               CustomContainer(
                 title: 'Registro de Horas Consumidas',
-                child: _isLoading
-                    ? const Padding(
-                        padding: EdgeInsets.all(50.0),
-                        child: Center(child: CircularProgressIndicator()),
-                      )
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (AccessControl.isAdmin)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 16.0),
-                              child: SizedBox(
-                                width: 300,
-                                child: CustomDropdown<int?>(
-                                  label: 'Filtrar por Tercero',
-                                  // Validación estricta para evitar el AssertionError del DropdownButton
-                                  value: _bPartners.any((bp) => bp['id'] == _selectedBpId) ? _selectedBpId : null,
-                                  onChanged: (val) {
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (AccessControl.isAdmin)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16.0),
+                        child: SizedBox(
+                          width: 300,
+                          child: CustomDropdown<int?>(
+                            label: 'Filtrar por Tercero',
+                            // Validación estricta para evitar el AssertionError del DropdownButton
+                            value: _bPartners.any((bp) => bp['id'] == _selectedBpId) ? _selectedBpId : null,
+                            // Desactivamos el dropdown mientras carga para evitar colisiones
+                            onChanged: _isLoading
+                                ? null
+                                : (val) {
                                     setState(() => _selectedBpId = val);
                                     _refreshData();
                                   },
-                                  items: [
-                                    const DropdownMenuItem<int?>(value: null, child: Text('Todos')),
-                                    ..._bPartners.map<DropdownMenuItem<int?>>((bp) {
-                                      return DropdownMenuItem<int?>(value: bp['id'], child: Text(bp['Name'] ?? 'Sin Nombre'));
-                                    }),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          CustomTable(
-                            columns: const [
-                              DataColumn(label: Text('Ticket Relacionado')),
-                              DataColumn(label: Text('Actividad/Tarea')),
-                              DataColumn(label: Text('Fecha de inicio Planeada')),
-                              DataColumn(label: Text('Fecha de Terminacion Planeada')),
-                              DataColumn(label: Text('Horas Consumidas')),
+                            items: [
+                              const DropdownMenuItem<int?>(value: null, child: Text('Todos')),
+                              ..._bPartners.map<DropdownMenuItem<int?>>((bp) {
+                                return DropdownMenuItem<int?>(value: bp['id'], child: Text(bp['Name'] ?? 'Sin Nombre'));
+                              }),
                             ],
-                            rows: _supportRecords.map((record) {
-                              final double h = double.tryParse(record['qtyPlan']?.toString() ?? '0.0') ?? 0.0;
-                              final hours = DurationFormatter.format(h);
-                              return DataRow(
-                                onSelectChanged: (value) => _showRequestDetails(record),
-                                cells: [
-                                  DataCell(Text(record['id']?.toString() ?? '')),
-                                  DataCell(SizedBox(width: 300, child: Text((record['description'] != null && record['description'].length > 80) ? '${record['description'].substring(0, 80)}...' : record['description'] ?? ''))),
-                                  DataCell(Text(record['dateStartPlan'] ?? '')),
-                                  DataCell(Text(record['dateCompletePlan'] ?? '')),
-                                  DataCell(Text(hours)),
-                                ],
-                              );
-                            }).toList(),
                           ),
-                        ],
+                        ),
                       ),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: _isLoading
+                          ? const Padding(
+                              padding: EdgeInsets.all(50.0),
+                              child: Center(child: CircularProgressIndicator()),
+                            )
+                          : _supportRecords.isEmpty
+                          ? const Padding(
+                              padding: EdgeInsets.all(32.0),
+                              child: Center(
+                                child: Text('No hay registros de horas consumidas para este filtro.', style: TextStyle(color: Colors.grey, fontSize: 16)),
+                              ),
+                            )
+                          : CustomTable(
+                              columns: const [
+                                DataColumn(label: Text('Ticket Relacionado')),
+                                DataColumn(label: Text('Actividad/Tarea')),
+                                DataColumn(label: Text('Fecha de inicio Planeada')),
+                                DataColumn(label: Text('Fecha de Terminacion Planeada')),
+                                DataColumn(label: Text('Horas Consumidas')),
+                              ],
+                              rows: _supportRecords.map((record) {
+                                final double h = double.tryParse(record['qtyPlan']?.toString() ?? '0.0') ?? 0.0;
+                                final hours = DurationFormatter.format(h);
+                                return DataRow(
+                                  onSelectChanged: (value) => _showRequestDetails(record),
+                                  cells: [
+                                    DataCell(
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(record['id']?.toString() ?? ''),
+                                          const SizedBox(width: 8),
+                                          InkWell(
+                                            borderRadius: BorderRadius.circular(4),
+                                            onTap: () {
+                                              Clipboard.setData(ClipboardData(text: record['id']?.toString() ?? ''));
+                                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Código copiado al portapapeles')));
+                                            },
+                                            child: const Padding(
+                                              padding: EdgeInsets.all(4.0),
+                                              child: Icon(Icons.copy, size: 16, color: Colors.grey),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    DataCell(
+                                      SizedBox(
+                                        width: 300,
+                                        child: Text(() {
+                                          final cleanDesc = stripHtmlTags(record['description'] ?? '');
+                                          return cleanDesc.length > 80 ? '${cleanDesc.substring(0, 80)}...' : cleanDesc;
+                                        }()),
+                                      ),
+                                    ),
+                                    DataCell(Text(record['dateStartPlan'] ?? '')),
+                                    DataCell(Text(record['dateCompletePlan'] ?? '')),
+                                    DataCell(Text(hours)),
+                                  ],
+                                );
+                              }).toList(),
+                            ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

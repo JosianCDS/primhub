@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/Shared_Custom/custom_container.dart';
@@ -41,7 +42,26 @@ class RecentRequestsTable extends StatelessWidget {
                       return DataRow(
                         onSelectChanged: (value) => onEdit(req),
                         cells: [
-                          DataCell(Text(req['code'])),
+                          DataCell(
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(req['code']),
+                                const SizedBox(width: 8),
+                                InkWell(
+                                  borderRadius: BorderRadius.circular(4),
+                                  onTap: () {
+                                    Clipboard.setData(ClipboardData(text: req['code'].toString()));
+                                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Código copiado al portapapeles')));
+                                  },
+                                  child: const Padding(
+                                    padding: EdgeInsets.all(4.0),
+                                    child: Icon(Icons.copy, size: 16, color: Colors.grey),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                           DataCell(Text(req['situation'])),
                           DataCell(Tooltip(message: req['emailSubject']?.toString() ?? '', child: Text((req['emailSubject']?.toString() ?? '').length > 25 ? '${(req['emailSubject']?.toString() ?? '').substring(0, 25)}...' : (req['emailSubject']?.toString() ?? '')))),
                           DataCell(Text(req['bpName'])),
@@ -59,8 +79,8 @@ class RecentRequestsTable extends StatelessWidget {
                           DataCell(Text(req['time'])),
                           DataCell(
                             Tooltip(
-                              message: req['description'] ?? '',
-                              child: SizedBox(width: 300, child: Text((req['description'] ?? '').length > 70 ? '${(req['description'] ?? '').substring(0, 70)}...' : (req['description'] ?? ''))),
+                              message: req['descriptionClean'] ?? '',
+                              child: SizedBox(width: 300, child: Text((req['descriptionClean'] ?? '').length > 70 ? '${(req['descriptionClean'] ?? '').substring(0, 70)}...' : (req['descriptionClean'] ?? ''))),
                             ),
                           ),
                           DataCell(Text(req['status'])),

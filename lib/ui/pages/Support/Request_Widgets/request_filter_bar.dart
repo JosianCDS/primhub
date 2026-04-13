@@ -9,11 +9,14 @@ class RequestFilterBar extends StatelessWidget {
   final String? selectedSituation;
   final String? selectedUser;
   final String? selectedLevel;
+  final String? selectedSalesRep;
   final String? selectedStatus;
   final bool isAscending;
   final int rowsPerPage;
   final bool showHistory;
   final List<Map<String, dynamic>> requests;
+  final List<dynamic> users;
+  final List<Map<String, dynamic>> bPartners;
   final Map<String, int> statusIdMap;
   final Function(int?) onYearChanged;
   final Function(String?) onBPChanged;
@@ -21,6 +24,7 @@ class RequestFilterBar extends StatelessWidget {
   final Function(String?) onUserChanged;
   final Function(String?) onLevelChanged;
   final Function(String?) onStatusChanged;
+  final Function(String?) onSalesRepChanged;
   final VoidCallback onSortChanged;
   final Function(int?) onRowsPerPageChanged;
   final VoidCallback onClearFilters;
@@ -36,10 +40,13 @@ class RequestFilterBar extends StatelessWidget {
     required this.selectedUser,
     required this.selectedLevel,
     required this.selectedStatus,
+    required this.selectedSalesRep,
     required this.isAscending,
     required this.rowsPerPage,
     required this.showHistory,
     required this.requests,
+    required this.users,
+    required this.bPartners,
     required this.statusIdMap,
     required this.onYearChanged,
     required this.onBPChanged,
@@ -47,6 +54,7 @@ class RequestFilterBar extends StatelessWidget {
     required this.onUserChanged,
     required this.onLevelChanged,
     required this.onStatusChanged,
+    required this.onSalesRepChanged,
     required this.onSortChanged,
     required this.onRowsPerPageChanged,
     required this.onClearFilters,
@@ -96,11 +104,23 @@ class RequestFilterBar extends StatelessWidget {
                       value: selectedBP,
                       items: [
                         const DropdownMenuItem<String?>(value: null, child: Text('Todos los Terceros')),
-                        ...requests.map((e) => e['bpName'].toString()).where((e) => e.isNotEmpty).toSet().toList().map((String value) {
+                        ...bPartners.map((e) => e['Name'].toString()).where((e) => e.isNotEmpty).toSet().toList().map((String value) {
                           return DropdownMenuItem<String?>(value: value, child: Text(value));
                         }),
                       ],
                       onChanged: onBPChanged,
+                    ),
+                    const SizedBox(width: 16),
+                    DropdownButton<String?>(
+                      hint: const Text('Rep. Comercial'),
+                      value: selectedSalesRep,
+                      items: [
+                        const DropdownMenuItem<String?>(value: null, child: Text('Todos los Rep. Comerciales')),
+                        ...users.map((e) => e['Name']?.toString() ?? '').where((e) => e.isNotEmpty).toSet().toList().map((String value) {
+                          return DropdownMenuItem<String?>(value: value, child: Text(value));
+                        }),
+                      ],
+                      onChanged: onSalesRepChanged,
                     ),
                     const SizedBox(width: 16),
                   ],

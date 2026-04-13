@@ -1,6 +1,12 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 
+class StackedTapDetails {
+  final String category;
+  final String series;
+  StackedTapDetails(this.category, this.series);
+}
+
 class BarChartPainter extends CustomPainter {
   final List<String> labels;
   final List<String>? fullLabels;
@@ -383,6 +389,46 @@ class StackedBarChartPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
     canvas.drawRRect(RRect.fromRectAndRadius(bgRect, const Radius.circular(6)), paint);
     textPainter.paint(canvas, Offset(tX, tY));
+  }
+
+  StackedTapDetails? getTapDetails(Offset tapPosition, Size size) {
+    final double leftMargin = 40;
+    final double bottomMargin = 30;
+    final double chartWidth = size.width - leftMargin;
+    final double chartHeight = size.height - bottomMargin;
+
+    if (seriesValues.isEmpty || seriesValues[0].isEmpty) return null;
+
+    double maxValue = 10;
+    for (int i = 0; i < labels.length; i++) {
+      double sum = 0;
+      for (int s = 0; s < seriesValues.length; s++) {
+        sum += seriesValues[s][i];
+      }
+      if (sum > maxValue) maxValue = sum;
+    }
+    double maxY = max(10.0, (maxValue / 5).ceil() * 5.0);
+    final double spacing = chartWidth / labels.length;
+    final double barWidth = spacing * 0.6;
+
+    for (int i = 0; i < labels.length; i++) {
+      double x = leftMargin + spacing * i + (spacing - barWidth) / 2;
+      double currentY = chartHeight;
+
+      for (int s = 0; s < seriesValues.length; s++) {
+        double val = seriesValues[s][i];
+        if (val == 0) continue;
+        double barHeight = (val / maxY) * chartHeight * animationValue;
+        double y = currentY - barHeight;
+        Rect barRect = Rect.fromLTWH(x, y, barWidth, barHeight);
+        if (barRect.contains(tapPosition)) {
+          final cat = fullLabels != null && fullLabels!.length > i ? fullLabels![i] : labels[i];
+          return StackedTapDetails(cat, seriesNames[s]);
+        }
+        currentY = y;
+      }
+    }
+    return null;
   }
 
   @override
