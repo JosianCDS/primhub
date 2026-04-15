@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
+import 'package:file_picker/file_picker.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/api/access_control.dart';
@@ -14,6 +15,7 @@ import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 import '../../../../api/token.dart';
 import 'package:primhub/api/api_utils.dart';
 import 'package:primhub/api/global_cache.dart';
+import 'package:primhub/ImagesManagment/postAttachments.dart';
 
 class CreateRequestDialog extends StatefulWidget {
   final String? linkedRecordUU;
@@ -63,6 +65,8 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
   bool _isLoadingUsers = true;
   bool _isLoadingBPartners = true;
 
+  List<PlatformFile?> _evidences = [null, null, null, null];
+
   @override
   void initState() {
     super.initState();
@@ -84,7 +88,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
       _selectedUserId = payload['AD_User_ID'];
     }
 
-    if (AccessControl.isAdmin || AccessControl.isRealSupport) {
+    if (AccessControl.isAdmin) {
       _fetchBPartners();
     } else {
       _isLoadingBPartners = false;
@@ -165,8 +169,10 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
           setState(() {
             _requestTypeMap = {for (var r in records) r['Name']: r['id']};
             if (_selectedType == null && _requestTypeMap.isNotEmpty) {
-              // Prefer 'Service Request' if available, otherwise first
-              if (_requestTypeMap.containsKey('Service Request')) {
+              // Predefinir 'Soporte Lirion', fallback a 'Service Request' u otro
+              if (_requestTypeMap.containsKey('Soporte Lirion')) {
+                _selectedType = 'Soporte Lirion';
+              } else if (_requestTypeMap.containsKey('Service Request')) {
                 _selectedType = 'Service Request';
               } else {
                 _selectedType = _requestTypeMap.keys.first;
@@ -190,7 +196,8 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
         if (mounted) {
           setState(() {
             _categoryMap = {for (var r in records) r['Name']: r['id']};
-            if (_selectedCategory == null && _categoryMap.isNotEmpty) {
+            // Solo autoseleccionar categoría si es administrador
+            if (_selectedCategory == null && _categoryMap.isNotEmpty && AccessControl.isAdmin) {
               _selectedCategory = _categoryMap.keys.first;
             }
             _isLoadingCategories = false;
@@ -262,6 +269,95 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     return "${date}T${cleanTime}Z";
   }
 
+  Future<void> _pickFile(int index) async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(withData: true);
+    if (result != null && result.files.isNotEmpty) {
+      if (result.files.first.bytes == null) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al leer el archivo. Intente con otro formato.'), backgroundColor: Colors.orange));
+        return;
+      }
+      setState(() {
+        _evidences[index] = result.files.first;
+      });
+    }
+  }
+
+  void _removeFile(int index) {
+    setState(() {
+      _evidences[index] = null;
+    });
+  }
+
+  Widget _buildEvidenceField(int index) {
+    final file = _evidences[index];
+    final theme = Theme.of(context);
+
+    bool isImage = false;
+    if (file != null && file.extension != null) {
+      final ext = file.extension!.toLowerCase();
+      isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].contains(ext);
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Row(
+        children: [
+          Expanded(
+            child: InkWell(
+              onTap: (isImage && file?.bytes != null)
+                  ? () {
+                      showDialog(
+                        context: context,
+                        builder: (context) => Dialog(
+                          backgroundColor: Colors.transparent,
+                          child: Stack(
+                            alignment: Alignment.topRight,
+                            children: [
+                              InteractiveViewer(child: Image.memory(file!.bytes!)),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.close,
+                                  color: Colors.white,
+                                  shadows: [Shadow(color: Colors.black, blurRadius: 4)],
+                                ),
+                                onPressed: () => Navigator.pop(context),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
+                  : null,
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                decoration: BoxDecoration(
+                  border: Border.all(color: theme.colorScheme.outline.withOpacity(0.5)),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        file != null ? file.name : 'Adjunto ${index + 1} (Sin archivo)',
+                        style: TextStyle(color: file != null ? theme.colorScheme.onSurface : theme.colorScheme.onSurfaceVariant),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (isImage) const Icon(Icons.visibility, size: 18, color: Colors.grey),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          if (file == null) IconButton(icon: const Icon(Icons.attach_file), onPressed: () => _pickFile(index), tooltip: 'Adjuntar Archivo', color: theme.colorScheme.primary) else IconButton(icon: const Icon(Icons.delete), onPressed: () => _removeFile(index), tooltip: 'Eliminar Adjunto', color: theme.colorScheme.error),
+        ],
+      ),
+    );
+  }
+
   Future<void> _submitForm() async {
     final bool isFullAccess = AccessControl.isAdmin;
 
@@ -316,6 +412,20 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
       if (_isSubmitting) setState(() => _isSubmitting = false);
       return;
     }
+
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => CustomModal(
+        title: 'Confirmar Solicitud',
+        content: const Text('¿Seguro quiere continuar? Al enviar la solicitud esta no puede ser editada por usted, compruebe que toda la información y/o adjuntos sean correctos antes de continuar.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Revisar')),
+          CustomButton(text: 'Sí, continuar', onPressed: () => Navigator.pop(context, true)),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
 
     if (!mounted) return;
     if (!_isSubmitting) setState(() => _isSubmitting = true);
@@ -432,6 +542,15 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
         final data = jsonDecode(utf8.decode(response.bodyBytes));
         final newId = data['id'];
         if (newId != null) {
+          // Subir archivos adjuntos
+          final tableName = '${Endpoint.baseUrl}/api/v1/models/R_Request';
+          for (var file in _evidences) {
+            if (file != null && file.bytes != null) {
+              final convertedFile = {'title': file.name, 'base64': base64Encode(file.bytes!)};
+              await postAttachments(recordID: newId, tableName: tableName, convertedFile: convertedFile);
+            }
+          }
+
           await GlobalCache.syncSingleRequest(newId);
         }
       } catch (_) {}
@@ -449,7 +568,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final bool isFullAccess = AccessControl.isAdmin || AccessControl.isRealSupport;
+    final bool isFullAccess = AccessControl.isAdmin;
     return CustomModal(
       title: widget.linkedRecordUU != null ? 'Nueva Solicitud De Tarea' : 'Nueva Solicitud de Soporte',
       width: 700,
@@ -486,33 +605,33 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                   ],
                 ),
                 const SizedBox(height: 16),
-              ],
 
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: CustomDropdown<String?>(
-                      value: _isLoadingTypes || !_requestTypeMap.containsKey(_selectedType) ? null : _selectedType,
-                      label: 'Tipo de Solicitud',
-                      hintText: _isLoadingTypes ? 'Cargando tipos...' : null,
-                      items: _requestTypeMap.keys.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-                      onChanged: _isLoadingTypes ? null : (val) => setState(() => _selectedType = val!),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: CustomDropdown<String?>(
+                        value: _isLoadingTypes || !_requestTypeMap.containsKey(_selectedType) ? null : _selectedType,
+                        label: 'Tipo de Solicitud',
+                        hintText: _isLoadingTypes ? 'Cargando tipos...' : null,
+                        items: _requestTypeMap.keys.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+                        onChanged: _isLoadingTypes ? null : (val) => setState(() => _selectedType = val!),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: CustomDropdown<String?>(
-                      value: _isLoadingCategories || !_categoryMap.containsKey(_selectedCategory) ? null : _selectedCategory,
-                      label: 'Categoría',
-                      hintText: _isLoadingCategories ? 'Cargando categorías...' : null,
-                      items: _categoryMap.keys.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-                      onChanged: _isLoadingCategories ? null : (val) => setState(() => _selectedCategory = val!),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: CustomDropdown<String?>(
+                        value: _isLoadingCategories || !_categoryMap.containsKey(_selectedCategory) ? null : _selectedCategory,
+                        label: 'Categoría',
+                        hintText: _isLoadingCategories ? 'Cargando categorías...' : null,
+                        items: _categoryMap.keys.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+                        onChanged: _isLoadingCategories ? null : (val) => setState(() => _selectedCategory = val!),
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
+                  ],
+                ),
+                const SizedBox(height: 16),
+              ],
               CustomTextField(controller: _emailSubjectController, label: 'Asunto'),
               const SizedBox(height: 16),
 
@@ -608,6 +727,13 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                   return null;
                 },
               ),
+              const SizedBox(height: 24),
+              const Text('Adjuntos (Opcional, hasta 4 archivos):', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              const SizedBox(height: 12),
+              _buildEvidenceField(0),
+              _buildEvidenceField(1),
+              _buildEvidenceField(2),
+              _buildEvidenceField(3),
             ],
           ),
         ),

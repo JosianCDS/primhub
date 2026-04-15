@@ -1,5 +1,5 @@
 class Envirioment {
-  static bool isProduction = false;
+  static bool isProduction = true;
 }
 
 class Endpoint {

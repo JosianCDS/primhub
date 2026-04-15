@@ -1,6 +1,7 @@
 // ignore_for_file: use_build_context_synchronously
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/auth_api.dart';
 import 'package:primhub/api/token.dart';
@@ -23,11 +24,15 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   final TextEditingController _passController = TextEditingController();
   bool _isLoading = false;
   bool _obscurePassword = true;
+  bool _isCapsLockOn = false;
+  bool _isShiftPressed = false;
+  final FocusNode _userFocus = FocusNode();
+  final FocusNode _passFocus = FocusNode();
   late AnimationController _animationController;
   late AnimationController _borderAnimationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
-  String _loadingMessage = 'Bienvenido';
+  String _loadingMessage = 'PrimHub';
 
   @override
   void initState() {
@@ -41,6 +46,9 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     _animationController.forward();
 
     _borderAnimationController = AnimationController(vsync: this, duration: const Duration(seconds: 4))..repeat();
+    RawKeyboard.instance.addListener(_handleKeyEvent);
+    _userFocus.addListener(() => setState(() {}));
+    _passFocus.addListener(() => setState(() {}));
     _loadSavedUser();
   }
 
@@ -50,7 +58,29 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     _userController.dispose();
     _passController.dispose();
     _borderAnimationController.dispose();
+    RawKeyboard.instance.removeListener(_handleKeyEvent);
+    _userFocus.dispose();
+    _passFocus.dispose();
     super.dispose();
+  }
+
+  void _handleKeyEvent(RawKeyEvent event) {
+    bool shiftPressed = event.isShiftPressed;
+    bool update = false;
+
+    if (_isShiftPressed != shiftPressed) {
+      _isShiftPressed = shiftPressed;
+      update = true;
+    }
+
+    if (event is RawKeyDownEvent && event.logicalKey == LogicalKeyboardKey.capsLock) {
+      _isCapsLockOn = !_isCapsLockOn;
+      update = true;
+    }
+
+    if (update) {
+      setState(() {});
+    }
   }
 
   Future<void> _loadSavedUser() async {
@@ -211,7 +241,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
         mainAxisSize: MainAxisSize.min,
         children: [
           const Text(
-            'v1.4.0',
+            'v1.5.0',
             style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
           ),
           if (!Envirioment.isProduction) ...[const SizedBox(width: 8), FloatingActionButton(onPressed: _showChangeUrlDialog, child: const Icon(Icons.settings))],
@@ -268,24 +298,25 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                               ),
                               const SizedBox(height: 24),
                               Text(
-                                'Bienvenido',
+                                'PrimHub',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Inicia sesión en PrimHub',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(fontSize: 16, color: theme.colorScheme.onSurfaceVariant),
                               ),
                               const SizedBox(height: 32),
                               TextFormField(
                                 controller: _userController,
                                 textInputAction: TextInputAction.next,
+                                focusNode: _userFocus,
                                 decoration: InputDecoration(
                                   labelText: 'Usuario',
                                   hintText: 'Ingrese su usuario',
-                                  prefixIcon: const Icon(Icons.person_outline),
+                                  prefixIcon: const Icon(Icons.person_rounded),
+                                  suffixIcon: (_userFocus.hasFocus && (_isCapsLockOn != _isShiftPressed))
+                                      ? const Tooltip(
+                                          message: 'Mayúsculas activadas',
+                                          child: Icon(Icons.keyboard_capslock_rounded, color: Colors.orange),
+                                        )
+                                      : null,
                                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                                 ),
                               ),
@@ -295,16 +326,27 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                 obscureText: _obscurePassword,
                                 textInputAction: TextInputAction.done,
                                 onFieldSubmitted: (_) => _login(),
+                                focusNode: _passFocus,
                                 decoration: InputDecoration(
                                   labelText: 'Contraseña',
                                   hintText: 'Ingrese su contraseña',
-                                  prefixIcon: const Icon(Icons.lock_outline),
+                                  prefixIcon: const Icon(Icons.lock_rounded),
                                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                                  suffixIcon: IconButton(
-                                    icon: Icon(_obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                                    onPressed: () {
-                                      setState(() => _obscurePassword = !_obscurePassword);
-                                    },
+                                  suffixIcon: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (_passFocus.hasFocus && (_isCapsLockOn != _isShiftPressed))
+                                        const Tooltip(
+                                          message: 'Mayúsculas activadas',
+                                          child: Icon(Icons.keyboard_capslock_rounded, color: Colors.orange),
+                                        ),
+                                      IconButton(
+                                        icon: Icon(_obscurePassword ? Icons.visibility_rounded : Icons.visibility_off_rounded),
+                                        onPressed: () {
+                                          setState(() => _obscurePassword = !_obscurePassword);
+                                        },
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),

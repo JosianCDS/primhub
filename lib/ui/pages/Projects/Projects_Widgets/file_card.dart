@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'dart:typed_data';
-import 'dart:async';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 import 'package:primhub/ui/widgets/hover_widgets.dart';
@@ -55,10 +54,7 @@ class FileCard extends StatelessWidget {
                                     future: DocumentsLogic.fetchImagePreview(tableName, details['id'], name),
                                     builder: (context, snapshot) {
                                       if (snapshot.hasData && snapshot.data != null) {
-                                        return ImageHoverPreview(
-                                          imageBytes: snapshot.data!,
-                                          child: Image.memory(snapshot.data!, fit: BoxFit.cover, width: double.infinity, height: double.infinity, gaplessPlayback: true),
-                                        );
+                                        return Image.memory(snapshot.data!, fit: BoxFit.cover, width: double.infinity, height: double.infinity, gaplessPlayback: true);
                                       }
                                       return Center(
                                         child: Icon(DocumentsLogic.getFileIcon(extension), color: color, size: isCompact ? 48 : 72),
@@ -189,104 +185,5 @@ class FileCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
     );
-  }
-}
-
-/// Widget que muestra una vista previa ampliada de la imagen al pasar el ratón por encima (Hover)
-class ImageHoverPreview extends StatefulWidget {
-  final Uint8List imageBytes;
-  final Widget child;
-
-  const ImageHoverPreview({super.key, required this.imageBytes, required this.child});
-
-  @override
-  State<ImageHoverPreview> createState() => _ImageHoverPreviewState();
-}
-
-class _ImageHoverPreviewState extends State<ImageHoverPreview> {
-  OverlayEntry? _overlayEntry;
-  Timer? _hideTimer;
-
-  void _showOverlay(BuildContext context) {
-    _hideTimer?.cancel();
-    _hideTimer = null;
-
-    if (_overlayEntry != null) return;
-
-    // Usamos post frame para evitar colisiones con el LayoutBuilder durante Drag & Drop
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _overlayEntry != null) return;
-
-      final renderBox = context.findRenderObject() as RenderBox?;
-      if (renderBox == null) return;
-
-      final offset = renderBox.localToGlobal(Offset.zero);
-      final size = renderBox.size;
-      final screenSize = MediaQuery.of(context).size;
-
-      const double previewSize = 400.0;
-
-      double left = offset.dx + size.width + 16;
-      double top = offset.dy - (previewSize / 2) + (size.height / 2);
-
-      if (left + previewSize > screenSize.width) {
-        left = offset.dx - previewSize - 16;
-      }
-
-      if (top < 16) top = 16;
-      if (top + previewSize > screenSize.height) top = screenSize.height - previewSize - 16;
-
-      _overlayEntry = OverlayEntry(
-        builder: (context) => Positioned(
-          left: left,
-          top: top,
-          child: IgnorePointer(
-            child: Material(
-              elevation: 16,
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(12),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  width: previewSize,
-                  height: previewSize,
-                  color: Theme.of(context).cardColor,
-                  child: Image.memory(widget.imageBytes, fit: BoxFit.contain),
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-
-      Overlay.of(context).insert(_overlayEntry!);
-    });
-  }
-
-  void _hideOverlay() {
-    _hideTimer?.cancel();
-    // Añadimos un pequeño retraso antes de ocultar para evitar parpadeos
-    // si el ratón sale y vuelve a entrar en milisegundos.
-    _hideTimer = Timer(const Duration(milliseconds: 150), () {
-      if (_overlayEntry != null) {
-        _overlayEntry!.remove();
-        _overlayEntry = null;
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _hideTimer?.cancel();
-    if (_overlayEntry != null) {
-      _overlayEntry!.remove();
-      _overlayEntry = null;
-    }
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(onEnter: (_) => _showOverlay(context), onExit: (_) => _hideOverlay(), child: widget.child);
   }
 }

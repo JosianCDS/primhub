@@ -18,6 +18,10 @@ import 'Requests/request_functions.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:primhub/api/global_cache.dart';
+import 'package:primhub/ui/widgets/project_bottom_nav.dart';
+import 'package:primhub/api/api_utils.dart';
+import 'package:primhub/ui/Shared_Custom/custom_skeleton.dart';
+import 'package:primhub/ui/Shared_Custom/user_info_leading.dart';
 
 class SupportDashboardPage extends StatefulWidget {
   const SupportDashboardPage({super.key});
@@ -90,7 +94,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
   }
 
   Future<void> _refreshData() async {
-    setState(() => _isLoading = true);
+    if (mounted) setState(() => _isLoading = true);
     await _loadContractedHours();
     await _loadSupportData();
     if (mounted) {
@@ -305,6 +309,12 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
 
     return Scaffold(
       appBar: AppBar(
+        leadingWidth: !AccessControl.isAdmin ? 180 : null,
+        leading: !AccessControl.isAdmin
+            ? const UserInfoLeading()
+            : Builder(
+                builder: (ctx) => IconButton(icon: const Icon(Icons.menu_rounded), tooltip: 'Menú Principal', onPressed: () => Scaffold.of(ctx).openDrawer()),
+              ),
         title: const Text('Gestión de Horas de Soporte', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
         actions: [
           if (AccessControl.isAdmin)
@@ -375,9 +385,16 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
               _refreshData();
             },
           ),
+          if (!AccessControl.isAdmin)
+            IconButton(
+              icon: const Icon(Icons.logout, color: Colors.red),
+              tooltip: 'Cerrar Sesión',
+              onPressed: () => showLogoutConfirmation(context),
+            ),
         ],
       ),
-      drawer: const CustomDrawer(),
+      drawer: AccessControl.isAdmin ? const CustomDrawer(currentRoute: '/support') : null,
+      bottomNavigationBar: !AccessControl.isAdmin ? const ProjectBottomNav(currentRoute: '/support') : null,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16.0),
@@ -537,10 +554,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                     AnimatedSwitcher(
                       duration: const Duration(milliseconds: 300),
                       child: _isLoading
-                          ? const Padding(
-                              padding: EdgeInsets.all(50.0),
-                              child: Center(child: CircularProgressIndicator()),
-                            )
+                          ? const SkeletonTable()
                           : _supportRecords.isEmpty
                           ? const Padding(
                               padding: EdgeInsets.all(32.0),

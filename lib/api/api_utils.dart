@@ -1,6 +1,11 @@
 import 'package:primhub/api/auth_api.dart';
 import 'package:primhub/api/session_manager.dart';
 import 'package:primhub/api/token.dart';
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:primhub/api/global_cache.dart';
+import 'package:primhub/ui/Shared_Custom/custom_button.dart';
+import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 
 /// Maneja los errores 401 intentando refrescar el token.
 /// Si el refresco falla, muestra un diálogo de sesión expirada.
@@ -23,5 +28,24 @@ Future<bool> handleTokenRefresh() async {
   } else {
     SessionManager().showSessionExpiredDialog();
     return false; // El refresco falló.
+  }
+}
+
+Future<void> showLogoutConfirmation(BuildContext context) async {
+  final bool? shouldLogout = await showDialog<bool>(
+    context: context,
+    builder: (context) => CustomModal(
+      title: 'Cerrar Sesión',
+      content: const Text('¿Seguro que quieres cerrar sesión?'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+        CustomButton(text: 'Sí, salir', backgroundColor: Colors.red, onPressed: () => Navigator.pop(context, true)),
+      ],
+    ),
+  );
+  if (shouldLogout == true) {
+    Token.clear();
+    GlobalCache.clear();
+    if (context.mounted) context.go('/login');
   }
 }

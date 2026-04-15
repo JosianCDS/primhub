@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/Shared_Custom/custom_container.dart';
 import 'package:primhub/ui/Shared_Custom/custom_table.dart';
+import 'package:primhub/api/access_control.dart';
+import 'package:primhub/ui/Shared_Custom/custom_skeleton.dart';
 
 class RecentRequestsTable extends StatelessWidget {
   final List<Map<String, dynamic>> requests;
@@ -22,21 +24,19 @@ class RecentRequestsTable extends StatelessWidget {
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 1000),
             child: isLoading
-                ? const Padding(
-                    padding: EdgeInsets.all(50.0),
-                    child: Center(child: CircularProgressIndicator()),
-                  )
+                ? const SkeletonTable()
                 : CustomTable(
-                    columns: const [
-                      DataColumn(label: Text('Ticket')),
-                      DataColumn(label: Text('Tipo de Solicitud')),
-                      DataColumn(label: Text('Asunto')),
-                      DataColumn(label: Text('Tercero')),
-                      DataColumn(label: Text('Usuario')),
-                      DataColumn(label: Text('Nivel')),
-                      DataColumn(label: Text('Ultima Actualización')),
-                      DataColumn(label: Text('Descripción')),
-                      DataColumn(label: Text('Estado')),
+                    columns: [
+                      const DataColumn(label: Text('Ticket')),
+                      const DataColumn(label: Text('Tipo de Solicitud')),
+                      const DataColumn(label: Text('Asunto')),
+                      if (AccessControl.isAdmin) const DataColumn(label: Text('Tercero')),
+                      if (AccessControl.isAdmin) const DataColumn(label: Text('Usuario')),
+                      if (AccessControl.isAdmin) const DataColumn(label: Text('Representante Comercial')),
+                      const DataColumn(label: Text('Nivel')),
+                      const DataColumn(label: Text('Ultima Actualización')),
+                      const DataColumn(label: Text('Descripción')),
+                      const DataColumn(label: Text('Estado')),
                     ],
                     rows: requests.map((req) {
                       return DataRow(
@@ -64,8 +64,9 @@ class RecentRequestsTable extends StatelessWidget {
                           ),
                           DataCell(Text(req['situation'])),
                           DataCell(Tooltip(message: req['emailSubject']?.toString() ?? '', child: Text((req['emailSubject']?.toString() ?? '').length > 25 ? '${(req['emailSubject']?.toString() ?? '').substring(0, 25)}...' : (req['emailSubject']?.toString() ?? '')))),
-                          DataCell(Text(req['bpName'])),
-                          DataCell(Text(req['userName'])),
+                          if (AccessControl.isAdmin) DataCell(Text(req['bpName'])),
+                          if (AccessControl.isAdmin) DataCell(Text(req['userName'])),
+                          if (AccessControl.isAdmin) DataCell(Text(req['salesRepName'] ?? '')),
                           DataCell(
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),

@@ -74,163 +74,196 @@ class _RequestsDataTableState extends State<RequestsDataTable> {
   Widget build(BuildContext context) {
     return Card(
       elevation: 4,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      clipBehavior: Clip.hardEdge,
+      child: Stack(
         children: [
-          if (_selectedIds.isNotEmpty && AccessControl.canManageRequests)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.secondaryContainer,
-                borderRadius: const BorderRadius.only(topLeft: Radius.circular(12), topRight: Radius.circular(12)),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.check_box, color: Theme.of(context).colorScheme.onSecondaryContainer),
-                  const SizedBox(width: 8),
-                  Text(
-                    '${_selectedIds.length} solicitudes seleccionadas',
-                    style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSecondaryContainer),
-                  ),
-                  const Spacer(),
-                  TextButton(
-                    onPressed: () => setState(() {
-                      _selectedIds.clear();
-                      _lastSelectedIndex = null;
-                    }),
-                    child: const Text('Cancelar'),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.edit),
-                    label: const Text('Edición Masiva'),
-                    onPressed: () => showDialog(
-                      context: context,
-                      builder: (context) => BulkEditRequestDialog(
-                        selectedIds: _selectedIds,
-                        onSaved: () {
-                          setState(() {
-                            _selectedIds.clear();
-                            _lastSelectedIndex = null;
-                          });
-                          widget.onRefresh?.call();
-                        },
-                      ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              CustomTable(
+                showCheckboxColumn: false,
+                columns: [
+                  if (AccessControl.canManageRequests)
+                    DataColumn(
+                      label: Checkbox(value: (widget.requests.isNotEmpty && _selectedIds.length == widget.requests.length) ? true : (_selectedIds.isNotEmpty ? null : false), tristate: true, onChanged: (val) => _handleSelectAll(val == true)),
                     ),
-                  ),
+                  const DataColumn(label: Text('#')),
+                  const DataColumn(label: Text('Acciones')),
+                  const DataColumn(label: Text('Ticket')),
+                  const DataColumn(label: Text('Tipo de Solicitud')),
+                  const DataColumn(label: Text('Asunto')),
+                  const DataColumn(label: Text('Categoría')),
+                  if (AccessControl.isAdmin) const DataColumn(label: Text('Tercero')),
+                  if (AccessControl.isAdmin) const DataColumn(label: Text('Usuario')),
+                  if (AccessControl.isAdmin) const DataColumn(label: Text('Representante Comercial')),
+                  const DataColumn(label: Text('Nivel')),
+                  const DataColumn(label: Text('Ultima Actualización')),
+                  const DataColumn(label: Text('Descripción')),
+                  const DataColumn(label: Text('Estado')),
+                  const DataColumn(label: Text('Horas')),
                 ],
-              ),
-            ),
-          CustomTable(
-            showCheckboxColumn: AccessControl.canManageRequests,
-            onSelectAll: _handleSelectAll,
-            columns: [
-              const DataColumn(label: Text('#')),
-              const DataColumn(label: Text('Acciones')),
-              const DataColumn(label: Text('Ticket')),
-              const DataColumn(label: Text('Tipo de Solicitud')),
-              const DataColumn(label: Text('Asunto')),
-              const DataColumn(label: Text('Categoría')),
-              const DataColumn(label: Text('Tercero')),
-              const DataColumn(label: Text('Usuario')),
-              const DataColumn(label: Text('Nivel')),
-              const DataColumn(label: Text('Ultima Actualización')),
-              const DataColumn(label: Text('Descripción')),
-              const DataColumn(label: Text('Estado')),
-              const DataColumn(label: Text('Horas')),
-            ],
-            rows: widget.requests.asMap().entries.map((entry) {
-              final int index = entry.key;
-              final Map<String, dynamic> alert = entry.value;
-              final double h = double.tryParse(alert['qtyPlan']?.toString() ?? '0.0') ?? 0.0;
-              final String hoursStr = DurationFormatter.format(h);
-              final int realId = _getRealId(alert);
-              return DataRow(
-                selected: _selectedIds.contains(realId),
-                onSelectChanged: AccessControl.canManageRequests ? (selected) => _handleRowSelection(selected, index, realId) : null,
-                cells: [
-                  DataCell(Text('${index + 1}', style: const TextStyle(fontWeight: FontWeight.bold))),
-                  DataCell(
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: Icon(AccessControl.canAddUpdates ? Icons.reply : Icons.forum),
-                          tooltip: AccessControl.canAddUpdates ? 'Responder Solicitud' : 'Ver Actualizaciones',
-                          onPressed: () {
-                            final id = Uri.encodeComponent(alert['realId'].toString());
-                            GoRouter.of(context).push('/request-updates/$id', extra: {'docNo': alert['id']});
-                          },
+                rows: widget.requests.asMap().entries.map((entry) {
+                  final int index = entry.key;
+                  final Map<String, dynamic> alert = entry.value;
+                  final double h = double.tryParse(alert['qtyPlan']?.toString() ?? '0.0') ?? 0.0;
+                  final String hoursStr = DurationFormatter.format(h);
+                  final int realId = _getRealId(alert);
+                  return DataRow(
+                    selected: _selectedIds.contains(realId),
+                    onSelectChanged: (_) => widget.onEdit(alert),
+                    cells: [
+                      if (AccessControl.canManageRequests) DataCell(Checkbox(value: _selectedIds.contains(realId), onChanged: (selected) => _handleRowSelection(selected, index, realId))),
+                      DataCell(Text('${index + 1}', style: const TextStyle(fontWeight: FontWeight.bold))),
+                      DataCell(
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: Icon(AccessControl.canAddUpdates ? Icons.reply : Icons.forum),
+                              tooltip: AccessControl.canAddUpdates ? 'Responder Solicitud' : 'Ver Actualizaciones',
+                              onPressed: () {
+                                final id = Uri.encodeComponent(alert['realId'].toString());
+                                GoRouter.of(context).push('/request-updates/$id', extra: {'docNo': alert['id']});
+                              },
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.attach_file),
+                              tooltip: 'Ver / Añadir Adjuntos',
+                              onPressed: () {
+                                showDialog(
+                                  context: context,
+                                  builder: (context) => _RequestAttachmentsDialog(requestId: alert['realId'], documentNo: alert['id']),
+                                );
+                              },
+                            ),
+                            if (AccessControl.canManageRequests) IconButton(icon: const Icon(Icons.edit), tooltip: 'Editar', onPressed: () => widget.onEdit(alert)) else IconButton(icon: const Icon(Icons.visibility), tooltip: 'Ver Detalles', onPressed: () => widget.onEdit(alert)),
+                          ],
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.attach_file),
-                          tooltip: 'Ver / Añadir Adjuntos',
-                          onPressed: () {
-                            showDialog(
-                              context: context,
-                              builder: (context) => _RequestAttachmentsDialog(requestId: alert['realId'], documentNo: alert['id']),
-                            );
-                          },
+                      ),
+                      DataCell(
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(alert['id'].toString()),
+                            const SizedBox(width: 8),
+                            InkWell(
+                              borderRadius: BorderRadius.circular(4),
+                              onTap: () {
+                                Clipboard.setData(ClipboardData(text: alert['id'].toString()));
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Código copiado al portapapeles')));
+                              },
+                              child: const Padding(
+                                padding: EdgeInsets.all(4.0),
+                                child: Icon(Icons.copy, size: 16, color: Colors.grey),
+                              ),
+                            ),
+                          ],
                         ),
-                        if (AccessControl.canManageRequests) IconButton(icon: const Icon(Icons.edit), tooltip: 'Editar', onPressed: () => widget.onEdit(alert)),
-                      ],
-                    ),
-                  ),
-                  DataCell(
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(alert['id'].toString()),
-                        const SizedBox(width: 8),
-                        InkWell(
-                          borderRadius: BorderRadius.circular(4),
-                          onTap: () {
-                            Clipboard.setData(ClipboardData(text: alert['id'].toString()));
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Código copiado al portapapeles')));
-                          },
-                          child: const Padding(
-                            padding: EdgeInsets.all(4.0),
-                            child: Icon(Icons.copy, size: 16, color: Colors.grey),
+                        onTap: () => widget.onEdit(alert),
+                      ),
+                      DataCell(Text(alert['situation']), onTap: () => widget.onEdit(alert)),
+                      DataCell(
+                        Tooltip(
+                          message: (alert['emailSubject'] != null && alert['emailSubject'].toString().trim().isNotEmpty) ? alert['emailSubject'].toString() : 'Sin asunto',
+                          preferBelow: false,
+                          child: SizedBox(width: 200, child: Text((alert['emailSubject']?.toString() ?? '').length > 25 ? '${(alert['emailSubject']?.toString() ?? '').substring(0, 25)}...' : (alert['emailSubject']?.toString() ?? ''))),
+                        ),
+                        onTap: () => widget.onEdit(alert),
+                      ),
+                      DataCell(Text(alert['category']?.toString() ?? 'Sin categoría'), onTap: () => widget.onEdit(alert)),
+                      if (AccessControl.isAdmin) DataCell(Text(alert['bpName']?.toString() ?? ''), onTap: () => widget.onEdit(alert)),
+                      if (AccessControl.isAdmin) DataCell(Text(alert['userName']?.toString() ?? ''), onTap: () => widget.onEdit(alert)),
+                      if (AccessControl.isAdmin) DataCell(Text(alert['salesRepName']?.toString() ?? ''), onTap: () => widget.onEdit(alert)),
+                      DataCell(
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(color: alert['levelBgColor'], borderRadius: BorderRadius.circular(30)),
+                          child: Text(
+                            alert['level'],
+                            style: TextStyle(color: alert['levelColor'], fontWeight: FontWeight.bold),
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                  DataCell(Text(alert['situation'])),
-                  DataCell(
-                    Tooltip(
-                      message: (alert['emailSubject'] != null && alert['emailSubject'].toString().trim().isNotEmpty) ? alert['emailSubject'].toString() : 'Sin asunto',
-                      preferBelow: false,
-                      child: SizedBox(width: 200, child: Text((alert['emailSubject']?.toString() ?? '').length > 25 ? '${(alert['emailSubject']?.toString() ?? '').substring(0, 25)}...' : (alert['emailSubject']?.toString() ?? ''))),
-                    ),
-                  ),
-                  DataCell(Text(alert['category']?.toString() ?? 'Sin categoría')),
-                  DataCell(Text(alert['bpName']?.toString() ?? '')),
-                  DataCell(Text(alert['userName']?.toString() ?? '')),
-                  DataCell(
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(color: alert['levelBgColor'], borderRadius: BorderRadius.circular(30)),
-                      child: Text(
-                        alert['level'],
-                        style: TextStyle(color: alert['levelColor'], fontWeight: FontWeight.bold),
                       ),
-                    ),
-                  ),
-                  DataCell(Text(alert['time'] ?? '')),
-                  DataCell(
-                    Tooltip(
-                      message: (alert['descriptionClean'] != null && alert['descriptionClean'].toString().trim().isNotEmpty) ? alert['descriptionClean'].toString() : 'Sin descripción',
-                      preferBelow: false,
-                      child: SizedBox(width: 300, child: Text((alert['descriptionClean']?.toString() ?? '').length > 70 ? '${(alert['descriptionClean']?.toString() ?? '').substring(0, 70)}...' : (alert['descriptionClean']?.toString() ?? ''))),
-                    ),
-                  ),
-                  DataCell(Row(mainAxisSize: MainAxisSize.min, children: [const SizedBox(width: 8), Text(alert['status'])])),
-                  DataCell(Text(hoursStr)),
-                ],
-              );
-            }).toList(),
+                      DataCell(Text(alert['time'] ?? '')),
+                      DataCell(
+                        Tooltip(
+                          message: (alert['descriptionClean'] != null && alert['descriptionClean'].toString().trim().isNotEmpty) ? alert['descriptionClean'].toString() : 'Sin descripción',
+                          preferBelow: false,
+                          child: SizedBox(width: 300, child: Text((alert['descriptionClean']?.toString() ?? '').length > 70 ? '${(alert['descriptionClean']?.toString() ?? '').substring(0, 70)}...' : (alert['descriptionClean']?.toString() ?? ''))),
+                        ),
+                      ),
+                      DataCell(Row(mainAxisSize: MainAxisSize.min, children: [const SizedBox(width: 8), Text(alert['status'])])),
+                      DataCell(Text(hoursStr)),
+                    ],
+                  );
+                }).toList(),
+              ),
+              // Espaciador animado para permitir scroll debajo del Toast flotante
+              AnimatedContainer(duration: const Duration(milliseconds: 250), height: _selectedIds.isNotEmpty && AccessControl.canManageRequests ? 80.0 : 0.0),
+            ],
+          ),
+          Positioned(
+            bottom: 16,
+            left: 16,
+            right: 16,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 250),
+              transitionBuilder: (child, animation) => FadeTransition(
+                opacity: animation,
+                child: SlideTransition(
+                  position: Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero).animate(animation),
+                  child: child,
+                ),
+              ),
+              child: _selectedIds.isNotEmpty && AccessControl.canManageRequests
+                  ? Container(
+                      key: const ValueKey('action_bar'),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.secondaryContainer,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 8, offset: const Offset(0, 4))],
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.check_box, color: Theme.of(context).colorScheme.onSecondaryContainer),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${_selectedIds.length} solicitudes seleccionadas',
+                            style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSecondaryContainer),
+                          ),
+                          const Spacer(),
+                          TextButton(
+                            onPressed: () => setState(() {
+                              _selectedIds.clear();
+                              _lastSelectedIndex = null;
+                            }),
+                            child: const Text('Cancelar'),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton.icon(
+                            icon: const Icon(Icons.edit),
+                            label: const Text('Edición Masiva'),
+                            onPressed: () => showDialog(
+                              context: context,
+                              builder: (context) => BulkEditRequestDialog(
+                                selectedIds: _selectedIds,
+                                onSaved: () {
+                                  setState(() {
+                                    _selectedIds.clear();
+                                    _lastSelectedIndex = null;
+                                  });
+                                  widget.onRefresh?.call();
+                                },
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : const SizedBox.shrink(key: ValueKey('empty_bar')),
+            ),
           ),
         ],
       ),
@@ -272,8 +305,13 @@ class _RequestAttachmentsDialogState extends State<_RequestAttachmentsDialog> {
   }
 
   Future<void> _uploadAttachment() async {
-    if (!AccessControl.canManageFiles) {
+    if (!AccessControl.isAdmin && !AccessControl.isSupport) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No tienes permisos para subir archivos.')));
+      return;
+    }
+
+    if (_attachments.length >= 4) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Solo se pueden subir 4 Adjuntos'), backgroundColor: Colors.orange));
       return;
     }
 
@@ -362,7 +400,7 @@ class _RequestAttachmentsDialogState extends State<_RequestAttachmentsDialog> {
       ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cerrar')),
-        if (AccessControl.canManageFiles) CustomButton(text: 'Subir Archivo', icon: Icons.upload_file, isLoading: _isUploading, onPressed: _uploadAttachment),
+        if (AccessControl.isAdmin || AccessControl.isSupport) CustomButton(text: 'Subir Archivo', icon: Icons.upload_file, isLoading: _isUploading, onPressed: _uploadAttachment),
       ],
     );
   }

@@ -10,6 +10,10 @@ import 'package:primhub/ui/pages/Projects/Projects_Widgets/project_item.dart';
 import 'package:primhub/ui/pages/Projects/Documents/project_form_page.dart';
 import '../../../widgets/custom_drawer.dart';
 import 'package:primhub/api/global_cache.dart';
+import 'package:primhub/ui/widgets/project_bottom_nav.dart';
+import 'package:primhub/api/api_utils.dart';
+import 'package:primhub/ui/Shared_Custom/custom_skeleton.dart';
+import 'package:primhub/ui/Shared_Custom/user_info_leading.dart';
 
 class DeliverablesPage extends StatefulWidget {
   const DeliverablesPage({super.key});
@@ -142,7 +146,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
     final result = await Navigator.push(context, MaterialPageRoute(builder: (context) => ProjectFormPage(project: project)));
 
     if (result == true) {
-      _loadProjects();
+      _loadProjects(forceRefresh: true);
     }
   }
 
@@ -189,7 +193,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
     });
     final result = await _logic.createPhase(projectId, name, description);
     if (result['success'] == true) {
-      _loadProjects();
+      _loadProjects(forceRefresh: true);
     } else {
       if (mounted) {
         setState(() => _isLoadingProjects = false);
@@ -211,7 +215,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
     });
     final result = await _logic.createTask(phaseId, name, description);
     if (result['success'] == true) {
-      _loadProjects();
+      _loadProjects(forceRefresh: true);
     } else {
       if (mounted) {
         setState(() => _isLoadingProjects = false);
@@ -224,7 +228,8 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_viewingInactive ? 'Bitácora de Proyectos' : 'Mis Proyectos', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+        title: Text(_viewingInactive ? 'Bitácora de Proyectos' : 'Mis Proyectos', style: const TextStyle(fontSize: 22)),
+        leadingWidth: _showingFiles ? null : (!AccessControl.isAdmin ? 180 : null),
         leading: _showingFiles
             ? IconButton(
                 icon: const Icon(Icons.arrow_back),
@@ -232,7 +237,11 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
                   if (!(_fileManagerKey.currentState?.navigateBack() ?? false)) _exitFileManager();
                 },
               )
-            : null,
+            : (!AccessControl.isAdmin
+                  ? const UserInfoLeading()
+                  : Builder(
+                      builder: (ctx) => IconButton(icon: const Icon(Icons.menu_rounded), tooltip: 'Menú Principal', onPressed: () => Scaffold.of(ctx).openDrawer()),
+                    )),
         actions: [
           if (AccessControl.isAdmin)
             PopupMenuButton<AdminViewMode>(
@@ -351,9 +360,16 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
           ],
           if (_showingFiles && AccessControl.canManageFiles) ...[if (_isFileManagerRoot) IconButton(icon: const Icon(Icons.create_new_folder_outlined), tooltip: 'Nueva Carpeta', onPressed: () => _fileManagerKey.currentState?.createFolderDialog()), IconButton(icon: const Icon(Icons.upload_file), tooltip: 'Subir Archivo', onPressed: () => _fileManagerKey.currentState?.pickAndUploadFile())],
           IconButton(icon: const Icon(Icons.refresh), tooltip: 'Refrescar', onPressed: () => _showingFiles ? _fileManagerKey.currentState?.refresh() : _loadProjects(forceRefresh: true)),
+          if (!AccessControl.isAdmin)
+            IconButton(
+              icon: const Icon(Icons.logout, color: Colors.red),
+              tooltip: 'Cerrar Sesión',
+              onPressed: () => showLogoutConfirmation(context),
+            ),
         ],
       ),
-      drawer: _showingFiles ? null : const CustomDrawer(),
+      drawer: (_showingFiles || !AccessControl.isAdmin) ? null : const CustomDrawer(currentRoute: '/deliverables'),
+      bottomNavigationBar: (!AccessControl.isAdmin && !_showingFiles) ? const ProjectBottomNav(currentRoute: '/deliverables') : null,
       floatingActionButton: !_showingFiles && !_viewingInactive && AccessControl.canCreateProjectItems ? FloatingActionButton(onPressed: () => _navigateToForm(), child: const Icon(Icons.add), tooltip: 'Nuevo Proyecto') : null,
       body: SafeArea(
         child: _showingFiles ? ProjectFileManager(key: _fileManagerKey, project: _selectedProject!, viewType: _currentViewType, onExit: _exitFileManager, onRootChanged: (isRoot) => setState(() => _isFileManagerRoot = isRoot)) : _buildProjectsView(),
@@ -362,7 +378,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
   }
 
   Widget _buildProjectsView() {
-    if (_isLoadingProjects) return const Center(child: CircularProgressIndicator());
+    if (_isLoadingProjects) return const Expanded(child: SkeletonList());
 
     final filteredProjects = _projects.where((project) {
       final projectName = (project['Name'] as String? ?? '').toLowerCase();
@@ -407,7 +423,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
                           });
                           final result = await _logic.updateItem(type, id, name, desc);
                           if (result['success'] == true) {
-                            _loadProjects();
+                            _loadProjects(forceRefresh: true);
                           } else if (mounted) {
                             setState(() => _isLoadingProjects = false);
                             ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al actualizar: ${result['error']}'), backgroundColor: Colors.red));

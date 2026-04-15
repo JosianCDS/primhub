@@ -10,6 +10,7 @@ import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
 import 'package:flutter_html/flutter_html.dart';
+import 'package:primhub/api/access_control.dart';
 
 class RequestUpdatesPage extends StatefulWidget {
   final int requestId;
@@ -53,7 +54,7 @@ class _RequestUpdatesPageState extends State<RequestUpdatesPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text('Actualizaciones para la Solicitud ${widget.docNo}')),
-      floatingActionButton: FloatingActionButton(onPressed: _addUpdate, tooltip: 'Añadir Actualización', child: const Icon(Icons.add_comment)),
+      floatingActionButton: AccessControl.canAddUpdates ? FloatingActionButton(onPressed: _addUpdate, tooltip: 'Añadir Actualización', child: const Icon(Icons.add_comment)) : null,
       body: FutureBuilder<List<Map<String, dynamic>>>(
         future: _updatesFuture,
         builder: (context, snapshot) {

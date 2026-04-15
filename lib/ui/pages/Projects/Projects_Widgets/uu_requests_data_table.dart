@@ -110,12 +110,15 @@ class _RequestsDataTableState extends State<RequestsDataTable> {
                 controller: _scrollController,
                 scrollDirection: Axis.horizontal,
                 child: DataTable(
-                  showCheckboxColumn: !AccessControl.isProject && (AccessControl.canManageRequests || AccessControl.canViewRequestDetails),
-                  onSelectAll: _handleSelectAll,
+                  showCheckboxColumn: false,
                   headingRowHeight: 30,
                   dataRowMinHeight: 30,
                   dataRowMaxHeight: 40,
                   columns: [
+                    if (AccessControl.canManageRequests)
+                      DataColumn(
+                        label: Checkbox(value: (widget.requests.isNotEmpty && _selectedIds.length == widget.requests.length) ? true : (_selectedIds.isNotEmpty ? null : false), tristate: true, onChanged: (val) => _handleSelectAll(val == true)),
+                      ),
                     const DataColumn(label: Text('#')),
                     const DataColumn(label: Text('Acciones')),
                     const DataColumn(label: Text('Solicitud')),
@@ -125,8 +128,9 @@ class _RequestsDataTableState extends State<RequestsDataTable> {
                     const DataColumn(label: Text('Tipo')),
                     const DataColumn(label: Text('Asunto')),
                     const DataColumn(label: Text('Categoría')),
-                    if (!AccessControl.isProject) const DataColumn(label: Text('Usuario')),
-                    if (!AccessControl.isProject) const DataColumn(label: Text('Representante Comercial')),
+                    if (AccessControl.isAdmin) const DataColumn(label: Text('Tercero')),
+                    if (AccessControl.isAdmin) const DataColumn(label: Text('Usuario')),
+                    if (AccessControl.isAdmin) const DataColumn(label: Text('Representante Comercial')),
                     const DataColumn(label: Text('Grupo')),
                     const DataColumn(label: Text('Estado')),
                     const DataColumn(label: Text('Prioridad')),

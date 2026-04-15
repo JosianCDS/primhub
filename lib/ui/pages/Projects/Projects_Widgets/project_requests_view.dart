@@ -7,7 +7,7 @@ import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/api/global_cache.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
-import 'package:primhub/ui/pages/Projects/Projects_Widgets/requests_data_table.dart';
+import 'package:primhub/ui/pages/Projects/Projects_Widgets/uu_requests_data_table.dart';
 
 class ProjectRequestsView extends StatefulWidget {
   final String? filterType;

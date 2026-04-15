@@ -75,12 +75,14 @@ class ProjectDurationCard extends StatelessWidget {
     }
 
     return InkWell(
-      onTap: () {
-        showDialog(
-          context: context,
-          builder: (context) => ProjectCalendarDialog(project: project),
-        );
-      },
+      onTap: AccessControl.isAdmin
+          ? () {
+              showDialog(
+                context: context,
+                builder: (context) => ProjectCalendarDialog(project: project),
+              );
+            }
+          : null,
       borderRadius: BorderRadius.circular(12),
       child: CardCustom(
         hover: true,
@@ -282,7 +284,7 @@ class ProjectSelector extends StatelessWidget {
       context: context,
       builder: (BuildContext context) {
         return CustomModal(
-          title: 'Seleccionar Proyectos',
+          title: 'Proyectos',
           width: 500,
           content: StatefulBuilder(
             builder: (BuildContext context, StateSetter setState) {
@@ -291,27 +293,31 @@ class ProjectSelector extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        TextButton(
-                          onPressed: () {
+                    Builder(
+                      builder: (context) {
+                        bool? isAllSelected;
+                        if (tempSelectedProjectIds.length == sortedProjects.length && sortedProjects.isNotEmpty) {
+                          isAllSelected = true;
+                        } else if (tempSelectedProjectIds.isEmpty) {
+                          isAllSelected = false;
+                        }
+
+                        return CheckboxListTile(
+                          title: const Text('Todos los proyectos', style: TextStyle(fontWeight: FontWeight.bold)),
+                          tristate: true,
+                          value: isAllSelected,
+                          onChanged: (bool? value) {
                             setState(() {
-                              tempSelectedProjectIds.clear();
-                              tempSelectedProjectIds.addAll(sortedProjects.map<int>((p) => p['id'] as int));
+                              if (isAllSelected == true) {
+                                tempSelectedProjectIds.clear();
+                              } else {
+                                tempSelectedProjectIds.clear();
+                                tempSelectedProjectIds.addAll(sortedProjects.map<int>((p) => p['id'] as int));
+                              }
                             });
                           },
-                          child: const Text('Seleccionar Todos'),
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            setState(() {
-                              tempSelectedProjectIds.clear();
-                            });
-                          },
-                          child: const Text('Deseleccionar Todos', style: TextStyle(color: Colors.red)),
-                        ),
-                      ],
+                        );
+                      },
                     ),
                     const Divider(),
                     Expanded(
@@ -344,7 +350,7 @@ class ProjectSelector extends StatelessWidget {
           actions: <Widget>[
             TextButton(child: const Text('Cancelar'), onPressed: () => Navigator.of(context).pop()),
             CustomButton(
-              text: 'Aceptar',
+              text: 'Filtrar',
               onPressed: () {
                 onSelectionChanged(tempSelectedProjectIds);
                 Navigator.of(context).pop();
@@ -365,30 +371,34 @@ class ProjectSelector extends StatelessWidget {
     } else if (selectedProjectIds.length == 1) {
       final project = projects.firstWhere((p) => p['id'] == selectedProjectIds.first, orElse: () => {'Name': 'Proyecto no encontrado'});
       displayText = project['Name'] ?? 'Proyecto sin nombre';
+    } else if (selectedProjectIds.length == projects.length) {
+      displayText = 'Todos los proyectos seleccionados';
     } else {
       displayText = '${selectedProjectIds.length} proyectos seleccionados';
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        InkWell(
-          onTap: projects.length > 1 ? () => _showMultiSelectProjects(context) : null,
-          child: InputDecorator(
-            decoration: InputDecoration(
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0)),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+    final color = Theme.of(context).colorScheme.primary;
+
+    return InkWell(
+      onTap: projects.length > 1 ? () => _showMultiSelectProjects(context) : null,
+      borderRadius: BorderRadius.circular(8.0),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.filter_list_alt, size: 20, color: color),
+            const SizedBox(width: 8.0),
+            Expanded(
+              child: Text(
+                displayText,
+                style: TextStyle(fontSize: 16, color: color, fontWeight: FontWeight.w500),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: <Widget>[
-                Expanded(child: Text(displayText, overflow: TextOverflow.ellipsis)),
-                const Icon(Icons.arrow_drop_down, color: Colors.grey),
-              ],
-            ),
-          ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }

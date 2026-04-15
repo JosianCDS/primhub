@@ -13,6 +13,10 @@ import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/api/contract_api.dart';
 import 'package:primhub/api/global_cache.dart';
+import 'package:primhub/ui/widgets/project_bottom_nav.dart';
+import 'package:primhub/api/api_utils.dart';
+import 'package:primhub/ui/Shared_Custom/custom_skeleton.dart';
+import 'package:primhub/ui/Shared_Custom/user_info_leading.dart';
 
 // Importante: Asegúrate de que esta ruta sea la correcta para tu clase GraphicsFunctions
 import 'graphic_functions.dart';
@@ -537,7 +541,13 @@ class _MetricsPageState extends State<MetricsPage> {
     final isLargeScreen = MediaQuery.of(context).size.width >= 1100;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('BI - Gestión iDempiere'),
+        leadingWidth: !AccessControl.isAdmin ? 180 : null,
+        leading: !AccessControl.isAdmin
+            ? const UserInfoLeading()
+            : Builder(
+                builder: (ctx) => IconButton(icon: const Icon(Icons.menu_rounded), tooltip: 'Menú Principal', onPressed: () => Scaffold.of(ctx).openDrawer()),
+              ),
+        title: const Text('Indicadores (BI)'), 
         actions: [
           if (AccessControl.isAdmin)
             PopupMenuButton<AdminViewMode>(
@@ -636,9 +646,16 @@ class _MetricsPageState extends State<MetricsPage> {
               },
             ),
           IconButton(icon: const Icon(Icons.refresh), onPressed: _loadMetrics),
+          if (!AccessControl.isAdmin)
+            IconButton(
+              icon: const Icon(Icons.logout, color: Colors.red),
+              tooltip: 'Cerrar Sesión',
+              onPressed: () => showLogoutConfirmation(context),
+            ),
         ],
       ),
-      drawer: const CustomDrawer(),
+      drawer: AccessControl.isAdmin ? const CustomDrawer(currentRoute: '/metrics') : null,
+      bottomNavigationBar: !AccessControl.isAdmin ? const ProjectBottomNav(currentRoute: '/metrics') : null,
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -654,8 +671,24 @@ class _MetricsPageState extends State<MetricsPage> {
               _buildProjectFilters(),
               const SizedBox(height: 20),
               _isLoading
-                  ? const Center(
-                      child: Padding(padding: EdgeInsets.all(50.0), child: CircularProgressIndicator()),
+                  ? Column(
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(child: CustomSkeleton(height: 300, borderRadius: 12)),
+                            SizedBox(width: 20),
+                            Expanded(child: CustomSkeleton(height: 300, borderRadius: 12)),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        Row(
+                          children: [
+                            Expanded(child: CustomSkeleton(height: 300, borderRadius: 12)),
+                            SizedBox(width: 20),
+                            Expanded(child: CustomSkeleton(height: 300, borderRadius: 12)),
+                          ],
+                        ),
+                      ],
                     )
                   : _buildDashboardGrid(isLargeScreen),
             ] else ...[
@@ -673,8 +706,12 @@ class _MetricsPageState extends State<MetricsPage> {
               _buildSupportFilters(),
               const SizedBox(height: 20),
               _isLoadingSupport
-                  ? const Center(
-                      child: Padding(padding: EdgeInsets.all(50.0), child: CircularProgressIndicator()),
+                  ? Row(
+                      children: [
+                        Expanded(child: CustomSkeleton(height: 300, borderRadius: 12)),
+                        const SizedBox(width: 20),
+                        Expanded(child: CustomSkeleton(height: 300, borderRadius: 12)),
+                      ],
                     )
                   : _buildSupportDashboardGrid(isLargeScreen),
             ],

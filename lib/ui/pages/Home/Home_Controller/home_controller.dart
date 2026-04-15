@@ -14,6 +14,7 @@ import 'package:primhub/api/global_cache.dart';
 class HomeController extends ChangeNotifier {
   bool isLoading = true;
   bool validationLoading = true;
+  bool _isDisposed = false;
 
   String username = '';
   int? cBPartnerID;
@@ -43,6 +44,19 @@ class HomeController extends ChangeNotifier {
     selectedProjectIds = List.from(savedSelectedProjectIds);
     selectedSupportBpIds = List.from(savedSelectedSupportBpIds);
     _loadCurrentUser();
+  }
+
+  @override
+  void dispose() {
+    _isDisposed = true;
+    super.dispose();
+  }
+
+  @override
+  void notifyListeners() {
+    if (!_isDisposed) {
+      super.notifyListeners();
+    }
   }
 
   void _loadCurrentUser() {

@@ -10,7 +10,7 @@ class KnowledgeBasePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Base De Conocimiento')),
-      drawer: const CustomDrawer(),
+      drawer: const CustomDrawer(currentRoute: '/knowledge-base'),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(

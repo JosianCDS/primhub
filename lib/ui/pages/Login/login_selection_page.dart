@@ -112,6 +112,9 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
     if (mounted) {
       setState(() {
         _warehouses = warehouses;
+        if (_warehouses.isNotEmpty) {
+          _selectedWarehouseId = _warehouses.first['id'];
+        }
         _isLoading = false;
       });
     }
@@ -189,7 +192,7 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    'Selección de Contexto',
+                    '¿Como deseas ingresar?',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface),
                   ),
@@ -217,18 +220,8 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
                     items: _orgs.map((o) => DropdownMenuItem<int>(value: o['id'], child: Text(_getName(o)))).toList(),
                     onChanged: _selectedRoleId == null ? null : _onOrgChanged,
                   ),
-                  const SizedBox(height: 16),
-                  if (_warehouses.isNotEmpty)
-                    CustomDropdown<int>(
-                      value: _selectedWarehouseId,
-                      label: 'Almacén (Opcional)',
-                      hintText: 'Seleccione Almacén',
-                      items: _warehouses.map((w) => DropdownMenuItem<int>(value: w['id'], child: Text(_getName(w)))).toList(),
-                      onChanged: (val) => setState(() => _selectedWarehouseId = val),
-                    ),
-                  if (_warehouses.isNotEmpty) const SizedBox(height: 24),
                   const SizedBox(height: 24),
-                  CustomButton(text: 'Ingresar', onPressed: _finalizeLogin, isLoading: _isLoading, width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 16), borderRadius: 12),
+                  CustomButton(text: 'Ingresar', onPressed: (_selectedClientId != null && _selectedRoleId != null && _selectedOrgId != null) ? _finalizeLogin : null, isLoading: _isLoading, width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 16), borderRadius: 12),
                 ],
               ),
             ),

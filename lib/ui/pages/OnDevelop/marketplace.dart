@@ -11,7 +11,7 @@ class MarketplacePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Marketplace')),
-      drawer: const CustomDrawer(),
+      drawer: const CustomDrawer(currentRoute: '/marketplace'),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(

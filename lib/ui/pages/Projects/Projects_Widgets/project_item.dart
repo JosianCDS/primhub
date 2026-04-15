@@ -76,15 +76,17 @@ class ProjectItem extends StatelessWidget {
                 _buildActionButton(Icons.folder_open, 'Entregables', Colors.orange, () => onShowFiles(project, 'Entregables') /*, hasPending: stats?['pendingEt'] ?? false*/),
                 _buildActionButton(Icons.assignment, 'Seguimiento', Colors.blue, () => onShowFiles(project, 'Seguimiento') /*, hasPending: stats?['pendingSg'] ?? false*/),
                 _buildActionButton(Icons.assignment_add, 'General', Colors.grey, () => onShowFiles(project, 'General') /*, hasPending: stats?['pendingGn'] ?? false*/),
-                _buildActionButton(Icons.calendar_today, 'Calendario', Colors.purple, () {
-                  showDialog(
-                    context: context,
-                    builder: (context) => ProjectCalendarDialog(project: project),
-                  );
-                }),
-                _buildActionButton(Icons.list_alt, 'Solicitudes', Colors.indigo, () {
-                  context.push('/project-requests', extra: {'projectId': projId, 'showAllGroups': true});
-                }),
+                if (AccessControl.isAdmin)
+                  _buildActionButton(Icons.calendar_today, 'Calendario', Colors.purple, () {
+                    showDialog(
+                      context: context,
+                      builder: (context) => ProjectCalendarDialog(project: project),
+                    );
+                  }),
+                if (AccessControl.isAdmin)
+                  _buildActionButton(Icons.list_alt, 'Solicitudes', Colors.indigo, () {
+                    context.push('/project-requests', extra: {'projectId': projId, 'showAllGroups': true});
+                  }),
                 if (AccessControl.isAdmin)
                   _buildActionButton(Icons.info_outline, 'Información', Colors.teal, () {
                     showDialog(

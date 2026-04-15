@@ -14,10 +14,16 @@ import 'package:primhub/ui/pages/Support/Request_Widgets/request_filter_bar.dart
 import 'package:primhub/ui/pages/Support/Request_Widgets/requests_data_table.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
+import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import '../../../widgets/custom_drawer.dart';
 import 'package:primhub/ui/pages/Home/Home_Controller/home_controller.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 import 'package:primhub/api/global_cache.dart';
+import 'package:primhub/ui/widgets/project_bottom_nav.dart';
+import 'package:primhub/api/api_utils.dart';
+import 'package:flutter_html/flutter_html.dart';
+import 'package:primhub/ui/Shared_Custom/custom_skeleton.dart';
+import 'package:primhub/ui/Shared_Custom/user_info_leading.dart';
 
 class MyRequestsPage extends StatefulWidget {
   const MyRequestsPage({super.key});
@@ -237,7 +243,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       if (mounted) {
         if (success) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Solicitud eliminada correctamente')));
-          _refreshRequest();
+          _refreshRequest(fetchNetwork: true);
         } else {
           setState(() => _isLoading = false);
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al eliminar'), backgroundColor: Colors.red));
@@ -247,10 +253,103 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   }
 
   void _editRequest(Map<String, dynamic> req) async {
-    if (!AccessControl.canManageRequests) return;
+    if (!AccessControl.canManageRequests) {
+      // Mostrar solo lectura de los detalles para soporte
+      showDialog(
+        context: context,
+        builder: (context) => CustomModal(
+          title: 'Detalle de Solicitud ${req['id']}',
+          width: 500,
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CustomTextField(
+                controller: TextEditingController(text: req['situation']),
+                label: 'Tipo de Solicitud',
+                readOnly: true,
+              ),
+              const SizedBox(height: 16),
+              CustomTextField(
+                controller: TextEditingController(text: req['emailSubject']),
+                label: 'Asunto',
+                readOnly: true,
+              ),
+              const SizedBox(height: 16),
+              CustomTextField(
+                controller: TextEditingController(text: req['category']),
+                label: 'Categoría',
+                readOnly: true,
+              ),
+              const SizedBox(height: 16),
+              CustomTextField(
+                controller: TextEditingController(text: req['level']),
+                label: 'Nivel',
+                readOnly: true,
+              ),
+              const SizedBox(height: 16),
+              CustomTextField(
+                controller: TextEditingController(text: req['status']),
+                label: 'Estado',
+                readOnly: true,
+              ),
+              const SizedBox(height: 16),
+              Stack(
+                alignment: Alignment.topRight,
+                children: [
+                  CustomTextField(
+                    controller: TextEditingController(text: req['descriptionClean']),
+                    label: 'Descripción',
+                    maxLines: 4,
+                    readOnly: true,
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4.0, right: 4.0),
+                    child: IconButton(
+                      icon: const Icon(Icons.zoom_out_map),
+                      tooltip: 'Ver descripción completa',
+                      onPressed: () {
+                        showDialog(
+                          context: context,
+                          builder: (BuildContext dialogContext) => CustomModal(
+                            title: 'Descripción Completa',
+                            width: 600,
+                            content: SizedBox(
+                              height: 400,
+                              child: SingleChildScrollView(
+                                child: Html(
+                                  data: req['description'] ?? '',
+                                  style: {"body": Style(margin: Margins.zero, padding: HtmlPaddings.zero)},
+                                ),
+                              ),
+                            ),
+                            actions: [TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cerrar'))],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cerrar'))],
+        ),
+      );
+      return;
+    }
     showDialog(
       context: context,
-      builder: (context) => EditRequestDialog(request: req, statusIdMap: _statusIdMap, priorityMap: priorityMap, onSave: _initData, onDelete: () => _deleteRequest(req['realId'])),
+      builder: (context) => EditRequestDialog(
+        request: req,
+        statusIdMap: _statusIdMap,
+        priorityMap: priorityMap,
+        onSave: () {
+          setState(() => _isLoading = true);
+          _refreshRequest(fetchNetwork: true);
+        },
+        onDelete: () => _deleteRequest(req['realId']),
+      ),
     );
   }
 
@@ -367,223 +466,238 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     final int endIndex = (startIndex + _rowsPerPage < totalItems) ? startIndex + _rowsPerPage : totalItems;
     final paginatedAlerts = totalItems > 0 ? filteredAlerts.sublist(startIndex, endIndex) : <Map<String, dynamic>>[];
 
+    final listContent = SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          RequestStatsCard(contractedHours: _contractedHours, consumedHours: _consumedHours, estimatedHours: _estimatedHours),
+          RequestFilterBar(
+            searchController: _searchController,
+            selectedYear: _selectedYear,
+            selectedBP: _selectedBP,
+            selectedSituation: _selectedSituation,
+            selectedUser: _selectedUser,
+            selectedLevel: _selectedLevel,
+            selectedStatus: _selectedStatus,
+            selectedSalesRep: _selectedSalesRep,
+            isAscending: _isAscending,
+            rowsPerPage: _rowsPerPage,
+            showHistory: _showHistory,
+            requests: _requests,
+            users: _users,
+            bPartners: _bPartners,
+            statusIdMap: _statusIdMap,
+            onYearChanged: (val) => setState(() {
+              _selectedYear = val;
+              _currentPage = 0;
+            }),
+            onBPChanged: (val) {
+              setState(() {
+                _selectedBP = val;
+                _currentPage = 0;
+                _isLoading = true;
+                if (val != null) {
+                  final found = _bPartners.firstWhere((bp) => bp['Name'] == val, orElse: () => <String, dynamic>{});
+                  if (found.isNotEmpty) {
+                    _bpId = found['id'];
+                  }
+                } else {
+                  _bpId = null;
+                }
+              });
+              _initData();
+            },
+            onSituationChanged: (val) => setState(() {
+              _selectedSituation = val;
+              _currentPage = 0;
+            }),
+            onUserChanged: (val) => setState(() {
+              _selectedUser = val;
+              _currentPage = 0;
+            }),
+            onLevelChanged: (val) => setState(() {
+              _selectedLevel = val;
+              _currentPage = 0;
+            }),
+            onSalesRepChanged: (val) => setState(() {
+              _selectedSalesRep = val;
+              _currentPage = 0;
+            }),
+            onStatusChanged: (val) => setState(() {
+              _selectedStatus = val;
+              _currentPage = 0;
+            }),
+            onSortChanged: () => setState(() {
+              _isAscending = !_isAscending;
+              _currentPage = 0;
+            }),
+            onRowsPerPageChanged: (val) => setState(() {
+              _rowsPerPage = val!;
+              _currentPage = 0;
+            }),
+            onClearFilters: () {
+              setState(() {
+                _selectedBP = null;
+                _selectedLevel = null;
+                _selectedStatus = null;
+                _selectedSituation = null;
+                _selectedSalesRep = null;
+                _selectedUser = null;
+                _searchController.clear();
+                _isAscending = false;
+                _currentPage = 0;
+                _bpId = null; // Reiniciar memoria de navegación
+                _isLoading = true;
+              });
+              _initData();
+            },
+            onAddRequest: () async {
+              if (await showDialog(
+                    context: context,
+                    builder: (context) => CreateRequestDialog(bPartners: _bPartners, selectedBPartnerId: _bpId),
+                  ) ==
+                  true) {
+                setState(() => _isLoading = true);
+                _refreshRequest(fetchNetwork: true);
+              }
+            },
+            onToggleHistory: () => setState(() {
+              _showHistory = !_showHistory;
+              _selectedStatus = null;
+            }),
+          ),
+          const SizedBox(height: 20),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 1000),
+            child: _isLoading ? const SkeletonTable() : RequestsDataTable(requests: paginatedAlerts, onEdit: _editRequest, onRefresh: _initData),
+          ),
+          if (totalPages > 1)
+            Padding(
+              padding: const EdgeInsets.only(top: 16.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton(icon: const Icon(Icons.chevron_left), onPressed: _currentPage > 0 ? () => setState(() => _currentPage--) : null),
+                  Text('Página ${_currentPage + 1} de $totalPages', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  IconButton(icon: const Icon(Icons.chevron_right), onPressed: _currentPage < totalPages - 1 ? () => setState(() => _currentPage++) : null),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+
+    final appBarActions = [
+      if (AccessControl.isAdmin)
+        PopupMenuButton<AdminViewMode>(
+          tooltip: 'Cambiar modo de vista',
+          onSelected: (AdminViewMode mode) {
+            _adminViewModeManager.saveMode(mode);
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.admin_panel_settings),
+                const SizedBox(width: 8),
+                Text(_adminViewModeManager.currentMode == AdminViewMode.support ? 'Modo Soporte' : (_adminViewModeManager.currentMode == AdminViewMode.project ? 'Modo Proyecto' : 'Modo Mixto'), style: const TextStyle(fontWeight: FontWeight.bold)),
+                const Icon(Icons.arrow_drop_down),
+              ],
+            ),
+          ),
+          itemBuilder: (BuildContext context) {
+            final current = _adminViewModeManager.currentMode;
+            final colorScheme = Theme.of(context).colorScheme;
+            PopupMenuItem<AdminViewMode> buildItem(AdminViewMode mode, String text) {
+              final isSelected = current == mode;
+              return PopupMenuItem<AdminViewMode>(
+                value: mode,
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(color: isSelected ? colorScheme.primary.withOpacity(0.1) : Colors.transparent, borderRadius: BorderRadius.circular(8)),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: Row(
+                    children: [
+                      Text(
+                        text,
+                        style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? colorScheme.primary : colorScheme.onSurface),
+                      ),
+                      if (isSelected) const Spacer(),
+                      if (isSelected) Icon(Icons.check, size: 18, color: colorScheme.primary),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            return [buildItem(AdminViewMode.mixed, 'Modo Mixto'), buildItem(AdminViewMode.support, 'Modo Soporte'), buildItem(AdminViewMode.project, 'Modo Proyecto')];
+          },
+        ),
+      if (AccessControl.isAdmin)
+        InkWell(
+          onTap: _showExceptionDialog,
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16.0),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.shield_outlined),
+                SizedBox(width: 8),
+                Text('Excepción de Horas', style: TextStyle(fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+        ),
+      Padding(
+        padding: const EdgeInsets.only(right: 8.0),
+        child: IconButton(
+          onPressed: () {
+            setState(() => _isLoading = true);
+            _initData();
+          },
+          icon: const Icon(Icons.refresh),
+          tooltip: 'Refrescar',
+        ),
+      ),
+      if (!AccessControl.isAdmin)
+        IconButton(
+          icon: const Icon(Icons.logout, color: Colors.red),
+          tooltip: 'Cerrar Sesión',
+          onPressed: () => showLogoutConfirmation(context),
+        ),
+    ];
+
+    if (!AccessControl.isAdmin) {
+      return Scaffold(
+        appBar: AppBar(leadingWidth: 180, leading: const UserInfoLeading(), title: const Text('Mis Solicitudes De Soporte'), actions: appBarActions),
+        bottomNavigationBar: const ProjectBottomNav(currentRoute: '/my-requests'),
+        body: SafeArea(child: listContent),
+      );
+    }
+
     return DefaultTabController(
       length: 2,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Mis Solicitudes De Soporte'),
-          bottom: TabBar(
+          bottom: const TabBar(
             labelColor: Colors.white,
             unselectedLabelColor: Colors.white70,
             indicatorColor: Colors.white,
-            tabs: const [
+            tabs: [
               Tab(text: 'Listado'),
               Tab(text: 'Calendario'),
             ],
           ),
-          actions: [
-            if (AccessControl.isAdmin)
-              PopupMenuButton<AdminViewMode>(
-                tooltip: 'Cambiar modo de vista',
-                onSelected: (AdminViewMode mode) {
-                  _adminViewModeManager.saveMode(mode);
-                },
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.admin_panel_settings),
-                      const SizedBox(width: 8),
-                      Text(_adminViewModeManager.currentMode == AdminViewMode.support ? 'Modo Soporte' : (_adminViewModeManager.currentMode == AdminViewMode.project ? 'Modo Proyecto' : 'Modo Mixto'), style: const TextStyle(fontWeight: FontWeight.bold)),
-                      const Icon(Icons.arrow_drop_down),
-                    ],
-                  ),
-                ),
-                itemBuilder: (BuildContext context) {
-                  final current = _adminViewModeManager.currentMode;
-                  final colorScheme = Theme.of(context).colorScheme;
-                  PopupMenuItem<AdminViewMode> buildItem(AdminViewMode mode, String text) {
-                    final isSelected = current == mode;
-                    return PopupMenuItem<AdminViewMode>(
-                      value: mode,
-                      child: Container(
-                        width: double.infinity,
-                        decoration: BoxDecoration(color: isSelected ? colorScheme.primary.withOpacity(0.1) : Colors.transparent, borderRadius: BorderRadius.circular(8)),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        child: Row(
-                          children: [
-                            Text(
-                              text,
-                              style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? colorScheme.primary : colorScheme.onSurface),
-                            ),
-                            if (isSelected) const Spacer(),
-                            if (isSelected) Icon(Icons.check, size: 18, color: colorScheme.primary),
-                          ],
-                        ),
-                      ),
-                    );
-                  }
-
-                  return [buildItem(AdminViewMode.mixed, 'Modo Mixto'), buildItem(AdminViewMode.support, 'Modo Soporte'), buildItem(AdminViewMode.project, 'Modo Proyecto')];
-                },
-              ),
-            if (AccessControl.isAdmin)
-              InkWell(
-                onTap: _showExceptionDialog,
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16.0),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.shield_outlined),
-                      SizedBox(width: 8),
-                      Text('Excepción de Horas', style: TextStyle(fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                ),
-              ),
-            Padding(
-              padding: const EdgeInsets.only(right: 8.0),
-              child: IconButton(
-                onPressed: () {
-                  setState(() => _isLoading = true);
-                  _initData();
-                },
-                icon: const Icon(Icons.refresh),
-                tooltip: 'Refrescar',
-              ),
-            ),
-          ],
+          actions: appBarActions,
         ),
-        drawer: const CustomDrawer(),
+        drawer: const CustomDrawer(currentRoute: '/my-requests'),
         body: SafeArea(
           child: TabBarView(
             children: [
-              SingleChildScrollView(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    RequestStatsCard(contractedHours: _contractedHours, consumedHours: _consumedHours, estimatedHours: _estimatedHours),
-                    RequestFilterBar(
-                      searchController: _searchController,
-                      selectedYear: _selectedYear,
-                      selectedBP: _selectedBP,
-                      selectedSituation: _selectedSituation,
-                      selectedUser: _selectedUser,
-                      selectedLevel: _selectedLevel,
-                      selectedStatus: _selectedStatus,
-                      selectedSalesRep: _selectedSalesRep,
-                      isAscending: _isAscending,
-                      rowsPerPage: _rowsPerPage,
-                      showHistory: _showHistory,
-                      requests: _requests,
-                      users: _users,
-                      bPartners: _bPartners,
-                      statusIdMap: _statusIdMap,
-                      onYearChanged: (val) => setState(() {
-                        _selectedYear = val;
-                        _currentPage = 0;
-                      }),
-                      onBPChanged: (val) {
-                        setState(() {
-                          _selectedBP = val;
-                          _currentPage = 0;
-                          _isLoading = true;
-                          if (val != null) {
-                            final found = _bPartners.firstWhere((bp) => bp['Name'] == val, orElse: () => <String, dynamic>{});
-                            if (found.isNotEmpty) {
-                              _bpId = found['id'];
-                            }
-                          } else {
-                            _bpId = null;
-                          }
-                        });
-                        _initData();
-                      },
-                      onSituationChanged: (val) => setState(() {
-                        _selectedSituation = val;
-                        _currentPage = 0;
-                      }),
-                      onUserChanged: (val) => setState(() {
-                        _selectedUser = val;
-                        _currentPage = 0;
-                      }),
-                      onLevelChanged: (val) => setState(() {
-                        _selectedLevel = val;
-                        _currentPage = 0;
-                      }),
-                      onSalesRepChanged: (val) => setState(() {
-                        _selectedSalesRep = val;
-                        _currentPage = 0;
-                      }),
-                      onStatusChanged: (val) => setState(() {
-                        _selectedStatus = val;
-                        _currentPage = 0;
-                      }),
-                      onSortChanged: () => setState(() {
-                        _isAscending = !_isAscending;
-                        _currentPage = 0;
-                      }),
-                      onRowsPerPageChanged: (val) => setState(() {
-                        _rowsPerPage = val!;
-                        _currentPage = 0;
-                      }),
-                      onClearFilters: () {
-                        setState(() {
-                          _selectedBP = null;
-                          _selectedLevel = null;
-                          _selectedStatus = null;
-                          _selectedSituation = null;
-                          _selectedSalesRep = null;
-                          _selectedUser = null;
-                          _searchController.clear();
-                          _isAscending = false;
-                          _currentPage = 0;
-                          _bpId = null; // Reiniciar memoria de navegación
-                          _isLoading = true;
-                        });
-                        _initData();
-                      },
-                      onAddRequest: () async {
-                        if (await showDialog(
-                              context: context,
-                              builder: (context) => CreateRequestDialog(bPartners: _bPartners, selectedBPartnerId: _bpId),
-                            ) ==
-                            true)
-                          _initData();
-                      },
-                      onToggleHistory: () => setState(() {
-                        _showHistory = !_showHistory;
-                        _selectedStatus = null;
-                      }),
-                    ),
-                    const SizedBox(height: 20),
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 1000),
-                      child: _isLoading
-                          ? const Padding(
-                              padding: EdgeInsets.all(50.0),
-                              child: Center(child: CircularProgressIndicator()),
-                            )
-                          : RequestsDataTable(requests: paginatedAlerts, onEdit: _editRequest, onRefresh: _initData),
-                    ),
-                    if (totalPages > 1)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 16.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            IconButton(icon: const Icon(Icons.chevron_left), onPressed: _currentPage > 0 ? () => setState(() => _currentPage--) : null),
-                            Text('Página ${_currentPage + 1} de $totalPages', style: const TextStyle(fontWeight: FontWeight.bold)),
-                            IconButton(icon: const Icon(Icons.chevron_right), onPressed: _currentPage < totalPages - 1 ? () => setState(() => _currentPage++) : null),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-              ),
+              listContent,
               CalendarTab(requests: _rawRequests),
             ],
           ),

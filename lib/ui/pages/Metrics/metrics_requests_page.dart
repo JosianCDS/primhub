@@ -12,6 +12,7 @@ import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/pages/Metrics/graphic_functions.dart';
 import 'package:primhub/api/global_cache.dart';
+import 'package:primhub/ui/Shared_Custom/custom_skeleton.dart';
 
 class ProjectRequestsPage extends StatefulWidget {
   final String? filterType;
@@ -269,6 +270,7 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
       if (mounted) {
         if (success) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Solicitud eliminada correctamente')));
+          await GlobalCache.syncData(force: true);
           _initData();
         } else {
           setState(() => _isLoading = false);
@@ -282,7 +284,17 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
     if (!AccessControl.canManageRequests) return;
     showDialog(
       context: context,
-      builder: (context) => EditRequestDialog(request: req, statusIdMap: _statusIdMap, priorityMap: priorityMap, onSave: _initData, onDelete: () => _deleteRequest(req['realId'])),
+      builder: (context) => EditRequestDialog(
+        request: req,
+        statusIdMap: _statusIdMap,
+        priorityMap: priorityMap,
+        onSave: () async {
+          setState(() => _isLoading = true);
+          await GlobalCache.syncData(force: true);
+          _initData();
+        },
+        onDelete: () => _deleteRequest(req['realId']),
+      ),
     );
   }
 
@@ -301,6 +313,8 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
                       builder: (context) => CreateRequestDialog(linkedProjectId: _projectId),
                     ) ==
                     true) {
+                  setState(() => _isLoading = true);
+                  await GlobalCache.syncData(force: true);
                   _initData();
                 }
               },
@@ -309,22 +323,22 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
             )
           : null,
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const SkeletonTable()
           : _requests.isEmpty
           ? const Center(child: Text('No se encontraron solicitudes para este tipo.'))
           : SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: CustomTable(
-                columns: const [
-                  DataColumn(label: Text('#')),
-                  DataColumn(label: Text('Ticket')),
-                  DataColumn(label: Text('Resumen')),
-                  DataColumn(label: Text('Usuario')),
-                  DataColumn(label: Text('Representante Comercial')),
-                  DataColumn(label: Text('Estado')),
-                  DataColumn(label: Text('Prioridad')),
-                  DataColumn(label: Text('Fecha')),
-                  DataColumn(label: Text('Acciones')),
+                columns: [
+                  const DataColumn(label: Text('#')),
+                  const DataColumn(label: Text('Ticket')),
+                  const DataColumn(label: Text('Resumen')),
+                  if (!AccessControl.isProject) const DataColumn(label: Text('Usuario')),
+                  if (!AccessControl.isProject) const DataColumn(label: Text('Representante Comercial')),
+                  const DataColumn(label: Text('Estado')),
+                  const DataColumn(label: Text('Prioridad')),
+                  const DataColumn(label: Text('Fecha')),
+                  const DataColumn(label: Text('Acciones')),
                 ],
                 rows: _requests.asMap().entries.map((entry) {
                   final int index = entry.key + 1; // Numeración iniciando en 1
@@ -358,8 +372,8 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
                           child: SizedBox(width: 300, child: Text(stripHtmlTags(req['description'] ?? '').length > 40 ? '${stripHtmlTags(req['description'] ?? '').substring(0, 40)}...' : stripHtmlTags(req['description'] ?? ''))),
                         ),
                       ),
-                      DataCell(Text(req['userName'] ?? '')),
-                      DataCell(Text(req['salesRepName'] ?? '')),
+                      if (!AccessControl.isProject) DataCell(Text(req['userName'] ?? '')),
+                      if (!AccessControl.isProject) DataCell(Text(req['salesRepName'] ?? '')),
                       DataCell(Text(req['status'] ?? '')),
                       DataCell(Text(req['level'] ?? '')),
                       DataCell(Text(req['time'] ?? '')),

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/admin_view_mode.dart';
 import 'package:primhub/api/token.dart';
+import 'package:primhub/api/api_utils.dart';
 import 'package:primhub/ui/pages/Home/Home_Controller/home_controller.dart';
 import 'package:primhub/ui/pages/Home/Home_Widgets/project_dashboard_cards.dart';
 import 'package:primhub/ui/pages/Home/Home_Widgets/recent_requests_table.dart';
@@ -16,6 +17,10 @@ import 'package:primhub/ui/widgets/duration_formatter.dart';
 import 'package:card_stack_swiper/card_stack_swiper.dart';
 import '../../Shared_Custom/cardcustom.dart' show CardCustom;
 import '../../widgets/custom_drawer.dart';
+import 'package:primhub/ui/widgets/project_bottom_nav.dart';
+import 'package:flutter_html/flutter_html.dart';
+import 'package:primhub/ui/Shared_Custom/custom_skeleton.dart';
+import 'package:primhub/ui/Shared_Custom/user_info_leading.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -52,7 +57,8 @@ class _HomePageState extends State<HomePage> {
   void _showRequestDetails(Map<String, dynamic> record) {
     // El mapa record en recentRequests tiene una estructura plana o anidada en 'original'.
     // Usamos los datos ya procesados en _applyFilters del controller.
-    final description = record['description'] ?? '';
+    final descriptionHtml = record['description'] ?? '';
+    final descriptionClean = record['descriptionClean'] ?? '';
     final time = record['time'] ?? '';
     final level = record['level'] ?? '';
     final status = record['status'] ?? '';
@@ -94,11 +100,44 @@ class _HomePageState extends State<HomePage> {
                 readOnly: true,
               ),
               const SizedBox(height: 16),
-              CustomTextField(
-                controller: TextEditingController(text: description),
-                label: 'Descripción',
-                readOnly: true,
-                maxLines: 5,
+              Stack(
+                alignment: Alignment.topRight,
+                children: [
+                  CustomTextField(
+                    controller: TextEditingController(text: descriptionClean),
+                    label: 'Descripción',
+                    readOnly: true,
+                    maxLines: 5,
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4.0, right: 4.0),
+                    child: IconButton(
+                      icon: const Icon(Icons.zoom_out_map),
+                      tooltip: 'Ver descripción completa',
+                      onPressed: () {
+                        showDialog(
+                          context: context,
+                          builder: (BuildContext dialogContext) {
+                            return CustomModal(
+                              title: 'Descripción Completa',
+                              width: 600,
+                              content: SizedBox(
+                                height: 400,
+                                child: SingleChildScrollView(
+                                  child: Html(
+                                    data: descriptionHtml,
+                                    style: {"body": Style(margin: Margins.zero, padding: HtmlPaddings.zero)},
+                                  ),
+                                ),
+                              ),
+                              actions: [TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cerrar'))],
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -117,27 +156,17 @@ class _HomePageState extends State<HomePage> {
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
-
-        final bool? shouldLogout = await showDialog<bool>(
-          context: context,
-          builder: (context) => CustomModal(
-            title: 'Cerrar Sesión',
-            content: const Text('¿Seguro que quieres cerrar sesión?'),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-              CustomButton(text: 'Sí, salir', backgroundColor: Colors.red, onPressed: () => Navigator.pop(context, true)),
-            ],
-          ),
-        );
-
-        if (shouldLogout == true) {
-          Token.clear();
-          if (context.mounted) context.go('/login');
-        }
+        showLogoutConfirmation(context);
       },
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('PrimHub'),
+          leadingWidth: !AccessControl.isAdmin ? 180 : null,
+          leading: !AccessControl.isAdmin
+              ? const UserInfoLeading()
+              : Builder(
+                  builder: (ctx) => IconButton(icon: const Icon(Icons.menu_rounded), tooltip: 'Menú Principal', onPressed: () => Scaffold.of(ctx).openDrawer()),
+                ),
+          title: const Text('Dashboard'),
           actions: [
             if (AccessControl.isAdmin)
               PopupMenuButton<AdminViewMode>(
@@ -240,15 +269,33 @@ class _HomePageState extends State<HomePage> {
                 _controller.initData(forceRefresh: true);
               },
             ),
+            if (!AccessControl.isAdmin)
+              IconButton(
+                icon: const Icon(Icons.logout_rounded, color: Colors.red),
+                tooltip: 'Cerrar Sesión',
+                onPressed: () => showLogoutConfirmation(context),
+              ),
           ],
         ),
-        drawer: const CustomDrawer(),
+        drawer: AccessControl.isAdmin ? const CustomDrawer(currentRoute: '/') : null,
+        bottomNavigationBar: !AccessControl.isAdmin ? const ProjectBottomNav(currentRoute: '/') : null,
         body: SafeArea(
           child: AnimatedBuilder(
             animation: _controller,
             builder: (context, child) {
               if (_controller.validationLoading) {
-                return const Center(child: CircularProgressIndicator());
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.all(20.0),
+                  child: Column(
+                    children: [
+                      const CustomSkeleton(height: 40, width: 250, borderRadius: 8),
+                      const SizedBox(height: 40),
+                      Wrap(spacing: 20, runSpacing: 20, alignment: WrapAlignment.center, children: List.generate(3, (index) => const CustomSkeleton(height: 180, width: 350, borderRadius: 16))),
+                      const SizedBox(height: 40),
+                      const SkeletonTable(),
+                    ],
+                  ),
+                );
               }
               return SingleChildScrollView(
                 child: Column(
@@ -257,7 +304,7 @@ class _HomePageState extends State<HomePage> {
                     const SizedBox(height: 20),
                     Center(
                       child: Text(
-                        'Bienvenido/a ${_controller.username}',
+                        'Dashboard',
                         textAlign: TextAlign.center,
                         style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
                       ),
@@ -265,8 +312,8 @@ class _HomePageState extends State<HomePage> {
                     const SizedBox(height: 20),
                     Builder(
                       builder: (context) {
-                        bool hasProjectsContent = (AccessControl.isProject || (_controller.hasProject && !AccessControl.hasAnyConfig)) && _controller.projects.isNotEmpty;
-                        bool hasSupportContent = (AccessControl.isSupport || (_controller.hasSupport && !AccessControl.hasAnyConfig)) && (_controller.recentRequests.isNotEmpty || _controller.supportContracts.isNotEmpty || (AccessControl.isAdmin && _controller.supportBPartners.isNotEmpty));
+                        bool hasProjectsContent = AccessControl.isProject && _controller.projects.isNotEmpty;
+                        bool hasSupportContent = AccessControl.isSupport && (_controller.recentRequests.isNotEmpty || _controller.supportContracts.isNotEmpty || (AccessControl.isAdmin && _controller.supportBPartners.isNotEmpty));
 
                         if (!hasProjectsContent && !hasSupportContent && !_controller.isLoading) {
                           return Padding(
@@ -293,16 +340,17 @@ class _HomePageState extends State<HomePage> {
                         return const SizedBox.shrink();
                       },
                     ),
-                    if (_controller.projects.isNotEmpty && (AccessControl.isProject || (_controller.hasProject && !AccessControl.hasAnyConfig)) && (AccessControl.isAdmin || _controller.projects.length > 1))
+                    if (_controller.projects.isNotEmpty && AccessControl.isProject && (AccessControl.isAdmin || _controller.projects.length > 1))
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16.0),
                         child: CustomContainer(
                           title: 'Proyectos a Visualizar',
+                          action: const Icon(Icons.filter_alt_rounded, color: Colors.grey),
                           child: ProjectSelector(selectedProjectIds: _controller.selectedProjectIds, projects: _controller.projects, onSelectionChanged: _controller.updateSelectedProjects),
                         ),
                       ),
                     const SizedBox(height: 20),
-                    if (AccessControl.isProject || (_controller.hasProject && !AccessControl.hasAnyConfig))
+                    if (AccessControl.isProject)
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16.0),
                         child: LayoutBuilder(
@@ -327,45 +375,37 @@ class _HomePageState extends State<HomePage> {
                                 runSpacing: spacing,
                                 alignment: WrapAlignment.center,
                                 crossAxisAlignment: WrapCrossAlignment.center,
-                                children: [
-                                  for (final proj in activeProjects) ...[
-                                    Builder(
-                                      builder: (context) {
-                                        final projId = proj['id'] is int ? proj['id'] as int : int.tryParse(proj['id'].toString()) ?? 0;
-                                        return Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            SizedBox(
-                                              width: itemWidth,
-                                              child: ProjectDurationCard(project: proj, textColor: textColor, hasMetrics: _controller.projectStats[projId]?['hasMetrics'] ?? false),
-                                            ),
-                                            SizedBox(
-                                              width: itemWidth,
-                                              child: ProjectDeliverablesCard(projectId: projId, stats: _controller.projectStats[projId] ?? {}, textColor: textColor),
-                                            ),
-                                          ],
-                                        );
-                                      },
+                                children: activeProjects.expand((proj) {
+                                  final projId = proj['id'] is int ? proj['id'] as int : int.tryParse(proj['id'].toString()) ?? 0;
+                                  return [
+                                    SizedBox(
+                                      width: itemWidth,
+                                      child: ProjectDurationCard(project: proj, textColor: textColor, hasMetrics: _controller.projectStats[projId]?['hasMetrics'] ?? false),
                                     ),
-                                  ],
-                                ],
+                                    SizedBox(
+                                      width: itemWidth,
+                                      child: ProjectDeliverablesCard(projectId: projId, stats: _controller.projectStats[projId] ?? {}, textColor: textColor),
+                                    ),
+                                  ];
+                                }).toList(),
                               ),
                             );
                           },
                         ),
                       ),
-                    if ((AccessControl.isSupport || (_controller.hasSupport && !AccessControl.hasAnyConfig)) && (AccessControl.isProject || (_controller.hasProject && !AccessControl.hasAnyConfig)) && _controller.selectedProjectIds.isNotEmpty) ...[const SizedBox(height: 30), const Divider(indent: 20, endIndent: 20), const SizedBox(height: 30)],
+                    if (AccessControl.isSupport && AccessControl.isProject && _controller.selectedProjectIds.isNotEmpty) ...[const SizedBox(height: 30), const Divider(indent: 20, endIndent: 20), const SizedBox(height: 30)],
                     const SizedBox(height: 20),
                     if (AccessControl.isAdmin && AccessControl.isSupport)
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16.0),
                         child: CustomContainer(
                           title: 'Filtrar Soporte por Tercero',
+                          action: const Icon(Icons.filter_alt_rounded, color: Colors.grey),
                           child: _SupportBpSelector(bPartners: _controller.supportBPartners, selectedBpIds: _controller.selectedSupportBpIds, onSelectionChanged: (ids) => _controller.updateSelectedSupportBps(ids)),
                         ),
                       ),
                     const SizedBox(height: 20),
-                    if (AccessControl.isSupport || (_controller.hasSupport && !AccessControl.hasAnyConfig)) ...[
+                    if (AccessControl.isSupport) ...[
                       Builder(
                         builder: (context) {
                           final bpsToRender = AccessControl.isAdmin ? _controller.selectedSupportBpIds : (User.cBPartnerID != null ? [User.cBPartnerID!] : <int>[]);
@@ -493,8 +533,8 @@ class _HomePageState extends State<HomePage> {
                         },
                       ),
                     ],
-                    if ((AccessControl.isSupport || (_controller.hasSupport && !AccessControl.hasAnyConfig)) && (!AccessControl.isAdmin || _controller.selectedSupportBpIds.isNotEmpty)) const SizedBox(height: 30),
-                    if ((AccessControl.isSupport || (_controller.hasSupport && !AccessControl.hasAnyConfig)) && (!AccessControl.isAdmin || _controller.selectedSupportBpIds.isNotEmpty))
+                    if (AccessControl.isSupport && (!AccessControl.isAdmin || _controller.selectedSupportBpIds.isNotEmpty)) const SizedBox(height: 30),
+                    if (AccessControl.isSupport && (!AccessControl.isAdmin || _controller.selectedSupportBpIds.isNotEmpty))
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16.0),
                         child: RecentRequestsTable(requests: _controller.recentRequests, isLoading: _controller.isLoading, onEdit: _showRequestDetails),
@@ -620,27 +660,31 @@ class _SupportBpSelector extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        TextButton(
-                          onPressed: () {
+                    Builder(
+                      builder: (context) {
+                        bool? isAllSelected;
+                        if (tempSelectedBpIds.length == sortedBps.length && sortedBps.isNotEmpty) {
+                          isAllSelected = true;
+                        } else if (tempSelectedBpIds.isEmpty) {
+                          isAllSelected = false;
+                        }
+
+                        return CheckboxListTile(
+                          title: const Text('Todos los terceros', style: TextStyle(fontWeight: FontWeight.bold)),
+                          tristate: true,
+                          value: isAllSelected,
+                          onChanged: (bool? value) {
                             setState(() {
-                              tempSelectedBpIds.clear();
-                              tempSelectedBpIds.addAll(sortedBps.map<int>((bp) => bp['id'] as int));
+                              if (isAllSelected == true) {
+                                tempSelectedBpIds.clear();
+                              } else {
+                                tempSelectedBpIds.clear();
+                                tempSelectedBpIds.addAll(sortedBps.map<int>((bp) => bp['id'] as int));
+                              }
                             });
                           },
-                          child: const Text('Seleccionar Todos'),
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            setState(() {
-                              tempSelectedBpIds.clear();
-                            });
-                          },
-                          child: const Text('Deseleccionar Todos', style: TextStyle(color: Colors.red)),
-                        ),
-                      ],
+                        );
+                      },
                     ),
                     const Divider(),
                     Expanded(
@@ -673,7 +717,7 @@ class _SupportBpSelector extends StatelessWidget {
           actions: <Widget>[
             TextButton(child: const Text('Cancelar'), onPressed: () => Navigator.of(context).pop()),
             CustomButton(
-              text: 'Aceptar',
+              text: 'Filtrar',
               onPressed: () {
                 onSelectionChanged(tempSelectedBpIds);
                 Navigator.of(context).pop();
@@ -688,29 +732,41 @@ class _SupportBpSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     String displayText;
+
+    // Lógica de texto
     if (selectedBpIds.isEmpty) {
+      if (bPartners.isEmpty) return const SizedBox.shrink();
       displayText = 'Ningún tercero seleccionado';
-    } else if (bPartners.isNotEmpty && selectedBpIds.length == bPartners.length) {
-      displayText = 'Todos los terceros seleccionados';
     } else if (selectedBpIds.length == 1) {
       final bp = bPartners.firstWhere((p) => p['id'] == selectedBpIds.first, orElse: () => {'Name': 'Tercero no encontrado'});
       displayText = bp['Name'] ?? 'Tercero sin nombre';
+    } else if (selectedBpIds.length == bPartners.length) {
+      displayText = 'Todos los terceros seleccionados';
     } else {
       displayText = '${selectedBpIds.length} terceros seleccionados';
     }
 
+    final color = Theme.of(context).colorScheme.primary;
+
     return InkWell(
-      onTap: () => _showMultiSelectBps(context),
-      child: InputDecorator(
-        decoration: InputDecoration(
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0)),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-        ),
+      onTap: bPartners.length > 1 ? () => _showMultiSelectBps(context) : null,
+      borderRadius: BorderRadius.circular(8.0),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        // Agregamos el Row para incluir el texto y el icono
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: <Widget>[
-            Expanded(child: Text(displayText, overflow: TextOverflow.ellipsis)),
-            const Icon(Icons.arrow_drop_down, color: Colors.grey),
+          mainAxisSize: MainAxisSize.min, // Para que no ocupe todo el ancho
+          children: [
+            // Icono de filtro al principio, con el mismo color
+            Icon(Icons.filter_list_alt, size: 20, color: color),
+            const SizedBox(width: 8.0), // Espacio entre icono y texto
+            Expanded(
+              child: Text(
+                displayText,
+                style: TextStyle(fontSize: 16, color: color, fontWeight: FontWeight.w500),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ],
         ),
       ),
