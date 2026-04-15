@@ -18,12 +18,11 @@ class _SplashLoadingPageState extends State<SplashLoadingPage> with SingleTicker
   void initState() {
     super.initState();
 
-    // Animación suave que va del 0% al 90% en 18 segundos (50% más lento), ralentizándose al final
-    _progressController = AnimationController(vsync: this, duration: const Duration(seconds: 40));
+    // Animación con una duración mínima perceptible para mejorar la UX.
+    _progressController = AnimationController(vsync: this, duration: const Duration(seconds: 3));
 
-    _progressAnimation = Tween<double>(begin: 0.0, end: 0.97).animate(CurvedAnimation(parent: _progressController, curve: Curves.easeOutQuart));
+    _progressAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _progressController, curve: Curves.easeOutQuart));
 
-    _progressController.forward();
     _startSync();
   }
 
@@ -34,30 +33,18 @@ class _SplashLoadingPageState extends State<SplashLoadingPage> with SingleTicker
   }
 
   Future<void> _startSync() async {
-    await GlobalCache.syncData(
-      force: true,
-      onProgress: (message, progress) {
-        if (mounted) {
-          setState(() {
-            _loadingMessage = message;
-          });
-        }
-      },
-    );
+    // 1. Carga los datos esenciales en segundo plano.
+    final dataFuture = GlobalCache.syncData();
+
+    // 2. Inicia la animación para que el usuario vea el progreso y obtenemos su Future.
+    final animationFuture = _progressController.forward();
+
+    // 3. Espera a que tanto la carga de datos como la animación mínima terminen.
+    await Future.wait([dataFuture, animationFuture]);
 
     if (mounted) {
-      // Cuando los datos terminan de cargar, animamos rápidamente el porcentaje restante hasta 100%
-      final currentProgress = _progressAnimation.value;
-      _progressController.stop();
-      _progressController.duration = const Duration(milliseconds: 800);
-      _progressAnimation = Tween<double>(begin: currentProgress, end: 1.0).animate(CurvedAnimation(parent: _progressController, curve: Curves.easeOutCubic));
-
-      await _progressController.forward(from: 0.0);
-
-      // Micropausa para que el usuario perciba visualmente que la barra llegó al final
-      await Future.delayed(const Duration(milliseconds: 200));
-
-      if (mounted) context.go('/');
+      // 4. Navega a la pantalla principal.
+      context.go('/');
     }
   }
 

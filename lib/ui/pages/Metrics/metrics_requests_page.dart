@@ -43,6 +43,11 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
   @override
   void initState() {
     super.initState();
+    GlobalCache.backgroundSyncNotifier.addListener(_onBackgroundSyncChanged);
+  }
+
+  void _onBackgroundSyncChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
@@ -270,7 +275,6 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
       if (mounted) {
         if (success) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Solicitud eliminada correctamente')));
-          await GlobalCache.syncData(force: true);
           _initData();
         } else {
           setState(() => _isLoading = false);
@@ -290,7 +294,6 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
         priorityMap: priorityMap,
         onSave: () async {
           setState(() => _isLoading = true);
-          await GlobalCache.syncData(force: true);
           _initData();
         },
         onDelete: () => _deleteRequest(req['realId']),
@@ -299,11 +302,26 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
   }
 
   @override
+  void dispose() {
+    GlobalCache.backgroundSyncNotifier.removeListener(_onBackgroundSyncChanged);
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text('Solicitudes: ${_filterType ?? _filterStatus ?? _filterCompliance ?? "Detalle"}'),
-        actions: [IconButton(icon: const Icon(Icons.refresh), tooltip: 'Refrescar', onPressed: _initData)],
+        actions: [
+          if (GlobalCache.backgroundSyncNotifier.value)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Center(
+                child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Theme.of(context).colorScheme.onPrimary)),
+              ),
+            ),
+          IconButton(icon: const Icon(Icons.refresh), tooltip: 'Refrescar', onPressed: _initData),
+        ],
       ),
       floatingActionButton: AccessControl.canCreateRequests
           ? FloatingActionButton(
@@ -314,7 +332,6 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
                     ) ==
                     true) {
                   setState(() => _isLoading = true);
-                  await GlobalCache.syncData(force: true);
                   _initData();
                 }
               },

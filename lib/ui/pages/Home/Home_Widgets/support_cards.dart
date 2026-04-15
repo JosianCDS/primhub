@@ -55,12 +55,9 @@ class SupportHoursCard extends StatelessWidget {
                 Text(
                   'Horas De soporte Disponibles',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: textColor),
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: textColor),
                 ),
-                Text(
-                  DurationFormatter.format(contractedHours - consumedHours),
-                  style: Theme.of(context).textTheme.displayMedium?.copyWith(color: progress >= 1.0 ? Colors.red : const Color(0xff4F47E5), fontWeight: FontWeight.bold),
-                ),
+                Text(DurationFormatter.format(contractedHours - consumedHours), style: Theme.of(context).textTheme.titleLarge?.copyWith(color: progress >= 1.0 ? Colors.red : const Color(0xff4F47E5))),
                 const SizedBox(height: 8),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -71,15 +68,9 @@ class SupportHoursCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  'Contrato: $documentNo',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: textColor, fontWeight: FontWeight.bold),
-                ),
+                Text('Contrato: $documentNo', style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: textColor)),
                 const SizedBox(height: 2),
-                Text(
-                  'Total: ${DurationFormatter.format(contractedHours)}',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: textColor, fontWeight: FontWeight.bold),
-                ),
+                Text('Total: ${DurationFormatter.format(contractedHours)}', style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: textColor)),
               ],
             ),
           ),
@@ -131,21 +122,12 @@ class SupportRequestsCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Text(
-                  'Solicitudes Atendidas',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textColor),
-                ),
-                Text(
-                  '$closedRequestsCount',
-                  style: Theme.of(context).textTheme.displayMedium?.copyWith(color: const Color(0xffD97708), fontWeight: FontWeight.bold),
-                ),
+                Text('Solicitudes Atendidas', style: Theme.of(context).textTheme.titleLarge?.copyWith(color: textColor)),
+                Text('$closedRequestsCount', style: Theme.of(context).textTheme.titleLarge?.copyWith(color: const Color(0xffD97708))),
               ],
             ),
             const SizedBox(height: 20),
-            Text(
-              '$inProgressRequestsCount están en revisión/progreso.',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: textColor, fontWeight: FontWeight.bold),
-            ),
+            Text('$inProgressRequestsCount están en revisión/progreso.', style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: textColor)),
             const SizedBox(height: 4),
           ],
         ),

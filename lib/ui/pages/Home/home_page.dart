@@ -262,6 +262,13 @@ class _HomePageState extends State<HomePage> {
                   return [buildItem(true, 'Mis Proyectos', Icons.person), buildItem(false, 'Todos los Proyectos', Icons.group)];
                 },
               ),
+            if (_controller.isSyncingBackground)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: Center(
+                  child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Theme.of(context).colorScheme.onPrimary)),
+                ),
+              ),
             IconButton(
               icon: const Icon(Icons.refresh),
               tooltip: 'Refrescar',
@@ -302,38 +309,35 @@ class _HomePageState extends State<HomePage> {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     const SizedBox(height: 20),
-                    Center(
-                      child: Text(
-                        'Dashboard',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
                     Builder(
                       builder: (context) {
                         bool hasProjectsContent = AccessControl.isProject && _controller.projects.isNotEmpty;
                         bool hasSupportContent = AccessControl.isSupport && (_controller.recentRequests.isNotEmpty || _controller.supportContracts.isNotEmpty || (AccessControl.isAdmin && _controller.supportBPartners.isNotEmpty));
 
                         if (!hasProjectsContent && !hasSupportContent && !_controller.isLoading) {
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 60.0),
-                            child: Column(
-                              children: [
-                                Icon(Icons.dashboard_customize_outlined, size: 80, color: textColor.withOpacity(0.4)),
-                                const SizedBox(height: 24),
-                                Text(
-                                  'Tu espacio de trabajo está listo',
-                                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: textColor.withOpacity(0.8)),
-                                  textAlign: TextAlign.center,
-                                ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  'Actualmente no tienes proyectos activos ni solicitudes de soporte recientes. Cuando interactúes con la plataforma o se te asigne nueva actividad, el panel se actualizará automáticamente.',
-                                  style: TextStyle(fontSize: 16, color: textColor.withOpacity(0.6)),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ],
+                          return SizedBox(
+                            width: double.infinity,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 60.0),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.dashboard_customize_outlined, size: 80, color: textColor.withOpacity(0.4)),
+                                  const SizedBox(height: 24),
+                                  Text(
+                                    'Tu espacio de trabajo está listo',
+                                    style: Theme.of(context).textTheme.titleLarge?.copyWith(color: textColor.withOpacity(0.8)),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    'Actualmente no tienes proyectos activos ni solicitudes de soporte recientes. Cuando interactúes con la plataforma o se te asigne nueva actividad, el panel se actualizará automáticamente.',
+                                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: textColor.withOpacity(0.6)),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ),
                             ),
                           );
                         }
@@ -414,10 +418,7 @@ class _HomePageState extends State<HomePage> {
                             return Center(
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(vertical: 40.0),
-                                child: Text(
-                                  "Selecciona el tercero para ver su informacion",
-                                  style: TextStyle(fontSize: 16, color: textColor.withOpacity(0.6), fontWeight: FontWeight.bold),
-                                ),
+                                child: Text("Selecciona el tercero para ver su informacion", style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: textColor.withOpacity(0.6))),
                               ),
                             );
                           }

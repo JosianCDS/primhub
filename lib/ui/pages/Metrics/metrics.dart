@@ -69,6 +69,11 @@ class _MetricsPageState extends State<MetricsPage> {
       _loadSupportBPartners();
       _loadSupportMetrics();
     }
+    GlobalCache.backgroundSyncNotifier.addListener(_onBackgroundSyncChanged);
+  }
+
+  void _onBackgroundSyncChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
@@ -90,6 +95,7 @@ class _MetricsPageState extends State<MetricsPage> {
   @override
   void dispose() {
     _adminViewModeManager.removeListener(_onViewModeChanged);
+    GlobalCache.backgroundSyncNotifier.removeListener(_onBackgroundSyncChanged);
     super.dispose();
   }
 
@@ -547,7 +553,7 @@ class _MetricsPageState extends State<MetricsPage> {
             : Builder(
                 builder: (ctx) => IconButton(icon: const Icon(Icons.menu_rounded), tooltip: 'Menú Principal', onPressed: () => Scaffold.of(ctx).openDrawer()),
               ),
-        title: const Text('Indicadores (BI)'), 
+        title: const Text('Indicadores (BI)'),
         actions: [
           if (AccessControl.isAdmin)
             PopupMenuButton<AdminViewMode>(
@@ -645,6 +651,13 @@ class _MetricsPageState extends State<MetricsPage> {
                 return [buildItem(true, 'Mis Proyectos', Icons.person), buildItem(false, 'Todos los Proyectos', Icons.group)];
               },
             ),
+          if (GlobalCache.backgroundSyncNotifier.value)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Center(
+                child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Theme.of(context).colorScheme.onPrimary)),
+              ),
+            ),
           IconButton(icon: const Icon(Icons.refresh), onPressed: _loadMetrics),
           if (!AccessControl.isAdmin)
             IconButton(
@@ -661,11 +674,11 @@ class _MetricsPageState extends State<MetricsPage> {
         child: Column(
           children: [
             if (AccessControl.canViewProjectCharts) ...[
-              const Padding(
-                padding: EdgeInsets.only(bottom: 20),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
                 child: Align(
                   alignment: Alignment.centerLeft,
-                  child: Text('Métricas de Proyecto', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  child: Text('Métricas de Proyecto', style: Theme.of(context).textTheme.titleLarge),
                 ),
               ),
               _buildProjectFilters(),
@@ -696,11 +709,11 @@ class _MetricsPageState extends State<MetricsPage> {
             ],
             if (AccessControl.canViewProjectCharts && AccessControl.canViewSupportCharts) const Padding(padding: EdgeInsets.symmetric(vertical: 20), child: Divider(thickness: 1)),
             if (AccessControl.canViewSupportCharts) ...[
-              const Padding(
-                padding: EdgeInsets.only(bottom: 20),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
                 child: Align(
                   alignment: Alignment.centerLeft,
-                  child: Text('Métricas de Soporte', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  child: Text('Métricas de Soporte', style: Theme.of(context).textTheme.titleLarge),
                 ),
               ),
               _buildSupportFilters(),
@@ -716,10 +729,10 @@ class _MetricsPageState extends State<MetricsPage> {
                   : _buildSupportDashboardGrid(isLargeScreen),
             ],
             if (!AccessControl.canViewProjectCharts && !AccessControl.canViewSupportCharts)
-              const Center(
+              Center(
                 child: Padding(
-                  padding: EdgeInsets.all(50.0),
-                  child: Text("No hay métricas disponibles para la vista actual.", style: TextStyle(color: Colors.grey)),
+                  padding: const EdgeInsets.all(50.0),
+                  child: Text("No hay métricas disponibles para la vista actual.", style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.grey)),
                 ),
               ),
           ],

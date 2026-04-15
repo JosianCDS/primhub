@@ -116,21 +116,15 @@ class ProjectDurationCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        title,
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor),
-                      ),
-                      Text(
-                        value,
-                        style: Theme.of(context).textTheme.displayMedium?.copyWith(color: const Color(0xff4F47E5), fontWeight: FontWeight.bold),
-                      ),
+                      Text(title, style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: textColor)),
+                      Text(value, style: Theme.of(context).textTheme.titleLarge?.copyWith(color: const Color(0xff4F47E5))),
                     ],
                   ),
                   const SizedBox(height: 10),
                   Text(
                     subtitle,
                     textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: textColor, fontWeight: FontWeight.bold),
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: textColor),
                   ),
                 ],
               ),
@@ -191,10 +185,7 @@ class ProjectDeliverablesCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Text(
-                'Documentos',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textColor),
-              ),
+              Text('Documentos', style: Theme.of(context).textTheme.titleLarge?.copyWith(color: textColor)),
               const SizedBox(height: 8),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -230,10 +221,7 @@ class ProjectDeliverablesCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 20),
-          Text(
-            'Documentos del proyecto.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: textColor, fontWeight: FontWeight.bold),
-          ),
+          Text('Documentos del proyecto.', style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: textColor)),
         ],
       ),
     );

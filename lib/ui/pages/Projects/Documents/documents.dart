@@ -55,12 +55,18 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
     _fetchStatuses();
     _searchController.addListener(() => setState(() {}));
     _adminViewModeManager.addListener(_onViewModeChanged);
+    GlobalCache.backgroundSyncNotifier.addListener(_onBackgroundSyncChanged);
+  }
+
+  void _onBackgroundSyncChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
     _searchController.dispose();
     _adminViewModeManager.removeListener(_onViewModeChanged);
+    GlobalCache.backgroundSyncNotifier.removeListener(_onBackgroundSyncChanged);
     super.dispose();
   }
 
@@ -359,6 +365,13 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
             ),
           ],
           if (_showingFiles && AccessControl.canManageFiles) ...[if (_isFileManagerRoot) IconButton(icon: const Icon(Icons.create_new_folder_outlined), tooltip: 'Nueva Carpeta', onPressed: () => _fileManagerKey.currentState?.createFolderDialog()), IconButton(icon: const Icon(Icons.upload_file), tooltip: 'Subir Archivo', onPressed: () => _fileManagerKey.currentState?.pickAndUploadFile())],
+          if (GlobalCache.backgroundSyncNotifier.value)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Center(
+                child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Theme.of(context).colorScheme.onPrimary)),
+              ),
+            ),
           IconButton(icon: const Icon(Icons.refresh), tooltip: 'Refrescar', onPressed: () => _showingFiles ? _fileManagerKey.currentState?.refresh() : _loadProjects(forceRefresh: true)),
           if (!AccessControl.isAdmin)
             IconButton(

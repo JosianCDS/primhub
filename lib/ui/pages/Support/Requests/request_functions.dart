@@ -61,9 +61,9 @@ String stripHtmlTags(String htmlString) {
 // --- LLAMADAS A LA API ---
 
 /// Obtiene las solicitudes usando paginación para asegurar que se traigan todos los registros.
-Future<List<Map<String, dynamic>>> fetchRequest({String? model = 'R_Request', String? filter, int? top, String? select, String? orderBy, String? expand}) async {
+Future<List<Map<String, dynamic>>> fetchRequest({String? model = 'R_Request', String? filter, int? top, int? initialSkip, String? select, String? orderBy, String? expand}) async {
   List<Map<String, dynamic>> allRecords = [];
-  int skip = 0;
+  int skip = initialSkip ?? 0;
   // Si se especifica 'top', se usa como tamaño de página y no se pagina más.
   // Si no, se usa un tamaño de página estándar para la paginación completa.
   final int pageSize = top ?? 100;

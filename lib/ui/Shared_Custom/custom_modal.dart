@@ -24,7 +24,7 @@ class CustomModal extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (title != null) ...[Text(title!, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)), const SizedBox(height: 20)],
+            if (title != null) ...[Text(title!, style: Theme.of(context).textTheme.titleLarge), const SizedBox(height: 20)],
             if (content != null) Flexible(child: SingleChildScrollView(child: content!)),
             if (actions != null && actions!.isNotEmpty) ...[
               const SizedBox(height: 24),

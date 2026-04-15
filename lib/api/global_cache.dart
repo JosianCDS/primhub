@@ -14,59 +14,61 @@ class GlobalCache {
   static Map<String, int> statuses = {};
 
   static bool isDataLoaded = false;
+  static bool isFullyLoaded = false;
+  static final ValueNotifier<bool> backgroundSyncNotifier = ValueNotifier(false);
+
+  // Funciones granulares para carga en cascada/paralelo en el Home
+  static Future<void> loadBaseData() async {
+    final futures = await Future.wait([fetchStatuses(), (AccessControl.isAdmin ? ContractApi.getBPartnersWithSupportContracts() : Future.value(<Map<String, dynamic>>[])), (AccessControl.isAdmin ? ProjectsLogic().fetchUsers() : Future.value(<dynamic>[]))]);
+    statuses = futures[0] as Map<String, int>;
+    bPartners = futures[1] as List<Map<String, dynamic>>;
+    users = futures[2] as List<dynamic>;
+  }
+
+  static Future<void> loadProjectsData() async {
+    projects = await ProjectsLogic().fetchProjects(isViewingMine: false);
+  }
+
+  static Future<void> loadSupportData() async {
+    contracts = await ContractApi.getSupportContracts();
+  }
+
+  static Future<void> loadRequestsData() async {
+    String? requestFilter;
+    if (!AccessControl.isAdmin && User.cBPartnerID != null) {
+      requestFilter = "C_BPartner_ID eq ${User.cBPartnerID}";
+    }
+    // Fase 1: Cargar solo las primeras 100 solicitudes (Una sola petición ultra rápida)
+    requests = await fetchRequest(filter: requestFilter, top: 100, expand: "R_Status_ID(\$select=Name,IsOpen),R_Group_ID(\$select=Name),R_RequestType_ID(\$select=Name),R_Category_ID(\$select=Name)");
+
+    // Fase 2: Cargar el historial restante en background
+    _loadRemainingRequestsInBackground(requestFilter);
+  }
+
+  static Future<void> _loadRemainingRequestsInBackground(String? requestFilter) async {
+    backgroundSyncNotifier.value = true;
+    try {
+      final remaining = await fetchRequest(filter: requestFilter, initialSkip: 100, expand: "R_Status_ID(\$select=Name,IsOpen),R_Group_ID(\$select=Name),R_RequestType_ID(\$select=Name),R_Category_ID(\$select=Name)");
+      if (remaining.isNotEmpty) {
+        requests.addAll(remaining);
+      }
+      isFullyLoaded = true;
+    } catch (e) {
+      debugPrint("Error cargando resto de solicitudes: $e");
+    } finally {
+      backgroundSyncNotifier.value = false;
+    }
+  }
 
   static Future<void> syncData({bool force = false, void Function(String message, double progress)? onProgress}) async {
     if (isDataLoaded && !force) return;
+    isDataLoaded = false;
+    isFullyLoaded = false;
 
     try {
-      String? requestFilter;
-      if (!AccessControl.isAdmin && User.cBPartnerID != null) {
-        requestFilter = "C_BPartner_ID eq ${User.cBPartnerID}";
-      }
+      onProgress?.call("Iniciando sincronización...", 0.1);
 
-      int totalTasks = 6;
-      int completedTasks = 0;
-
-      void completeTask(String msg) {
-        completedTasks++;
-        onProgress?.call(msg, completedTasks / totalTasks);
-      }
-
-      onProgress?.call("Iniciando sincronización...", 0.05);
-
-      final futures = await Future.wait([
-        ProjectsLogic().fetchProjects(isViewingMine: false).then((v) {
-          completeTask("Cargando proyectos...");
-          return v;
-        }),
-        fetchRequest(filter: requestFilter, expand: "R_Status_ID(\$select=Name,IsOpen),R_Group_ID(\$select=Name),R_RequestType_ID(\$select=Name),R_Category_ID(\$select=Name)").then((v) {
-          completeTask("Preparando solicitudes...");
-          return v;
-        }),
-        fetchStatuses().then((v) {
-          completeTask("Sincronizando estados...");
-          return v;
-        }),
-        (AccessControl.isAdmin ? ContractApi.getBPartnersWithSupportContracts() : Future.value(<Map<String, dynamic>>[])).then((v) {
-          completeTask("Identificando terceros...");
-          return v;
-        }),
-        ContractApi.getSupportContracts().then((v) {
-          completeTask("Ajustando contratos y cards...");
-          return v;
-        }),
-        (AccessControl.isAdmin ? ProjectsLogic().fetchUsers() : Future.value(<dynamic>[])).then((v) {
-          completeTask("Generando entorno de trabajo...");
-          return v;
-        }),
-      ]);
-
-      projects = futures[0] as List<dynamic>;
-      requests = futures[1] as List<Map<String, dynamic>>;
-      statuses = futures[2] as Map<String, int>;
-      bPartners = futures[3] as List<Map<String, dynamic>>;
-      contracts = futures[4] as List<Map<String, dynamic>>;
-      users = futures[5] as List<dynamic>;
+      final futures = await Future.wait([loadBaseData(), loadProjectsData(), loadSupportData(), loadRequestsData()]);
 
       isDataLoaded = true;
       debugPrint("✅ Caché Global Sincronizada: ${requests.length} solicitudes, ${projects.length} proyectos.");
@@ -83,6 +85,7 @@ class GlobalCache {
     users = [];
     statuses = {};
     isDataLoaded = false;
+    isFullyLoaded = false;
   }
 
   static Future<void> syncSingleRequest(int requestId) async {

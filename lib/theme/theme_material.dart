@@ -335,14 +335,7 @@ class MaterialTheme {
     return theme(darkHighContrastScheme());
   }
 
-  ThemeData theme(ColorScheme colorScheme) => ThemeData(
-    useMaterial3: true,
-    brightness: colorScheme.brightness,
-    colorScheme: colorScheme,
-    textTheme: textTheme.apply(bodyColor: colorScheme.onSurface, displayColor: colorScheme.onSurface),
-    scaffoldBackgroundColor: colorScheme.background,
-    canvasColor: colorScheme.surface,
-  );
+  ThemeData theme(ColorScheme colorScheme) => ThemeData(useMaterial3: true, brightness: colorScheme.brightness, colorScheme: colorScheme, textTheme: textTheme, scaffoldBackgroundColor: colorScheme.surface, canvasColor: colorScheme.surface);
 
   List<ExtendedColor> get extendedColors => [];
 }

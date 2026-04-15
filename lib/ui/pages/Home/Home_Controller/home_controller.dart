@@ -44,12 +44,26 @@ class HomeController extends ChangeNotifier {
     selectedProjectIds = List.from(savedSelectedProjectIds);
     selectedSupportBpIds = List.from(savedSelectedSupportBpIds);
     _loadCurrentUser();
+    GlobalCache.backgroundSyncNotifier.addListener(_onBackgroundSyncChanged);
   }
 
   @override
   void dispose() {
+    GlobalCache.backgroundSyncNotifier.removeListener(_onBackgroundSyncChanged);
     _isDisposed = true;
     super.dispose();
+  }
+
+  bool get isSyncingBackground => GlobalCache.backgroundSyncNotifier.value;
+
+  void _onBackgroundSyncChanged() {
+    if (!GlobalCache.backgroundSyncNotifier.value) {
+      // La Fase 2 de sincronización en segundo plano ha terminado.
+      // Recargamos el dashboard con el histórico completo.
+      loadSupportContracts();
+      loadRecentRequests();
+    }
+    notifyListeners();
   }
 
   @override
@@ -68,23 +82,53 @@ class HomeController extends ChangeNotifier {
   }
 
   Future<void> initData({bool forceRefresh = false}) async {
+    if (GlobalCache.isDataLoaded && !forceRefresh) {
+      // Si los datos ya estaban cargados (Navegación normal)
+      validationLoading = false;
+      isLoading = false;
+      await loadValidationData();
+      if (AccessControl.isAdmin) await loadSupportBPartners();
+      await loadDocumentStats();
+      await loadSupportContracts();
+      await loadRecentRequests();
+      notifyListeners();
+      return;
+    }
+
+    // Estado inicial: Mostramos los Skeletons
     validationLoading = true;
     isLoading = true;
     notifyListeners();
 
-    await GlobalCache.syncData(force: forceRefresh);
+    try {
+      // Fase 1: Carga proyectos, maestros y las primeras 100 solicitudes (ya preparadas por el Splash)
+      await GlobalCache.syncData(force: forceRefresh);
 
-    await loadValidationData();
-    if (AccessControl.isAdmin) {
-      await loadSupportBPartners();
+      // Configuramos los proyectos para la vista actual
+      await loadValidationData();
+      if (AccessControl.isAdmin) {
+        await loadSupportBPartners();
+      }
+      await loadDocumentStats();
+
+      // ¡Primera actualización de UI! Quitamos el skeleton de arriba y mostramos los proyectos
+      validationLoading = false;
+      notifyListeners();
+
+      await loadSupportContracts();
+
+      // ¡Segunda actualización de UI! Mostramos las cards de soporte
+      notifyListeners();
+
+      // Las 100 primeras solicitudes ya están en GlobalCache para la tabla inicial
+      await loadRecentRequests();
+    } catch (e) {
+      debugPrint("Error en carga en cascada de Home: $e");
     }
 
-    validationLoading = false;
-    notifyListeners(); // First render to show page structure
-
-    await loadRecentRequests();
-    await loadDocumentStats();
-    await loadSupportContracts();
+    // ¡Última actualización de UI! Quitamos el skeleton de la tabla y mostramos todo
+    isLoading = false;
+    notifyListeners();
   }
 
   Future<void> loadSupportBPartners() async {

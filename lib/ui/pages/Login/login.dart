@@ -124,44 +124,43 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
         return;
       }
 
-      // Lógica de auto-ingreso si hay un solo camino (1 Cliente -> 1 Rol -> 1 Org)
-      if (clients.length == 1) {
-        final client = clients[0];
+      // Lógica de auto-ingreso directo si solo tiene 1 rol disponible (con datos por defecto para el resto)
+      if (clients.isNotEmpty) {
+        final client = clients[0]; // Usamos el primer cliente por defecto
         final roles = await getRoles(client['id'], tempToken);
 
         if (roles.length == 1) {
           final role = roles[0];
           final orgs = await getOrgs(client['id'], role['id'], tempToken);
 
-          if (orgs.length == 1) {
-            final org = orgs[0];
+          // Tomamos la primera organización por defecto si hay varias
+          final org = orgs.isNotEmpty ? orgs[0] : null;
+
+          if (org != null) {
             final warehouses = await getWarehouses(client['id'], role['id'], org['id'], tempToken);
+            // Tomamos el primer almacén por defecto o nulo
+            int? warehouseId = warehouses.isNotEmpty ? warehouses[0]['id'] : null;
 
-            // Si hay 0 o 1 almacén, podemos proceder automáticamente
-            if (warehouses.length <= 1) {
-              int? warehouseId = warehouses.isNotEmpty ? warehouses[0]['id'] : null;
+            Token.client = client['id'];
+            Token.rol = role['id'];
+            Token.organitation = org['id'];
+            Token.warehouseID = warehouseId;
 
-              Token.client = client['id'];
-              Token.rol = role['id'];
-              Token.organitation = org['id'];
-              Token.warehouseID = warehouseId;
+            Map<String, dynamic> params = {"clientId": client['id'], "roleId": role['id'], "organizationId": org['id'], "language": "es_CO"};
+            if (warehouseId != null) params["warehouseId"] = warehouseId;
 
-              Map<String, dynamic> params = {"clientId": client['id'], "roleId": role['id'], "organizationId": org['id'], "language": "es_CO"};
-              if (warehouseId != null) params["warehouseId"] = warehouseId;
+            final responseFinal = await finalizeLogin(username, password, params, context);
 
-              final responseFinal = await finalizeLogin(username, password, params, context);
-
-              if (responseFinal == false) {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Credenciales Incorrectas.'), backgroundColor: Colors.red));
-              } else {
-                if (mounted) {
-                  setState(() => _isLoading = false);
-                  CurrentLogMessage.add("Login exitoso (Auto).");
-                  context.go('/splash');
-                }
+            if (responseFinal == false) {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Credenciales o configuración incorrectas.'), backgroundColor: Colors.red));
+            } else {
+              if (mounted) {
+                setState(() => _isLoading = false);
+                CurrentLogMessage.add("Login exitoso (Auto - 1 Rol).");
+                context.go('/splash');
               }
-              return;
             }
+            return; // Evita ir a la pantalla de selección
           }
         }
       }
@@ -300,7 +299,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                               Text(
                                 'PrimHub',
                                 textAlign: TextAlign.center,
-                                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface),
+                                style: theme.textTheme.titleLarge?.copyWith(color: theme.colorScheme.onSurface),
                               ),
                               const SizedBox(height: 32),
                               TextFormField(

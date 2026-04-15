@@ -49,6 +49,11 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
     super.initState();
     // La inicialización se mueve a didChangeDependencies para asegurar que el contexto esté listo
     _adminViewModeManager.addListener(_onViewModeChanged);
+    GlobalCache.backgroundSyncNotifier.addListener(_onBackgroundSyncChanged);
+  }
+
+  void _onBackgroundSyncChanged() {
+    if (mounted) setState(() {});
   }
 
   void _onViewModeChanged() {
@@ -58,6 +63,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
   @override
   void dispose() {
     _adminViewModeManager.removeListener(_onViewModeChanged);
+    GlobalCache.backgroundSyncNotifier.removeListener(_onBackgroundSyncChanged);
     super.dispose();
   }
 
@@ -315,7 +321,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
             : Builder(
                 builder: (ctx) => IconButton(icon: const Icon(Icons.menu_rounded), tooltip: 'Menú Principal', onPressed: () => Scaffold.of(ctx).openDrawer()),
               ),
-        title: const Text('Gestión de Horas de Soporte', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+        title: const Text('Dashboard De Horas De Soporte'),
         actions: [
           if (AccessControl.isAdmin)
             PopupMenuButton<AdminViewMode>(
@@ -378,6 +384,13 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                 ),
               ),
             ),
+          if (GlobalCache.backgroundSyncNotifier.value)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Center(
+                child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Theme.of(context).colorScheme.onPrimary)),
+              ),
+            ),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Refrescar',
@@ -410,7 +423,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Resumen del contrato', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                      Text('Resumen del contrato', style: Theme.of(context).textTheme.titleLarge),
                       const SizedBox(height: 10),
                       LayoutBuilder(
                         builder: (context, constraints) {
@@ -429,12 +442,12 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                                   Text(
                                     'Horas Contratadas',
                                     textAlign: TextAlign.center,
-                                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? colorScheme.onSurfaceVariant : const Color(0xff777D8A)),
+                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(color: isDark ? colorScheme.onSurfaceVariant : const Color(0xff777D8A)),
                                   ),
                                   Text(
                                     _contractedHours == null ? '...' : DurationFormatter.format(_contractedHours!),
                                     textAlign: TextAlign.center,
-                                    style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: isDark ? colorScheme.onSurface : const Color(0xFF1C2430)),
+                                    style: Theme.of(context).textTheme.titleLarge?.copyWith(color: isDark ? colorScheme.onSurface : const Color(0xFF1C2430)),
                                   ),
                                 ],
                               ),
@@ -455,12 +468,12 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                                   Text(
                                     'Horas Consumidas',
                                     textAlign: TextAlign.center,
-                                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? colorScheme.onSurfaceVariant : const Color(0xff777D8A)),
+                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(color: isDark ? colorScheme.onSurfaceVariant : const Color(0xff777D8A)),
                                   ),
                                   Text(
                                     _isLoading ? '...' : DurationFormatter.format(_totalConsumedHours),
                                     textAlign: TextAlign.center,
-                                    style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: isDark ? colorScheme.error : const Color(0xFFD12324)),
+                                    style: Theme.of(context).textTheme.titleLarge?.copyWith(color: isDark ? colorScheme.error : const Color(0xFFD12324)),
                                   ),
                                 ],
                               ),
@@ -481,12 +494,12 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                                   Text(
                                     'Horas Disponibles',
                                     textAlign: TextAlign.center,
-                                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: isDark ? colorScheme.primary : const Color(0xFF463EE2)),
+                                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: isDark ? colorScheme.primary : const Color(0xFF463EE2)),
                                   ),
                                   Text(
                                     _isLoading || _contractedHours == null ? '...' : DurationFormatter.format(_contractedHours! - _totalConsumedHours),
                                     textAlign: TextAlign.center,
-                                    style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: isDark ? colorScheme.primary : const Color(0xFF463EE2)),
+                                    style: Theme.of(context).textTheme.titleLarge?.copyWith(color: isDark ? colorScheme.primary : const Color(0xFF463EE2)),
                                   ),
                                 ],
                               ),

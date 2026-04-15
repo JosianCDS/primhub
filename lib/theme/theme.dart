@@ -6,58 +6,64 @@ import 'theme_material.dart';
 class AppThemes {
   static final ValueNotifier<ThemeMode> themeModeNotifier = ValueNotifier(ThemeMode.system);
 
-  static ThemeData get lightTheme {
-    final colorScheme = MaterialTheme.lightScheme();
-
-    return ThemeData(
-      useMaterial3: true,
-      colorScheme: colorScheme,
-      scaffoldBackgroundColor: Color(0xffF3F4F6),
-      appBarTheme: AppBarTheme(backgroundColor: colorScheme.primary, foregroundColor: colorScheme.onPrimary, elevation: 0, centerTitle: true),
-      drawerTheme: DrawerThemeData(
-        backgroundColor: colorScheme.onPrimary,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-      ),
-      textTheme: GoogleFonts.poppinsTextTheme().apply(bodyColor: colorScheme.primary),
-      floatingActionButtonTheme: FloatingActionButtonThemeData(backgroundColor: colorScheme.primary, foregroundColor: colorScheme.onPrimary),
-      cardColor: colorScheme.surface,
-
-      dividerColor: colorScheme.outline,
-      listTileTheme: ListTileThemeData(textColor: colorScheme.onSurface, iconColor: colorScheme.onSurfaceVariant),
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: colorScheme.primary,
-          foregroundColor: colorScheme.onPrimary,
-          textStyle: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 18),
-        ),
+  // Centralizamos la tipografía con los requerimientos exactos
+  static TextTheme _buildTextTheme(ColorScheme colorScheme) {
+    return GoogleFonts.poppinsTextTheme(
+      TextTheme(
+        titleLarge: TextStyle(fontSize: 22.0, fontWeight: FontWeight.normal, color: colorScheme.onSurface), // Títulos
+        titleMedium: TextStyle(fontSize: 18.0, fontWeight: FontWeight.normal, color: colorScheme.onSurface), // Subtítulos
+        bodyLarge: TextStyle(fontSize: 16.0, fontWeight: FontWeight.normal, color: colorScheme.onSurface), // Textos normales
+        bodyMedium: TextStyle(fontSize: 14.0, fontWeight: FontWeight.normal, color: colorScheme.onSurface),
+        labelLarge: TextStyle(fontSize: 16.0, fontWeight: FontWeight.normal, color: colorScheme.onSurface),
       ),
     );
   }
 
+  static ThemeData get lightTheme {
+    final colorScheme = MaterialTheme.lightScheme();
+    final textTheme = _buildTextTheme(colorScheme);
+    final materialTheme = MaterialTheme(textTheme);
+
+    return materialTheme
+        .theme(colorScheme)
+        .copyWith(
+          scaffoldBackgroundColor: const Color(0xffF3F4F6),
+          appBarTheme: AppBarTheme(
+            backgroundColor: colorScheme.primary,
+            foregroundColor: colorScheme.onPrimary,
+            elevation: 0,
+            centerTitle: true,
+            titleTextStyle: textTheme.titleLarge?.copyWith(color: colorScheme.onPrimary),
+          ),
+          drawerTheme: DrawerThemeData(
+            backgroundColor: colorScheme.onPrimary,
+            shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+          ),
+          floatingActionButtonTheme: FloatingActionButtonThemeData(backgroundColor: colorScheme.primary, foregroundColor: colorScheme.onPrimary),
+        );
+  }
+
   static ThemeData get darkTheme {
     final colorScheme = MaterialTheme.darkScheme();
+    final textTheme = _buildTextTheme(colorScheme);
+    final materialTheme = MaterialTheme(textTheme);
 
-    return ThemeData(
-      useMaterial3: true,
-      colorScheme: colorScheme,
-      scaffoldBackgroundColor: colorScheme.surfaceDim,
-      appBarTheme: AppBarTheme(backgroundColor: colorScheme.onPrimary, foregroundColor: colorScheme.onTertiaryContainer, elevation: 0, centerTitle: true),
-      drawerTheme: DrawerThemeData(
-        backgroundColor: colorScheme.onPrimary,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-      ),
-      textTheme: GoogleFonts.poppinsTextTheme().apply(bodyColor: colorScheme.onSurface, displayColor: colorScheme.onSurface),
-      cardColor: colorScheme.surface,
-      dividerColor: colorScheme.outline,
-      listTileTheme: ListTileThemeData(textColor: colorScheme.onSurface, iconColor: colorScheme.onSurfaceVariant),
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: colorScheme.primary,
-          foregroundColor: colorScheme.onPrimary,
-          textStyle: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 18),
-        ),
-      ),
-    );
+    return materialTheme
+        .theme(colorScheme)
+        .copyWith(
+          appBarTheme: AppBarTheme(
+            backgroundColor: colorScheme.onPrimary,
+            foregroundColor: colorScheme.onTertiaryContainer,
+            elevation: 0,
+            centerTitle: true,
+            titleTextStyle: textTheme.titleLarge?.copyWith(color: colorScheme.onTertiaryContainer),
+          ),
+          drawerTheme: DrawerThemeData(
+            backgroundColor: colorScheme.onPrimary,
+            shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+          ),
+          floatingActionButtonTheme: FloatingActionButtonThemeData(backgroundColor: colorScheme.primary, foregroundColor: colorScheme.onPrimary),
+        );
   }
 }
 

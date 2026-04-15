@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/access_control.dart';
@@ -61,12 +62,26 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   List<dynamic> _users = [];
 
   final _adminViewModeManager = AdminViewModeManager();
+  Timer? _skeletonTimer;
+  bool _forceShowContent = false;
 
   @override
   void initState() {
     super.initState();
     _searchController.addListener(() => setState(() => _currentPage = 0));
     _adminViewModeManager.addListener(_onViewModeChanged);
+    GlobalCache.backgroundSyncNotifier.addListener(_onBackgroundSyncChanged);
+  }
+
+  void _onBackgroundSyncChanged() {
+    if (!GlobalCache.backgroundSyncNotifier.value) {
+      // La carga pesada del histórico terminó, ocultamos el skeleton y mostramos la tabla completa
+      _skeletonTimer?.cancel();
+      if (mounted) setState(() => _isLoading = false);
+      _refreshRequest(fetchNetwork: false);
+    } else {
+      if (mounted && !_forceShowContent) setState(() => _isLoading = true); // Mantiene el skeleton mientras carga
+    }
   }
 
   void _onViewModeChanged() {
@@ -102,13 +117,30 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
 
   @override
   void dispose() {
+    _skeletonTimer?.cancel();
     _searchController.dispose();
     _adminViewModeManager.removeListener(_onViewModeChanged);
+    GlobalCache.backgroundSyncNotifier.removeListener(_onBackgroundSyncChanged);
     super.dispose();
   }
 
   Future<void> _initData() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _forceShowContent = false;
+    });
+
+    // Temporizador de 8 segundos para forzar la vista de lo cargado parcialmente
+    _skeletonTimer?.cancel();
+    _skeletonTimer = Timer(const Duration(seconds: 8), () {
+      if (mounted) {
+        setState(() {
+          _forceShowContent = true;
+          _isLoading = false;
+        });
+        _refreshRequest(fetchNetwork: false);
+      }
+    });
 
     await GlobalCache.syncData();
 
@@ -169,7 +201,8 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       });
       _updateStatsLocally();
       setState(() {
-        _isLoading = false;
+        // Quitamos el skeleton si NO está cargando en segundo plano o si ya pasaron 8 segundos
+        _isLoading = !_forceShowContent && GlobalCache.backgroundSyncNotifier.value;
       });
     }
   }
@@ -243,7 +276,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       if (mounted) {
         if (success) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Solicitud eliminada correctamente')));
-          _refreshRequest(fetchNetwork: true);
+          _refreshRequest(fetchNetwork: false);
         } else {
           setState(() => _isLoading = false);
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al eliminar'), backgroundColor: Colors.red));
@@ -346,7 +379,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
         priorityMap: priorityMap,
         onSave: () {
           setState(() => _isLoading = true);
-          _refreshRequest(fetchNetwork: true);
+          _refreshRequest(fetchNetwork: false);
         },
         onDelete: () => _deleteRequest(req['realId']),
       ),
@@ -559,7 +592,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                   ) ==
                   true) {
                 setState(() => _isLoading = true);
-                _refreshRequest(fetchNetwork: true);
+                _refreshRequest(fetchNetwork: false);
               }
             },
             onToggleHistory: () => setState(() {
@@ -648,6 +681,13 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                 Text('Excepción de Horas', style: TextStyle(fontWeight: FontWeight.bold)),
               ],
             ),
+          ),
+        ),
+      if (GlobalCache.backgroundSyncNotifier.value)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          child: Center(
+            child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Theme.of(context).colorScheme.onPrimary)),
           ),
         ),
       Padding(
