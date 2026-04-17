@@ -215,7 +215,6 @@ class ProjectFullCard extends StatelessWidget {
 
     return Container(
       width: 320,
-      height: 480, // CORRECCIÓN: Altura fija para uniformidad de las cards
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -223,89 +222,90 @@ class ProjectFullCard extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            // Usamos Expanded para que la info superior ocupe el espacio sobrante de forma fija
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Stack(
-                children: [
-                  SizedBox(
-                    width: double.infinity,
-                    child: Padding(
-                      padding: const EdgeInsets.only(right: 95.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(color: lightPurpleBg, borderRadius: BorderRadius.circular(8)),
-                            child: const Icon(Icons.business_center_outlined, color: darkPurpleIcon, size: 20),
-                          ),
-                          const SizedBox(height: 12),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(color: isClosed ? statusGrayBg : statusGreenBg, borderRadius: BorderRadius.circular(20)),
-                            child: Text(
-                              status,
-                              style: TextStyle(color: isClosed ? statusGrayText : statusGreenText, fontSize: 11, fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            projectName,
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1F2937)),
-                            maxLines: 2, // CORRECCIÓN: Máximo 2 líneas para uniformidad
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            dateRange,
-                            style: const TextStyle(fontSize: 12, color: Colors.grey),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    right: 0,
-                    top: 0,
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Stack(
+              children: [
+                // AJUSTE: Altura de 140 para dar aire al título y evitar overflow
+                SizedBox(
+                  width: double.infinity,
+                  height: 140,
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 95.0),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center, // CORRECCIÓN: Centrado debajo del tab
-                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(color: const Color(0xFFDBEAFE), borderRadius: BorderRadius.circular(20)),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.access_time, size: 14, color: darkPurpleIcon),
-                              const SizedBox(width: 4),
-                              Text(
-                                durationText,
-                                style: const TextStyle(color: darkPurpleIcon, fontWeight: FontWeight.bold, fontSize: 12),
-                              ),
-                            ],
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(color: lightPurpleBg, borderRadius: BorderRadius.circular(8)),
+                          child: const Icon(Icons.business_center_outlined, color: darkPurpleIcon, size: 20),
+                        ),
+                        const SizedBox(height: 9),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(color: isClosed ? statusGrayBg : statusGreenBg, borderRadius: BorderRadius.circular(20)),
+                          child: Text(
+                            status,
+                            style: TextStyle(color: isClosed ? statusGrayText : statusGreenText, fontSize: 11, fontWeight: FontWeight.bold),
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 10),
                         Text(
-                          durationSubtitle,
-                          textAlign: TextAlign.center, // CORRECCIÓN: Alineación centrada
-                          style: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold),
+                          projectName,
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1F2937), height: 1.2),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          dateRange,
+                          style: const TextStyle(fontSize: 12, color: Colors.grey),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
                   ),
-                ],
-              ),
+                ),
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(color: const Color(0xFFDBEAFE), borderRadius: BorderRadius.circular(20)),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.access_time, size: 14, color: darkPurpleIcon),
+                            const SizedBox(width: 4),
+                            Text(
+                              durationText,
+                              style: const TextStyle(color: darkPurpleIcon, fontWeight: FontWeight.bold, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        durationSubtitle,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
+          // SECCIÓN DE DOCUMENTOS
           Container(
-            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+            padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
             decoration: const BoxDecoration(color: Color.fromARGB(255, 252, 248, 230)),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -320,7 +320,7 @@ class ProjectFullCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
                 Row(
                   children: [
                     _buildStat(context, stats['et']?.toString() ?? '0', 'Entregables', () => context.push('/deliverables', extra: {'projectId': projId, 'view': 'Entregables'})),
@@ -331,32 +331,35 @@ class ProjectFullCard extends StatelessWidget {
               ],
             ),
           ),
+          // BOTONES
           Padding(
-            padding: const EdgeInsets.all(12.0),
+            padding: const EdgeInsets.all(16.0),
             child: Row(
               children: [
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: onCalendarTap,
-                    icon: const Icon(Icons.format_list_bulleted, size: 18, color: Colors.white),
-                    label: const Text('Calendario/Gantt', style: TextStyle(color: Colors.white, fontSize: 12)),
-                    style: ButtonStyle(
-                      backgroundColor: WidgetStateProperty.all(const Color(0xFF4F46E5)),
-                      shape: WidgetStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
-                      padding: WidgetStateProperty.all(const EdgeInsets.symmetric(vertical: 12)),
+                    icon: const Icon(Icons.format_list_bulleted, size: 16, color: Colors.white),
+                    label: const Text('Calendario/Gantt', style: TextStyle(color: Colors.white, fontSize: 11)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF4F46E5),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      elevation: 0,
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: hasMetrics ? onMetricsTap : null,
-                    icon: const Icon(Icons.bar_chart, size: 18, color: Colors.white),
-                    label: const Text('Gráficos', style: TextStyle(color: Colors.white, fontSize: 12)),
-                    style: ButtonStyle(
-                      backgroundColor: WidgetStateProperty.all(hasMetrics ? const Color(0xFFA855F7) : Colors.grey),
-                      shape: WidgetStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
-                      padding: WidgetStateProperty.all(const EdgeInsets.symmetric(vertical: 12)),
+                    icon: const Icon(Icons.bar_chart, size: 16, color: Colors.white),
+                    label: const Text('Gráficos', style: TextStyle(color: Colors.white, fontSize: 11)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: hasMetrics ? const Color(0xFFA855F7) : Colors.grey.shade400,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      elevation: 0,
                     ),
                   ),
                 ),
@@ -368,6 +371,7 @@ class ProjectFullCard extends StatelessWidget {
     );
   }
 
+  // El método _buildStat se mantiene igual que en tu código anterior
   Widget _buildStat(BuildContext context, String value, String label, VoidCallback onTap) {
     return Expanded(
       child: _HoverStatCard(value: value, label: label, onTap: onTap),
