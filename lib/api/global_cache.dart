@@ -1,7 +1,11 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:primhub/api/contract_api.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/token.dart';
+import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
 
@@ -38,25 +42,101 @@ class GlobalCache {
     if (!AccessControl.isAdmin && User.cBPartnerID != null) {
       requestFilter = "C_BPartner_ID eq ${User.cBPartnerID}";
     }
-    // Fase 1: Cargar solo las primeras 100 solicitudes (Una sola petición ultra rápida)
-    requests = await fetchRequest(filter: requestFilter, top: 100, expand: "R_Status_ID(\$select=Name,IsOpen),R_Group_ID(\$select=Name),R_RequestType_ID(\$select=Name),R_Category_ID(\$select=Name)");
 
-    // Fase 2: Cargar el historial restante en background
-    _loadRemainingRequestsInBackground(requestFilter);
+    final expand = "R_Status_ID(\$select=Name,IsOpen),R_Group_ID(\$select=Name),R_RequestType_ID(\$select=Name),R_Category_ID(\$select=Name)";
+
+    // Fase 1: Carga RÁPIDA. Filtramos específicamente los estados activos usando el diccionario de estados,
+    // evitando el operador 'ne' que falla en el servidor de iDempiere.
+    List<int> activeStatusIds = [];
+    statuses.forEach((name, id) {
+      final n = name.toLowerCase();
+      if (id != 1000019 && id != 103 && !n.contains('archivada') && !n.contains('close') && !n.contains('cerrad')) {
+        activeStatusIds.add(id);
+      }
+    });
+
+    String phase1Filter = requestFilter ?? "";
+    if (activeStatusIds.isNotEmpty) {
+      final statusCondition = "(${activeStatusIds.map((id) => "R_Status_ID eq $id").join(" or ")})";
+      phase1Filter = phase1Filter.isNotEmpty ? "($phase1Filter) and $statusCondition" : statusCondition;
+    }
+
+    final activeFuture = fetchRequest(filter: phase1Filter.isNotEmpty ? phase1Filter : requestFilter, expand: expand, orderBy: 'Updated desc');
+
+    _loadAllRequestsInBackground(requestFilter, expand, activeFuture);
+
+    // Esperamos únicamente las activas para desbloquear la UI instantáneamente
+    requests = await activeFuture;
   }
 
-  static Future<void> _loadRemainingRequestsInBackground(String? requestFilter) async {
+  static Future<void> _loadAllRequestsInBackground(String? requestFilter, String expand, Future<List<Map<String, dynamic>>> activeFuture) async {
     backgroundSyncNotifier.value = true;
     try {
-      final remaining = await fetchRequest(filter: requestFilter, initialSkip: 100, expand: "R_Status_ID(\$select=Name,IsOpen),R_Group_ID(\$select=Name),R_RequestType_ID(\$select=Name),R_Category_ID(\$select=Name)");
-      if (remaining.isNotEmpty) {
-        requests.addAll(remaining);
-      }
+      // Fase 2: Carga PESADA. Traemos absolutamente todo el historial paginado.
+      final allRequests = await fetchRequest(filter: requestFilter, expand: expand, orderBy: 'Updated desc');
+
+      // Aseguramos que la carga activa haya terminado de poblar la caché base antes de añadir las archivadas
+      await activeFuture;
+
+      // Reemplazamos con la data completa
+      requests = allRequests;
+
       isFullyLoaded = true;
     } catch (e) {
-      debugPrint("Error cargando resto de solicitudes: $e");
+      debugPrint("Error cargando el historial completo de solicitudes: $e");
     } finally {
       backgroundSyncNotifier.value = false;
+    }
+  }
+
+  static Future<bool> checkIfSyncNeeded() async {
+    if (!isDataLoaded) return true;
+    try {
+      String? reqFilter;
+      if (!AccessControl.isAdmin && User.cBPartnerID != null) {
+        reqFilter = "C_BPartner_ID eq ${User.cBPartnerID}";
+      }
+      final reqUri = Uri.parse('${Endpoint.request}?\$top=1&\$orderby=Updated desc${reqFilter != null ? '&\$filter=$reqFilter' : ''}');
+      final resReq = await http.get(reqUri, headers: {'Authorization': Token.token, 'Content-Type': 'application/json'});
+
+      if (resReq.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(resReq.bodyBytes));
+        final records = data['records'] as List?;
+        if (records != null && records.isNotEmpty) {
+          final latestRemoteUpdated = records[0]['Updated'];
+          String? latestLocalUpdated;
+          for (var r in requests) {
+            if (r['Updated'] != null) {
+              if (latestLocalUpdated == null || r['Updated'].compareTo(latestLocalUpdated) > 0) {
+                latestLocalUpdated = r['Updated'];
+              }
+            }
+          }
+          if (latestLocalUpdated != null && latestRemoteUpdated != null) {
+            if (latestRemoteUpdated.compareTo(latestLocalUpdated) > 0) return true;
+          } else if (latestRemoteUpdated != null && latestLocalUpdated == null) {
+            return true;
+          }
+        }
+      }
+      return false;
+    } catch (e) {
+      return true;
+    }
+  }
+
+  static Future<void> performSmartSync(BuildContext context, Future<void> Function() onSyncAction) async {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Verificando si hay información nueva...'), duration: Duration(milliseconds: 1500)));
+    bool needsSync = await checkIfSyncNeeded();
+    if (needsSync) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Recargando y Sincronizando'), backgroundColor: Theme.of(context).colorScheme.primary));
+      }
+      await onSyncAction();
+    } else {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Todo está Sincronizado Correctamente'), backgroundColor: Colors.green));
+      }
     }
   }
 
@@ -68,7 +148,10 @@ class GlobalCache {
     try {
       onProgress?.call("Iniciando sincronización...", 0.1);
 
-      final futures = await Future.wait([loadBaseData(), loadProjectsData(), loadSupportData(), loadRequestsData()]);
+      // Cargar diccionarios base primero para poder armar filtros inteligentes
+      await loadBaseData();
+
+      await Future.wait([loadProjectsData(), loadSupportData(), loadRequestsData()]);
 
       isDataLoaded = true;
       debugPrint("✅ Caché Global Sincronizada: ${requests.length} solicitudes, ${projects.length} proyectos.");

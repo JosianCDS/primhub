@@ -372,7 +372,15 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
                 child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Theme.of(context).colorScheme.onPrimary)),
               ),
             ),
-          IconButton(icon: const Icon(Icons.refresh), tooltip: 'Refrescar', onPressed: () => _showingFiles ? _fileManagerKey.currentState?.refresh() : _loadProjects(forceRefresh: true)),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refrescar',
+            onPressed: () => _showingFiles
+                ? _fileManagerKey.currentState?.refresh()
+                : GlobalCache.performSmartSync(context, () async {
+                    await _loadProjects(forceRefresh: true);
+                  }),
+          ),
           if (!AccessControl.isAdmin)
             IconButton(
               icon: const Icon(Icons.logout, color: Colors.red),

@@ -21,6 +21,8 @@ import 'package:primhub/ui/widgets/project_bottom_nav.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:primhub/ui/Shared_Custom/custom_skeleton.dart';
 import 'package:primhub/ui/Shared_Custom/user_info_leading.dart';
+import 'package:primhub/api/global_cache.dart';
+import 'package:primhub/ui/pages/Projects/dialogs/project_calendar_dialog.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -273,7 +275,9 @@ class _HomePageState extends State<HomePage> {
               icon: const Icon(Icons.refresh),
               tooltip: 'Refrescar',
               onPressed: () {
-                _controller.initData(forceRefresh: true);
+                GlobalCache.performSmartSync(context, () async {
+                  await _controller.initData(forceRefresh: true);
+                });
               },
             ),
             if (!AccessControl.isAdmin)
@@ -379,18 +383,22 @@ class _HomePageState extends State<HomePage> {
                                 runSpacing: spacing,
                                 alignment: WrapAlignment.center,
                                 crossAxisAlignment: WrapCrossAlignment.center,
-                                children: activeProjects.expand((proj) {
+                                children: activeProjects.map((proj) {
                                   final projId = proj['id'] is int ? proj['id'] as int : int.tryParse(proj['id'].toString()) ?? 0;
-                                  return [
-                                    SizedBox(
-                                      width: itemWidth,
-                                      child: ProjectDurationCard(project: proj, textColor: textColor, hasMetrics: _controller.projectStats[projId]?['hasMetrics'] ?? false),
+                                  final hasMetrics = _controller.projectStats[projId]?['hasMetrics'] ?? false;
+                                  return SizedBox(
+                                    width: itemWidth,
+                                    child: ProjectFullCard(
+                                      project: proj,
+                                      stats: _controller.projectStats[projId] ?? {},
+                                      hasMetrics: hasMetrics,
+                                      onCalendarTap: () => showDialog(
+                                        context: context,
+                                        builder: (context) => ProjectCalendarDialog(project: proj),
+                                      ),
+                                      onMetricsTap: () => context.push('/metrics', extra: {'projectId': projId}),
                                     ),
-                                    SizedBox(
-                                      width: itemWidth,
-                                      child: ProjectDeliverablesCard(projectId: projId, stats: _controller.projectStats[projId] ?? {}, textColor: textColor),
-                                    ),
-                                  ];
+                                  );
                                 }).toList(),
                               ),
                             );

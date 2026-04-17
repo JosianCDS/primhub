@@ -44,16 +44,24 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
   int? _selectedBpId;
   final _adminViewModeManager = AdminViewModeManager();
 
+  // Paginación y Filtros
+  final TextEditingController _searchController = TextEditingController();
+  int _currentPage = 0;
+  int _rowsPerPage = 25;
+  bool _isAscending = false;
+
   @override
   void initState() {
     super.initState();
-    // La inicialización se mueve a didChangeDependencies para asegurar que el contexto esté listo
     _adminViewModeManager.addListener(_onViewModeChanged);
     GlobalCache.backgroundSyncNotifier.addListener(_onBackgroundSyncChanged);
+    _searchController.addListener(() => setState(() => _currentPage = 0));
   }
 
   void _onBackgroundSyncChanged() {
-    if (mounted) setState(() {});
+    if (!GlobalCache.backgroundSyncNotifier.value && mounted) {
+      _refreshData();
+    }
   }
 
   void _onViewModeChanged() {
@@ -64,6 +72,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
   void dispose() {
     _adminViewModeManager.removeListener(_onViewModeChanged);
     GlobalCache.backgroundSyncNotifier.removeListener(_onBackgroundSyncChanged);
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -124,15 +133,8 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
     final closedRequests = (processedData['requests'] as List<Map<String, dynamic>>).where((req) {
       final status = req['status'] as String?;
       final statusId = req['statusId'] as int?;
-      return status == '9_Final Close' || statusId == 103;
+      return status == '9_Final Close' || statusId == 103 || statusId == 1000019 || (status != null && status.toLowerCase().contains('archivada'));
     }).toList();
-
-    // Ordenar por fecha descendente
-    closedRequests.sort((a, b) {
-      final timeA = a['time'] ?? '';
-      final timeB = b['time'] ?? '';
-      return timeB.compareTo(timeA);
-    });
 
     if (mounted) {
       setState(() {
@@ -307,11 +309,42 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
     );
   }
 
+  List<Map<String, dynamic>> _getFilteredRecords() {
+    var filtered = _supportRecords.where((record) {
+      if (_searchController.text.isNotEmpty) {
+        final search = _searchController.text.toLowerCase();
+        final matchId = record['id']?.toString().toLowerCase().contains(search) ?? false;
+        final matchDesc = record['description']?.toString().toLowerCase().contains(search) ?? false;
+
+        if (!matchId && !matchDesc) {
+          return false;
+        }
+      }
+      return true;
+    }).toList();
+
+    filtered.sort((a, b) {
+      final timeA = a['time'] ?? '';
+      final timeB = b['time'] ?? '';
+      return _isAscending ? timeA.compareTo(timeB) : timeB.compareTo(timeA);
+    });
+
+    return filtered;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
+
+    final filteredRecords = _getFilteredRecords();
+    final int totalItems = filteredRecords.length;
+    final int totalPages = (totalItems / _rowsPerPage).ceil();
+    if (_currentPage >= totalPages) _currentPage = totalPages > 0 ? totalPages - 1 : 0;
+    final int startIndex = _currentPage * _rowsPerPage;
+    final int endIndex = (startIndex + _rowsPerPage < totalItems) ? startIndex + _rowsPerPage : totalItems;
+    final paginatedRecords = totalItems > 0 ? filteredRecords.sublist(startIndex, endIndex) : <Map<String, dynamic>>[];
 
     return Scaffold(
       appBar: AppBar(
@@ -395,7 +428,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
             icon: const Icon(Icons.refresh),
             tooltip: 'Refrescar',
             onPressed: () {
-              _refreshData();
+              GlobalCache.performSmartSync(context, _refreshData);
             },
           ),
           if (!AccessControl.isAdmin)
@@ -539,31 +572,72 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (AccessControl.isAdmin)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 16.0),
-                        child: SizedBox(
-                          width: 300,
-                          child: CustomDropdown<int?>(
-                            label: 'Filtrar por Tercero',
-                            // Validación estricta para evitar el AssertionError del DropdownButton
-                            value: _bPartners.any((bp) => bp['id'] == _selectedBpId) ? _selectedBpId : null,
-                            // Desactivamos el dropdown mientras carga para evitar colisiones
-                            onChanged: _isLoading
-                                ? null
-                                : (val) {
-                                    setState(() => _selectedBpId = val);
-                                    _refreshData();
-                                  },
-                            items: [
-                              const DropdownMenuItem<int?>(value: null, child: Text('Todos')),
-                              ..._bPartners.map<DropdownMenuItem<int?>>((bp) {
-                                return DropdownMenuItem<int?>(value: bp['id'], child: Text(bp['Name'] ?? 'Sin Nombre'));
-                              }),
-                            ],
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16.0),
+                      child: Wrap(
+                        spacing: 16,
+                        runSpacing: 16,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 300,
+                            child: CustomTextField(controller: _searchController, hintText: 'Buscar por ticket o actividad...', prefixIcon: const Icon(Icons.search)),
                           ),
-                        ),
+                          if (AccessControl.isAdmin)
+                            SizedBox(
+                              width: 250,
+                              child: CustomDropdown<int?>(
+                                label: 'Filtrar por Tercero',
+                                value: _bPartners.any((bp) => bp['id'] == _selectedBpId) ? _selectedBpId : null,
+                                onChanged: _isLoading
+                                    ? null
+                                    : (val) {
+                                        setState(() {
+                                          _selectedBpId = val;
+                                          _currentPage = 0;
+                                        });
+                                        _refreshData();
+                                      },
+                                items: [
+                                  const DropdownMenuItem<int?>(value: null, child: Text('Todos')),
+                                  ..._bPartners.map<DropdownMenuItem<int?>>((bp) {
+                                    return DropdownMenuItem<int?>(value: bp['id'], child: Text(bp['Name'] ?? 'Sin Nombre'));
+                                  }),
+                                ],
+                              ),
+                            ),
+                          ActionChip(
+                            avatar: Icon(_isAscending ? Icons.arrow_upward : Icons.arrow_downward, size: 16),
+                            label: Text(_isAscending ? 'Más antiguas' : 'Más recientes'),
+                            onPressed: () => setState(() {
+                              _isAscending = !_isAscending;
+                              _currentPage = 0;
+                            }),
+                          ),
+                          DropdownButton<int>(
+                            value: _rowsPerPage,
+                            items: [25, 50, 100].map((int value) => DropdownMenuItem<int>(value: value, child: Text('$value filas'))).toList(),
+                            onChanged: (val) => setState(() {
+                              _rowsPerPage = val!;
+                              _currentPage = 0;
+                            }),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.filter_alt_off),
+                            tooltip: 'Limpiar filtros',
+                            onPressed: () {
+                              setState(() {
+                                _searchController.clear();
+                                _isAscending = false;
+                                _currentPage = 0;
+                                if (AccessControl.isAdmin) _selectedBpId = null;
+                              });
+                              _refreshData();
+                            },
+                          ),
+                        ],
                       ),
+                    ),
                     AnimatedSwitcher(
                       duration: const Duration(milliseconds: 300),
                       child: _isLoading
@@ -583,7 +657,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                                 DataColumn(label: Text('Fecha de Terminacion Planeada')),
                                 DataColumn(label: Text('Horas Consumidas')),
                               ],
-                              rows: _supportRecords.map((record) {
+                              rows: paginatedRecords.map((record) {
                                 final double h = double.tryParse(record['qtyPlan']?.toString() ?? '0.0') ?? 0.0;
                                 final hours = DurationFormatter.format(h);
                                 return DataRow(
@@ -626,6 +700,18 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                               }).toList(),
                             ),
                     ),
+                    if (totalPages > 1)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 16.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            IconButton(icon: const Icon(Icons.chevron_left), onPressed: _currentPage > 0 ? () => setState(() => _currentPage--) : null),
+                            Text('Página ${_currentPage + 1} de $totalPages', style: const TextStyle(fontWeight: FontWeight.bold)),
+                            IconButton(icon: const Icon(Icons.chevron_right), onPressed: _currentPage < totalPages - 1 ? () => setState(() => _currentPage++) : null),
+                          ],
+                        ),
+                      ),
                   ],
                 ),
               ),

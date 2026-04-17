@@ -15,6 +15,7 @@ class HomeController extends ChangeNotifier {
   bool isLoading = true;
   bool validationLoading = true;
   bool _isDisposed = false;
+  static bool _hasShownInitialSkeleton = false;
 
   String username = '';
   int? cBPartnerID;
@@ -82,6 +83,8 @@ class HomeController extends ChangeNotifier {
   }
 
   Future<void> initData({bool forceRefresh = false}) async {
+    final startTime = DateTime.now();
+
     if (GlobalCache.isDataLoaded && !forceRefresh) {
       // Si los datos ya estaban cargados (Navegación normal)
       validationLoading = false;
@@ -124,6 +127,16 @@ class HomeController extends ChangeNotifier {
       await loadRecentRequests();
     } catch (e) {
       debugPrint("Error en carga en cascada de Home: $e");
+    }
+
+    // Requerimiento: Mantener el skeleton loading en el Home por 5 segundos
+    // para hacer tiempo mientras siguen cargando las solicitudes en segundo plano.
+    if (!_hasShownInitialSkeleton) {
+      final elapsed = DateTime.now().difference(startTime);
+      if (elapsed.inSeconds < 5) {
+        await Future.delayed(const Duration(seconds: 5) - elapsed);
+      }
+      _hasShownInitialSkeleton = true;
     }
 
     // ¡Última actualización de UI! Quitamos el skeleton de la tabla y mostramos todo
@@ -229,7 +242,8 @@ class HomeController extends ChangeNotifier {
       if (bpId == null || !requestsStatsByBp.containsKey(bpId)) continue;
 
       final statusId = req['R_Status_ID'] is Map ? req['R_Status_ID']['id'] : req['R_Status_ID'];
-      if (statusId == 103 || req['R_Status_Name'] == '9_Final Close') {
+      final statusNameLower = (req['R_Status_Name'] ?? '').toLowerCase();
+      if (statusId == 103 || statusId == 1000019 || req['R_Status_Name'] == '9_Final Close' || statusNameLower.contains('archivada')) {
         double hours = (req['QtyPlan'] as num?)?.toDouble() ?? 0.0;
         requestsStatsByBp[bpId]!['consumedHours'] = (requestsStatsByBp[bpId]!['consumedHours']! as num) + hours;
         requestsStatsByBp[bpId]!['closed'] = (requestsStatsByBp[bpId]!['closed']! as int) + 1;
@@ -240,8 +254,9 @@ class HomeController extends ChangeNotifier {
 
     final nonClosedRequests = allBPartnerRequests.where((r) {
       final statusId = r['R_Status_ID'] is Map ? r['R_Status_ID']['id'] : r['R_Status_ID'];
+      final statusNameLower = (r['R_Status_Name'] ?? '').toLowerCase();
       final recordUU = r['Record_UU'];
-      return (statusId != 103 && r['R_Status_Name'] != '9_Final Close') && (recordUU == null || recordUU.toString().isEmpty);
+      return (statusId != 103 && statusId != 1000019 && r['R_Status_Name'] != '9_Final Close' && !statusNameLower.contains('archivada')) && (recordUU == null || recordUU.toString().isEmpty);
     }).toList();
 
     nonClosedRequests.sort((a, b) {

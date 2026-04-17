@@ -47,7 +47,9 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
   }
 
   void _onBackgroundSyncChanged() {
-    if (mounted) setState(() {});
+    if (!GlobalCache.backgroundSyncNotifier.value && mounted) {
+      _initData();
+    }
   }
 
   @override
@@ -76,9 +78,10 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
     }
   }
 
-  Future<void> _initData() async {
+  Future<void> _initData({bool showLoading = true}) async {
+    if (showLoading && _requests.isEmpty) setState(() => _isLoading = true);
     await _fetchStatusesMap();
-    _loadRequests();
+    await _loadRequests();
   }
 
   Future<void> _fetchStatusesMap() async {
@@ -199,7 +202,7 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
       if (statusData != null && statusData['IsOpen'] != null) {
         isOpen = (statusData['IsOpen'] == 'Y' || statusData['IsOpen'] == true);
       } else {
-        if (req['R_Status_ID'] == 103 || lowerStatus.contains('close') || lowerStatus.contains('cerrad') || lowerStatus.contains('archivada') || lowerStatus.contains('aprobada') || lowerStatus.contains('implementada') || lowerStatus.contains('entregad') || lowerStatus.contains('anulada')) {
+        if (req['R_Status_ID'] == 103 || req['R_Status_ID'] == 1000019 || lowerStatus.contains('close') || lowerStatus.contains('cerrad') || lowerStatus.contains('archivada') || lowerStatus.contains('aprobada') || lowerStatus.contains('implementada') || lowerStatus.contains('entregad') || lowerStatus.contains('anulada')) {
           isOpen = false;
         }
       }
@@ -232,7 +235,7 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
           category = 'PENDIENTE';
         } else if (lowerStatus.contains('espera de cliente') || lowerStatus.contains('espera del cliente')) {
           category = 'ESPERA DE CLIENTE';
-        } else if (!isOpen || lowerStatus.contains('close') || lowerStatus.contains('cerrad') || lowerStatus.contains('archivada') || lowerStatus.contains('aprobada') || lowerStatus.contains('implementada') || lowerStatus.contains('entregad') || lowerStatus.contains('anulada')) {
+        } else if (!isOpen || req['R_Status_ID'] == 1000019 || lowerStatus.contains('close') || lowerStatus.contains('cerrad') || lowerStatus.contains('archivada') || lowerStatus.contains('aprobada') || lowerStatus.contains('implementada') || lowerStatus.contains('entregad') || lowerStatus.contains('anulada')) {
           category = 'TERMINADA';
         }
         matchesCompliance = category == _filterCompliance;
@@ -270,14 +273,12 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
     );
 
     if (confirm == true) {
-      setState(() => _isLoading = true);
       final success = await deleteRequestApi(id);
       if (mounted) {
         if (success) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Solicitud eliminada correctamente')));
-          _initData();
+          _initData(showLoading: false);
         } else {
-          setState(() => _isLoading = false);
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al eliminar'), backgroundColor: Colors.red));
         }
       }
@@ -293,8 +294,7 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
         statusIdMap: _statusIdMap,
         priorityMap: priorityMap,
         onSave: () async {
-          setState(() => _isLoading = true);
-          _initData();
+          _initData(showLoading: false);
         },
         onDelete: () => _deleteRequest(req['realId']),
       ),
@@ -320,7 +320,13 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
                 child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Theme.of(context).colorScheme.onPrimary)),
               ),
             ),
-          IconButton(icon: const Icon(Icons.refresh), tooltip: 'Refrescar', onPressed: _initData),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refrescar',
+            onPressed: () => GlobalCache.performSmartSync(context, () async {
+              await _initData();
+            }),
+          ),
         ],
       ),
       floatingActionButton: AccessControl.canCreateRequests
@@ -331,8 +337,7 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
                       builder: (context) => CreateRequestDialog(linkedProjectId: _projectId),
                     ) ==
                     true) {
-                  setState(() => _isLoading = true);
-                  _initData();
+                  _initData(showLoading: false);
                 }
               },
               tooltip: 'Crear Solicitud',

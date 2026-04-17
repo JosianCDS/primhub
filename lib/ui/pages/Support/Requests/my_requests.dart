@@ -48,7 +48,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   Map<String, int> _statusIdMap = {};
   int _currentPage = 0;
   int _rowsPerPage = 25;
-  int? _selectedYear = 2026;
+  int? _selectedYear; // Cambiado a null para que por defecto muestre "Todos los Años"
   String? _selectedBP;
   String? _selectedLevel;
   String? _selectedStatus;
@@ -64,6 +64,8 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   final _adminViewModeManager = AdminViewModeManager();
   Timer? _skeletonTimer;
   bool _forceShowContent = false;
+  bool _isHistorySkeletonActive = false;
+  Timer? _historySkeletonTimer;
 
   @override
   void initState() {
@@ -74,18 +76,21 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   }
 
   void _onBackgroundSyncChanged() {
-    if (!GlobalCache.backgroundSyncNotifier.value) {
-      // La carga pesada del histórico terminó, ocultamos el skeleton y mostramos la tabla completa
-      _skeletonTimer?.cancel();
-      if (mounted) setState(() => _isLoading = false);
+    if (!GlobalCache.backgroundSyncNotifier.value && mounted) {
       _refreshRequest(fetchNetwork: false);
-    } else {
-      if (mounted && !_forceShowContent) setState(() => _isLoading = true); // Mantiene el skeleton mientras carga
     }
   }
 
   void _onViewModeChanged() {
     _initData();
+  }
+
+  void _startHistorySkeleton() {
+    _isHistorySkeletonActive = true;
+    _historySkeletonTimer?.cancel();
+    _historySkeletonTimer = Timer(const Duration(seconds: 8), () {
+      if (mounted) setState(() => _isHistorySkeletonActive = false);
+    });
   }
 
   @override
@@ -110,6 +115,9 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
         if (args['selectedLevel'] != null) _selectedLevel = args['selectedLevel'];
         _selectedYear = null; // Reiniciar año para que el gráfico aplique libremente
       }
+
+      if (_showHistory) _startHistorySkeleton();
+
       _isInit = false;
       _initData();
     }
@@ -117,6 +125,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
 
   @override
   void dispose() {
+    _historySkeletonTimer?.cancel();
     _skeletonTimer?.cancel();
     _searchController.dispose();
     _adminViewModeManager.removeListener(_onViewModeChanged);
@@ -127,19 +136,6 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   Future<void> _initData() async {
     setState(() {
       _isLoading = true;
-      _forceShowContent = false;
-    });
-
-    // Temporizador de 8 segundos para forzar la vista de lo cargado parcialmente
-    _skeletonTimer?.cancel();
-    _skeletonTimer = Timer(const Duration(seconds: 8), () {
-      if (mounted) {
-        setState(() {
-          _forceShowContent = true;
-          _isLoading = false;
-        });
-        _refreshRequest(fetchNetwork: false);
-      }
     });
 
     await GlobalCache.syncData();
@@ -198,12 +194,9 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       setState(() {
         _rawRequests = processedAll['rawRequests'];
         _requests = processedAll['requests']; // Full list for UI
+        _isLoading = false;
       });
       _updateStatsLocally();
-      setState(() {
-        // Quitamos el skeleton si NO está cargando en segundo plano o si ya pasaron 8 segundos
-        _isLoading = !_forceShowContent && GlobalCache.backgroundSyncNotifier.value;
-      });
     }
   }
 
@@ -216,7 +209,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       final bpRequests = _requests.where((r) => r['bpName'] == _selectedBP).toList();
       for (var r in bpRequests) {
         double qty = double.tryParse(r['qtyPlan']?.toString() ?? '0.0') ?? 0.0;
-        if (r['status'] == '9_Final Close' || r['statusId'] == 103) {
+        if (r['status'] == '9_Final Close' || r['statusId'] == 103 || r['statusId'] == 1000019 || r['status'].toString().toLowerCase().contains('archivada')) {
           consumedForStats += qty;
         } else {
           estimatedForStats += qty;
@@ -237,7 +230,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     } else {
       for (var r in _requests) {
         double qty = double.tryParse(r['qtyPlan']?.toString() ?? '0.0') ?? 0.0;
-        if (r['status'] == '9_Final Close' || r['statusId'] == 103) {
+        if (r['status'] == '9_Final Close' || r['statusId'] == 103 || r['statusId'] == 1000019 || r['status'].toString().toLowerCase().contains('archivada')) {
           consumedForStats += qty;
         } else {
           estimatedForStats += qty;
@@ -271,14 +264,12 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     );
 
     if (confirm == true) {
-      setState(() => _isLoading = true);
       final success = await deleteRequestApi(id);
       if (mounted) {
         if (success) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Solicitud eliminada correctamente')));
           _refreshRequest(fetchNetwork: false);
         } else {
-          setState(() => _isLoading = false);
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al eliminar'), backgroundColor: Colors.red));
         }
       }
@@ -378,7 +369,6 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
         statusIdMap: _statusIdMap,
         priorityMap: priorityMap,
         onSave: () {
-          setState(() => _isLoading = true);
           _refreshRequest(fetchNetwork: false);
         },
         onDelete: () => _deleteRequest(req['realId']),
@@ -467,7 +457,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
 
   List<Map<String, dynamic>> _getFilteredRequests() {
     return _requests.where((alert) {
-      bool isClosed = alert['status'] == '9_Final Close' || alert['statusId'] == 103;
+      bool isClosed = alert['status'] == '9_Final Close' || alert['statusId'] == 103 || alert['statusId'] == 1000019 || alert['status'].toString().toLowerCase().contains('archivada');
       if (_showHistory != isClosed) return false;
       if (_selectedLevel != null && alert['level'] != _selectedLevel) return false;
       if (_selectedStatus != null && alert['status'] != _selectedStatus) return false;
@@ -591,19 +581,24 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                     builder: (context) => CreateRequestDialog(bPartners: _bPartners, selectedBPartnerId: _bpId),
                   ) ==
                   true) {
-                setState(() => _isLoading = true);
                 _refreshRequest(fetchNetwork: false);
               }
             },
             onToggleHistory: () => setState(() {
               _showHistory = !_showHistory;
               _selectedStatus = null;
+              if (_showHistory) {
+                _startHistorySkeleton();
+              } else {
+                _isHistorySkeletonActive = false;
+                _historySkeletonTimer?.cancel();
+              }
             }),
           ),
           const SizedBox(height: 20),
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 1000),
-            child: _isLoading ? const SkeletonTable() : RequestsDataTable(requests: paginatedAlerts, onEdit: _editRequest, onRefresh: _initData),
+            child: (_isLoading || (_showHistory && _isHistorySkeletonActive)) ? const SkeletonTable() : RequestsDataTable(requests: paginatedAlerts, onEdit: _editRequest, onRefresh: () => _refreshRequest(fetchNetwork: false)),
           ),
           if (totalPages > 1)
             Padding(
@@ -693,10 +688,9 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       Padding(
         padding: const EdgeInsets.only(right: 8.0),
         child: IconButton(
-          onPressed: () {
-            setState(() => _isLoading = true);
-            _initData();
-          },
+          onPressed: () => GlobalCache.performSmartSync(context, () async {
+            await _initData();
+          }),
           icon: const Icon(Icons.refresh),
           tooltip: 'Refrescar',
         ),

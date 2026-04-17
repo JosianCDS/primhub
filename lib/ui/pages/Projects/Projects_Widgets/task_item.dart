@@ -6,6 +6,7 @@ import 'package:primhub/ui/pages/Projects/dialogs/item_edit_dialog.dart';
 import 'package:primhub/ui/pages/Support/Requests/edit_request_dialog.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
 import 'package:primhub/ui/pages/Support/Requests/create_request_dialog.dart';
+import 'package:primhub/api/global_cache.dart';
 
 class TaskItem extends StatefulWidget {
   final Map<String, dynamic> task;
@@ -26,6 +27,15 @@ class TaskItem extends StatefulWidget {
 
 class _TaskItemState extends State<TaskItem> {
   final ProjectsLogic _logic = ProjectsLogic();
+
+  Future<List<Map<String, dynamic>>> _getTaskRequests(String? taskUU) async {
+    if (taskUU == null || taskUU.isEmpty) return [];
+    // Si los datos ya están cacheados, buscamos en memoria (extremadamente rápido)
+    if (GlobalCache.isDataLoaded) {
+      return GlobalCache.requests.where((r) => r['Record_UU'] == taskUU).toList();
+    }
+    return await _logic.fetchRequestsForTask(taskUU);
+  }
 
   String? _getDropdownValue(dynamic rawValue) {
     final extracted = DocumentsLogic.extractValue(rawValue);
@@ -75,7 +85,7 @@ class _TaskItemState extends State<TaskItem> {
     if (rawUU is String) taskUU = rawUU;
 
     return FutureBuilder<List<Map<String, dynamic>>>(
-      future: _logic.fetchRequestsForTask(taskUU),
+      future: _getTaskRequests(taskUU),
       builder: (context, snapshot) {
         final rawRequests = snapshot.data ?? [];
         final requests = rawRequests.map((r) {

@@ -18,8 +18,8 @@ class _SplashLoadingPageState extends State<SplashLoadingPage> with SingleTicker
   void initState() {
     super.initState();
 
-    // Animación con una duración mínima perceptible para mejorar la UX.
-    _progressController = AnimationController(vsync: this, duration: const Duration(seconds: 3));
+    // Animación base. Si la data carga rápido, la aceleraremos.
+    _progressController = AnimationController(vsync: this, duration: const Duration(seconds: 4));
 
     _progressAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _progressController, curve: Curves.easeOutQuart));
 
@@ -33,16 +33,17 @@ class _SplashLoadingPageState extends State<SplashLoadingPage> with SingleTicker
   }
 
   Future<void> _startSync() async {
-    // 1. Carga los datos esenciales en segundo plano.
-    final dataFuture = GlobalCache.syncData();
+    // 1. Inicia la animación para que el usuario vea el progreso.
+    _progressController.forward();
 
-    // 2. Inicia la animación para que el usuario vea el progreso y obtenemos su Future.
-    final animationFuture = _progressController.forward();
-
-    // 3. Espera a que tanto la carga de datos como la animación mínima terminen.
-    await Future.wait([dataFuture, animationFuture]);
+    // 2. Carga los datos esenciales (Fase 1: rápida).
+    await GlobalCache.syncData();
 
     if (mounted) {
+      // 3. Acelera la animación para que llegue al 100% de inmediato y sin esperas innecesarias.
+      if (_progressController.value < 1.0) {
+        await _progressController.animateTo(1.0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+      }
       // 4. Navega a la pantalla principal.
       context.go('/');
     }

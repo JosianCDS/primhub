@@ -224,7 +224,7 @@ class _MetricsPageState extends State<MetricsPage> {
         if (statusData != null && statusData['IsOpen'] != null) {
           isOpen = (statusData['IsOpen'] == 'Y' || statusData['IsOpen'] == true);
         } else {
-          if (req['R_Status_ID'] == 103 || lowerStatusTemp.contains('close') || lowerStatusTemp.contains('cerrad') || lowerStatusTemp.contains('archivada') || lowerStatusTemp.contains('aprobada') || lowerStatusTemp.contains('implementada') || lowerStatusTemp.contains('entregad')) {
+          if (req['R_Status_ID'] == 103 || req['R_Status_ID'] == 1000019 || lowerStatusTemp.contains('close') || lowerStatusTemp.contains('cerrad') || lowerStatusTemp.contains('archivada') || lowerStatusTemp.contains('aprobada') || lowerStatusTemp.contains('implementada') || lowerStatusTemp.contains('entregad')) {
             isOpen = false;
           }
         }
@@ -247,7 +247,7 @@ class _MetricsPageState extends State<MetricsPage> {
             category = 'PENDIENTE';
           } else if (lowerStatus.contains('espera de cliente') || lowerStatus.contains('espera del cliente')) {
             category = 'ESPERA DE CLIENTE';
-          } else if (!isOpen || lowerStatus.contains('close') || lowerStatus.contains('cerrad') || lowerStatus.contains('archivada') || lowerStatus.contains('aprobada') || lowerStatus.contains('implementada') || lowerStatus.contains('entregad') || lowerStatus.contains('anulada')) {
+          } else if (!isOpen || req['R_Status_ID'] == 1000019 || lowerStatus.contains('close') || lowerStatus.contains('cerrad') || lowerStatus.contains('archivada') || lowerStatus.contains('aprobada') || lowerStatus.contains('implementada') || lowerStatus.contains('entregad') || lowerStatus.contains('anulada')) {
             category = 'TERMINADA';
           }
 
@@ -658,7 +658,13 @@ class _MetricsPageState extends State<MetricsPage> {
                 child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Theme.of(context).colorScheme.onPrimary)),
               ),
             ),
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadMetrics),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () => GlobalCache.performSmartSync(context, () async {
+              if (AccessControl.canViewProjectCharts) await _loadMetrics();
+              if (AccessControl.canViewSupportCharts) await _loadSupportMetrics();
+            }),
+          ),
           if (!AccessControl.isAdmin)
             IconButton(
               icon: const Icon(Icons.logout, color: Colors.red),

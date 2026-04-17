@@ -49,9 +49,9 @@ class _ProjectRequestsViewState extends State<ProjectRequestsView> {
     _initData();
   }
 
-  Future<void> _initData() async {
+  Future<void> _initData({bool showLoading = true}) async {
     if (!mounted) return;
-    setState(() => _isLoading = true);
+    if (showLoading) setState(() => _isLoading = true);
 
     _users = GlobalCache.users;
     _statusIdMap = GlobalCache.statuses;
@@ -246,7 +246,7 @@ class _ProjectRequestsViewState extends State<ProjectRequestsView> {
                 ? const Center(child: Text('No se encontraron solicitudes vinculadas.'))
                 : SingleChildScrollView(
                     padding: const EdgeInsets.all(16),
-                    child: RequestsDataTable(requests: _requests, statusIdMap: _statusIdMap, priorityMap: priorityMap, onEdit: (req) => _editRequest(req), onRefresh: _initData, showProjectContext: true),
+                    child: RequestsDataTable(requests: _requests, statusIdMap: _statusIdMap, priorityMap: priorityMap, onEdit: (req) => _editRequest(req), onRefresh: () => _initData(showLoading: false), showProjectContext: true),
                   ),
           ),
         ],
@@ -380,14 +380,12 @@ class _ProjectRequestsViewState extends State<ProjectRequestsView> {
     );
 
     if (confirm == true) {
-      setState(() => _isLoading = true);
       final success = await deleteRequestApi(id);
       if (mounted) {
         if (success) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Solicitud eliminada correctamente')));
-          _initData();
+          _initData(showLoading: false);
         } else {
-          setState(() => _isLoading = false);
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al eliminar'), backgroundColor: Colors.red));
         }
       }
@@ -400,7 +398,7 @@ class _ProjectRequestsViewState extends State<ProjectRequestsView> {
 
     showDialog(
       context: context,
-      builder: (context) => EditRequestDialog(request: processedReq, statusIdMap: _statusIdMap, priorityMap: priorityMap, onSave: _initData, onDelete: () => _deleteRequest(processedReq['realId'] ?? processedReq['id'])),
+      builder: (context) => EditRequestDialog(request: processedReq, statusIdMap: _statusIdMap, priorityMap: priorityMap, onSave: () => _initData(showLoading: false), onDelete: () => _deleteRequest(processedReq['realId'] ?? processedReq['id'])),
     );
   }
 }

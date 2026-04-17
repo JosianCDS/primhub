@@ -255,7 +255,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                         return Container(
                           color: isSelected ? colorScheme.primary.withOpacity(0.2) : Colors.transparent,
                           child: ListTile(
-                            leading: Icon(Icons.help_rounded, color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant),
+                            leading: Icon(Icons.table_chart_rounded, color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant),
                             title: Text(
                               'Mis Solicitudes',
                               style: TextStyle(color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurface, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal),

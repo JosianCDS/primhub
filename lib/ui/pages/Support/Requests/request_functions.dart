@@ -208,7 +208,7 @@ Future<Map<String, dynamic>> processRequests(List<dynamic> requests, Map<String,
 
     // Lógica de horas
     // Comprobamos tanto por el nombre como por el ID extraído de forma segura.
-    if (statusName == '9_Final Close' || statusIdFromReq == 103) {
+    if (statusName == '9_Final Close' || statusIdFromReq == 103 || statusIdFromReq == 1000019 || statusName.toLowerCase().contains('archivada')) {
       consumed += qtyPlan;
     } else {
       estimated += qtyPlan;

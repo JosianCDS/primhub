@@ -125,18 +125,17 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
       }
 
       // Lógica de auto-ingreso directo si solo tiene 1 rol disponible (con datos por defecto para el resto)
-      if (clients.isNotEmpty) {
-        final client = clients[0]; // Usamos el primer cliente por defecto
+      if (clients.length == 1) {
+        final client = clients[0];
         final roles = await getRoles(client['id'], tempToken);
 
         if (roles.length == 1) {
           final role = roles[0];
           final orgs = await getOrgs(client['id'], role['id'], tempToken);
 
-          // Tomamos la primera organización por defecto si hay varias
-          final org = orgs.isNotEmpty ? orgs[0] : null;
-
-          if (org != null) {
+          // Solo si el camino es completamente único (1 cliente, 1 rol, 1 org) se hace el auto-login.
+          if (orgs.length == 1) {
+            final org = orgs[0];
             final warehouses = await getWarehouses(client['id'], role['id'], org['id'], tempToken);
             // Tomamos el primer almacén por defecto o nulo
             int? warehouseId = warehouses.isNotEmpty ? warehouses[0]['id'] : null;
@@ -156,7 +155,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
             } else {
               if (mounted) {
                 setState(() => _isLoading = false);
-                CurrentLogMessage.add("Login exitoso (Auto - 1 Rol).");
+                CurrentLogMessage.add("Login exitoso (Auto - Ruta Única).");
                 context.go('/splash');
               }
             }
@@ -240,7 +239,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
         mainAxisSize: MainAxisSize.min,
         children: [
           const Text(
-            'v1.5.0',
+            'v1.6.0',
             style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
           ),
           if (!Envirioment.isProduction) ...[const SizedBox(width: 8), FloatingActionButton(onPressed: _showChangeUrlDialog, child: const Icon(Icons.settings))],

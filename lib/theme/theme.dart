@@ -35,6 +35,7 @@ class AppThemes {
             centerTitle: true,
             titleTextStyle: textTheme.titleLarge?.copyWith(color: colorScheme.onPrimary),
           ),
+          textTheme: textTheme,
           drawerTheme: DrawerThemeData(
             backgroundColor: colorScheme.onPrimary,
             shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
@@ -58,6 +59,7 @@ class AppThemes {
             centerTitle: true,
             titleTextStyle: textTheme.titleLarge?.copyWith(color: colorScheme.onTertiaryContainer),
           ),
+          textTheme: textTheme,
           drawerTheme: DrawerThemeData(
             backgroundColor: colorScheme.onPrimary,
             shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),

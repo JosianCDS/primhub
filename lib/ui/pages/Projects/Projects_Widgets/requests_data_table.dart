@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:primhub/ui/Shared_Custom/custom_table.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 import 'package:primhub/ui/pages/Projects/dialogs/request_details_dialog.dart';
@@ -35,7 +36,6 @@ class RequestsDataTable extends StatefulWidget {
 }
 
 class _RequestsDataTableState extends State<RequestsDataTable> {
-  final ScrollController _scrollController = ScrollController();
   final Set<int> _selectedIds = {};
   int? _lastSelectedIndex;
 
@@ -88,12 +88,6 @@ class _RequestsDataTableState extends State<RequestsDataTable> {
   }
 
   @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Stack(
       clipBehavior: Clip.hardEdge,
@@ -102,136 +96,124 @@ class _RequestsDataTableState extends State<RequestsDataTable> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Scrollbar(
-              controller: _scrollController,
-              thumbVisibility: true,
-              trackVisibility: true,
-              child: SingleChildScrollView(
-                controller: _scrollController,
-                scrollDirection: Axis.horizontal,
-                child: DataTable(
-                  showCheckboxColumn: !AccessControl.isProject && (AccessControl.canManageRequests || AccessControl.canViewRequestDetails),
-                  onSelectAll: _handleSelectAll,
-                  headingRowHeight: 30,
-                  dataRowMinHeight: 30,
-                  dataRowMaxHeight: 40,
-                  columns: [
-                    const DataColumn(label: Text('#')),
-                    const DataColumn(label: Text('Acciones')),
-                    const DataColumn(label: Text('Solicitud')),
-                    const DataColumn(label: Text('Resumen')),
-                    if (widget.showProjectContext) const DataColumn(label: Text('Fase')),
-                    if (widget.showProjectContext) const DataColumn(label: Text('Tarea')),
-                    const DataColumn(label: Text('Tipo')),
-                    const DataColumn(label: Text('Asunto')),
-                    const DataColumn(label: Text('Categoría')),
-                    if (!AccessControl.isProject) const DataColumn(label: Text('Usuario')),
-                    if (!AccessControl.isProject) const DataColumn(label: Text('Representante Comercial')),
-                    const DataColumn(label: Text('Grupo')),
-                    const DataColumn(label: Text('Estado')),
-                    const DataColumn(label: Text('Prioridad')),
-                    const DataColumn(label: Text('Fecha Fin Plan')),
+            CustomTable(
+              showCheckboxColumn: !AccessControl.isProject && (AccessControl.canManageRequests || AccessControl.canViewRequestDetails),
+              onSelectAll: _handleSelectAll,
+              columns: [
+                const DataColumn(label: Text('#')),
+                const DataColumn(label: Text('Acciones')),
+                const DataColumn(label: Text('Solicitud')),
+                const DataColumn(label: Text('Resumen')),
+                if (widget.showProjectContext) const DataColumn(label: Text('Fase')),
+                if (widget.showProjectContext) const DataColumn(label: Text('Tarea')),
+                const DataColumn(label: Text('Tipo')),
+                const DataColumn(label: Text('Asunto')),
+                const DataColumn(label: Text('Categoría')),
+                if (!AccessControl.isProject) const DataColumn(label: Text('Usuario')),
+                if (!AccessControl.isProject) const DataColumn(label: Text('Representante Comercial')),
+                const DataColumn(label: Text('Grupo')),
+                const DataColumn(label: Text('Estado')),
+                const DataColumn(label: Text('Prioridad')),
+                const DataColumn(label: Text('Fecha Fin Plan')),
+              ],
+              rows: widget.requests.asMap().entries.map((entry) {
+                final int index = entry.key;
+                final Map<String, dynamic> req = entry.value;
+                final int realId = _getRealId(req);
+                return DataRow(
+                  selected: _selectedIds.contains(realId),
+                  onSelectChanged: (_) => _handleRowClick(req),
+                  cells: [
+                    if (AccessControl.canManageRequests) DataCell(Checkbox(value: _selectedIds.contains(realId), onChanged: (selected) => _handleRowSelection(selected, index, realId))),
+                    DataCell(Text('${index + 1}', style: const TextStyle(fontWeight: FontWeight.bold))),
+                    DataCell(
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: Icon(AccessControl.canAddUpdates ? Icons.reply : Icons.forum),
+                            tooltip: AccessControl.canAddUpdates ? 'Responder Solicitud' : 'Ver Actualizaciones',
+                            onPressed: () {
+                              final id = Uri.encodeComponent(req['id'].toString());
+                              GoRouter.of(context).push('/request-updates/$id', extra: {'docNo': req['DocumentNo'] ?? req['id'].toString()});
+                            },
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.attach_file),
+                            tooltip: 'Ver / Añadir Adjuntos',
+                            onPressed: () {
+                              showDialog(
+                                context: context,
+                                builder: (context) => _RequestAttachmentsDialog(requestId: req['_rawId'] ?? req['realId'] ?? int.tryParse(req['id'].toString()) ?? 0, documentNo: req['DocumentNo']?.toString() ?? req['id'].toString()),
+                              );
+                            },
+                          ),
+                          if (AccessControl.canManageRequests)
+                            IconButton(icon: const Icon(Icons.edit), tooltip: 'Editar', onPressed: () => widget.onEdit(req))
+                          else if (AccessControl.canViewRequestDetails)
+                            IconButton(
+                              icon: const Icon(Icons.visibility),
+                              tooltip: 'Ver Detalles',
+                              onPressed: () => showDialog(
+                                context: context,
+                                builder: (context) => RequestDetailsDialog(req: req),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    DataCell(
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(req['id'].toString()),
+                          const SizedBox(width: 8),
+                          InkWell(
+                            borderRadius: BorderRadius.circular(4),
+                            onTap: () {
+                              Clipboard.setData(ClipboardData(text: req['id'].toString()));
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Código copiado al portapapeles')));
+                            },
+                            child: const Padding(
+                              padding: EdgeInsets.all(4.0),
+                              child: Icon(Icons.copy, size: 16, color: Colors.grey),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    DataCell(
+                      Tooltip(
+                        message: stripHtmlTags(DocumentsLogic.extractValue(req['Summary'])),
+                        child: Text(() {
+                          final text = stripHtmlTags(DocumentsLogic.extractValue(req['Summary']));
+                          return text.length > 35 ? '${text.substring(0, 35)}...' : text;
+                        }()),
+                      ),
+                    ),
+                    if (widget.showProjectContext) DataCell(Text(req['phaseName'] ?? '-')),
+                    if (widget.showProjectContext) DataCell(Text(req['taskName'] ?? 'General')),
+                    DataCell(Text(DocumentsLogic.extractValue(req['R_RequestType_ID']))),
+                    DataCell(
+                      Tooltip(
+                        message: req['CDS_EmailSubject']?.toString() ?? '',
+                        child: Text(() {
+                          final text = req['CDS_EmailSubject']?.toString() ?? '';
+                          return text.length > 25 ? '${text.substring(0, 25)}...' : text;
+                        }()),
+                      ),
+                    ),
+                    DataCell(Text(DocumentsLogic.extractValue(req['R_Category_ID']))),
+                    if (AccessControl.isAdmin) DataCell(Text(DocumentsLogic.extractValue(req['C_BPartner_ID']))),
+                    if (AccessControl.isAdmin) DataCell(Text(DocumentsLogic.extractValue(req['AD_User_ID']))),
+                    if (AccessControl.isAdmin) DataCell(Text(DocumentsLogic.extractValue(req['SalesRep_ID']))),
+                    DataCell(Text(DocumentsLogic.extractValue(req['R_Group_ID']))),
+                    DataCell(Text(DocumentsLogic.extractValue(req['R_Status_ID']))),
+                    DataCell(Text(DocumentsLogic.extractValue(req['Priority']))),
+                    DataCell(Text(req['DateCompletePlan']?.toString().split('T')[0] ?? '')),
                   ],
-                  rows: widget.requests.asMap().entries.map((entry) {
-                    final int index = entry.key;
-                    final Map<String, dynamic> req = entry.value;
-                    final int realId = _getRealId(req);
-                    return DataRow(
-                      selected: _selectedIds.contains(realId),
-                      onSelectChanged: (_) => _handleRowClick(req),
-                      cells: [
-                        if (AccessControl.canManageRequests) DataCell(Checkbox(value: _selectedIds.contains(realId), onChanged: (selected) => _handleRowSelection(selected, index, realId))),
-                        DataCell(Text('${index + 1}', style: const TextStyle(fontWeight: FontWeight.bold))),
-                        DataCell(
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: Icon(AccessControl.canAddUpdates ? Icons.reply : Icons.forum),
-                                tooltip: AccessControl.canAddUpdates ? 'Responder Solicitud' : 'Ver Actualizaciones',
-                                onPressed: () {
-                                  final id = Uri.encodeComponent(req['id'].toString());
-                                  GoRouter.of(context).push('/request-updates/$id', extra: {'docNo': req['DocumentNo'] ?? req['id'].toString()});
-                                },
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.attach_file),
-                                tooltip: 'Ver / Añadir Adjuntos',
-                                onPressed: () {
-                                  showDialog(
-                                    context: context,
-                                    builder: (context) => _RequestAttachmentsDialog(requestId: req['_rawId'] ?? req['realId'] ?? int.tryParse(req['id'].toString()) ?? 0, documentNo: req['DocumentNo']?.toString() ?? req['id'].toString()),
-                                  );
-                                },
-                              ),
-                              if (AccessControl.canManageRequests)
-                                IconButton(icon: const Icon(Icons.edit), tooltip: 'Editar', onPressed: () => widget.onEdit(req))
-                              else if (AccessControl.canViewRequestDetails)
-                                IconButton(
-                                  icon: const Icon(Icons.visibility),
-                                  tooltip: 'Ver Detalles',
-                                  onPressed: () => showDialog(
-                                    context: context,
-                                    builder: (context) => RequestDetailsDialog(req: req),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                        DataCell(
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(req['id'].toString()),
-                              const SizedBox(width: 8),
-                              InkWell(
-                                borderRadius: BorderRadius.circular(4),
-                                onTap: () {
-                                  Clipboard.setData(ClipboardData(text: req['id'].toString()));
-                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Código copiado al portapapeles')));
-                                },
-                                child: const Padding(
-                                  padding: EdgeInsets.all(4.0),
-                                  child: Icon(Icons.copy, size: 16, color: Colors.grey),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        DataCell(
-                          Tooltip(
-                            message: stripHtmlTags(DocumentsLogic.extractValue(req['Summary'])),
-                            child: Text(() {
-                              final text = stripHtmlTags(DocumentsLogic.extractValue(req['Summary']));
-                              return text.length > 35 ? '${text.substring(0, 35)}...' : text;
-                            }()),
-                          ),
-                        ),
-                        if (widget.showProjectContext) DataCell(Text(req['phaseName'] ?? '-')),
-                        if (widget.showProjectContext) DataCell(Text(req['taskName'] ?? 'General')),
-                        DataCell(Text(DocumentsLogic.extractValue(req['R_RequestType_ID']))),
-                        DataCell(
-                          Tooltip(
-                            message: req['CDS_EmailSubject']?.toString() ?? '',
-                            child: Text(() {
-                              final text = req['CDS_EmailSubject']?.toString() ?? '';
-                              return text.length > 25 ? '${text.substring(0, 25)}...' : text;
-                            }()),
-                          ),
-                        ),
-                        DataCell(Text(DocumentsLogic.extractValue(req['R_Category_ID']))),
-                        if (AccessControl.isAdmin) DataCell(Text(DocumentsLogic.extractValue(req['C_BPartner_ID']))),
-                        if (AccessControl.isAdmin) DataCell(Text(DocumentsLogic.extractValue(req['AD_User_ID']))),
-                        if (AccessControl.isAdmin) DataCell(Text(DocumentsLogic.extractValue(req['SalesRep_ID']))),
-                        DataCell(Text(DocumentsLogic.extractValue(req['R_Group_ID']))),
-                        DataCell(Text(DocumentsLogic.extractValue(req['R_Status_ID']))),
-                        DataCell(Text(DocumentsLogic.extractValue(req['Priority']))),
-                        DataCell(Text(req['DateCompletePlan']?.toString().split('T')[0] ?? '')),
-                      ],
-                    );
-                  }).toList(),
-                ),
-              ),
+                );
+              }).toList(),
             ),
             // Espaciador animado para permitir scroll debajo del Toast flotante
             AnimatedContainer(duration: const Duration(milliseconds: 250), height: _selectedIds.isNotEmpty && AccessControl.canManageRequests ? 80.0 : 0.0),
