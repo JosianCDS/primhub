@@ -7,6 +7,7 @@ import 'package:primhub/api/admin_view_mode.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/api/validation_manager.dart';
 import 'package:primhub/ui/pages/Support/calendar.dart';
+import 'package:primhub/ui/pages/Support/Request_Widgets/request_filter_modal.dart';
 import 'package:primhub/ui/pages/Support/Requests/create_request_dialog.dart';
 import 'package:primhub/ui/pages/Support/Requests/edit_request_dialog.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
@@ -52,14 +53,8 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   Map<String, int> _statusIdMap = {};
   int _currentPage = 0;
   int _rowsPerPage = 25;
-  int? _selectedYear; // Cambiado a null para que por defecto muestre "Todos los Años"
-  String? _selectedBP;
-  String? _selectedLevel;
-  String? _selectedStatus;
-  String? _selectedSituation;
-  String? _selectedSalesRep;
-  String? _selectedUser;
   final TextEditingController _searchController = TextEditingController();
+  RequestFilterModel _filters = const RequestFilterModel();
 
   int? _bpId;
   List<Map<String, dynamic>> _bPartners = [];
@@ -113,13 +108,10 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       if (args is Map) {
         if (args['showHistory'] == true) _showHistory = true;
         if (args['bpId'] != null) _bpId = args['bpId'];
-        if (args['selectedStatus'] != null) {
-          _selectedStatus = args['selectedStatus'];
-          // Si tocamos un estado final, aseguramos que se vea la bitácora
-          if (_selectedStatus!.toLowerCase().contains('close') || _selectedStatus!.toLowerCase().contains('cerrad')) _showHistory = true;
-        }
-        if (args['selectedLevel'] != null) _selectedLevel = args['selectedLevel'];
-        _selectedYear = null; // Reiniciar año para que el gráfico aplique libremente
+
+        _filters = RequestFilterModel(statuses: args['selectedStatus'] != null ? [args['selectedStatus']] : [], levels: args['selectedLevel'] != null ? [args['selectedLevel']] : []);
+
+        if (_filters.statuses.isNotEmpty && (_filters.statuses.first.toLowerCase().contains('close') || _filters.statuses.first.toLowerCase().contains('cerrad'))) _showHistory = true;
       }
 
       // Ajustar filas por página para móvil por defecto
@@ -158,10 +150,10 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       _users = GlobalCache.users;
 
       // Auto-configurar el filtro visual local si entramos desde un atajo
-      if (_bpId != null && _selectedBP == null) {
+      if (_bpId != null && _filters.bpName == null) {
         final found = _bPartners.firstWhere((bp) => bp['id'] == _bpId, orElse: () => <String, dynamic>{});
         if (found.isNotEmpty) {
-          _selectedBP = found['Name'];
+          _filters = _filters.copyWith(bpName: () => found['Name']);
         }
       }
     }
@@ -183,18 +175,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     await _refreshRequest(fetchNetwork: false);
   }
 
-  int get _activeFilterCount {
-    // Calcula el número de filtros activos para mostrar en el botón "Filtros".
-    int count = 0;
-    if (_selectedYear != null) count++;
-    if (_selectedBP != null) count++;
-    if (_selectedLevel != null) count++;
-    if (_selectedStatus != null) count++;
-    if (_selectedSituation != null) count++;
-    if (_selectedSalesRep != null) count++;
-    if (_selectedUser != null) count++;
-    return count;
-  }
+  int get _activeFilterCount => _filters.activeFilterCount;
 
   /// Construye y devuelve una lista de chips que representan los filtros activos.
   Widget _buildActiveFilterChips() {
@@ -216,26 +197,23 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       );
     }
 
-    if (_selectedYear != null) {
-      addChip('Año: $_selectedYear', ActiveFilterType.year);
+    if (_filters.year != null) addChip('Año: ${_filters.year}', ActiveFilterType.year);
+    if (_filters.bpName != null) addChip('Tercero: ${_filters.bpName}', ActiveFilterType.bp);
+
+    if (_filters.levels.isNotEmpty) {
+      addChip('Nivel: ${_filters.levels.length == 1 ? _filters.levels.first : "${_filters.levels.length} seleccionados"}', ActiveFilterType.level);
     }
-    if (_selectedBP != null) {
-      addChip('Tercero: $_selectedBP', ActiveFilterType.bp);
+    if (_filters.statuses.isNotEmpty) {
+      addChip('Estado: ${_filters.statuses.length == 1 ? _filters.statuses.first : "${_filters.statuses.length} seleccionados"}', ActiveFilterType.status);
     }
-    if (_selectedLevel != null) {
-      addChip('Nivel: $_selectedLevel', ActiveFilterType.level);
+    if (_filters.situations.isNotEmpty) {
+      addChip('Tipo: ${_filters.situations.length == 1 ? _filters.situations.first : "${_filters.situations.length} seleccionados"}', ActiveFilterType.situation);
     }
-    if (_selectedStatus != null) {
-      addChip('Estado: $_selectedStatus', ActiveFilterType.status);
+    if (_filters.salesRepNames.isNotEmpty) {
+      addChip('Rep. Comercial: ${_filters.salesRepNames.length == 1 ? _filters.salesRepNames.first : "${_filters.salesRepNames.length} seleccionados"}', ActiveFilterType.salesRep);
     }
-    if (_selectedSituation != null) {
-      addChip('Tipo: $_selectedSituation', ActiveFilterType.situation);
-    }
-    if (_selectedSalesRep != null) {
-      addChip('Rep. Comercial: $_selectedSalesRep', ActiveFilterType.salesRep);
-    }
-    if (_selectedUser != null) {
-      addChip('Usuario: $_selectedUser', ActiveFilterType.user);
+    if (_filters.userNames.isNotEmpty) {
+      addChip('Usuario: ${_filters.userNames.length == 1 ? _filters.userNames.first : "${_filters.userNames.length} seleccionados"}', ActiveFilterType.user);
     }
     if (_searchController.text.isNotEmpty) {
       addChip('Buscar: "${_searchController.text}"', ActiveFilterType.search);
@@ -256,26 +234,26 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     setState(() {
       switch (type) {
         case ActiveFilterType.year:
-          _selectedYear = null;
+          _filters = _filters.copyWith(year: () => null);
           break;
         case ActiveFilterType.bp:
-          _selectedBP = null;
+          _filters = _filters.copyWith(bpName: () => null);
           _bpId = null; // También limpia el ID del tercero
           break;
         case ActiveFilterType.level:
-          _selectedLevel = null;
+          _filters = _filters.copyWith(levels: []);
           break;
         case ActiveFilterType.status:
-          _selectedStatus = null;
+          _filters = _filters.copyWith(statuses: []);
           break;
         case ActiveFilterType.situation:
-          _selectedSituation = null;
+          _filters = _filters.copyWith(situations: []);
           break;
         case ActiveFilterType.salesRep:
-          _selectedSalesRep = null;
+          _filters = _filters.copyWith(salesRepNames: []);
           break;
         case ActiveFilterType.user:
-          _selectedUser = null;
+          _filters = _filters.copyWith(userNames: []);
           break;
         case ActiveFilterType.search:
           _searchController.clear();
@@ -292,326 +270,33 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     }
   }
 
-  Future<void> _openSearchModal<T>({required String title, required List<dynamic> items, required T? currentValue, required String Function(dynamic) getTitle, String Function(dynamic)? getSubtitle, required T? Function(dynamic) getValue, required void Function(T?) onSelected}) async {
-    final dynamic result = await showDialog(
-      context: context,
-      builder: (context) {
-        String searchQuery = '';
-        return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          child: Container(
-            width: 400,
-            height: MediaQuery.of(context).size.height * 0.6,
-            padding: const EdgeInsets.all(20),
-            child: StatefulBuilder(
-              builder: (context, setStateDialog) {
-                final filteredItems = items.where((item) {
-                  return getTitle(item).toLowerCase().contains(searchQuery.toLowerCase());
-                }).toList();
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Seleccionar $title', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w400)),
-                    const SizedBox(height: 16),
-                    TextField(
-                      decoration: const InputDecoration(
-                        prefixIcon: Icon(Icons.filter_list, color: Colors.grey),
-                        hintText: 'Filtrar...',
-                        enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
-                        focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.blue)),
-                      ),
-                      onChanged: (val) => setStateDialog(() => searchQuery = val),
-                    ),
-                    const SizedBox(height: 16),
-                    Expanded(
-                      child: ListView.separated(
-                        itemCount: filteredItems.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1, color: Colors.grey, thickness: 0.3),
-                        itemBuilder: (context, index) {
-                          final item = filteredItems[index];
-                          final itemValue = getValue(item);
-                          final isSelected = itemValue == currentValue;
-
-                          return ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            tileColor: isSelected ? Colors.grey.withOpacity(0.1) : null,
-                            title: Text(getTitle(item), style: const TextStyle(fontSize: 14)),
-                            subtitle: getSubtitle != null && itemValue != null ? Text(getSubtitle(item), style: const TextStyle(fontSize: 12, color: Colors.grey)) : null,
-                            onTap: () => Navigator.of(context).pop({'selected': true, 'value': itemValue}),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-          ),
-        );
-      },
-    );
-
-    if (result != null && result is Map && result['selected'] == true) {
-      onSelected(result['value'] as T?);
-    }
-  }
-
-  Widget _buildSearchableField<T>({required String label, required String? hintText, required T? value, required bool isLoading, required bool isDisabled, required String displayText, required VoidCallback onTap}) {
-    return InkWell(
-      onTap: (isLoading || isDisabled) ? null : onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: InputDecorator(
-        decoration: InputDecoration(
-          labelText: label,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-          floatingLabelBehavior: FloatingLabelBehavior.always,
-          suffixIcon: isLoading ? Transform.scale(scale: 0.5, child: const CircularProgressIndicator(strokeWidth: 3)) : const Icon(Icons.search),
-        ),
-        isEmpty: value == null && (displayText.isEmpty || displayText.startsWith('Todos los')),
-        child: Text(
-          (value == null || displayText.isEmpty) ? (hintText ?? '') : displayText,
-          style: TextStyle(fontSize: 16, color: (isLoading || isDisabled || value == null) ? Colors.grey[600] : Theme.of(context).colorScheme.onSurface),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
-    );
-  }
-
   Future<void> _showFilterModal() async {
-    int? tempSelectedYear = _selectedYear;
-    String? tempSelectedBP = _selectedBP;
-    String? tempSelectedLevel = _selectedLevel;
-    String? tempSelectedStatus = _selectedStatus;
-    String? tempSelectedSituation = _selectedSituation;
-    String? tempSelectedSalesRep = _selectedSalesRep;
-    String? tempSelectedUser = _selectedUser;
+    final originalBP = _filters.bpName;
 
-    final originalBP = _selectedBP;
-
-    final applied = await showDialog<bool>(
+    final appliedFilters = await showDialog<RequestFilterModel>(
       context: context,
       builder: (context) {
-        // --- Modal-specific state ---
-        List<dynamic> modalUsers = _users;
-
-        // Pre-filter users if a BP is already selected
-        if (tempSelectedBP != null) {
-          final bpData = _bPartners.firstWhere((bp) => bp['Name'] == tempSelectedBP, orElse: () => {});
-          if (bpData.isNotEmpty) {
-            final bpId = bpData['id'];
-            modalUsers = _users.where((u) {
-              final userBpData = u['C_BPartner_ID'];
-              return userBpData is Map && userBpData['id'] == bpId;
-            }).toList();
-          }
-        }
-
-        return StatefulBuilder(
-          builder: (context, setStateModal) {
-            // 1. Calcular dinámicamente los usuarios válidos CADA VEZ que cambia el modal
-            List<dynamic> modalUsers = _users;
-            if (tempSelectedBP != null && tempSelectedBP != '__ALL__') {
-              final bpData = _bPartners.firstWhere((bp) => bp['Name'] == tempSelectedBP, orElse: () => {});
-              if (bpData.isNotEmpty) {
-                final bpId = bpData['id'];
-                modalUsers = _users.where((u) {
-                  final userBpData = u['C_BPartner_ID'];
-                  // Validación robusta: extrae el ID sea un Map o sea un entero directo
-                  final uBpId = (userBpData is Map) ? userBpData['id'] : userBpData;
-                  return uBpId == bpId;
-                }).toList();
-              }
-            }
-            return CustomModal(
-              title: 'Filtrar Solicitudes',
-              width: 500,
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildSearchableField<int>(
-                      label: 'Año',
-                      hintText: 'Todos los Años',
-                      value: tempSelectedYear,
-                      isLoading: false,
-                      isDisabled: false,
-                      displayText: tempSelectedYear?.toString() ?? 'Todos los Años',
-                      onTap: () => _openSearchModal<int>(title: 'Año', items: ['__ALL__', ...List.generate(10, (index) => (DateTime.now().year - 3) + index)], currentValue: tempSelectedYear, getTitle: (item) => item == '__ALL__' ? 'Todos los Años' : item.toString(), getValue: (item) => item == '__ALL__' ? null : item as int, onSelected: (val) => setStateModal(() => tempSelectedYear = val)),
-                    ),
-                    const SizedBox(height: 16),
-                    if (AccessControl.isAdmin) ...[
-                      _buildSearchableField<String>(
-                        label: 'Tercero',
-                        hintText: 'Todos los Terceros',
-                        value: tempSelectedBP,
-                        isLoading: false,
-                        isDisabled: false,
-                        displayText: tempSelectedBP ?? 'Todos los Terceros',
-                        onTap: () async {
-                          await _openSearchModal<String>(
-                            title: 'Tercero',
-                            items: [
-                              '__ALL__',
-                              ...{
-                                for (var bp in _bPartners)
-                                  if (bp['id'] != null) bp['id']: bp,
-                              }.values,
-                            ],
-                            currentValue: tempSelectedBP,
-                            getTitle: (item) => item == '__ALL__' ? 'Todos los Terceros' : (item['Name'] ?? 'Sin Nombre'),
-                            getSubtitle: (item) => item == '__ALL__' ? '' : 'ID: ${item['id']}',
-                            getValue: (item) => item == '__ALL__' ? null : item['Name']?.toString(),
-                            onSelected: (val) {
-                              setStateModal(() {
-                                tempSelectedBP = val;
-                                // Validación de Usuario vs Tercero
-                                if (tempSelectedUser != null && val != null && val != '__ALL__') {
-                                  final newBpData = _bPartners.firstWhere((bp) => bp['Name'] == val, orElse: () => <String, dynamic>{});
-                                  if (newBpData.isNotEmpty) {
-                                    final newBpId = newBpData['id'];
-                                    final userRecord = _users.firstWhere((u) => u['Name'] == tempSelectedUser, orElse: () => <String, dynamic>{});
-
-                                    if (userRecord.isNotEmpty) {
-                                      final uBp = userRecord['C_BPartner_ID'];
-                                      final uBpId = (uBp is Map) ? uBp['id'] : uBp;
-
-                                      if (uBpId != newBpId) {
-                                        tempSelectedUser = null; // Limpiamos al usuario
-                                        WidgetsBinding.instance.addPostFrameCallback((_) => ToastMessage.show(context: context, message: 'El filtro de usuario se ha quitado, no pertenece a este tercero', type: ToastType.help));
-                                      }
-                                    }
-                                  }
-                                }
-                              });
-                            },
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      _buildSearchableField<String>(
-                        label: 'Rep. Comercial',
-                        hintText: 'Todos los Rep. Comerciales',
-                        value: tempSelectedSalesRep,
-                        isLoading: false,
-                        isDisabled: false,
-                        displayText: tempSelectedSalesRep ?? 'Todos los Rep. Comerciales',
-                        onTap: () => _openSearchModal<String>(
-                          title: 'Rep. Comercial',
-                          // Filtro técnico para Representantes Comerciales
-                          items: ['__ALL__', ..._bPartners.where((bp) => bp['C_BPartner0IsSalesRep'] == 'Y' || bp['C_BPartner0IsSalesRep'] == true)],
-                          currentValue: tempSelectedSalesRep,
-                          getTitle: (item) => item == '__ALL__' ? 'Todos los Rep. Comerciales' : (item['Name'] ?? 'Sin Nombre'),
-                          getSubtitle: (item) => item == '__ALL__' ? '' : 'ID: ${item['id']}',
-                          getValue: (item) => item == '__ALL__' ? null : item['Name']?.toString(),
-                          onSelected: (val) => setStateModal(() => tempSelectedSalesRep = val),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-                    _buildSearchableField<String>(
-                      label: 'Tipo de solicitud',
-                      hintText: 'Todos los Tipos',
-                      value: tempSelectedSituation,
-                      isLoading: false,
-                      isDisabled: false,
-                      displayText: tempSelectedSituation ?? 'Todos los Tipos',
-                      onTap: () => _openSearchModal<String>(
-                        title: 'Tipo de solicitud',
-                        items: ['__ALL__', ..._requests.map((e) => e['situation'].toString()).toSet()],
-                        currentValue: tempSelectedSituation,
-                        getTitle: (item) => item == '__ALL__' ? 'Todos los Tipos' : item.toString(),
-                        getValue: (item) => item == '__ALL__' ? null : item.toString(),
-                        onSelected: (val) => setStateModal(() => tempSelectedSituation = val),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildSearchableField<String>(
-                      label: 'Usuario',
-                      hintText: 'Todos los Usuarios',
-                      value: tempSelectedUser,
-                      isLoading: false,
-                      isDisabled: false,
-                      displayText: tempSelectedUser ?? 'Todos los Usuarios',
-                      onTap: () => _openSearchModal<String>(
-                        title: 'Usuario',
-                        // Se utiliza modalUsers definido en el StatefulBuilder
-                        items: [
-                          '__ALL__',
-                          ...{
-                            for (var u in modalUsers)
-                              if ((u['AD_User_ID'] ?? u['id']) != null) (u['AD_User_ID'] ?? u['id']): u,
-                          }.values,
-                        ],
-                        currentValue: tempSelectedUser,
-                        getTitle: (item) => item == '__ALL__' ? 'Todos los Usuarios' : (item['Name'] ?? 'Sin Nombre'),
-                        getSubtitle: (item) => item == '__ALL__' ? '' : 'ID: ${item['AD_User_ID'] ?? item['id']}',
-                        getValue: (item) => item == '__ALL__' ? null : item['Name']?.toString(),
-                        onSelected: (val) => setStateModal(() => tempSelectedUser = val),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildSearchableField<String>(
-                      label: 'Nivel',
-                      hintText: 'Todos los Niveles',
-                      value: tempSelectedLevel,
-                      isLoading: false,
-                      isDisabled: false,
-                      displayText: tempSelectedLevel ?? 'Todos los Niveles',
-                      onTap: () => _openSearchModal<String>(title: 'Nivel', items: ['__ALL__', 'Urgente', 'Alta', 'Media', 'Baja', 'Menor'], currentValue: tempSelectedLevel, getTitle: (item) => item == '__ALL__' ? 'Todos los Niveles' : item.toString(), getValue: (item) => item == '__ALL__' ? null : item.toString(), onSelected: (val) => setStateModal(() => tempSelectedLevel = val)),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildSearchableField<String>(
-                      label: 'Estado',
-                      hintText: 'Todos los Estados',
-                      value: (_statusIdMap.isNotEmpty && tempSelectedStatus != null && !_statusIdMap.containsKey(tempSelectedStatus)) ? null : tempSelectedStatus,
-                      isLoading: false,
-                      isDisabled: false,
-                      displayText: tempSelectedStatus ?? 'Todos los Estados',
-                      onTap: () => _openSearchModal<String>(
-                        title: 'Estado',
-                        items: [
-                          '__ALL__',
-                          ...(_statusIdMap.isNotEmpty ? (_statusIdMap.keys.toList()..sort()) : ['1_Open', '2_Waiting on customer', '3_Closed']),
-                        ],
-                        currentValue: tempSelectedStatus,
-                        getTitle: (item) => item == '__ALL__' ? 'Todos los Estados' : item.toString(),
-                        getValue: (item) => item == '__ALL__' ? null : item.toString(),
-                        onSelected: (val) => setStateModal(() => tempSelectedStatus = val),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-                CustomButton(text: 'Aplicar Filtros', onPressed: () => Navigator.pop(context, true)),
-              ],
-            );
-          },
+        return RequestFilterModal(
+          initialFilter: _filters,
+          bPartners: _bPartners, // Lista de clientes para el filtro "Tercero"
+          allBPartners: GlobalCache.allBPartners, // Lista completa para el filtro "Rep. Comercial"
+          users: _users,
+          requests: _requests,
+          statusIdMap: _statusIdMap,
         );
       },
     );
 
-    if (applied == true) {
+    if (appliedFilters != null) {
       setState(() {
-        _selectedYear = tempSelectedYear;
-        _selectedBP = tempSelectedBP;
-        _selectedLevel = tempSelectedLevel;
-        _selectedStatus = tempSelectedStatus;
-        _selectedSituation = tempSelectedSituation;
-        _selectedSalesRep = tempSelectedSalesRep;
-        _selectedUser = tempSelectedUser;
+        _filters = appliedFilters;
         _currentPage = 0;
       });
 
-      if (originalBP != _selectedBP) {
+      if (originalBP != _filters.bpName) {
         setState(() => _isLoading = true);
-        if (_selectedBP != null) {
-          final found = _bPartners.firstWhere((bp) => bp['Name'] == _selectedBP, orElse: () => <String, dynamic>{});
+        if (_filters.bpName != null) {
+          final found = _bPartners.firstWhere((bp) => bp['Name'] == _filters.bpName, orElse: () => <String, dynamic>{});
           if (found.isNotEmpty) {
             _bpId = found['id'];
           }
@@ -743,22 +428,23 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     double consumedForStats = 0.0;
     double estimatedForStats = 0.0;
 
-    if (_selectedBP != null) {
-      final bpRequests = _requests.where((r) => r['bpName'] == _selectedBP).toList();
+    if (_filters.bpName != null) {
+      final bpRequests = _requests.where((r) => r['bpName'] == _filters.bpName).toList();
       for (var r in bpRequests) {
         double qty = double.tryParse(r['qtyPlan']?.toString() ?? '0.0') ?? 0.0;
-        if (r['status'] == '9_Final Close' || r['statusId'] == 103 || r['statusId'] == 1000019 || r['status'].toString().toLowerCase().contains('archivada')) {
+        if (r['status'] == '9_Final Close' || r['statusId'] == 103 || r['statusId'] == 1000019 || (r['status']?.toString().toLowerCase().contains('archivada') ?? false)) {
           consumedForStats += qty;
         } else {
           estimatedForStats += qty;
         }
       }
 
-      final foundBp = _bPartners.firstWhere((bp) => bp['Name'] == _selectedBP, orElse: () => {});
+      final foundBp = _bPartners.firstWhere((bp) => bp['Name'] == _filters.bpName, orElse: () => {});
       int? bpIdForContract;
       if (foundBp.isNotEmpty) {
-        bpIdForContract = foundBp['id'];
-      } else if (User.cBPartnerID != null && User.name == _selectedBP) {
+        //
+        bpIdForContract = foundBp['id']; //
+      } else if (User.cBPartnerID != null && User.name == _filters.bpName) {
         bpIdForContract = User.cBPartnerID;
       }
 
@@ -768,7 +454,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     } else {
       for (var r in _requests) {
         double qty = double.tryParse(r['qtyPlan']?.toString() ?? '0.0') ?? 0.0;
-        if (r['status'] == '9_Final Close' || r['statusId'] == 103 || r['statusId'] == 1000019 || r['status'].toString().toLowerCase().contains('archivada')) {
+        if (r['status'] == '9_Final Close' || r['statusId'] == 103 || r['statusId'] == 1000019 || (r['status']?.toString().toLowerCase().contains('archivada') ?? false)) {
           consumedForStats += qty;
         } else {
           estimatedForStats += qty;
@@ -996,21 +682,21 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
 
   /// Construye el InkWell para mostrar el diálogo de excepciones de horas.
   List<Map<String, dynamic>> _getFilteredRequests() {
-    return _requests.where((alert) {
-      bool isClosed = alert['status'] == '9_Final Close' || alert['statusId'] == 103 || alert['statusId'] == 1000019 || alert['status'].toString().toLowerCase().contains('archivada');
+    return _requests.where((req) {
+      bool isClosed = req['status'] == '9_Final Close' || req['statusId'] == 103 || req['statusId'] == 1000019 || (req['status']?.toString().toLowerCase().contains('archivada') ?? false);
       if (_showHistory != isClosed) return false;
-      if (_selectedLevel != null && alert['level'] != _selectedLevel) return false;
-      if (_selectedStatus != null && alert['status'] != _selectedStatus) return false;
-      if (_selectedBP != null && alert['bpName'] != _selectedBP) return false;
-      if (_selectedYear != null && alert['time'] != null && alert['time'].toString().isNotEmpty) {
+      if (_filters.levels.isNotEmpty && !(_filters.levels.contains(req['level']))) return false;
+      if (_filters.statuses.isNotEmpty && !(_filters.statuses.contains(req['status']))) return false;
+      if (_filters.bpName != null && req['bpName'] != _filters.bpName) return false;
+      if (_filters.year != null && req['time'] != null && req['time'].toString().isNotEmpty) {
         try {
-          if (int.parse(alert['time'].toString().substring(0, 4)) != _selectedYear) return false;
+          if (int.parse(req['time'].toString().substring(0, 4)) != _filters.year) return false;
         } catch (_) {}
       }
-      if (_selectedSituation != null && alert['situation'] != _selectedSituation) return false;
-      if (_selectedSalesRep != null && alert['salesRepName'] != _selectedSalesRep) return false;
-      if (_selectedUser != null && alert['userName'] != _selectedUser) return false;
-      if (_searchController.text.isNotEmpty && !alert['id'].toString().toLowerCase().contains(_searchController.text.toLowerCase())) return false;
+      if (_filters.situations.isNotEmpty && !(_filters.situations.contains(req['situation']))) return false;
+      if (_filters.salesRepNames.isNotEmpty && !(_filters.salesRepNames.contains(req['salesRepName']))) return false;
+      if (_filters.userNames.isNotEmpty && !(_filters.userNames.contains(req['userName']))) return false;
+      if (_searchController.text.isNotEmpty && !req['id'].toString().toLowerCase().contains(_searchController.text.toLowerCase())) return false;
       return true;
     }).toList()..sort((a, b) {
       final timeA = a['time'] ?? '';
@@ -1120,14 +806,8 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
             }),
             onClearFilters: () {
               setState(() {
-                _selectedBP = null;
-                _selectedLevel = null;
-                _selectedStatus = null;
-                _selectedSituation = null;
-                _selectedSalesRep = null;
-                _selectedUser = null;
+                _filters = const RequestFilterModel();
                 _searchController.clear();
-                _selectedYear = null; // Limpiar también el filtro de año
                 _isAscending = false;
                 _currentPage = 0;
                 _bpId = null; // Reiniciar memoria de navegación
@@ -1146,7 +826,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
             },
             onToggleHistory: () => setState(() {
               _showHistory = !_showHistory;
-              _selectedStatus = null;
+              _filters = _filters.copyWith(statuses: []);
               if (_showHistory) {
                 _startHistorySkeleton();
               } else {

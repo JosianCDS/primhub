@@ -12,6 +12,8 @@ import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
 class GlobalCache {
   static List<dynamic> projects = [];
   static List<Map<String, dynamic>> requests = [];
+  static List<Map<String, dynamic>> _rawBPartners = [];
+  static List<Map<String, dynamic>> get allBPartners => _rawBPartners;
   static List<Map<String, dynamic>> bPartners = [];
   static List<Map<String, dynamic>> contracts = [];
   static List<dynamic> users = [];
@@ -33,15 +35,13 @@ class GlobalCache {
     statuses = futures[0] as Map<String, int>;
 
     // APLICAMOS EL FILTRO DIRECTAMENTE EN LA CACHÉ GLOBAL
-    final rawBPartners = futures[1] as List<dynamic>;
-    bPartners = rawBPartners
-        .where((bp) {
-          final name = bp['Name']?.toString() ?? '';
-          final isCustomer = bp['IsCustomer'] == true || bp['IsCustomer'] == 'Y' || bp['isCustomer'] == true || bp['isCustomer'] == 'Y';
-          return !name.startsWith('~') && isCustomer;
-        })
-        .map((e) => Map<String, dynamic>.from(e as Map))
-        .toList();
+    _rawBPartners = (futures[1] as List<dynamic>).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+
+    bPartners = _rawBPartners.where((bp) {
+      final name = bp['Name']?.toString() ?? '';
+      final isCustomer = bp['IsCustomer'] == true || bp['IsCustomer'] == 'Y' || bp['isCustomer'] == true || bp['isCustomer'] == 'Y';
+      return !name.startsWith('~') && isCustomer;
+    }).toList();
 
     users = futures[2] as List<dynamic>;
   }
@@ -180,6 +180,7 @@ class GlobalCache {
   static void clear() {
     projects = [];
     requests = [];
+    _rawBPartners = [];
     bPartners = [];
     contracts = [];
     users = [];
