@@ -214,7 +214,6 @@ class ProjectFullCard extends StatelessWidget {
     final int projId = project['id'] is int ? project['id'] as int : int.tryParse(project['id'].toString()) ?? 0;
 
     return Container(
-      width: 320,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),

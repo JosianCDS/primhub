@@ -15,6 +15,7 @@ import 'package:primhub/ui/pages/Support/Request_Widgets/request_filter_bar.dart
 import 'package:primhub/ui/pages/Support/Request_Widgets/requests_data_table.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
+import 'package:primhub/ui/Shared_Custom/customToast.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import '../../../widgets/custom_drawer.dart';
 import 'package:primhub/ui/pages/Home/Home_Controller/home_controller.dart';
@@ -25,6 +26,9 @@ import 'package:primhub/api/api_utils.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:primhub/ui/Shared_Custom/custom_skeleton.dart';
 import 'package:primhub/ui/Shared_Custom/user_info_leading.dart';
+
+/// Enum para identificar los tipos de filtro activos.
+enum ActiveFilterType { year, bp, level, status, situation, salesRep, user, search }
 
 class MyRequestsPage extends StatefulWidget {
   const MyRequestsPage({super.key});
@@ -65,6 +69,8 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   Timer? _skeletonTimer;
   bool _forceShowContent = false;
   bool _isHistorySkeletonActive = false;
+
+  bool _showCalendar = false; // Nuevo estado para controlar la vista del calendario
   Timer? _historySkeletonTimer;
 
   @override
@@ -116,6 +122,12 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
         _selectedYear = null; // Reiniciar año para que el gráfico aplique libremente
       }
 
+      // Ajustar filas por página para móvil por defecto
+      final isMobile = MediaQuery.of(context).size.width < 800;
+      if (isMobile) {
+        _rowsPerPage = 10;
+      }
+
       if (_showHistory) _startHistorySkeleton();
 
       _isInit = false;
@@ -141,6 +153,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     await GlobalCache.syncData();
 
     if (AccessControl.isAdmin) {
+      // Ya viene filtrada y unificada directamente desde GlobalCache
       _bPartners = GlobalCache.bPartners;
       _users = GlobalCache.users;
 
@@ -168,6 +181,531 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
 
     // 3. Procesar la data (sin volver a consultar la red)
     await _refreshRequest(fetchNetwork: false);
+  }
+
+  int get _activeFilterCount {
+    // Calcula el número de filtros activos para mostrar en el botón "Filtros".
+    int count = 0;
+    if (_selectedYear != null) count++;
+    if (_selectedBP != null) count++;
+    if (_selectedLevel != null) count++;
+    if (_selectedStatus != null) count++;
+    if (_selectedSituation != null) count++;
+    if (_selectedSalesRep != null) count++;
+    if (_selectedUser != null) count++;
+    return count;
+  }
+
+  /// Construye y devuelve una lista de chips que representan los filtros activos.
+  Widget _buildActiveFilterChips() {
+    final List<Widget> chips = [];
+    final theme = Theme.of(context);
+
+    void addChip(String label, ActiveFilterType type) {
+      chips.add(
+        InputChip(
+          label: Text(label),
+          onDeleted: () => _removeFilter(type),
+          deleteButtonTooltipMessage: 'Quitar',
+          deleteIcon: const Icon(Icons.close, size: 18),
+          labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+          backgroundColor: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          side: BorderSide(color: theme.colorScheme.outline.withOpacity(0.2)),
+        ),
+      );
+    }
+
+    if (_selectedYear != null) {
+      addChip('Año: $_selectedYear', ActiveFilterType.year);
+    }
+    if (_selectedBP != null) {
+      addChip('Tercero: $_selectedBP', ActiveFilterType.bp);
+    }
+    if (_selectedLevel != null) {
+      addChip('Nivel: $_selectedLevel', ActiveFilterType.level);
+    }
+    if (_selectedStatus != null) {
+      addChip('Estado: $_selectedStatus', ActiveFilterType.status);
+    }
+    if (_selectedSituation != null) {
+      addChip('Tipo: $_selectedSituation', ActiveFilterType.situation);
+    }
+    if (_selectedSalesRep != null) {
+      addChip('Rep. Comercial: $_selectedSalesRep', ActiveFilterType.salesRep);
+    }
+    if (_selectedUser != null) {
+      addChip('Usuario: $_selectedUser', ActiveFilterType.user);
+    }
+    if (_searchController.text.isNotEmpty) {
+      addChip('Buscar: "${_searchController.text}"', ActiveFilterType.search);
+    }
+
+    if (chips.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Wrap(spacing: 8.0, runSpacing: 8.0, children: chips),
+    );
+  }
+
+  /// Elimina un filtro específico y actualiza la UI.
+  void _removeFilter(ActiveFilterType type) {
+    setState(() {
+      switch (type) {
+        case ActiveFilterType.year:
+          _selectedYear = null;
+          break;
+        case ActiveFilterType.bp:
+          _selectedBP = null;
+          _bpId = null; // También limpia el ID del tercero
+          break;
+        case ActiveFilterType.level:
+          _selectedLevel = null;
+          break;
+        case ActiveFilterType.status:
+          _selectedStatus = null;
+          break;
+        case ActiveFilterType.situation:
+          _selectedSituation = null;
+          break;
+        case ActiveFilterType.salesRep:
+          _selectedSalesRep = null;
+          break;
+        case ActiveFilterType.user:
+          _selectedUser = null;
+          break;
+        case ActiveFilterType.search:
+          _searchController.clear();
+          break;
+      }
+      _currentPage = 0; // Reinicia la paginación
+    });
+    // Si se cambió el tercero, necesitamos reinicializar los datos para obtener los contratos correctos.
+    // De lo contrario, solo actualizamos las estadísticas localmente.
+    if (type == ActiveFilterType.bp) {
+      _initData();
+    } else {
+      _updateStatsLocally();
+    }
+  }
+
+  Future<void> _openSearchModal<T>({required String title, required List<dynamic> items, required T? currentValue, required String Function(dynamic) getTitle, String Function(dynamic)? getSubtitle, required T? Function(dynamic) getValue, required void Function(T?) onSelected}) async {
+    final dynamic result = await showDialog(
+      context: context,
+      builder: (context) {
+        String searchQuery = '';
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          child: Container(
+            width: 400,
+            height: MediaQuery.of(context).size.height * 0.6,
+            padding: const EdgeInsets.all(20),
+            child: StatefulBuilder(
+              builder: (context, setStateDialog) {
+                final filteredItems = items.where((item) {
+                  return getTitle(item).toLowerCase().contains(searchQuery.toLowerCase());
+                }).toList();
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Seleccionar $title', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w400)),
+                    const SizedBox(height: 16),
+                    TextField(
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.filter_list, color: Colors.grey),
+                        hintText: 'Filtrar...',
+                        enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
+                        focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.blue)),
+                      ),
+                      onChanged: (val) => setStateDialog(() => searchQuery = val),
+                    ),
+                    const SizedBox(height: 16),
+                    Expanded(
+                      child: ListView.separated(
+                        itemCount: filteredItems.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1, color: Colors.grey, thickness: 0.3),
+                        itemBuilder: (context, index) {
+                          final item = filteredItems[index];
+                          final itemValue = getValue(item);
+                          final isSelected = itemValue == currentValue;
+
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            tileColor: isSelected ? Colors.grey.withOpacity(0.1) : null,
+                            title: Text(getTitle(item), style: const TextStyle(fontSize: 14)),
+                            subtitle: getSubtitle != null && itemValue != null ? Text(getSubtitle(item), style: const TextStyle(fontSize: 12, color: Colors.grey)) : null,
+                            onTap: () => Navigator.of(context).pop({'selected': true, 'value': itemValue}),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+
+    if (result != null && result is Map && result['selected'] == true) {
+      onSelected(result['value'] as T?);
+    }
+  }
+
+  Widget _buildSearchableField<T>({required String label, required String? hintText, required T? value, required bool isLoading, required bool isDisabled, required String displayText, required VoidCallback onTap}) {
+    return InkWell(
+      onTap: (isLoading || isDisabled) ? null : onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+          floatingLabelBehavior: FloatingLabelBehavior.always,
+          suffixIcon: isLoading ? Transform.scale(scale: 0.5, child: const CircularProgressIndicator(strokeWidth: 3)) : const Icon(Icons.search),
+        ),
+        isEmpty: value == null && (displayText.isEmpty || displayText.startsWith('Todos los')),
+        child: Text(
+          (value == null || displayText.isEmpty) ? (hintText ?? '') : displayText,
+          style: TextStyle(fontSize: 16, color: (isLoading || isDisabled || value == null) ? Colors.grey[600] : Theme.of(context).colorScheme.onSurface),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showFilterModal() async {
+    int? tempSelectedYear = _selectedYear;
+    String? tempSelectedBP = _selectedBP;
+    String? tempSelectedLevel = _selectedLevel;
+    String? tempSelectedStatus = _selectedStatus;
+    String? tempSelectedSituation = _selectedSituation;
+    String? tempSelectedSalesRep = _selectedSalesRep;
+    String? tempSelectedUser = _selectedUser;
+
+    final originalBP = _selectedBP;
+
+    final applied = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        // --- Modal-specific state ---
+        List<dynamic> modalUsers = _users;
+
+        // Pre-filter users if a BP is already selected
+        if (tempSelectedBP != null) {
+          final bpData = _bPartners.firstWhere((bp) => bp['Name'] == tempSelectedBP, orElse: () => {});
+          if (bpData.isNotEmpty) {
+            final bpId = bpData['id'];
+            modalUsers = _users.where((u) {
+              final userBpData = u['C_BPartner_ID'];
+              return userBpData is Map && userBpData['id'] == bpId;
+            }).toList();
+          }
+        }
+
+        return StatefulBuilder(
+          builder: (context, setStateModal) {
+            // 1. Calcular dinámicamente los usuarios válidos CADA VEZ que cambia el modal
+            List<dynamic> modalUsers = _users;
+            if (tempSelectedBP != null && tempSelectedBP != '__ALL__') {
+              final bpData = _bPartners.firstWhere((bp) => bp['Name'] == tempSelectedBP, orElse: () => {});
+              if (bpData.isNotEmpty) {
+                final bpId = bpData['id'];
+                modalUsers = _users.where((u) {
+                  final userBpData = u['C_BPartner_ID'];
+                  // Validación robusta: extrae el ID sea un Map o sea un entero directo
+                  final uBpId = (userBpData is Map) ? userBpData['id'] : userBpData;
+                  return uBpId == bpId;
+                }).toList();
+              }
+            }
+            return CustomModal(
+              title: 'Filtrar Solicitudes',
+              width: 500,
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildSearchableField<int>(
+                      label: 'Año',
+                      hintText: 'Todos los Años',
+                      value: tempSelectedYear,
+                      isLoading: false,
+                      isDisabled: false,
+                      displayText: tempSelectedYear?.toString() ?? 'Todos los Años',
+                      onTap: () => _openSearchModal<int>(title: 'Año', items: ['__ALL__', ...List.generate(10, (index) => (DateTime.now().year - 3) + index)], currentValue: tempSelectedYear, getTitle: (item) => item == '__ALL__' ? 'Todos los Años' : item.toString(), getValue: (item) => item == '__ALL__' ? null : item as int, onSelected: (val) => setStateModal(() => tempSelectedYear = val)),
+                    ),
+                    const SizedBox(height: 16),
+                    if (AccessControl.isAdmin) ...[
+                      _buildSearchableField<String>(
+                        label: 'Tercero',
+                        hintText: 'Todos los Terceros',
+                        value: tempSelectedBP,
+                        isLoading: false,
+                        isDisabled: false,
+                        displayText: tempSelectedBP ?? 'Todos los Terceros',
+                        onTap: () async {
+                          await _openSearchModal<String>(
+                            title: 'Tercero',
+                            items: [
+                              '__ALL__',
+                              ...{
+                                for (var bp in _bPartners)
+                                  if (bp['id'] != null) bp['id']: bp,
+                              }.values,
+                            ],
+                            currentValue: tempSelectedBP,
+                            getTitle: (item) => item == '__ALL__' ? 'Todos los Terceros' : (item['Name'] ?? 'Sin Nombre'),
+                            getSubtitle: (item) => item == '__ALL__' ? '' : 'ID: ${item['id']}',
+                            getValue: (item) => item == '__ALL__' ? null : item['Name']?.toString(),
+                            onSelected: (val) {
+                              setStateModal(() {
+                                tempSelectedBP = val;
+                                // Validación de Usuario vs Tercero
+                                if (tempSelectedUser != null && val != null && val != '__ALL__') {
+                                  final newBpData = _bPartners.firstWhere((bp) => bp['Name'] == val, orElse: () => <String, dynamic>{});
+                                  if (newBpData.isNotEmpty) {
+                                    final newBpId = newBpData['id'];
+                                    final userRecord = _users.firstWhere((u) => u['Name'] == tempSelectedUser, orElse: () => <String, dynamic>{});
+
+                                    if (userRecord.isNotEmpty) {
+                                      final uBp = userRecord['C_BPartner_ID'];
+                                      final uBpId = (uBp is Map) ? uBp['id'] : uBp;
+
+                                      if (uBpId != newBpId) {
+                                        tempSelectedUser = null; // Limpiamos al usuario
+                                        WidgetsBinding.instance.addPostFrameCallback((_) => ToastMessage.show(context: context, message: 'El filtro de usuario se ha quitado, no pertenece a este tercero', type: ToastType.help));
+                                      }
+                                    }
+                                  }
+                                }
+                              });
+                            },
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      _buildSearchableField<String>(
+                        label: 'Rep. Comercial',
+                        hintText: 'Todos los Rep. Comerciales',
+                        value: tempSelectedSalesRep,
+                        isLoading: false,
+                        isDisabled: false,
+                        displayText: tempSelectedSalesRep ?? 'Todos los Rep. Comerciales',
+                        onTap: () => _openSearchModal<String>(
+                          title: 'Rep. Comercial',
+                          // Filtro técnico para Representantes Comerciales
+                          items: ['__ALL__', ..._bPartners.where((bp) => bp['C_BPartner0IsSalesRep'] == 'Y' || bp['C_BPartner0IsSalesRep'] == true)],
+                          currentValue: tempSelectedSalesRep,
+                          getTitle: (item) => item == '__ALL__' ? 'Todos los Rep. Comerciales' : (item['Name'] ?? 'Sin Nombre'),
+                          getSubtitle: (item) => item == '__ALL__' ? '' : 'ID: ${item['id']}',
+                          getValue: (item) => item == '__ALL__' ? null : item['Name']?.toString(),
+                          onSelected: (val) => setStateModal(() => tempSelectedSalesRep = val),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    _buildSearchableField<String>(
+                      label: 'Tipo de solicitud',
+                      hintText: 'Todos los Tipos',
+                      value: tempSelectedSituation,
+                      isLoading: false,
+                      isDisabled: false,
+                      displayText: tempSelectedSituation ?? 'Todos los Tipos',
+                      onTap: () => _openSearchModal<String>(
+                        title: 'Tipo de solicitud',
+                        items: ['__ALL__', ..._requests.map((e) => e['situation'].toString()).toSet()],
+                        currentValue: tempSelectedSituation,
+                        getTitle: (item) => item == '__ALL__' ? 'Todos los Tipos' : item.toString(),
+                        getValue: (item) => item == '__ALL__' ? null : item.toString(),
+                        onSelected: (val) => setStateModal(() => tempSelectedSituation = val),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildSearchableField<String>(
+                      label: 'Usuario',
+                      hintText: 'Todos los Usuarios',
+                      value: tempSelectedUser,
+                      isLoading: false,
+                      isDisabled: false,
+                      displayText: tempSelectedUser ?? 'Todos los Usuarios',
+                      onTap: () => _openSearchModal<String>(
+                        title: 'Usuario',
+                        // Se utiliza modalUsers definido en el StatefulBuilder
+                        items: [
+                          '__ALL__',
+                          ...{
+                            for (var u in modalUsers)
+                              if ((u['AD_User_ID'] ?? u['id']) != null) (u['AD_User_ID'] ?? u['id']): u,
+                          }.values,
+                        ],
+                        currentValue: tempSelectedUser,
+                        getTitle: (item) => item == '__ALL__' ? 'Todos los Usuarios' : (item['Name'] ?? 'Sin Nombre'),
+                        getSubtitle: (item) => item == '__ALL__' ? '' : 'ID: ${item['AD_User_ID'] ?? item['id']}',
+                        getValue: (item) => item == '__ALL__' ? null : item['Name']?.toString(),
+                        onSelected: (val) => setStateModal(() => tempSelectedUser = val),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildSearchableField<String>(
+                      label: 'Nivel',
+                      hintText: 'Todos los Niveles',
+                      value: tempSelectedLevel,
+                      isLoading: false,
+                      isDisabled: false,
+                      displayText: tempSelectedLevel ?? 'Todos los Niveles',
+                      onTap: () => _openSearchModal<String>(title: 'Nivel', items: ['__ALL__', 'Urgente', 'Alta', 'Media', 'Baja', 'Menor'], currentValue: tempSelectedLevel, getTitle: (item) => item == '__ALL__' ? 'Todos los Niveles' : item.toString(), getValue: (item) => item == '__ALL__' ? null : item.toString(), onSelected: (val) => setStateModal(() => tempSelectedLevel = val)),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildSearchableField<String>(
+                      label: 'Estado',
+                      hintText: 'Todos los Estados',
+                      value: (_statusIdMap.isNotEmpty && tempSelectedStatus != null && !_statusIdMap.containsKey(tempSelectedStatus)) ? null : tempSelectedStatus,
+                      isLoading: false,
+                      isDisabled: false,
+                      displayText: tempSelectedStatus ?? 'Todos los Estados',
+                      onTap: () => _openSearchModal<String>(
+                        title: 'Estado',
+                        items: [
+                          '__ALL__',
+                          ...(_statusIdMap.isNotEmpty ? (_statusIdMap.keys.toList()..sort()) : ['1_Open', '2_Waiting on customer', '3_Closed']),
+                        ],
+                        currentValue: tempSelectedStatus,
+                        getTitle: (item) => item == '__ALL__' ? 'Todos los Estados' : item.toString(),
+                        getValue: (item) => item == '__ALL__' ? null : item.toString(),
+                        onSelected: (val) => setStateModal(() => tempSelectedStatus = val),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+                CustomButton(text: 'Aplicar Filtros', onPressed: () => Navigator.pop(context, true)),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (applied == true) {
+      setState(() {
+        _selectedYear = tempSelectedYear;
+        _selectedBP = tempSelectedBP;
+        _selectedLevel = tempSelectedLevel;
+        _selectedStatus = tempSelectedStatus;
+        _selectedSituation = tempSelectedSituation;
+        _selectedSalesRep = tempSelectedSalesRep;
+        _selectedUser = tempSelectedUser;
+        _currentPage = 0;
+      });
+
+      if (originalBP != _selectedBP) {
+        setState(() => _isLoading = true);
+        if (_selectedBP != null) {
+          final found = _bPartners.firstWhere((bp) => bp['Name'] == _selectedBP, orElse: () => <String, dynamic>{});
+          if (found.isNotEmpty) {
+            _bpId = found['id'];
+          }
+        } else {
+          _bpId = null;
+        }
+        _initData();
+      } else {
+        _updateStatsLocally();
+      }
+    }
+  }
+
+  /// Muestra un diálogo para seleccionar el modo de vista del administrador.
+  void _showAdminModeSelectionDialog(BuildContext context) {
+    final current = _adminViewModeManager.currentMode;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return CustomModal(
+          title: 'Seleccionar Modo de Vista',
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                title: const Text('Modo Mixto'),
+                trailing: current == AdminViewMode.mixed ? Icon(Icons.check, color: colorScheme.primary) : null,
+                onTap: () {
+                  _adminViewModeManager.saveMode(AdminViewMode.mixed);
+                  Navigator.pop(dialogContext);
+                },
+              ),
+              ListTile(
+                title: const Text('Modo Soporte'),
+                trailing: current == AdminViewMode.support ? Icon(Icons.check, color: colorScheme.primary) : null,
+                onTap: () {
+                  _adminViewModeManager.saveMode(AdminViewMode.support);
+                  Navigator.pop(dialogContext);
+                },
+              ),
+              ListTile(
+                title: const Text('Modo Proyecto'),
+                trailing: current == AdminViewMode.project ? Icon(Icons.check, color: colorScheme.primary) : null,
+                onTap: () {
+                  _adminViewModeManager.saveMode(AdminViewMode.project);
+                  Navigator.pop(dialogContext);
+                },
+              ),
+            ],
+          ),
+          actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cerrar'))],
+        );
+      },
+    );
+  }
+
+  /// Construye las acciones específicas de la AppBar para el administrador, adaptándose a móvil.
+  List<Widget> _buildAdminAppBarActions(BuildContext context) {
+    final List<Widget> actions = [];
+    final bool isMobile = MediaQuery.of(context).size.width < 600;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    if (isMobile) {
+      actions.add(
+        PopupMenuButton<String>(
+          icon: const Icon(Icons.more_vert),
+          tooltip: 'Opciones de Administrador',
+          onSelected: (value) {
+            if (value == 'admin_mode') {
+              _showAdminModeSelectionDialog(context);
+            } else if (value == 'exception_dialog') {
+              _showExceptionDialog();
+            }
+          },
+          itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+            PopupMenuItem<String>(
+              value: 'admin_mode',
+              child: ListTile(leading: const Icon(Icons.admin_panel_settings), title: Text('Modo de Vista (${_adminViewModeManager.currentMode == AdminViewMode.support ? 'Soporte' : (_adminViewModeManager.currentMode == AdminViewMode.project ? 'Proyecto' : 'Mixto')})')),
+            ),
+            PopupMenuItem<String>(
+              value: 'exception_dialog',
+              child: ListTile(leading: const Icon(Icons.shield_outlined), title: const Text('Excepción de Horas')),
+            ),
+          ],
+        ),
+      );
+    } else {
+      // Desktop view: existing buttons
+      actions.add(_buildAdminModePopupMenu(context));
+      actions.add(_buildExceptionHoursInkWell());
+    }
+    return actions;
   }
 
   Future<void> _refreshRequest({bool fetchNetwork = true}) async {
@@ -258,7 +796,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
         content: const Text('¿Está seguro de que desea eliminar esta solicitud?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-          CustomButton(text: 'Eliminar', backgroundColor: Colors.red, onPressed: () => Navigator.pop(context, true)),
+          CustomButton(text: 'Eliminar', backgroundColor: Theme.of(context).colorScheme.error, onPressed: () => Navigator.pop(context, true)),
         ],
       ),
     );
@@ -376,6 +914,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     );
   }
 
+  /// Construye el PopupMenuButton para seleccionar el modo de vista del administrador.
   Future<void> _showExceptionDialog() async {
     if (!AccessControl.isAdmin) return;
 
@@ -455,6 +994,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     );
   }
 
+  /// Construye el InkWell para mostrar el diálogo de excepciones de horas.
   List<Map<String, dynamic>> _getFilteredRequests() {
     return _requests.where((alert) {
       bool isClosed = alert['status'] == '9_Final Close' || alert['statusId'] == 103 || alert['statusId'] == 1000019 || alert['status'].toString().toLowerCase().contains('archivada');
@@ -479,6 +1019,73 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     });
   }
 
+  /// Widget para el PopupMenuButton de selección de modo de vista.
+  Widget _buildAdminModePopupMenu(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return PopupMenuButton<AdminViewMode>(
+      tooltip: 'Cambiar modo de vista',
+      onSelected: (AdminViewMode mode) {
+        _adminViewModeManager.saveMode(mode);
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.admin_panel_settings),
+            const SizedBox(width: 8),
+            Text(_adminViewModeManager.currentMode == AdminViewMode.support ? 'Modo Soporte' : (_adminViewModeManager.currentMode == AdminViewMode.project ? 'Modo Proyecto' : 'Modo Mixto'), style: const TextStyle(fontWeight: FontWeight.bold)),
+            const Icon(Icons.arrow_drop_down),
+          ],
+        ),
+      ),
+      itemBuilder: (BuildContext context) {
+        final current = _adminViewModeManager.currentMode;
+        PopupMenuItem<AdminViewMode> buildItem(AdminViewMode mode, String text) {
+          final isSelected = current == mode;
+          return PopupMenuItem<AdminViewMode>(
+            value: mode,
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(color: isSelected ? colorScheme.primary.withOpacity(0.1) : Colors.transparent, borderRadius: BorderRadius.circular(8)),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                children: [
+                  Text(
+                    text,
+                    style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? colorScheme.primary : colorScheme.onSurface),
+                  ),
+                  if (isSelected) const Spacer(),
+                  if (isSelected) Icon(Icons.check, size: 18, color: colorScheme.primary),
+                ],
+              ),
+            ),
+          );
+        }
+
+        return [buildItem(AdminViewMode.mixed, 'Modo Mixto'), buildItem(AdminViewMode.support, 'Modo Soporte'), buildItem(AdminViewMode.project, 'Modo Proyecto')];
+      },
+    );
+  }
+
+  /// Widget para el InkWell de "Excepción de Horas".
+  Widget _buildExceptionHoursInkWell() {
+    return InkWell(
+      onTap: _showExceptionDialog,
+      child: const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16.0),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.shield_outlined),
+            SizedBox(width: 8),
+            Text('Excepción de Horas', style: TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final filteredAlerts = _getFilteredRequests();
@@ -497,60 +1104,12 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
           RequestStatsCard(contractedHours: _contractedHours, consumedHours: _consumedHours, estimatedHours: _estimatedHours),
           RequestFilterBar(
             searchController: _searchController,
-            selectedYear: _selectedYear,
-            selectedBP: _selectedBP,
-            selectedSituation: _selectedSituation,
-            selectedUser: _selectedUser,
-            selectedLevel: _selectedLevel,
-            selectedStatus: _selectedStatus,
-            selectedSalesRep: _selectedSalesRep,
             isAscending: _isAscending,
             rowsPerPage: _rowsPerPage,
             showHistory: _showHistory,
-            requests: _requests,
-            users: _users,
-            bPartners: _bPartners,
-            statusIdMap: _statusIdMap,
-            onYearChanged: (val) => setState(() {
-              _selectedYear = val;
-              _currentPage = 0;
-            }),
-            onBPChanged: (val) {
-              setState(() {
-                _selectedBP = val;
-                _currentPage = 0;
-                _isLoading = true;
-                if (val != null) {
-                  final found = _bPartners.firstWhere((bp) => bp['Name'] == val, orElse: () => <String, dynamic>{});
-                  if (found.isNotEmpty) {
-                    _bpId = found['id'];
-                  }
-                } else {
-                  _bpId = null;
-                }
-              });
-              _initData();
-            },
-            onSituationChanged: (val) => setState(() {
-              _selectedSituation = val;
-              _currentPage = 0;
-            }),
-            onUserChanged: (val) => setState(() {
-              _selectedUser = val;
-              _currentPage = 0;
-            }),
-            onLevelChanged: (val) => setState(() {
-              _selectedLevel = val;
-              _currentPage = 0;
-            }),
-            onSalesRepChanged: (val) => setState(() {
-              _selectedSalesRep = val;
-              _currentPage = 0;
-            }),
-            onStatusChanged: (val) => setState(() {
-              _selectedStatus = val;
-              _currentPage = 0;
-            }),
+            onShowFilters: _showFilterModal,
+            onShowCalendar: () => setState(() => _showCalendar = true), // Callback para mostrar el calendario
+            activeFilterCount: _activeFilterCount,
             onSortChanged: () => setState(() {
               _isAscending = !_isAscending;
               _currentPage = 0;
@@ -568,6 +1127,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                 _selectedSalesRep = null;
                 _selectedUser = null;
                 _searchController.clear();
+                _selectedYear = null; // Limpiar también el filtro de año
                 _isAscending = false;
                 _currentPage = 0;
                 _bpId = null; // Reiniciar memoria de navegación
@@ -596,6 +1156,11 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
             }),
           ),
           const SizedBox(height: 20),
+          _buildActiveFilterChips(), // Mostrar los chips de filtros activos
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8.0),
+            child: Text('$totalItems solicitudes encontradas', style: Theme.of(context).textTheme.titleMedium),
+          ),
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 1000),
             child: (_isLoading || (_showHistory && _isHistorySkeletonActive)) ? const SkeletonTable() : RequestsDataTable(requests: paginatedAlerts, onEdit: _editRequest, onRefresh: () => _refreshRequest(fetchNetwork: false)),
@@ -617,67 +1182,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     );
 
     final appBarActions = [
-      if (AccessControl.isAdmin)
-        PopupMenuButton<AdminViewMode>(
-          tooltip: 'Cambiar modo de vista',
-          onSelected: (AdminViewMode mode) {
-            _adminViewModeManager.saveMode(mode);
-          },
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.admin_panel_settings),
-                const SizedBox(width: 8),
-                Text(_adminViewModeManager.currentMode == AdminViewMode.support ? 'Modo Soporte' : (_adminViewModeManager.currentMode == AdminViewMode.project ? 'Modo Proyecto' : 'Modo Mixto'), style: const TextStyle(fontWeight: FontWeight.bold)),
-                const Icon(Icons.arrow_drop_down),
-              ],
-            ),
-          ),
-          itemBuilder: (BuildContext context) {
-            final current = _adminViewModeManager.currentMode;
-            final colorScheme = Theme.of(context).colorScheme;
-            PopupMenuItem<AdminViewMode> buildItem(AdminViewMode mode, String text) {
-              final isSelected = current == mode;
-              return PopupMenuItem<AdminViewMode>(
-                value: mode,
-                child: Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(color: isSelected ? colorScheme.primary.withOpacity(0.1) : Colors.transparent, borderRadius: BorderRadius.circular(8)),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  child: Row(
-                    children: [
-                      Text(
-                        text,
-                        style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? colorScheme.primary : colorScheme.onSurface),
-                      ),
-                      if (isSelected) const Spacer(),
-                      if (isSelected) Icon(Icons.check, size: 18, color: colorScheme.primary),
-                    ],
-                  ),
-                ),
-              );
-            }
-
-            return [buildItem(AdminViewMode.mixed, 'Modo Mixto'), buildItem(AdminViewMode.support, 'Modo Soporte'), buildItem(AdminViewMode.project, 'Modo Proyecto')];
-          },
-        ),
-      if (AccessControl.isAdmin)
-        InkWell(
-          onTap: _showExceptionDialog,
-          child: const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16.0),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.shield_outlined),
-                SizedBox(width: 8),
-                Text('Excepción de Horas', style: TextStyle(fontWeight: FontWeight.bold)),
-              ],
-            ),
-          ),
-        ),
+      if (AccessControl.isAdmin) ..._buildAdminAppBarActions(context), // Acciones de admin adaptadas
       if (GlobalCache.backgroundSyncNotifier.value)
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -697,7 +1202,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       ),
       if (!AccessControl.isAdmin)
         IconButton(
-          icon: const Icon(Icons.logout, color: Colors.red),
+          icon: Icon(Icons.logout, color: Theme.of(context).colorScheme.error),
           tooltip: 'Cerrar Sesión',
           onPressed: () => showLogoutConfirmation(context),
         ),
@@ -711,31 +1216,15 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       );
     }
 
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Mis Solicitudes De Soporte'),
-          bottom: const TabBar(
-            labelColor: Colors.white,
-            unselectedLabelColor: Colors.white70,
-            indicatorColor: Colors.white,
-            tabs: [
-              Tab(text: 'Listado'),
-              Tab(text: 'Calendario'),
-            ],
-          ),
-          actions: appBarActions,
-        ),
-        drawer: const CustomDrawer(currentRoute: '/my-requests'),
-        body: SafeArea(
-          child: TabBarView(
-            children: [
-              listContent,
-              CalendarTab(requests: _rawRequests),
-            ],
-          ),
-        ),
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_showCalendar ? 'Calendario de Solicitudes' : 'Mis Solicitudes De Soporte'),
+        leading: _showCalendar ? IconButton(icon: const Icon(Icons.arrow_back), tooltip: 'Volver al Listado', onPressed: () => setState(() => _showCalendar = false)) : null,
+        actions: appBarActions, // Las acciones de la AppBar se mantienen
+      ),
+      drawer: const CustomDrawer(currentRoute: '/my-requests'),
+      body: SafeArea(
+        child: _showCalendar ? CalendarContent(requests: _rawRequests) : listContent, // Muestra el listado o el calendario
       ),
     );
   }

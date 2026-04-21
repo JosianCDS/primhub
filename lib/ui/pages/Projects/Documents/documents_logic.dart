@@ -181,13 +181,22 @@ class ProjectsLogic {
     return _safeFetchPaginated(url, 'reglas de facturación');
   }
 
-  // 4. FETCH AUXILIARES (Usando paginación para asegurar que vengan todos)
+  // 4. FETCH AUXILIARES (Paginación corregida con IsSalesRep)
   Future<List<dynamic>> fetchBPartners() async {
-    return _safeFetchPaginated('${Endpoint.cBPartner}?\$select=C_BPartner_ID,Name,Value&\$orderby=Name&\$filter=IsActive eq true', 'terceros');
+    // Agregamos IsSalesRep al select para que la API devuelva ese campo
+    return _safeFetchPaginated('${Endpoint.cBPartner}?\$select=C_BPartner_ID,Name,Value,IsCustomer,IsSalesRep&\$orderby=Name&\$filter=IsActive eq true', 'terceros');
   }
 
-  Future<List<dynamic>> fetchUsers() async {
-    return _safeFetchPaginated('${Endpoint.baseUrl}/api/v1/models/AD_User?\$select=AD_User_ID,Name&\$orderby=Name&\$filter=IsActive eq true', 'usuarios');
+  Future<List<dynamic>> fetchUsers({int? bPartnerId, bool? isSalesRep}) async {
+    String filter = 'IsActive eq true';
+    if (bPartnerId != null) {
+      // Asumimos que el C_BPartner_ID en AD_User es el ID de la compañía (Tercero)
+      filter += ' and C_BPartner_ID eq $bPartnerId';
+    }
+    if (isSalesRep == true) {
+      filter += ' and IsSalesRep eq true';
+    }
+    return _safeFetchPaginated('${Endpoint.baseUrl}/api/v1/models/AD_User?\$select=AD_User_ID,Name,C_BPartner_ID&\$orderby=Name&\$filter=$filter', 'usuarios');
   }
 
   Future<List<dynamic>> fetchCurrencies() async {

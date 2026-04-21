@@ -9,6 +9,7 @@ import 'package:primhub/api/access_control.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import '../../../Shared_Custom/custom_button.dart';
 import '../../../../api/contract_api.dart';
+import 'package:primhub/ui/Shared_Custom/customToast.dart';
 import '../../../../ui/pages/Support/Requests/request_functions.dart';
 import '../../../../api/validation_manager.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
@@ -43,7 +44,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
 
   String _selectedPriority = 'Media';
   String? _selectedType;
-  String _selectedStatus = '1_Open';
+  String _selectedStatus = 'Recibida';
   String? _selectedCategory;
   String? _selectedGroup;
   int? _selectedProjectId;
@@ -56,6 +57,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
   Map<String, int> _categoryMap = {};
   Map<String, int> _groupMap = {};
   List<dynamic> _users = [];
+  List<dynamic> _salesReps = [];
   List<dynamic> _bPartnersList = [];
 
   bool _isLoadingStatuses = true;
@@ -63,6 +65,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
   bool _isLoadingCategories = true;
   bool _isLoadingGroups = true;
   bool _isLoadingUsers = true;
+  bool _isLoadingSalesReps = true;
   bool _isLoadingBPartners = true;
 
   List<PlatformFile?> _evidences = [null, null, null, null];
@@ -74,8 +77,8 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     _fetchRequestTypes();
     _fetchCategories();
     _fetchGroups();
-    _fetchUsers();
-    // Inicializar fechas con el día de hoy para evitar strings vacíos
+    _fetchSalesReps(); // Cargar representantes de ventas al inicio
+    // No se cargan usuarios de contacto al inicio, se espera a que se seleccione un tercero.
     final now = DateTime.now();
     final todayStr = "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
     _dateStartController.text = todayStr;
@@ -93,6 +96,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     } else {
       _isLoadingBPartners = false;
       _selectedBpId = User.cBPartnerID;
+      _fetchUsers(); // Cargar usuarios para el tercero del usuario actual
     }
   }
 
@@ -119,16 +123,24 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
       final bps = await logic.fetchBPartners();
       if (mounted) {
         setState(() {
-          _bPartnersList = bps;
+          // APLICAMOS EL FILTRO AQUÍ
+          _bPartnersList = bps.where((bp) {
+            final name = bp['Name']?.toString() ?? '';
+            final isCustomer = bp['IsCustomer'] == true || bp['IsCustomer'] == 'Y';
+            return !name.startsWith('~') && isCustomer;
+          }).toList();
+
           _isLoadingBPartners = false;
+
           if (_selectedBpId == null && _bPartnersList.isNotEmpty) {
             _selectedBpId = resolvedBpId != null && _bPartnersList.any((bp) => bp['id'] == resolvedBpId) ? resolvedBpId : (widget.linkedProjectId != null ? resolvedBpId : _bPartnersList.first['id']);
           }
 
-          // Rescate: Si el tercero del proyecto no estaba en la lista de activos, lo añadimos para evitar errores en el dropdown
+          // Rescate: Si el tercero del proyecto no estaba en la lista de activos o clientes, lo añadimos para evitar errores en el dropdown
           if (_selectedBpId != null && !_bPartnersList.any((bp) => bp['id'] == _selectedBpId)) {
             _bPartnersList.add({'id': _selectedBpId, 'Name': 'Tercero $_selectedBpId (Vinculado)'});
           }
+          _fetchUsers(); // Cargar usuarios para el tercero pre-seleccionado
         });
       }
     } catch (e) {
@@ -232,16 +244,55 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
 
   Future<void> _fetchUsers() async {
     try {
+      if (_selectedBpId == null) {
+        if (mounted) setState(() => _isLoadingUsers = false);
+        return;
+      }
       final logic = ProjectsLogic();
-      final users = await logic.fetchUsers();
+      final users = await logic.fetchUsers(bPartnerId: _selectedBpId);
       if (mounted) {
+        final previouslySelectedUserId = _selectedUserId;
+        bool userWasCleared = false;
+
+        // Si el usuario actual ya no está en la lista filtrada, lo deseleccionamos.
+        if (previouslySelectedUserId != null && !users.any((u) => (u['AD_User_ID'] ?? u['id']) == previouslySelectedUserId)) {
+          _selectedUserId = null;
+          userWasCleared = true;
+        }
+
         setState(() {
           _users = users;
           _isLoadingUsers = false;
         });
+
+        if (userWasCleared) {
+          WidgetsBinding.instance.addPostFrameCallback((_) => ToastMessage.show(context: context, message: 'El filtro de usuario se ha actualizado para coincidir con el tercero.', type: ToastType.help));
+        }
       }
     } catch (e) {
       if (mounted) setState(() => _isLoadingUsers = false);
+    }
+  }
+
+  Future<void> _fetchSalesReps() async {
+    try {
+      final logic = ProjectsLogic();
+      final allBps = await logic.fetchBPartners();
+
+      if (mounted) {
+        setState(() {
+          _salesReps = allBps.where((bp) {
+            // Buscamos todas las variantes posibles del campo en el JSON
+            final isRep = bp['IsSalesRep'] ?? bp['isSalesRep'] ?? bp['C_BPartner0IsSalesRep'] ?? false;
+
+            return isRep == 'Y' || isRep == true;
+          }).toList();
+
+          _isLoadingSalesReps = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoadingSalesReps = false);
     }
   }
 
@@ -354,6 +405,93 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
           const SizedBox(width: 8),
           if (file == null) IconButton(icon: const Icon(Icons.attach_file), onPressed: () => _pickFile(index), tooltip: 'Adjuntar Archivo', color: theme.colorScheme.primary) else IconButton(icon: const Icon(Icons.delete), onPressed: () => _removeFile(index), tooltip: 'Eliminar Adjunto', color: theme.colorScheme.error),
         ],
+      ),
+    );
+  }
+
+  Future<void> _openSearchModal<T>({required String title, required List<dynamic> items, required T? currentValue, required String Function(dynamic) getTitle, String Function(dynamic)? getSubtitle, required T Function(dynamic) getValue, required void Function(T) onSelected}) async {
+    final T? result = await showDialog<T>(
+      context: context,
+      builder: (context) {
+        String searchQuery = '';
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          child: Container(
+            width: 400,
+            height: MediaQuery.of(context).size.height * 0.6,
+            padding: const EdgeInsets.all(20),
+            child: StatefulBuilder(
+              builder: (context, setStateDialog) {
+                final filteredItems = items.where((item) {
+                  return getTitle(item).toLowerCase().contains(searchQuery.toLowerCase());
+                }).toList();
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Seleccionar $title *', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w400)),
+                    const SizedBox(height: 16),
+                    TextField(
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.filter_list, color: Colors.grey),
+                        hintText: 'Filtrar...',
+                        enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
+                        focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.blue)),
+                      ),
+                      onChanged: (val) => setStateDialog(() => searchQuery = val),
+                    ),
+                    const SizedBox(height: 16),
+                    Expanded(
+                      child: ListView.separated(
+                        itemCount: filteredItems.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1, color: Colors.grey, thickness: 0.3),
+                        itemBuilder: (context, index) {
+                          final item = filteredItems[index];
+                          final itemValue = getValue(item);
+                          final isSelected = itemValue == currentValue;
+
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            tileColor: isSelected ? Colors.grey.withOpacity(0.1) : null,
+                            title: Text(getTitle(item), style: const TextStyle(fontSize: 14)),
+                            subtitle: getSubtitle != null ? Text(getSubtitle(item), style: const TextStyle(fontSize: 12, color: Colors.grey)) : null,
+                            onTap: () => Navigator.of(context).pop(itemValue),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+
+    if (result != null) onSelected(result);
+  }
+
+  Widget _buildSearchableField<T>({required String label, required String? hintText, required T? value, required bool isLoading, required bool isDisabled, required String displayText, required VoidCallback onTap, String? errorMessage}) {
+    return InkWell(
+      onTap: (isLoading || isDisabled) ? null : onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          errorText: errorMessage,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+          floatingLabelBehavior: FloatingLabelBehavior.always,
+          suffixIcon: isLoading ? Transform.scale(scale: 0.5, child: const CircularProgressIndicator(strokeWidth: 3)) : const Icon(Icons.search),
+        ),
+        isEmpty: value == null,
+        child: Text(
+          value == null ? (hintText ?? '') : displayText,
+          style: TextStyle(fontSize: 16, color: (isLoading || isDisabled || value == null) ? Colors.grey[600] : Theme.of(context).colorScheme.onSurface),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
       ),
     );
   }
@@ -578,28 +716,126 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              const SizedBox(height: 12),
               if (isFullAccess) ...[
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
-                      child: CustomDropdown<int>(
+                      child: _buildSearchableField<int>(
                         label: 'Tercero',
-                        hintText: _isLoadingBPartners ? 'Cargando terceros...' : 'Seleccione Tercero',
-                        value: _isLoadingBPartners || !_bPartnersList.any((bp) => bp['id'] == _selectedBpId) ? null : _selectedBpId,
-                        items: _bPartnersList.map((bp) => DropdownMenuItem<int>(value: bp['id'], child: Text(bp['Name'] ?? 'Tercero ${bp['id']}'))).toList(),
-                        onChanged: (_isLoadingBPartners || widget.linkedProjectId != null) ? null : (value) => setState(() => _selectedBpId = value),
-                        validator: (value) => value == null ? 'Debe seleccionar un tercero.' : null,
+                        hintText: 'Seleccione Tercero',
+                        value: _selectedBpId,
+                        isLoading: _isLoadingBPartners,
+                        isDisabled: false,
+                        displayText: _selectedBpId != null && _bPartnersList.any((bp) => bp['id'] == _selectedBpId) ? _bPartnersList.firstWhere((bp) => bp['id'] == _selectedBpId)['Name'] ?? '' : '',
+                        errorMessage: _selectedBpId == null ? 'Debe seleccionar un tercero.' : null,
+                        onTap: () => _openSearchModal<int>(
+                          title: 'Tercero',
+                          items: _bPartnersList.where((bp) => bp['id'] != null).toList(),
+                          currentValue: _selectedBpId,
+                          getTitle: (item) => item['Name'] ?? 'Sin Nombre',
+                          getSubtitle: (item) => 'ID: ${item['id']}',
+                          getValue: (item) => item['id'] as int,
+                          onSelected: (val) {
+                            setState(() {
+                              _selectedBpId = val;
+                              _users = [];
+                              _isLoadingUsers = true;
+                            });
+                            _fetchUsers();
+                          },
+                        ),
                       ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
-                      child: CustomDropdown<int>(
+                      child: _buildSearchableField<int>(
                         label: 'Usuario',
-                        hintText: _isLoadingUsers ? 'Cargando usuarios...' : 'Seleccione Usuario',
-                        value: _isLoadingUsers || !_users.any((u) => (u['AD_User_ID'] ?? u['id']) == _selectedUserId) ? null : _selectedUserId,
-                        items: _users.map<DropdownMenuItem<int>>((u) => DropdownMenuItem<int>(value: u['AD_User_ID'] ?? u['id'], child: Text(u['Name'] ?? 'Sin Nombre'))).toList(),
-                        onChanged: _isLoadingUsers ? null : (value) => setState(() => _selectedUserId = value),
+                        hintText: _selectedBpId == null ? 'Seleccione un tercero primero' : 'Seleccione Usuario',
+                        value: _selectedUserId,
+                        isLoading: _isLoadingUsers,
+                        isDisabled: _selectedBpId == null || _isLoadingUsers,
+                        displayText: _selectedUserId != null && _users.any((u) => (u['AD_User_ID'] ?? u['id']) == _selectedUserId) ? _users.firstWhere((u) => (u['AD_User_ID'] ?? u['id']) == _selectedUserId)['Name'] ?? '' : '',
+                        onTap: () => _openSearchModal<int>(
+                          title: 'Usuario',
+                          items: _users.where((u) => (u['AD_User_ID'] ?? u['id']) != null).toList(),
+                          currentValue: _selectedUserId,
+                          getTitle: (item) => item['Name'] ?? 'Sin Nombre',
+                          getSubtitle: (item) => 'ID: ${item['AD_User_ID'] ?? item['id']}',
+                          getValue: (item) => (item['AD_User_ID'] ?? item['id']) as int,
+                          onSelected: (val) => setState(() => _selectedUserId = val),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: _buildSearchableField<String>(
+                        label: 'Tipo de Solicitud',
+                        hintText: 'Seleccione Tipo',
+                        value: _selectedType,
+                        isLoading: _isLoadingTypes,
+                        isDisabled: false,
+                        displayText: _selectedType ?? '',
+                        onTap: () => _openSearchModal<String>(title: 'Tipo de Solicitud', items: _requestTypeMap.keys.toList(), currentValue: _selectedType, getTitle: (item) => item.toString(), getValue: (item) => item.toString(), onSelected: (val) => setState(() => _selectedType = val)),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: _buildSearchableField<String>(
+                        label: 'Categoría',
+                        hintText: 'Seleccione Categoría',
+                        value: _selectedCategory,
+                        isLoading: _isLoadingCategories,
+                        isDisabled: false,
+                        displayText: _selectedCategory ?? '',
+                        onTap: () => _openSearchModal<String>(title: 'Categoría', items: _categoryMap.keys.toList(), currentValue: _selectedCategory, getTitle: (item) => item.toString(), getValue: (item) => item.toString(), onSelected: (val) => setState(() => _selectedCategory = val)),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+              ], // Cierre correcto del isFullAccess
+              CustomTextField(controller: _emailSubjectController, label: 'Asunto'),
+              const SizedBox(height: 16),
+              if (isFullAccess) ...[
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: _buildSearchableField<String>(
+                        label: 'Grupo',
+                        hintText: 'Seleccione Grupo',
+                        value: _selectedGroup,
+                        isLoading: _isLoadingGroups,
+                        isDisabled: false,
+                        displayText: _selectedGroup ?? '',
+                        onTap: () => _openSearchModal<String>(title: 'Grupo', items: _groupMap.keys.toList(), currentValue: _selectedGroup, getTitle: (item) => item.toString(), getValue: (item) => item.toString(), onSelected: (val) => setState(() => _selectedGroup = val)),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: _buildSearchableField<int>(
+                        label: 'Representante Comercial',
+                        hintText: 'Seleccione Representante',
+                        value: _selectedSalesRepId,
+                        isLoading: _isLoadingSalesReps,
+                        isDisabled: false,
+                        displayText: _selectedSalesRepId != null && _salesReps.any((u) => (u['AD_User_ID'] ?? u['id']) == _selectedSalesRepId) ? _salesReps.firstWhere((u) => (u['AD_User_ID'] ?? u['id']) == _selectedSalesRepId)['Name'] ?? '' : '',
+                        onTap: () => _openSearchModal<int>(
+                          title: 'Representante Comercial',
+                          items: _salesReps.where((u) => (u['AD_User_ID'] ?? u['id']) != null).toList(),
+                          currentValue: _selectedSalesRepId,
+                          getTitle: (item) => item['Name'] ?? 'Sin Nombre',
+                          getSubtitle: (item) => 'ID: ${item['AD_User_ID'] ?? item['id']}',
+                          getValue: (item) => (item['AD_User_ID'] ?? item['id']) as int,
+                          onSelected: (val) => setState(() => _selectedSalesRepId = val),
+                        ),
                       ),
                     ),
                   ],
@@ -610,28 +846,33 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
-                      child: CustomDropdown<String?>(
-                        value: _isLoadingTypes || !_requestTypeMap.containsKey(_selectedType) ? null : _selectedType,
+                      child: _buildSearchableField<String>(
                         label: 'Tipo de Solicitud',
-                        hintText: _isLoadingTypes ? 'Cargando tipos...' : null,
-                        items: _requestTypeMap.keys.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-                        onChanged: _isLoadingTypes ? null : (val) => setState(() => _selectedType = val!),
+                        hintText: 'Seleccione Tipo',
+                        value: _selectedType,
+                        isLoading: _isLoadingTypes,
+                        isDisabled: false,
+                        displayText: _selectedType ?? '',
+                        onTap: () => _openSearchModal<String>(title: 'Tipo de Solicitud', items: _requestTypeMap.keys.toList(), currentValue: _selectedType, getTitle: (item) => item.toString(), getValue: (item) => item.toString(), onSelected: (val) => setState(() => _selectedType = val)),
                       ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
-                      child: CustomDropdown<String?>(
-                        value: _isLoadingCategories || !_categoryMap.containsKey(_selectedCategory) ? null : _selectedCategory,
+                      child: _buildSearchableField<String>(
                         label: 'Categoría',
-                        hintText: _isLoadingCategories ? 'Cargando categorías...' : null,
-                        items: _categoryMap.keys.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-                        onChanged: _isLoadingCategories ? null : (val) => setState(() => _selectedCategory = val!),
+                        hintText: 'Seleccione Categoría',
+                        value: _selectedCategory,
+                        isLoading: _isLoadingCategories,
+                        isDisabled: false,
+                        displayText: _selectedCategory ?? '',
+                        onTap: () => _openSearchModal<String>(title: 'Categoría', items: _categoryMap.keys.toList(), currentValue: _selectedCategory, getTitle: (item) => item.toString(), getValue: (item) => item.toString(), onSelected: (val) => setState(() => _selectedCategory = val)),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 16),
               ],
+
               CustomTextField(controller: _emailSubjectController, label: 'Asunto'),
               const SizedBox(height: 16),
 
@@ -640,22 +881,34 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
-                      child: CustomDropdown<String?>(
-                        value: _isLoadingGroups || !_groupMap.containsKey(_selectedGroup) ? null : _selectedGroup,
+                      child: _buildSearchableField<String>(
                         label: 'Grupo',
-                        hintText: _isLoadingGroups ? 'Cargando grupos...' : null,
-                        items: _groupMap.keys.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-                        onChanged: _isLoadingGroups ? null : (val) => setState(() => _selectedGroup = val!),
+                        hintText: 'Seleccione Grupo',
+                        value: _selectedGroup,
+                        isLoading: _isLoadingGroups,
+                        isDisabled: false,
+                        displayText: _selectedGroup ?? '',
+                        onTap: () => _openSearchModal<String>(title: 'Grupo', items: _groupMap.keys.toList(), currentValue: _selectedGroup, getTitle: (item) => item.toString(), getValue: (item) => item.toString(), onSelected: (val) => setState(() => _selectedGroup = val)),
                       ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
-                      child: CustomDropdown<int>(
+                      child: _buildSearchableField<int>(
                         label: 'Representante Comercial',
-                        hintText: _isLoadingUsers ? 'Cargando usuarios...' : null,
-                        value: _isLoadingUsers || !_users.any((u) => (u['AD_User_ID'] ?? u['id']) == _selectedSalesRepId) ? null : _selectedSalesRepId,
-                        items: _users.map<DropdownMenuItem<int>>((u) => DropdownMenuItem<int>(value: u['AD_User_ID'] ?? u['id'], child: Text(u['Name'] ?? 'Sin Nombre'))).toList(),
-                        onChanged: _isLoadingUsers ? null : (value) => setState(() => _selectedSalesRepId = value),
+                        hintText: 'Seleccione Representante',
+                        value: _selectedSalesRepId,
+                        isLoading: _isLoadingSalesReps, // Usar el estado de carga correcto
+                        isDisabled: false,
+                        displayText: _selectedSalesRepId != null && _salesReps.any((u) => (u['AD_User_ID'] ?? u['id']) == _selectedSalesRepId) ? _salesReps.firstWhere((u) => (u['AD_User_ID'] ?? u['id']) == _selectedSalesRepId)['Name'] ?? '' : '', // Usar la lista correcta
+                        onTap: () => _openSearchModal<int>(
+                          title: 'Representante Comercial',
+                          items: _salesReps.where((u) => (u['AD_User_ID'] ?? u['id']) != null).toList(), // Usar la lista correcta
+                          currentValue: _selectedSalesRepId,
+                          getTitle: (item) => item['Name'] ?? 'Sin Nombre',
+                          getSubtitle: (item) => 'ID: ${item['AD_User_ID'] ?? item['id']}',
+                          getValue: (item) => (item['AD_User_ID'] ?? item['id']) as int,
+                          onSelected: (val) => setState(() => _selectedSalesRepId = val),
+                        ),
                       ),
                     ),
                   ],
@@ -665,25 +918,32 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                 Row(
                   children: [
                     Expanded(
-                      child: CustomDropdown<String>(
-                        value: _selectedStatus,
+                      child: _buildSearchableField<String>(
                         label: 'Estado',
-                        items: _statusIdMap.keys.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
-                        onChanged: (val) => setState(() => _selectedStatus = val!),
+                        hintText: 'Seleccione Estado',
+                        value: _selectedStatus,
+                        isLoading: _isLoadingStatuses,
+                        isDisabled: false,
+                        displayText: _selectedStatus,
+                        onTap: () => _openSearchModal<String>(title: 'Estado', items: _statusIdMap.keys.toList(), currentValue: _selectedStatus, getTitle: (item) => item.toString(), getValue: (item) => item.toString(), onSelected: (val) => setState(() => _selectedStatus = val)),
                       ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
-                      child: CustomDropdown<String>(
-                        value: _selectedPriority,
+                      child: _buildSearchableField<String>(
                         label: 'Prioridad',
-                        items: _priorityMap.keys.map((p) => DropdownMenuItem(value: p, child: Text(p))).toList(),
-                        onChanged: (val) => setState(() => _selectedPriority = val!),
+                        hintText: 'Seleccione Prioridad',
+                        value: _selectedPriority,
+                        isLoading: false,
+                        isDisabled: false,
+                        displayText: _selectedPriority,
+                        onTap: () => _openSearchModal<String>(title: 'Prioridad', items: _priorityMap.keys.toList(), currentValue: _selectedPriority, getTitle: (item) => item.toString(), getValue: (item) => item.toString(), onSelected: (val) => setState(() => _selectedPriority = val)),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 16),
+
                 if (_selectedType == 'Service Request' || _selectedType != null) ...[
                   Row(
                     children: [

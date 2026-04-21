@@ -14,7 +14,8 @@ class RequestStatsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final double safeContracted = contractedHours ?? 0.0;
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final bool isMobile = MediaQuery.of(context).size.width < 600;
 
     double availableHours = safeContracted - consumedHours;
@@ -29,7 +30,7 @@ class RequestStatsCard extends StatelessWidget {
     int remainingFlex = 1000 - consumedFlex - estimatedFlex;
 
     return Card(
-      color: isInsufficient ? (isDark ? Colors.red.shade900.withOpacity(0.5) : Colors.red.shade50) : (isDark ? Colors.blue.shade900.withOpacity(0.5) : Colors.blue.shade50),
+      color: isInsufficient ? colorScheme.errorContainer.withOpacity(0.5) : colorScheme.primaryContainer.withOpacity(0.2),
       elevation: 2,
       margin: const EdgeInsets.only(bottom: 20),
       child: Padding(
@@ -38,36 +39,32 @@ class RequestStatsCard extends StatelessWidget {
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildStatItem('Consumidas', consumedHours, isDark ? Colors.red.shade300 : Colors.red.shade800, Icons.timelapse, isMobile),
-                _buildStatItem('Estimadas', estimatedHours, isDark ? Colors.amber.shade300 : Colors.amber.shade800, Icons.watch_later_outlined, isMobile),
-                _buildStatItem('Disponibles', availableHours, isDark ? Colors.green.shade300 : Colors.green.shade800, Icons.check_circle_outline, isMobile),
-              ],
+              children: [_buildStatItem('Consumidas', consumedHours, colorScheme.error, Icons.timelapse, isMobile, context), _buildStatItem('Estimadas', estimatedHours, colorScheme.tertiary, Icons.watch_later_outlined, isMobile, context), _buildStatItem('Disponibles', availableHours, colorScheme.secondary, Icons.check_circle_outline, isMobile, context)],
             ),
             const SizedBox(height: 10),
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
               child: Container(
                 height: 12,
-                color: Colors.grey.shade300,
+                color: colorScheme.surfaceContainerHighest,
                 child: isInsufficient
-                    ? Container(color: Colors.red)
+                    ? Container(color: colorScheme.error)
                     : Row(
                         children: [
                           if (consumedFlex > 0)
                             Expanded(
                               flex: consumedFlex,
-                              child: Container(color: Colors.red),
+                              child: Container(color: colorScheme.error),
                             ),
                           if (estimatedFlex > 0)
                             Expanded(
                               flex: estimatedFlex,
-                              child: Container(color: Colors.amber),
+                              child: Container(color: colorScheme.tertiary),
                             ),
                           if (remainingFlex > 0)
                             Expanded(
                               flex: remainingFlex,
-                              child: Container(color: Colors.green),
+                              child: Container(color: colorScheme.secondary),
                             ),
                         ],
                       ),
@@ -77,7 +74,7 @@ class RequestStatsCard extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 '¡Advertencia! Las horas estimadas superan las disponibles. Deberá contratar más horas.',
-                style: TextStyle(color: isDark ? Colors.red.shade200 : Colors.red.shade800, fontWeight: FontWeight.bold),
+                style: TextStyle(color: colorScheme.error, fontWeight: FontWeight.bold),
               ),
             ],
           ],
@@ -86,8 +83,8 @@ class RequestStatsCard extends StatelessWidget {
     );
   }
 
-  Widget _buildStatItem(String label, double value, Color color, IconData icon, bool isMobile) {
-    final style = TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color);
+  Widget _buildStatItem(String label, double value, Color color, IconData icon, bool isMobile, BuildContext context) {
+    final style = Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold, color: color);
     if (isMobile) {
       return Row(
         mainAxisSize: MainAxisSize.min,

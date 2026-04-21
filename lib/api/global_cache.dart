@@ -23,9 +23,26 @@ class GlobalCache {
 
   // Funciones granulares para carga en cascada/paralelo en el Home
   static Future<void> loadBaseData() async {
-    final futures = await Future.wait([fetchStatuses(), (AccessControl.isAdmin ? ContractApi.getBPartnersWithSupportContracts() : Future.value(<Map<String, dynamic>>[])), (AccessControl.isAdmin ? ProjectsLogic().fetchUsers() : Future.value(<dynamic>[]))]);
+    final futures = await Future.wait([
+      fetchStatuses(),
+      // ¡CAMBIO CLAVE! Usamos ProjectsLogic() igual que en Create y Edit
+      (AccessControl.isAdmin ? ProjectsLogic().fetchBPartners() : Future.value(<dynamic>[])),
+      (AccessControl.isAdmin ? ProjectsLogic().fetchUsers() : Future.value(<dynamic>[])),
+    ]);
+
     statuses = futures[0] as Map<String, int>;
-    bPartners = futures[1] as List<Map<String, dynamic>>;
+
+    // APLICAMOS EL FILTRO DIRECTAMENTE EN LA CACHÉ GLOBAL
+    final rawBPartners = futures[1] as List<dynamic>;
+    bPartners = rawBPartners
+        .where((bp) {
+          final name = bp['Name']?.toString() ?? '';
+          final isCustomer = bp['IsCustomer'] == true || bp['IsCustomer'] == 'Y' || bp['isCustomer'] == true || bp['isCustomer'] == 'Y';
+          return !name.startsWith('~') && isCustomer;
+        })
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .toList();
+
     users = futures[2] as List<dynamic>;
   }
 

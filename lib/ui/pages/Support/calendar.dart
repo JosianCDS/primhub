@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 
-class CalendarTab extends StatefulWidget {
+class CalendarContent extends StatefulWidget {
   final List<dynamic> requests;
-  const CalendarTab({super.key, required this.requests});
+  const CalendarContent({super.key, required this.requests});
 
   @override
-  State<CalendarTab> createState() => _CalendarTabState();
+  State<CalendarContent> createState() => _CalendarContentState();
 }
 
-class _CalendarTabState extends State<CalendarTab> {
+class _CalendarContentState extends State<CalendarContent> {
   DateTime _focusedMonth = DateTime.now();
   List<Map<String, dynamic>> _processedRequests = [];
 
@@ -33,7 +33,7 @@ class _CalendarTabState extends State<CalendarTab> {
   }
 
   @override
-  void didUpdateWidget(CalendarTab oldWidget) {
+  void didUpdateWidget(CalendarContent oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.requests != oldWidget.requests) {
       _processRequests();
@@ -158,6 +158,7 @@ class _CalendarTabState extends State<CalendarTab> {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
+      // Este SingleChildScrollView es el contenido del body del Scaffold padre
       padding: const EdgeInsets.all(16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

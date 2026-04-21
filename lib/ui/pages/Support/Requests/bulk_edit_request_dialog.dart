@@ -56,7 +56,13 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
           _categoryMap = futures[2] as Map<String, int>;
           _groupMap = futures[3] as Map<String, int>;
           _users = futures[4] as List<dynamic>;
-          _bPartnersList = futures[5] as List<dynamic>;
+          // Aplicamos el filtro para excluir terceros inactivos (con '~')
+          final bps = futures[5] as List<dynamic>;
+          _bPartnersList = bps.where((bp) {
+            final name = bp['Name']?.toString() ?? '';
+            final isCustomer = bp['IsCustomer'] == true || bp['IsCustomer'] == 'Y';
+            return !name.startsWith('~') && isCustomer;
+          }).toList();
           _isLoading = false;
         });
       }
@@ -112,7 +118,12 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
           children: [
             Text('¿Seguro que vas a hacer este cambio? Vas a afectar a ${widget.selectedIds.length} fila(s) en los siguientes campos:'),
             const SizedBox(height: 16),
-            ...changes.entries.map((e) => Padding(padding: const EdgeInsets.only(bottom: 6.0), child: Text('• ${e.key}: ${e.value}', style: const TextStyle(fontWeight: FontWeight.bold)))),
+            ...changes.entries.map(
+              (e) => Padding(
+                padding: const EdgeInsets.only(bottom: 6.0),
+                child: Text('• ${e.key}: ${e.value}', style: const TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ),
             const SizedBox(height: 16),
             const Text('Esta acción se aplicará inmediatamente y no se puede deshacer de forma masiva.', style: TextStyle(color: Colors.red, fontSize: 12)),
           ],

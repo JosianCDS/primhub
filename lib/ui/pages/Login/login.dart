@@ -101,10 +101,14 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     final responseStep1 = await loginStep1(username, password);
 
     if (responseStep1.containsKey('error')) {
-      if (responseStep1['error'].toString().contains('401')) {
+      final errorMessage = responseStep1['error'].toString();
+
+      if (errorMessage.contains('401')) {
         _showError('Usuario o Contraseña Incorrectos');
+      } else if (errorMessage.contains('Failed to fetch') || errorMessage.contains('ClientException') || errorMessage.contains('SocketException')) {
+        _showError('Verifique su conexión a internet y vuelva a intentarlo');
       } else {
-        _showError(responseStep1['error']);
+        _showError(errorMessage);
       }
       return;
     }
@@ -239,7 +243,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
         mainAxisSize: MainAxisSize.min,
         children: [
           const Text(
-            'v1.6.0',
+            'v1.7.0',
             style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
           ),
           if (!Envirioment.isProduction) ...[const SizedBox(width: 8), FloatingActionButton(onPressed: _showChangeUrlDialog, child: const Icon(Icons.settings))],

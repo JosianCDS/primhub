@@ -8,7 +8,7 @@ import 'package:primhub/endpoint/endpoint.dart';
 
 class ContractApi {
   // Filtro unificado con los IDs válidos para productos de soporte (Mensual y Por Horas)
-  static const String validSupportProductsFilter = "(M_Product_ID eq 1000816 or M_Product_ID eq 1000161 or M_Product_ID eq 1000814 or M_Product_ID eq 1000693)";
+  static const String validSupportProductsFilter = "(M_Product_ID eq 1000816 or M_Product_ID eq 1000161 or M_Product_ID eq 1000814 or M_Product_ID eq 1000693 or M_Product_ID eq 1000695)";
 
   // Función auxiliar para iterar la API y traer todos los registros sin el límite restrictivo de 100
   static Future<List<dynamic>> _fetchPaginated(String baseUrl) async {

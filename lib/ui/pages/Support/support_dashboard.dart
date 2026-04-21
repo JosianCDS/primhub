@@ -98,10 +98,31 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
 
   Future<void> _initData() async {
     if (AccessControl.isAdmin && _bPartners.isEmpty) {
-      _bPartners = await ContractApi.getBPartnersWithSupportContracts();
-      // Si el ID seleccionado no está en la lista de contratos, lo limpiamos
-      if (_selectedBpId != null && !_bPartners.any((bp) => bp['id'] == _selectedBpId)) {
-        _selectedBpId = null;
+      // Obtenemos la lista cruda de la API
+      final rawBps = await ContractApi.getBPartnersWithSupportContracts();
+
+      if (mounted) {
+        setState(() {
+          // Aplicamos el filtro de inactivos y clientes
+          _bPartners = rawBps.where((bp) {
+            final name = bp['Name']?.toString() ?? '';
+
+            // Verificamos si es cliente (con salvavidas por si el campo viene nulo)
+            bool isCustomer = bp['IsCustomer'] == true || bp['IsCustomer'] == 'Y' || bp['isCustomer'] == true || bp['isCustomer'] == 'Y';
+
+            if (bp['IsCustomer'] == null && bp['isCustomer'] == null) {
+              isCustomer = true; // Salvavidas: si no viene el campo, lo permitimos
+            }
+
+            // REGLA: No debe empezar con "~" y debe ser Cliente
+            return !name.startsWith('~') && isCustomer;
+          }).toList();
+
+          // Si el tercero seleccionado previamente ya no está en la lista filtrada, lo limpiamos
+          if (_selectedBpId != null && !_bPartners.any((bp) => bp['id'] == _selectedBpId)) {
+            _selectedBpId = null;
+          }
+        });
       }
     }
     _statusIdMap = await fetchStatuses();
@@ -305,6 +326,94 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
           ),
         ),
         actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cerrar'))],
+      ),
+    );
+  }
+
+  Future<void> _openSearchModal<T>({required String title, required List<dynamic> items, required T? currentValue, required String Function(dynamic) getTitle, String Function(dynamic)? getSubtitle, required T? Function(dynamic) getValue, required void Function(T?) onSelected}) async {
+    final dynamic result = await showDialog(
+      context: context,
+      builder: (context) {
+        String searchQuery = '';
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          child: Container(
+            width: 400,
+            height: MediaQuery.of(context).size.height * 0.6,
+            padding: const EdgeInsets.all(20),
+            child: StatefulBuilder(
+              builder: (context, setStateDialog) {
+                final filteredItems = items.where((item) {
+                  return getTitle(item).toLowerCase().contains(searchQuery.toLowerCase());
+                }).toList();
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Seleccionar $title', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w400)),
+                    const SizedBox(height: 16),
+                    TextField(
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.filter_list, color: Colors.grey),
+                        hintText: 'Filtrar...',
+                        enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
+                        focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.blue)),
+                      ),
+                      onChanged: (val) => setStateDialog(() => searchQuery = val),
+                    ),
+                    const SizedBox(height: 16),
+                    Expanded(
+                      child: ListView.separated(
+                        itemCount: filteredItems.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1, color: Colors.grey, thickness: 0.3),
+                        itemBuilder: (context, index) {
+                          final item = filteredItems[index];
+                          final itemValue = getValue(item);
+                          final isSelected = itemValue == currentValue;
+
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            tileColor: isSelected ? Colors.grey.withOpacity(0.1) : null,
+                            title: Text(getTitle(item), style: const TextStyle(fontSize: 14)),
+                            subtitle: getSubtitle != null && itemValue != null ? Text(getSubtitle(item), style: const TextStyle(fontSize: 12, color: Colors.grey)) : null,
+                            onTap: () => Navigator.of(context).pop({'selected': true, 'value': itemValue}),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+
+    if (result != null && result is Map && result['selected'] == true) {
+      onSelected(result['value'] as T?);
+    }
+  }
+
+  Widget _buildSearchableField<T>({required String label, required String? hintText, required T? value, required bool isLoading, required bool isDisabled, required String displayText, required VoidCallback onTap}) {
+    return InkWell(
+      onTap: (isLoading || isDisabled) ? null : onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+          floatingLabelBehavior: FloatingLabelBehavior.always,
+          suffixIcon: isLoading ? Transform.scale(scale: 0.5, child: const CircularProgressIndicator(strokeWidth: 3)) : const Icon(Icons.search),
+        ),
+        isEmpty: value == null && (displayText.isEmpty || displayText.startsWith('Todos')),
+        child: Text(
+          (value == null || displayText.isEmpty) ? (hintText ?? '') : displayText,
+          style: TextStyle(fontSize: 16, color: (isLoading || isDisabled || value == null) ? Colors.grey[600] : Theme.of(context).colorScheme.onSurface),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
       ),
     );
   }
@@ -586,24 +695,28 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                           if (AccessControl.isAdmin)
                             SizedBox(
                               width: 250,
-                              child: CustomDropdown<int?>(
+                              child: _buildSearchableField<int>(
                                 label: 'Filtrar por Tercero',
-                                value: _bPartners.any((bp) => bp['id'] == _selectedBpId) ? _selectedBpId : null,
-                                onChanged: _isLoading
-                                    ? null
-                                    : (val) {
-                                        setState(() {
-                                          _selectedBpId = val;
-                                          _currentPage = 0;
-                                        });
-                                        _refreshData();
-                                      },
-                                items: [
-                                  const DropdownMenuItem<int?>(value: null, child: Text('Todos')),
-                                  ..._bPartners.map<DropdownMenuItem<int?>>((bp) {
-                                    return DropdownMenuItem<int?>(value: bp['id'], child: Text(bp['Name'] ?? 'Sin Nombre'));
-                                  }),
-                                ],
+                                hintText: 'Todos los Terceros',
+                                value: _selectedBpId,
+                                isLoading: _isLoading,
+                                isDisabled: false,
+                                displayText: _selectedBpId != null && _bPartners.any((bp) => bp['id'] == _selectedBpId) ? _bPartners.firstWhere((bp) => bp['id'] == _selectedBpId)['Name'] ?? '' : 'Todos los Terceros',
+                                onTap: () => _openSearchModal<int>(
+                                  title: 'Tercero',
+                                  items: ['__ALL__', ..._bPartners],
+                                  currentValue: _selectedBpId,
+                                  getTitle: (item) => item == '__ALL__' ? 'Todos los Terceros' : (item['Name'] ?? 'Sin Nombre'),
+                                  getSubtitle: (item) => item == '__ALL__' ? '' : 'ID: ${item['id']}',
+                                  getValue: (item) => item == '__ALL__' ? null : item['id'] as int,
+                                  onSelected: (val) {
+                                    setState(() {
+                                      _selectedBpId = val;
+                                      _currentPage = 0; // Reiniciar página al filtrar
+                                    });
+                                    _refreshData(); // Llamar a tu función de actualización
+                                  },
+                                ),
                               ),
                             ),
                           ActionChip(
@@ -616,7 +729,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                           ),
                           DropdownButton<int>(
                             value: _rowsPerPage,
-                            items: [25, 50, 100].map((int value) => DropdownMenuItem<int>(value: value, child: Text('$value filas'))).toList(),
+                            items: [10, 25, 50, 100].map((int value) => DropdownMenuItem<int>(value: value, child: Text('$value filas'))).toList(),
                             onChanged: (val) => setState(() {
                               _rowsPerPage = val!;
                               _currentPage = 0;
@@ -649,55 +762,14 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                                 child: Text('No hay registros de horas consumidas para este filtro.', style: TextStyle(color: Colors.grey, fontSize: 16)),
                               ),
                             )
-                          : CustomTable(
-                              columns: const [
-                                DataColumn(label: Text('Ticket Relacionado')),
-                                DataColumn(label: Text('Actividad/Tarea')),
-                                DataColumn(label: Text('Fecha de inicio Planeada')),
-                                DataColumn(label: Text('Fecha de Terminacion Planeada')),
-                                DataColumn(label: Text('Horas Consumidas')),
-                              ],
-                              rows: paginatedRecords.map((record) {
-                                final double h = double.tryParse(record['qtyPlan']?.toString() ?? '0.0') ?? 0.0;
-                                final hours = DurationFormatter.format(h);
-                                return DataRow(
-                                  onSelectChanged: (value) => _showRequestDetails(record),
-                                  cells: [
-                                    DataCell(
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(record['id']?.toString() ?? ''),
-                                          const SizedBox(width: 8),
-                                          InkWell(
-                                            borderRadius: BorderRadius.circular(4),
-                                            onTap: () {
-                                              Clipboard.setData(ClipboardData(text: record['id']?.toString() ?? ''));
-                                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Código copiado al portapapeles')));
-                                            },
-                                            child: const Padding(
-                                              padding: EdgeInsets.all(4.0),
-                                              child: Icon(Icons.copy, size: 16, color: Colors.grey),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    DataCell(
-                                      SizedBox(
-                                        width: 300,
-                                        child: Text(() {
-                                          final cleanDesc = stripHtmlTags(record['description'] ?? '');
-                                          return cleanDesc.length > 80 ? '${cleanDesc.substring(0, 80)}...' : cleanDesc;
-                                        }()),
-                                      ),
-                                    ),
-                                    DataCell(Text(record['dateStartPlan'] ?? '')),
-                                    DataCell(Text(record['dateCompletePlan'] ?? '')),
-                                    DataCell(Text(hours)),
-                                  ],
-                                );
-                              }).toList(),
+                          : LayoutBuilder(
+                              builder: (context, constraints) {
+                                if (constraints.maxWidth < 800) {
+                                  return _MobileRecordList(records: paginatedRecords, onRecordTap: _showRequestDetails);
+                                } else {
+                                  return _DesktopRecordTable(records: paginatedRecords, onRecordTap: _showRequestDetails);
+                                }
+                              },
                             ),
                     ),
                     if (totalPages > 1)
@@ -714,6 +786,138 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                       ),
                   ],
                 ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DesktopRecordTable extends StatelessWidget {
+  final List<Map<String, dynamic>> records;
+  final Function(Map<String, dynamic>) onRecordTap;
+
+  const _DesktopRecordTable({required this.records, required this.onRecordTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomTable(
+      columns: const [
+        DataColumn(label: Text('Ticket Relacionado')),
+        DataColumn(label: Text('Actividad/Tarea')),
+        DataColumn(label: Text('Fecha de inicio Planeada')),
+        DataColumn(label: Text('Fecha de Terminacion Planeada')),
+        DataColumn(label: Text('Horas Consumidas')),
+      ],
+      rows: records.map((record) {
+        final double h = double.tryParse(record['qtyPlan']?.toString() ?? '0.0') ?? 0.0;
+        final hours = DurationFormatter.format(h);
+        return DataRow(
+          onSelectChanged: (value) => onRecordTap(record),
+          cells: [
+            DataCell(
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(record['id']?.toString() ?? ''),
+                  const SizedBox(width: 8),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(4),
+                    onTap: () {
+                      Clipboard.setData(ClipboardData(text: record['id']?.toString() ?? ''));
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Código copiado al portapapeles')));
+                    },
+                    child: const Padding(
+                      padding: EdgeInsets.all(4.0),
+                      child: Icon(Icons.copy, size: 16, color: Colors.grey),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            DataCell(
+              SizedBox(
+                width: 300,
+                child: Text(() {
+                  final cleanDesc = stripHtmlTags(record['description'] ?? '');
+                  return cleanDesc.length > 80 ? '${cleanDesc.substring(0, 80)}...' : cleanDesc;
+                }()),
+              ),
+            ),
+            DataCell(Text(record['dateStartPlan'] ?? '')),
+            DataCell(Text(record['dateCompletePlan'] ?? '')),
+            DataCell(Text(hours)),
+          ],
+        );
+      }).toList(),
+    );
+  }
+}
+
+class _MobileRecordList extends StatelessWidget {
+  final List<Map<String, dynamic>> records;
+  final Function(Map<String, dynamic>) onRecordTap;
+
+  const _MobileRecordList({required this.records, required this.onRecordTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: records.length,
+      itemBuilder: (context, index) {
+        final record = records[index];
+        return _SupportRecordCard(record: record, onTap: () => onRecordTap(record));
+      },
+    );
+  }
+}
+
+class _SupportRecordCard extends StatelessWidget {
+  final Map<String, dynamic> record;
+  final VoidCallback onTap;
+
+  const _SupportRecordCard({required this.record, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final double h = double.tryParse(record['qtyPlan']?.toString() ?? '0.0') ?? 0.0;
+    final hours = DurationFormatter.format(h);
+    final cleanDesc = stripHtmlTags(record['description'] ?? 'Sin descripción');
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Ticket #${record['id']}',
+                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.primary),
+              ),
+              const SizedBox(height: 8),
+              Text(cleanDesc, style: theme.textTheme.bodyLarge, maxLines: 2, overflow: TextOverflow.ellipsis),
+              const Divider(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Fecha: ${record['dateStartPlan'] ?? 'N/A'}', style: theme.textTheme.bodySmall),
+                  Chip(
+                    label: Text(hours),
+                    avatar: Icon(Icons.timer_outlined, size: 16, color: colorScheme.secondary),
+                    backgroundColor: colorScheme.secondaryContainer.withOpacity(0.5),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ],
               ),
             ],
           ),
