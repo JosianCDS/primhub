@@ -52,7 +52,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   double _estimatedHours = 0.0;
   Map<String, int> _statusIdMap = {};
   int _currentPage = 0;
-  int _rowsPerPage = 25;
+  int _rowsPerPage = 10;
   final TextEditingController _searchController = TextEditingController();
   RequestFilterModel _filters = const RequestFilterModel();
 
@@ -112,12 +112,6 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
         _filters = RequestFilterModel(statuses: args['selectedStatus'] != null ? [args['selectedStatus']] : [], levels: args['selectedLevel'] != null ? [args['selectedLevel']] : []);
 
         if (_filters.statuses.isNotEmpty && (_filters.statuses.first.toLowerCase().contains('close') || _filters.statuses.first.toLowerCase().contains('cerrad'))) _showHistory = true;
-      }
-
-      // Ajustar filas por página para móvil por defecto
-      final isMobile = MediaQuery.of(context).size.width < 800;
-      if (isMobile) {
-        _rowsPerPage = 10;
       }
 
       if (_showHistory) _startHistorySkeleton();
@@ -605,8 +599,6 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     if (!AccessControl.isAdmin) return;
 
     final Set<int> tempSelectedIds = Set.from(ValidationManager.hourValidationExceptions);
-    List<dynamic> allBPartners = [];
-    bool isFetching = true;
 
     await showDialog(
       context: context,
@@ -617,50 +609,38 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
           width: 500,
           content: StatefulBuilder(
             builder: (BuildContext context, StateSetter setState) {
-              if (isFetching && allBPartners.isEmpty) {
-                ProjectsLogic().fetchBPartners().then((bps) {
-                  if (context.mounted) {
-                    setState(() {
-                      allBPartners = bps;
-                      isFetching = false;
-                    });
-                  }
-                });
-              }
-
-              final filteredBps = allBPartners.where((bp) => (bp['Name'] ?? '').toString().toLowerCase().contains(searchQuery.toLowerCase())).toList();
+              // Usamos la lista _bPartners del estado, que ya está filtrada para mostrar solo clientes.
+              final filteredBps = _bPartners.where((bp) => (bp['Name'] ?? '').toString().toLowerCase().contains(searchQuery.toLowerCase())).toList();
 
               return SizedBox(
                 height: 400,
-                child: isFetching
-                    ? const Center(child: CircularProgressIndicator())
-                    : Column(
-                        children: [
-                          TextField(
-                            decoration: InputDecoration(
-                              hintText: 'Buscar tercero...',
-                              prefixIcon: const Icon(Icons.search),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            ),
-                            onChanged: (val) => setState(() => searchQuery = val),
-                          ),
-                          const SizedBox(height: 10),
-                          Expanded(
-                            child: filteredBps.isEmpty
-                                ? const Center(child: Text('No se encontraron terceros.'))
-                                : ListView.builder(
-                                    itemCount: filteredBps.length,
-                                    itemBuilder: (context, index) {
-                                      final bp = filteredBps[index];
-                                      final rawId = bp['id'] ?? bp['C_BPartner_ID'];
-                                      final intId = rawId is int ? rawId : int.tryParse(rawId.toString()) ?? 0;
-                                      return CheckboxListTile(title: Text(bp['Name'] ?? 'Tercero $intId'), value: tempSelectedIds.contains(intId), onChanged: (bool? value) => setState(() => value == true ? tempSelectedIds.add(intId) : tempSelectedIds.remove(intId)));
-                                    },
-                                  ),
-                          ),
-                        ],
+                child: Column(
+                  children: [
+                    TextField(
+                      decoration: InputDecoration(
+                        hintText: 'Buscar tercero...',
+                        prefixIcon: const Icon(Icons.search),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       ),
+                      onChanged: (val) => setState(() => searchQuery = val),
+                    ),
+                    const SizedBox(height: 10),
+                    Expanded(
+                      child: filteredBps.isEmpty
+                          ? const Center(child: Text('No se encontraron terceros.'))
+                          : ListView.builder(
+                              itemCount: filteredBps.length,
+                              itemBuilder: (context, index) {
+                                final bp = filteredBps[index];
+                                final rawId = bp['id'] ?? bp['C_BPartner_ID'];
+                                final intId = rawId is int ? rawId : int.tryParse(rawId.toString()) ?? 0;
+                                return CheckboxListTile(title: Text(bp['Name'] ?? 'Tercero $intId'), value: tempSelectedIds.contains(intId), onChanged: (bool? value) => setState(() => value == true ? tempSelectedIds.add(intId) : tempSelectedIds.remove(intId)));
+                              },
+                            ),
+                    ),
+                  ],
+                ),
               );
             },
           ),

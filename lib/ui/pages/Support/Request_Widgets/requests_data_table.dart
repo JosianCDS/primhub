@@ -31,6 +31,13 @@ class RequestsDataTable extends StatefulWidget {
 class _RequestsDataTableState extends State<RequestsDataTable> {
   final Set<int> _selectedIds = {};
   int? _lastSelectedIndex;
+  final ScrollController _horizontalScrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _horizontalScrollController.dispose();
+    super.dispose();
+  }
 
   int _getRealId(Map<String, dynamic> req) => req['realId'] ?? req['_rawId'] ?? int.tryParse(req['id'].toString()) ?? 0;
 
@@ -79,14 +86,13 @@ class _RequestsDataTableState extends State<RequestsDataTable> {
         DataColumn(
           label: Checkbox(value: (widget.requests.isNotEmpty && _selectedIds.length == widget.requests.length) ? true : (_selectedIds.isNotEmpty ? null : false), tristate: true, onChanged: (val) => _handleSelectAll(val == true)),
         ),
-      const DataColumn(label: Text('#')),
       const DataColumn(label: Text('Acciones')),
       const DataColumn(label: Text('Ticket')),
       const DataColumn(label: Text('Tipo de Solicitud')),
-      const DataColumn(label: Text('Asunto')),
     ];
 
     final scrollableColumns = <DataColumn>[
+      const DataColumn(label: Text('Asunto')),
       const DataColumn(label: Text('Categoría')),
       const DataColumn(label: Text('Nivel')),
       if (AccessControl.isAdmin) const DataColumn(label: Text('Tercero')),
@@ -108,7 +114,6 @@ class _RequestsDataTableState extends State<RequestsDataTable> {
 
       final fixedCells = <DataCell>[
         if (AccessControl.canManageRequests) DataCell(Checkbox(value: _selectedIds.contains(realId), onChanged: (selected) => _handleRowSelection(selected, index, realId))),
-        DataCell(Text('${index + 1}', style: const TextStyle(fontWeight: FontWeight.bold))),
         DataCell(
           Row(
             mainAxisSize: MainAxisSize.min,
@@ -146,6 +151,9 @@ class _RequestsDataTableState extends State<RequestsDataTable> {
           onTap: () => widget.onEdit(alert),
         ),
         DataCell(Text(alert['situation']), onTap: () => widget.onEdit(alert)),
+      ];
+
+      final scrollableCells = <DataCell>[
         DataCell(
           Tooltip(
             message: (alert['emailSubject'] != null && alert['emailSubject'].toString().trim().isNotEmpty) ? alert['emailSubject'].toString() : 'Sin asunto',
@@ -154,9 +162,6 @@ class _RequestsDataTableState extends State<RequestsDataTable> {
           ),
           onTap: () => widget.onEdit(alert),
         ),
-      ];
-
-      final scrollableCells = <DataCell>[
         DataCell(Text(alert['category']?.toString() ?? 'Sin categoría'), onTap: () => widget.onEdit(alert)),
         DataCell(
           Container(
@@ -266,11 +271,16 @@ class _RequestsDataTableState extends State<RequestsDataTable> {
                     ),
                     // --- Parte con Scroll ---
                     Expanded(
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: DataTableTheme(
-                          data: scrollableDataTableTheme,
-                          child: DataTable(showCheckboxColumn: false, columns: scrollableColumns, rows: scrollableRows),
+                      child: Scrollbar(
+                        controller: _horizontalScrollController,
+                        thumbVisibility: true,
+                        child: SingleChildScrollView(
+                          controller: _horizontalScrollController,
+                          scrollDirection: Axis.horizontal,
+                          child: DataTableTheme(
+                            data: scrollableDataTableTheme,
+                            child: DataTable(showCheckboxColumn: false, columns: scrollableColumns, rows: scrollableRows),
+                          ),
                         ),
                       ),
                     ),
