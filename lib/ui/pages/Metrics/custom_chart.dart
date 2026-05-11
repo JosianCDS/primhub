@@ -50,8 +50,16 @@ class _CustomBarChartState extends State<CustomBarChart> with SingleTickerProvid
         }
       },
       child: MouseRegion(
-        onHover: (e) => setState(() => _touchPosition = e.localPosition),
-        onExit: (e) => setState(() => _touchPosition = null),
+        onHover: (e) {
+          Future.microtask(() {
+            if (mounted) setState(() => _touchPosition = e.localPosition);
+          });
+        },
+        onExit: (e) {
+          Future.microtask(() {
+            if (mounted) setState(() => _touchPosition = null);
+          });
+        },
         child: AnimatedBuilder(
           animation: _animation!,
           builder: (context, child) => CustomPaint(
@@ -107,8 +115,16 @@ class _CustomDonutChartState extends State<CustomDonutChart> with SingleTickerPr
         }
       },
       child: MouseRegion(
-        onHover: (e) => setState(() => _touchPosition = e.localPosition),
-        onExit: (e) => setState(() => _touchPosition = null),
+        onHover: (e) {
+          Future.microtask(() {
+            if (mounted) setState(() => _touchPosition = e.localPosition);
+          });
+        },
+        onExit: (e) {
+          Future.microtask(() {
+            if (mounted) setState(() => _touchPosition = null);
+          });
+        },
         child: AnimatedBuilder(
           animation: _controller!,
           builder: (context, child) => CustomPaint(
@@ -168,8 +184,16 @@ class _CustomStackedBarChartState extends State<CustomStackedBarChart> with Sing
         }
       },
       child: MouseRegion(
-        onHover: (e) => setState(() => _touchPosition = e.localPosition),
-        onExit: (e) => setState(() => _touchPosition = null),
+        onHover: (e) {
+          Future.microtask(() {
+            if (mounted) setState(() => _touchPosition = e.localPosition);
+          });
+        },
+        onExit: (e) {
+          Future.microtask(() {
+            if (mounted) setState(() => _touchPosition = null);
+          });
+        },
         child: AnimatedBuilder(
           animation: _animation!,
           builder: (context, child) => CustomPaint(

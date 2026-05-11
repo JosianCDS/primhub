@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/admin_view_mode.dart';
@@ -14,13 +13,13 @@ import 'package:primhub/ui/Shared_Custom/custom_container.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/widgets/duration_formatter.dart';
-import 'package:card_stack_swiper/card_stack_swiper.dart';
 import '../../Shared_Custom/cardcustom.dart' show CardCustom;
 import '../../widgets/custom_drawer.dart';
 import 'package:primhub/ui/widgets/project_bottom_nav.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:primhub/ui/Shared_Custom/custom_skeleton.dart';
 import 'package:primhub/ui/Shared_Custom/user_info_leading.dart';
+import 'package:flutter/services.dart'; // Para Clipboard
 import 'package:primhub/api/global_cache.dart';
 import 'package:primhub/ui/pages/Projects/dialogs/project_calendar_dialog.dart';
 
@@ -34,9 +33,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   late final HomeController _controller;
   final _adminViewModeManager = AdminViewModeManager();
-  final Set<int> _expandedBps = {};
-  bool _isEnforcedDelayActive = true;
-  bool _showAllContracts = false;
+  bool _isEnforcedDelayActive = false; // Desactivado el retardo obligatorio
 
   @override
   void initState() {
@@ -44,14 +41,6 @@ class _HomePageState extends State<HomePage> {
     _controller = HomeController();
     _controller.initData();
     _adminViewModeManager.addListener(_onViewModeChanged);
-    // Inicia un temporizador para el retardo de carga obligatorio.
-    Future.delayed(const Duration(seconds: 4), () {
-      if (mounted) {
-        setState(() {
-          _isEnforcedDelayActive = false;
-        });
-      }
-    });
   }
 
   @override
@@ -156,6 +145,117 @@ class _HomePageState extends State<HomePage> {
         ),
         actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cerrar'))],
       ),
+    );
+  }
+
+  void _showAllContractsModal(BuildContext context, List<Map<String, dynamic>> allContracts, String bpName) {
+    // 1. Separar contratos por año y ordenarlos
+    final currentYear = DateTime.now().year;
+    final List<Map<String, dynamic>> currentYearContracts = [];
+    final List<Map<String, dynamic>> pastContracts = [];
+
+    for (var contract in allContracts) {
+      final contractYear = DateTime.tryParse(contract['DateOrdered'] ?? '')?.year;
+      if (contractYear == currentYear) {
+        currentYearContracts.add(contract);
+      } else {
+        pastContracts.add(contract);
+      }
+    }
+
+    // Ordenar ambas listas de más reciente a más viejo
+    void sortByDate(List<Map<String, dynamic>> list) {
+      list.sort((a, b) {
+      final dateA = DateTime.tryParse(a['DateOrdered'] ?? '');
+      final dateB = DateTime.tryParse(b['DateOrdered'] ?? '');
+      if (dateA == null || dateB == null) return 0;
+      return dateB.compareTo(dateA); // Descending order
+      });
+    }
+
+    sortByDate(currentYearContracts);
+    sortByDate(pastContracts);
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        bool showPast = false;
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            Widget buildContractList(List<Map<String, dynamic>> contracts, {bool highlight = false}) {
+              return ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: contracts.length,
+                itemBuilder: (context, index) {
+                  final contract = contracts[index];
+                  final String documentNo = contract['DocumentNo'] ?? 'N/A';
+                  final String dateOrdered = contract['DateOrdered']?.toString().split('T').first ?? 'N/A';
+                  final double contractedHours = (contract['contractedHours'] as num?)?.toDouble() ?? 0.0;
+
+                  return ListTile(
+                    leading: Icon(Icons.article_outlined, color: highlight ? Theme.of(context).colorScheme.primary : null),
+                    title: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(documentNo),
+                        const SizedBox(width: 8),
+                        InkWell(
+                          borderRadius: BorderRadius.circular(4),
+                          onTap: () {
+                            Clipboard.setData(ClipboardData(text: documentNo));
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Código de contrato copiado al portapapeles')));
+                          },
+                          child: const Padding(padding: EdgeInsets.all(4.0), child: Icon(Icons.copy, size: 16)),
+                        ),
+                      ],
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Fecha: $dateOrdered'),
+                      ],
+                    ),
+                    trailing: Text(
+                      DurationFormatter.format(contractedHours),
+                      style: TextStyle(fontWeight: highlight ? FontWeight.bold : FontWeight.normal),
+                    ),
+                  );
+                },
+              );
+            }
+
+            return CustomModal(
+              title: 'Contratos de Soporte para $bpName',
+              width: 500,
+              height: 450,
+              content: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Contratos Activos durante este año', style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 8),
+                    currentYearContracts.isEmpty ? const Text('No hay contratos para el año actual.', style: TextStyle(color: Colors.grey)) : buildContractList(currentYearContracts, highlight: true),
+                    const SizedBox(height: 16),
+                    if (!showPast && pastContracts.isNotEmpty)
+                      Center(child: TextButton.icon(icon: const Icon(Icons.history), label: const Text('Ver todos'), onPressed: () => setModalState(() => showPast = true)))
+                    else if (showPast) ...[
+                      const Divider(),
+                      const SizedBox(height: 8),
+                      Text('Contratos Pasados', style: Theme.of(context).textTheme.titleMedium),
+                      const SizedBox(height: 8),
+                      pastContracts.isEmpty ? const Text('No hay contratos pasados.', style: TextStyle(color: Colors.grey)) : buildContractList(pastContracts),
+                    ]
+                  ],
+                ),
+              ),
+              actions: [
+                CustomButton(text: 'Cerrar', onPressed: () => Navigator.pop(context)),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -327,7 +427,7 @@ class _HomePageState extends State<HomePage> {
                     Builder(
                       builder: (context) {
                         bool hasProjectsContent = AccessControl.isProject && _controller.projects.isNotEmpty;
-                        bool hasSupportContent = AccessControl.isSupport && (_controller.recentRequests.isNotEmpty || _controller.supportContracts.isNotEmpty || (AccessControl.isAdmin && _controller.supportBPartners.isNotEmpty));
+                        bool hasSupportContent = AccessControl.isSupport && (_controller.recentRequests.isNotEmpty || _controller.supportProductChips.isNotEmpty || (AccessControl.isAdmin && _controller.supportBPartners.isNotEmpty));
 
                         if (!hasProjectsContent && !hasSupportContent && !_controller.isLoading) {
                           return SizedBox(
@@ -444,124 +544,65 @@ class _HomePageState extends State<HomePage> {
 
                           return Column(
                             children: [
-                              if (_controller.supportContracts.any((c) => (DateTime.tryParse(c['DateOrdered'] ?? '')?.year ?? DateTime.now().year) != DateTime.now().year))
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 16.0),
-                                  child: TextButton.icon(icon: Icon(_showAllContracts ? Icons.visibility_off_outlined : Icons.visibility_outlined), label: Text(_showAllContracts ? 'Mostrar solo contratos del año actual' : 'Expandir todos los contratos'), onPressed: () => setState(() => _showAllContracts = !_showAllContracts)),
-                                ),
                               Wrap(
                                 spacing: 20,
                                 runSpacing: 20,
                                 alignment: WrapAlignment.center,
-                                children: bpsToRender.map((bpId) {
-                                  final allBpContracts = _controller.supportContracts.where((c) => c['C_BPartner_ID'] == bpId).toList();
-                                  final bpContracts = _showAllContracts
-                                      ? allBpContracts
-                                      : allBpContracts.where((c) {
-                                          final contractYear = DateTime.tryParse(c['DateOrdered'] ?? '')?.year;
-                                          return contractYear == DateTime.now().year;
-                                        }).toList();
-
-                                  final stats = _controller.requestsStatsByBp[bpId];
-                                  final bpInfo = _controller.supportBPartners.firstWhere((bp) => bp['id'] == bpId, orElse: () => <String, dynamic>{'Name': 'Tercero $bpId'});
+                                children: _controller.supportProductChips.where((chip) {
+                                  final rawBp = chip['C_BPartner_ID'];
+                                  final chipBpId = rawBp is Map ? (rawBp['id'] as num?)?.toInt() : (rawBp as num?)?.toInt();
+                                  
+                                  final isActive = chip['IsActive'] == 'Y' || chip['IsActive'] == true;
+                                  return bpsToRender.contains(chipBpId) && isActive;
+                                }).map((chip) {
+                                  final rawBp = chip['C_BPartner_ID'];
+                                  final chipBpId = rawBp is Map ? (rawBp['id'] as num?)?.toInt() : (rawBp as num?)?.toInt();
+                                  final bpInfo = _controller.supportBPartners.firstWhere((bp) => bp['id'] == chipBpId, orElse: () => <String, dynamic>{'Name': 'Tercero $chipBpId'});
                                   final bpName = bpInfo['Name'];
+                                  
+                                  // Stats globales del BP para los contadores de solicitudes (no por chip, ya que no hay link directo usualmente)
+                                  final stats = _controller.requestsStatsByBp[chipBpId];
 
-                                  final List<Widget> cards = [];
-
-                                  if (_controller.isLoading) {
-                                    cards.add(
-                                      const CardCustom(
-                                        hover: false,
-                                        child: SizedBox(height: 200, width: 250, child: Center(child: CircularProgressIndicator())),
-                                      ),
-                                    );
-                                  } else {
-                                    if (bpContracts.isNotEmpty) {
-                                      if (bpContracts.length == 1) {
-                                        cards.add(
-                                          Stack(
-                                            children: [
-                                              SupportHoursCard(contract: bpContracts.first, isDark: isDark, textColor: textColor, bpName: bpName),
-                                              Positioned(
-                                                top: 8,
-                                                right: 8,
-                                                child: IconButton(
-                                                  icon: const Icon(Icons.copy, size: 20),
-                                                  color: textColor.withOpacity(0.5),
-                                                  tooltip: 'Copiar código de contrato',
-                                                  onPressed: () {
-                                                    final code = bpContracts.first['DocumentNo']?.toString() ?? '';
-                                                    Clipboard.setData(ClipboardData(text: code));
-                                                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Código de contrato copiado')));
-                                                  },
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        );
-                                      } else {
-                                        final bool isExpanded = _expandedBps.contains(bpId);
-
-                                        // Botón para alternar la vista
-                                        cards.add(
-                                          SizedBox(
-                                            width: MediaQuery.of(context).size.width,
-                                            child: Center(
-                                              child: TextButton.icon(
-                                                icon: Icon(isExpanded ? Icons.layers : Icons.grid_view),
-                                                label: Text(isExpanded ? 'Apilar contratos' : 'Desplegar contratos (${bpContracts.length})'),
-                                                onPressed: () {
-                                                  setState(() {
-                                                    if (isExpanded) {
-                                                      _expandedBps.remove(bpId);
-                                                    } else {
-                                                      _expandedBps.add(bpId);
-                                                    }
-                                                  });
-                                                },
-                                              ),
-                                            ),
-                                          ),
-                                        );
-
-                                        if (isExpanded) {
-                                          // Vista de Cuadrícula (Individual)
-                                          for (var contract in bpContracts) {
-                                            cards.add(
-                                              Stack(
-                                                children: [
-                                                  SupportHoursCard(contract: contract, isDark: isDark, textColor: textColor, bpName: bpName),
-                                                  Positioned(
-                                                    top: 8,
-                                                    right: 8,
-                                                    child: IconButton(
-                                                      icon: const Icon(Icons.copy, size: 20),
-                                                      color: textColor.withOpacity(0.5),
-                                                      tooltip: 'Copiar código de contrato',
-                                                      onPressed: () {
-                                                        final code = contract['DocumentNo']?.toString() ?? '';
-                                                        Clipboard.setData(ClipboardData(text: code));
-                                                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Código de contrato copiado')));
-                                                      },
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            );
-                                          }
-                                        } else {
-                                          // Vista Apilada (Swiper)
-                                          cards.add(_SupportContractsSwiper(contracts: bpContracts, isDark: isDark, textColor: textColor, bpName: bpName));
-                                        }
-                                      }
-                                    }
-
-                                    if (stats != null && (((stats['closed'] as num?)?.toInt() ?? 0) > 0 || ((stats['inProgress'] as num?)?.toInt() ?? 0) > 0)) {
-                                      cards.add(SupportRequestsCard(bpId: bpId, bpName: bpName, closedRequestsCount: (stats['closed'] as num?)?.toInt() ?? 0, inProgressRequestsCount: (stats['inProgress'] as num?)?.toInt() ?? 0, textColor: textColor));
-                                    }
-                                  }
-
-                                  return Wrap(spacing: 20, runSpacing: 20, alignment: WrapAlignment.center, children: cards);
+                                  return SizedBox(
+                                    width: 350,
+                                    child: UnifiedSupportCard(
+                                      isLoading: _controller.isLoading,
+                                      bpName: bpName,
+                                      productLabel: chip['Description'],
+                                      frequency: chip['FrequencyType'] is Map ? chip['FrequencyType']['identifier'] : chip['FrequencyType'],
+                                      serviceStartDate: chip['service_start_date'],
+                                      serviceFinishDate: chip['service_finish_date'],
+                                      acquiredHours: (chip['Qty'] as num?)?.toDouble() ?? 0.0,
+                                      inProgressHours: (chip['inProgressHours'] as num?)?.toDouble() ?? 0.0,
+                                      consumedHours: (chip['consumedHours'] as num?)?.toDouble() ?? 0.0,
+                                      inProgressRequestsCount: (chip['inProgressRequestsCount'] as num?)?.toInt() ?? 0,
+                                      closedRequestsCount: (chip['closedRequestsCount'] as num?)?.toInt() ?? 0,
+                                      onInProgressTap: () {
+                                        context.push('/my-requests', extra: {
+                                          'bpId': chipBpId,
+                                          'chipId': chip['id'],
+                                          'showHistory': false
+                                        });
+                                      },
+                                      onClosedTap: () {
+                                        context.push('/support', extra: {
+                                          'bpId': chipBpId,
+                                          'chipId': chip['id']
+                                        });
+                                      },
+                                      onAvailableHoursTap: () {
+                                        context.push('/support', extra: {
+                                          'bpId': chipBpId,
+                                          'chipId': chip['id']
+                                        });
+                                      },
+                                      onShowAllContracts: () => _showAllContractsModal(context, _controller.supportProductChips.where((c) {
+                                        final rawBp = c['C_BPartner_ID'];
+                                        final cBpId = rawBp is Map ? (rawBp['id'] as num?)?.toInt() : (rawBp as num?)?.toInt();
+                                        return cBpId == chipBpId;
+                                      }).toList(), bpName),
+                                    ),
+                                  );
                                 }).toList(),
                               ),
                             ],
@@ -587,95 +628,12 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-class _SupportContractsSwiper extends StatefulWidget {
-  final List<Map<String, dynamic>> contracts;
-  final bool isDark;
-  final Color textColor;
-  final String bpName;
-
-  const _SupportContractsSwiper({required this.contracts, required this.isDark, required this.textColor, required this.bpName});
-
-  @override
-  State<_SupportContractsSwiper> createState() => _SupportContractsSwiperState();
-}
-
-class _SupportContractsSwiperState extends State<_SupportContractsSwiper> {
-  final CardStackSwiperController _swiperController = CardStackSwiperController();
-  int _currentIndex = 0;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 310, // Altura incrementada para evitar overflow y dar espacio a los botones de navegación
-      width: 280,
-      child: Column(
-        children: [
-          Expanded(
-            child: CardStackSwiper(
-              controller: _swiperController,
-              onSwipe: (previousIndex, currentIndex, direction) {
-                setState(() => _currentIndex = currentIndex ?? 0);
-                return true; // Permite que se complete la animación
-              },
-              onUndo: (previousIndex, currentIndex, direction) {
-                setState(() => _currentIndex = currentIndex ?? 0);
-                return true;
-              },
-              cardBuilder: (context, index, _, __) {
-                return Stack(
-                  children: [
-                    SupportHoursCard(contract: widget.contracts[index], isDark: widget.isDark, textColor: widget.textColor, bpName: widget.bpName),
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: IconButton(
-                        icon: const Icon(Icons.copy, size: 20),
-                        color: widget.textColor.withOpacity(0.5),
-                        tooltip: 'Copiar código de contrato',
-                        onPressed: () {
-                          final code = widget.contracts[index]['DocumentNo']?.toString() ?? '';
-                          Clipboard.setData(ClipboardData(text: code));
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Código de contrato copiado')));
-                        },
-                      ),
-                    ),
-                  ],
-                );
-              },
-              cardsCount: widget.contracts.length,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.5), shape: BoxShape.circle),
-                child: IconButton(icon: const Icon(Icons.arrow_back_ios_new, size: 18), onPressed: _swiperController.undo, tooltip: 'Atrás'),
-              ),
-              const SizedBox(width: 16),
-              Text(
-                '${_currentIndex + 1} / ${widget.contracts.length}',
-                style: TextStyle(fontWeight: FontWeight.bold, color: widget.textColor),
-              ),
-              const SizedBox(width: 16),
-              Container(
-                decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.5), shape: BoxShape.circle),
-                child: IconButton(icon: const Icon(Icons.arrow_forward_ios, size: 18), onPressed: () => _swiperController.swipe(CardStackSwiperDirection.right), tooltip: 'Adelante'),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _SupportBpSelector extends StatelessWidget {
   final List<dynamic> bPartners;
   final List<int> selectedBpIds;
   final ValueChanged<List<int>> onSelectionChanged;
 
+  // Constructor con const para optimización
   const _SupportBpSelector({required this.bPartners, required this.selectedBpIds, required this.onSelectionChanged});
 
   void _showMultiSelectBps(BuildContext context) async {
@@ -686,20 +644,33 @@ class _SupportBpSelector extends StatelessWidget {
     await showDialog<void>(
       context: context,
       builder: (BuildContext context) {
+        String searchQuery = ''; // Variable de estado para la búsqueda
         return CustomModal(
           title: 'Seleccionar Terceros',
           width: 500,
           content: StatefulBuilder(
             builder: (BuildContext context, StateSetter setState) {
+              // Filtrar la lista de terceros basada en la búsqueda
+              final filteredBps = sortedBps.where((bp) {
+                return (bp['Name'] ?? '').toLowerCase().contains(searchQuery.toLowerCase());
+              }).toList();
+
               return SizedBox(
                 height: 350,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    // Campo de búsqueda
+                    CustomTextField(
+                      hintText: 'Buscar tercero...',
+                      prefixIcon: const Icon(Icons.search),
+                      onChanged: (val) => setState(() => searchQuery = val),
+                    ),
+                    const SizedBox(height: 10),
                     Builder(
                       builder: (context) {
                         bool? isAllSelected;
-                        if (tempSelectedBpIds.length == sortedBps.length && sortedBps.isNotEmpty) {
+                        if (tempSelectedBpIds.length == filteredBps.length && filteredBps.isNotEmpty) {
                           isAllSelected = true;
                         } else if (tempSelectedBpIds.isEmpty) {
                           isAllSelected = false;
@@ -715,7 +686,7 @@ class _SupportBpSelector extends StatelessWidget {
                                 tempSelectedBpIds.clear();
                               } else {
                                 tempSelectedBpIds.clear();
-                                tempSelectedBpIds.addAll(sortedBps.map<int>((bp) => bp['id'] as int));
+                                tempSelectedBpIds.addAll(filteredBps.map<int>((bp) => bp['id'] as int)); // Usar filteredBps aquí
                               }
                             });
                           },
@@ -725,8 +696,8 @@ class _SupportBpSelector extends StatelessWidget {
                     const Divider(),
                     Expanded(
                       child: SingleChildScrollView(
-                        child: ListBody(
-                          children: sortedBps.map((bp) {
+                        child: ListBody( // Usar filteredBps aquí
+                          children: filteredBps.map((bp) {
                             final bool isSelected = tempSelectedBpIds.contains(bp['id']);
                             return CheckboxListTile(
                               title: Text(bp['Name'] ?? 'Tercero sin nombre'),
@@ -769,8 +740,12 @@ class _SupportBpSelector extends StatelessWidget {
   Widget build(BuildContext context) {
     String displayText;
 
+    final bool isSyncing = GlobalCache.bPartners.isEmpty && !GlobalCache.isDataLoaded;
+
     // Lógica de texto
-    if (selectedBpIds.isEmpty) {
+    if (isSyncing) {
+      displayText = 'Sincronizando terceros...';
+    } else if (selectedBpIds.isEmpty) {
       if (bPartners.isEmpty) return const SizedBox.shrink();
       displayText = 'Ningún tercero seleccionado';
     } else if (selectedBpIds.length == 1) {
@@ -803,6 +778,15 @@ class _SupportBpSelector extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
+            if (isSyncing)
+              const Padding(
+                padding: EdgeInsets.only(left: 8.0),
+                child: SizedBox(
+                  width: 12,
+                  height: 12,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
           ],
         ),
       ),

@@ -17,15 +17,25 @@ class GlobalCache {
   static List<Map<String, dynamic>> _rawBPartners = [];
   static List<Map<String, dynamic>> get allBPartners => _rawBPartners;
   static List<Map<String, dynamic>> bPartners = [];
-  static List<Map<String, dynamic>> contracts = [];
+  static List<Map<String, dynamic>> productChips = [];
   static List<dynamic> users = [];
   static Map<String, int> statuses = {};
+  static Map<int, bool> statusIsClosedMap = {};
   static List<Map<String, dynamic>> salesReps = [];
+  static Map<String, int> requestTypes = {};
+  static Map<String, int> categories = {};
+  static Map<String, int> groups = {};
+  
+  // Caché de solicitudes por proyecto para carga "mixta"
+  static Map<int, List<Map<String, dynamic>>> projectRequestsCache = {};
+  static Map<int, bool> projectLoadingStatus = {};
 
   static bool isDataLoaded = false;
   static bool isFullyLoaded = false;
 
-  static final ValueNotifier<bool> backgroundSyncNotifier = ValueNotifier(false);
+  static final ValueNotifier<bool> backgroundSyncNotifier = ValueNotifier(
+    false,
+  );
   static final Set<int> _archivedYearsLoaded = {};
   static Completer<void>? _phase2Completer;
   static Future<void>? get phase2SyncFuture => _phase2Completer?.future;
@@ -34,20 +44,118 @@ class GlobalCache {
   static Future<void> _loadPhase1_EssentialData() async {
     debugPrint("CACHE: Iniciando Fase 1 - Datos esenciales para el Home.");
 
-    final futures = await Future.wait([fetchStatuses(), ProjectsLogic().fetchBPartners(), ProjectsLogic().fetchUsers(), ProjectsLogic().fetchProjects(isViewingMine: false, showInactive: true), ContractApi.getSupportContracts()]);
+    final List<dynamic> futures;
+    try {
+      futures = await Future.wait([
+        fetchStatusesWithMetadata(),
+        ProjectsLogic().fetchBPartners(),
+        ProjectsLogic().fetchUsers(),
+        ProjectsLogic().fetchProjects(isViewingMine: false, showInactive: true),
+        ContractApi.getSupportProductChips(),
+        fetchRequestTypes(),
+        fetchCategories(),
+        fetchGroups(),
+      ]);
+    } catch (e, stack) {
+      debugPrint("DEBUG CACHE ERROR: Error en Future.wait de Fase 1: $e");
+      debugPrint(stack.toString());
+      rethrow;
+    }
 
-    statuses = futures[0] as Map<String, int>;
-    _rawBPartners = (futures[1] as List<dynamic>).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    final statusData = futures[0] as Map<String, dynamic>;
+    debugPrint("DEBUG CACHE: Future.wait terminó. Iniciando procesamiento de ${futures.length} respuestas.");
+    statuses = statusData['nameToId'] as Map<String, int>;
+    statusIsClosedMap = statusData['idToIsClosed'] as Map<int, bool>;
 
-    // Filtrar Terceros
-    bPartners = _rawBPartners.where((bp) => !(bp['Name']?.toString().startsWith('~') ?? false)).toList();
-    users = futures[2] as List<dynamic>;
+    _rawBPartners = (futures[1] as List<dynamic>)
+        .map((e) {
+          if (e is! Map) return <String, dynamic>{};
+          return Map<String, dynamic>.from(e);
+        })
+        .where((e) => e.isNotEmpty)
+        .toList();
+    
+    debugPrint("DEBUG CACHE: Recibidos ${_rawBPartners.length} Terceros raw.");
+
+    // Filtrar Terceros: Nos enfocamos en IsCustomer == 'true' o 'Y'
+    bPartners = _rawBPartners.where((bp) {
+      final name = (bp['Name']?.toString() ?? '').trim();
+      if (name.startsWith('~')) return false;
+
+      final rawVendor = bp['IsVendor'] ?? bp['isVendor'];
+      final isVendorStr = rawVendor?.toString().trim().toLowerCase();
+      bool isVendor = isVendorStr == 'true' || isVendorStr == 'y';
+
+      final rawCustomer = bp['IsCustomer'] ?? bp['isCustomer'];
+      final isCustomerStr = rawCustomer?.toString().trim().toLowerCase();
+      bool isCustomer = isCustomerStr == 'true' || isCustomerStr == 'y';
+      if (rawCustomer == null) isCustomer = true; 
+
+      // Filtro IDÉNTICO al diálogo de creación
+      return isCustomer && !isVendor;
+    }).toList();
+    
+    debugPrint("CACHE: Phase 1 BPartners Filtered: ${bPartners.length}");
+
+    final rawUsers = futures[2] as List<dynamic>;
+    debugPrint("CACHE: Recibidos ${rawUsers.length} Usuarios raw.");
+    
+    final allProcessedUsers = rawUsers.map((u) {
+      if (u is! Map) return <String, dynamic>{};
+      final user = Map<String, dynamic>.from(u);
+      user['Name'] = (user['Name']?.toString() ?? '').trim();
+      return user;
+    }).where((u) => u.isNotEmpty).toList();
+
+    final customerBpIds = bPartners.map((bp) => bp['id'] as int).toSet();
+    users = allProcessedUsers.where((u) {
+      final uBpData = u['C_BPartner_ID'];
+      final uBpId = (uBpData is Map)
+          ? (uBpData['id'] as num?)?.toInt()
+          : (uBpData is num ? uBpData.toInt() : null);
+      return uBpId != null && customerBpIds.contains(uBpId);
+    }).toList();
+    
+    debugPrint("CACHE: Phase 1 Users Filtered (Customers Only): ${users.length}");
 
     // Mapeo de Representantes Comerciales
-    salesReps = _rawBPartners.where((bp) => (bp['IsSalesRep'] == true || bp['IsSalesRep'] == 'Y')).toList();
+    // 1. Encontrar los IDs de los terceros que son representantes de ventas.
+    final repBPartnerIds = _rawBPartners
+        .where((bp) {
+          final rawIsRep = bp['IsSalesRep'] ?? bp['isSalesRep'];
+          final isRepStr = rawIsRep?.toString().trim().toLowerCase();
+          return isRepStr == 'true' || isRepStr == 'y';
+        })
+        .map((bp) => bp['id'] as int?)
+        .where((id) => id != null)
+        .toSet();
+
+    // 2. Filtrar la lista de todos los usuarios para encontrar representantes
+    salesReps = allProcessedUsers
+        .where((user) {
+          final userBpData = user['C_BPartner_ID'];
+          final userBpId = (userBpData is Map)
+              ? (userBpData['id'] as num?)?.toInt()
+              : (userBpData is num ? userBpData.toInt() : null);
+          
+          final rawIsRep = user['IsSalesRep'] ?? user['isSalesRep'];
+          final isRepStr = rawIsRep?.toString().trim().toLowerCase();
+          bool userIsRep = isRepStr == 'true' || isRepStr == 'y';
+          return (userBpId != null && repBPartnerIds.contains(userBpId)) || userIsRep;
+        })
+        .map((user) => user as Map<String, dynamic>)
+        .toList();
+
+    // Si aún así la lista de representantes está vacía por falta de datos, usamos todos los usuarios como fallback temporal
+    if (salesReps.isEmpty && users.isNotEmpty) {
+      salesReps = List.from(users);
+    }
 
     projects = futures[3] as List<dynamic>;
-    contracts = futures[4] as List<Map<String, dynamic>>;
+    productChips = futures[4] as List<Map<String, dynamic>>;
+    requestTypes = futures[5] as Map<String, int>;
+    categories = futures[6] as Map<String, int>;
+    groups = futures[7] as Map<String, int>;
 
     // 5 Solicitudes más recientes para el Home
     String? initialFilter;
@@ -55,184 +163,91 @@ class GlobalCache {
       initialFilter = "C_BPartner_ID eq ${User.cBPartnerID}";
     }
 
-    final initialRequests = await fetchRequest(filter: initialFilter, top: 5, orderBy: 'Updated desc', expand: 'C_Order_ID(\$select=DocumentNo)');
+    final initialRequests = await fetchRequest(
+      filter: initialFilter,
+      top: 5,
+      orderBy: 'Updated desc',
+      expand: 'C_Order_ID(\$select=DocumentNo)',
+    );
 
     requests = List<Map<String, dynamic>>.from(initialRequests);
-    debugPrint("CACHE: Fase 1 completada. ${requests.length} solicitudes iniciales.");
+    debugPrint(
+      "CACHE: Fase 1 completada. ${requests.length} solicitudes iniciales.",
+    );
   }
 
-  // --- FASES 2 y 3: Carga en segundo plano ---
-  static Future<void> _loadPhases2and3_RequestHistory() async {
-    try {
-      // Retraso de cortesía para no saturar el login
-      await Future.delayed(const Duration(seconds: 5));
-      backgroundSyncNotifier.value = true;
+  static bool _isSyncing = false;
+  static Completer<void>? _syncCompleter;
 
-      final currentYear = DateTime.now().year;
-      String? userFilter;
-      if (!AccessControl.isAdmin && User.cBPartnerID != null) {
-        userFilter = "C_BPartner_ID eq ${User.cBPartnerID}";
-      }
-
-      // --- FASE 2a: Carga Agresiva de Proyectos ---
-      debugPrint("CACHE: Iniciando Fase 2 - Buscando solicitudes de proyectos activos.");
-      List<Map<String, dynamic>> projectRequests = await _loadProjectRequests(userFilter);
-      debugPrint("CACHE: Se encontraron ${projectRequests.length} solicitudes vinculadas a proyectos.");
-
-      // --- FASE 2b: Soporte Año Actual ---
-      String supportFilter = "(Created ge '$currentYear-01-01 00:00:00' and Created lt '${currentYear + 1}-01-01 00:00:00')";
-      if (userFilter != null) supportFilter = "($userFilter) and $supportFilter";
-
-      final currentYearSupport = await fetchRequest(filter: supportFilter, expand: 'C_Order_ID(\$select=DocumentNo)');
-
-      // Unificar eliminando duplicados mediante un Mapa (ID -> Data)
-      final Map<String, Map<String, dynamic>> masterMap = {};
-
-      // 1. Meter las de proyecto (tienen prioridad de data)
-      for (var r in projectRequests) {
-        masterMap[r['id'].toString()] = r;
-      }
-      // 2. Meter las actuales de soporte e iniciales
-      for (var r in requests) {
-        masterMap[r['id'].toString()] = r;
-      }
-      for (var r in currentYearSupport) {
-        masterMap[r['id'].toString()] = r;
-      }
-
-      requests = masterMap.values.toList();
-      debugPrint("CACHE: Fase 2 completada. Total en Cache: ${requests.length}");
-
-      if (!(_phase2Completer?.isCompleted ?? true)) _phase2Completer?.complete();
-      backgroundSyncNotifier.value = false; // Notificar actualización a la UI
-
-      // --- FASE 3: Historial años anteriores (No archivadas) ---
-      await _loadPhase3_History(userFilter, currentYear);
-    } catch (e) {
-      debugPrint("❌ Error en segundo plano (Fase 2/3): $e");
-      if (!(_phase2Completer?.isCompleted ?? true)) _phase2Completer?.completeError(e);
-    } finally {
-      backgroundSyncNotifier.value = false;
-    }
-  }
-
-  /// Fase 3: Historial de soporte (Años anteriores)
-  static Future<void> _loadPhase3_History(String? userFilter, int currentYear) async {
-    debugPrint("CACHE: Iniciando Fase 3 - Historial Soporte.");
-    final archivedId = statuses.entries.firstWhere((e) => e.key.toLowerCase().contains('archivada'), orElse: () => const MapEntry('', 0)).value;
-
-    String filter = "Created lt '$currentYear-01-01 00:00:00'";
-    if (archivedId > 0) filter += " and R_Status_ID ne $archivedId";
-    if (userFilter != null) filter = "($userFilter) and $filter";
-
-    final historyRequests = await fetchRequest(filter: filter, expand: 'C_Order_ID(\$select=DocumentNo)');
-
-    final Map<String, Map<String, dynamic>> masterMap = {for (var r in requests) r['id'].toString(): r};
-    for (var r in historyRequests) {
-      masterMap[r['id'].toString()] = r;
-    }
-
-    requests = masterMap.values.toList();
-    isFullyLoaded = true;
-    debugPrint("CACHE: Fase 3 finalizada. Total final: ${requests.length}");
-  }
-
-  /// Función especializada para traer solicitudes de proyectos
-  static Future<List<Map<String, dynamic>>> _loadProjectRequests(String? userFilter) async {
-    List<Future<List<Map<String, dynamic>>>> futures = [];
-
-    // Iteramos sobre los proyectos ya cacheados en la Fase 1
-    for (var project in projects) {
-      final projectId = project['id'];
-      if (projectId != null) {
-        // No aplicamos el userFilter aquí, ya que el acceso a proyectos se maneja de otra forma.
-        // La función fetchProjectAndTaskRequests ya es suficientemente específica.
-        futures.add(fetchProjectAndTaskRequests(projectId, expand: 'C_Order_ID(\$select=DocumentNo)'));
-      }
-    }
-
-    if (futures.isEmpty) return [];
-
-    final List<Map<String, dynamic>> allResults = [];
-    final results = await Future.wait(futures);
-    for (var res in results) {
-      allResults.addAll(res);
-    }
-
-    // Deduplicación final por si acaso
-    final uniqueMap = <int, Map<String, dynamic>>{};
-    for (var req in allResults) {
-      if (req['id'] != null) uniqueMap[req['id']] = req;
-    }
-    return uniqueMap.values.toList();
-  }
-
-  // --- FASE 4: Carga bajo demanda de Archivadas (Dashboard / Bitácora) ---
-  static Future<void> loadArchivedRequests() async {
-    final currentYear = DateTime.now().year;
-    if (!isDataLoaded || _archivedYearsLoaded.contains(currentYear)) return;
-
-    backgroundSyncNotifier.value = true;
-    try {
-      final archivedId = statuses.entries.firstWhere((e) => e.key.toLowerCase().contains('archivada'), orElse: () => const MapEntry('', 0)).value;
-
-      if (archivedId == 0) return;
-
-      String filter = "R_Status_ID eq $archivedId and Created ge '$currentYear-01-01 00:00:00'";
-      if (!AccessControl.isAdmin && User.cBPartnerID != null) {
-        filter = "(C_BPartner_ID eq ${User.cBPartnerID}) and $filter";
-      }
-
-      final archived = await fetchRequest(filter: filter, expand: 'C_Order_ID(\$select=DocumentNo)');
-
-      final Map<String, Map<String, dynamic>> masterMap = {for (var r in requests) r['id'].toString(): r};
-      for (var r in archived) {
-        masterMap[r['id'].toString()] = r;
-      }
-      requests = masterMap.values.toList();
-      _archivedYearsLoaded.add(currentYear);
-    } finally {
-      backgroundSyncNotifier.value = false;
-    }
-  }
-
-  // --- FASE 5: Carga por años específicos (Modal) ---
-  static Future<void> fetchRequestsForYears(List<int> years) async {
-    if (years.isEmpty) return;
-    backgroundSyncNotifier.value = true;
-    try {
-      final yearFilterStr = years.map((y) => "(Created ge '$y-01-01 00:00:00' and Created lt '${y + 1}-01-01 00:00:00')").join(' or ');
-      String finalFilter = "($yearFilterStr)";
-
-      if (!AccessControl.isAdmin && User.cBPartnerID != null) {
-        finalFilter = "(C_BPartner_ID eq ${User.cBPartnerID}) and $finalFilter";
-      }
-
-      final newReqs = await fetchRequest(filter: finalFilter, expand: 'C_Order_ID(\$select=DocumentNo)');
-
-      final Map<String, Map<String, dynamic>> masterMap = {for (var r in requests) r['id'].toString(): r};
-      for (var r in newReqs) {
-        masterMap[r['id'].toString()] = r;
-      }
-      requests = masterMap.values.toList();
-    } finally {
-      backgroundSyncNotifier.value = false;
-    }
-  }
-
-  // --- Orquestador Principal ---
+  /// Sincroniza los datos de la caché con el servidor.
   static Future<void> syncData({bool force = false}) async {
     if (isDataLoaded && !force) return;
-    isDataLoaded = false;
-    isFullyLoaded = false;
+
+    // Si ya hay una sincronización en curso, esperamos a que termine
+    if (_isSyncing) {
+      debugPrint("CACHE: Ya hay una sincronización en curso. Esperando...");
+      await _syncCompleter?.future;
+      return;
+    }
+
+    _isSyncing = true;
+    _syncCompleter = Completer<void>();
     _phase2Completer = Completer<void>();
+    
     try {
+      // Limpiar datos si es forzado para asegurar frescura total
+      if (force) clear();
+
       await _loadPhase1_EssentialData();
+      
+      // Lanzar Fase 2 (datos pesados/históricos) sin bloquear el flujo principal
+      _loadPhase2_HistoricalData();
+      
       isDataLoaded = true;
-      _loadPhases2and3_RequestHistory(); // Corre en paralelo
+      if (!(_syncCompleter?.isCompleted ?? true)) _syncCompleter?.complete();
     } catch (e) {
-      if (!(_phase2Completer?.isCompleted ?? true)) _phase2Completer?.completeError(e);
+      debugPrint("ERROR en GlobalCache.syncData: $e");
+      if (!(_syncCompleter?.isCompleted ?? true)) _syncCompleter?.completeError(e);
+      // Marcamos como cargado para no reintentar infinitamente si el error es persistente
       isDataLoaded = true;
+    } finally {
+      _isSyncing = false;
+      _syncCompleter = null;
+    }
+  }
+
+  static Future<void> _loadPhase2_HistoricalData() async {
+    try {
+      final currentYear = DateTime.now().year;
+      // Cargar desde el año actual hasta 2 años atrás
+      for (var year = currentYear; year >= currentYear - 2; year--) {
+        // Para el año actual, siempre intentamos cargar (podría haber nuevas)
+        // aunque para evitar duplicados exactos, fetchRequest debería ser inteligente o nosotros filtrar
+        
+        String filter = "Created ge '$year-01-01T00:00:00Z' and Created le '$year-12-31T23:59:59Z'";
+        
+        final yearReqs = await fetchRequest(
+          filter: filter,
+          expand: 'C_Order_ID(\$select=DocumentNo)',
+        );
+        
+        if (yearReqs.isNotEmpty) {
+          // Evitar duplicados con los 5 cargados en Fase 1
+          final existingIds = requests.map((r) => r['id']).toSet();
+          for (var r in yearReqs) {
+            if (!existingIds.contains(r['id'])) {
+              requests.add(Map<String, dynamic>.from(r));
+            }
+          }
+          _archivedYearsLoaded.add(year);
+          debugPrint("CACHE: Fase 2 - Procesadas ${yearReqs.length} solicitudes del año $year.");
+        }
+      }
+      isFullyLoaded = true;
+      if (!(_phase2Completer?.isCompleted ?? true)) _phase2Completer?.complete();
+    } catch (e) {
+      debugPrint("CACHE ERROR Fase 2: $e");
+      if (!(_phase2Completer?.isCompleted ?? true)) _phase2Completer?.completeError(e);
     }
   }
 
@@ -243,10 +258,13 @@ class GlobalCache {
     requests.clear();
     _rawBPartners.clear();
     bPartners.clear();
-    contracts.clear();
+    productChips.clear();
     users.clear();
     salesReps.clear();
     statuses.clear();
+    requestTypes.clear();
+    categories.clear();
+    groups.clear();
     isDataLoaded = false;
     isFullyLoaded = false;
     _archivedYearsLoaded.clear();
@@ -254,11 +272,17 @@ class GlobalCache {
 
   static Future<void> syncSingleRequest(int requestId) async {
     try {
-      const expand = "R_Status_ID(\$select=Name,IsOpen),R_Group_ID(\$select=Name),R_RequestType_ID(\$select=Name),R_Category_ID(\$select=Name),C_Order_ID(\$select=DocumentNo)";
-      final freshData = await fetchRequest(filter: "R_Request_ID eq $requestId", expand: expand);
+      const expand =
+          "R_Status_ID(\$select=Name,IsOpen),R_Group_ID(\$select=Name),R_RequestType_ID(\$select=Name),R_Category_ID(\$select=Name),C_Order_ID(\$select=DocumentNo)";
+      final freshData = await fetchRequest(
+        filter: "R_Request_ID eq $requestId",
+        expand: expand,
+      );
       if (freshData.isNotEmpty) {
         final newReq = freshData.first;
-        final index = requests.indexWhere((r) => r['id'].toString() == requestId.toString());
+        final index = requests.indexWhere(
+          (r) => r['id'].toString() == requestId.toString(),
+        );
         if (index != -1) {
           requests[index] = newReq;
         } else {
@@ -281,8 +305,16 @@ class GlobalCache {
       if (!AccessControl.isAdmin && User.cBPartnerID != null) {
         reqFilter = "C_BPartner_ID eq ${User.cBPartnerID}";
       }
-      final reqUri = Uri.parse('${Endpoint.request}?\$top=1&\$orderby=Updated desc${reqFilter != null ? '&\$filter=$reqFilter' : ''}');
-      final resReq = await http.get(reqUri, headers: {'Authorization': Token.token, 'Content-Type': 'application/json'});
+      final reqUri = Uri.parse(
+        '${Endpoint.request}?\$top=1&\$orderby=Updated desc${reqFilter != null ? '&\$filter=$reqFilter' : ''}',
+      );
+      final resReq = await http.get(
+        reqUri,
+        headers: {
+          'Authorization': Token.token,
+          'Content-Type': 'application/json',
+        },
+      );
 
       if (resReq.statusCode == 200) {
         final data = jsonDecode(utf8.decode(resReq.bodyBytes));
@@ -292,7 +324,8 @@ class GlobalCache {
           String? localUpdate;
           for (var r in requests) {
             if (r['Updated'] != null) {
-              if (localUpdate == null || r['Updated'].compareTo(localUpdate) > 0) {
+              if (localUpdate == null ||
+                  r['Updated'].compareTo(localUpdate) > 0) {
                 localUpdate = r['Updated'];
               }
             }
@@ -309,13 +342,97 @@ class GlobalCache {
     }
   }
 
-  static Future<void> performSmartSync(BuildContext context, Future<void> Function() onSyncAction) async {
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Verificando información nueva...'), duration: Duration(milliseconds: 1500)));
+  static Future<void> performSmartSync(
+    BuildContext context,
+    Future<void> Function() onSyncAction,
+  ) async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Verificando información nueva...'),
+        duration: Duration(milliseconds: 1500),
+      ),
+    );
     if (await checkIfSyncNeeded()) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Sincronizando...'), backgroundColor: Theme.of(context).colorScheme.primary));
+      if (context.mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Sincronizando...'),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+          ),
+        );
       await onSyncAction();
     } else {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sincronizado'), backgroundColor: Colors.green));
+      if (context.mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Sincronizado'),
+            backgroundColor: Colors.green,
+          ),
+        );
     }
+  }
+  /// Carga todas las solicitudes de un proyecto en segundo plano.
+  static Future<void> loadProjectRequestsInBackground(
+    int projectId, {
+    List<String>? taskUUIDs,
+    Function(List<Map<String, dynamic>>)? onUpdate,
+  }) async {
+    if (projectLoadingStatus[projectId] == true) return; // Ya cargando
+    projectLoadingStatus[projectId] = true;
+
+    try {
+      debugPrint("CACHE: Iniciando carga en segundo plano para Proyecto $projectId");
+      
+      // Si no tenemos los UUIDs, los obtenemos primero
+      final uuids = taskUUIDs ?? await ProjectsLogic().fetchProjectTaskUUIDs(projectId);
+      
+      // 1. Carga inicial rápida (Cabecera del proyecto)
+      String baseFilter = "C_Project_ID eq $projectId";
+      final headerReqs = await fetchRequest(
+        filter: baseFilter, 
+        expand: 'C_Order_ID(\$select=DocumentNo),R_Status_ID,R_RequestType_ID,R_Category_ID,Priority,C_ProjectPhase_ID,C_ProjectTask_ID'
+      );
+      
+      _updateProjectCache(projectId, headerReqs);
+      if (onUpdate != null) onUpdate(projectRequestsCache[projectId]!);
+
+      // 2. Carga incremental por tareas (de a 10)
+      if (uuids.isNotEmpty) {
+        for (var i = 0; i < uuids.length; i += 10) {
+          final chunk = uuids.sublist(i, i + 10 > uuids.length ? uuids.length : i + 10);
+          String chunkFilter = chunk.map((u) => "Record_UU eq '$u'").join(' or ');
+          
+          final taskReqs = await fetchRequest(
+            filter: "($chunkFilter)", 
+            expand: 'C_Order_ID(\$select=DocumentNo),R_Status_ID,R_RequestType_ID,R_Category_ID,Priority,C_ProjectPhase_ID,C_ProjectTask_ID'
+          );
+          
+          if (taskReqs.isNotEmpty) {
+            _updateProjectCache(projectId, taskReqs);
+            if (onUpdate != null) onUpdate(projectRequestsCache[projectId]!);
+          }
+          
+          // Eliminada la pausa de 100ms para acelerar la carga en ráfaga.
+        }
+      }
+      debugPrint("CACHE: Carga completada para Proyecto $projectId. Total: ${projectRequestsCache[projectId]?.length}");
+    } catch (e) {
+      debugPrint("CACHE: Error cargando proyecto $projectId: $e");
+    } finally {
+      projectLoadingStatus[projectId] = false;
+    }
+  }
+
+  static void _updateProjectCache(int projectId, List<Map<String, dynamic>> newReqs) {
+    final current = projectRequestsCache[projectId] ?? [];
+    final Map<int, Map<String, dynamic>> map = {
+      for (var r in current) r['id']: r
+    };
+    
+    for (var r in newReqs) {
+      if (r['id'] != null) map[r['id']] = r;
+    }
+    
+    projectRequestsCache[projectId] = map.values.toList();
   }
 }

@@ -244,7 +244,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
         mainAxisSize: MainAxisSize.min,
         children: [
           const Text(
-            'v1.7.0',
+            'v1.8.0',
             style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
           ),
           if (!Envirioment.isProduction) ...[const SizedBox(width: 8), FloatingActionButton(onPressed: _showChangeUrlDialog, child: const Icon(Icons.settings))],
@@ -312,6 +312,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                   textInputAction: TextInputAction.next,
                                   focusNode: _userFocus,
                                   autofillHints: const [AutofillHints.username],
+                                  keyboardType: TextInputType.emailAddress, // Sugerencia para gestores de contraseñas
                                   decoration: InputDecoration(
                                     labelText: 'Usuario',
                                     hintText: 'Ingrese su usuario',
@@ -332,6 +333,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                   textInputAction: TextInputAction.done,
                                   onFieldSubmitted: (_) => _login(),
                                   focusNode: _passFocus,
+                                  keyboardType: TextInputType.visiblePassword, // Sugerencia para gestores de contraseñas
                                   autofillHints: const [AutofillHints.password],
                                   onEditingComplete: _login, // Para que el autocompletado funcione mejor
                                   decoration: InputDecoration(

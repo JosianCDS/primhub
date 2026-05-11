@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:primhub/ui/pages/Support/Requests/request_functions.dart'; // Para priorityMap
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
@@ -14,7 +15,11 @@ class BulkEditRequestDialog extends StatefulWidget {
   final Set<int> selectedIds;
   final VoidCallback onSaved;
 
-  const BulkEditRequestDialog({super.key, required this.selectedIds, required this.onSaved});
+  const BulkEditRequestDialog({
+    super.key,
+    required this.selectedIds,
+    required this.onSaved,
+  });
 
   @override
   State<BulkEditRequestDialog> createState() => _BulkEditRequestDialogState();
@@ -47,7 +52,14 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
 
   Future<void> _loadDictionaries() async {
     try {
-      final futures = await Future.wait([fetchStatuses(), _fetchMap('${Endpoint.baseUrl}/api/v1/models/R_RequestType'), _fetchMap('${Endpoint.baseUrl}/api/v1/models/R_Category'), _fetchMap('${Endpoint.baseUrl}/api/v1/models/R_Group'), ProjectsLogic().fetchUsers(), ProjectsLogic().fetchBPartners()]);
+      final futures = await Future.wait([
+        fetchStatuses(),
+        _fetchMap('${Endpoint.baseUrl}/api/v1/models/R_RequestType'),
+        _fetchMap('${Endpoint.baseUrl}/api/v1/models/R_Category'),
+        _fetchMap('${Endpoint.baseUrl}/api/v1/models/R_Group'),
+        ProjectsLogic().fetchUsers(),
+        ProjectsLogic().fetchBPartners(),
+      ]);
 
       if (mounted) {
         setState(() {
@@ -58,10 +70,18 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
           _users = futures[4] as List<dynamic>;
           // Aplicamos el filtro para excluir terceros inactivos (con '~')
           final bps = futures[5] as List<dynamic>;
+          // Excluir terceros que sean proveedores o que empiecen con '~'
           _bPartnersList = bps.where((bp) {
             final name = bp['Name']?.toString() ?? '';
-            final isCustomer = bp['IsCustomer'] == true || bp['IsCustomer'] == 'Y';
-            return !name.startsWith('~') && isCustomer;
+            final rawVendor = bp['IsVendor'] ?? bp['isVendor'];
+            final isVendorStr = rawVendor?.toString().trim().toLowerCase();
+            bool isVendor = isVendorStr == 'true' || isVendorStr == 'y';
+
+            final rawCustomer = bp['IsCustomer'] ?? bp['isCustomer'];
+            final isCustomerStr = rawCustomer?.toString().trim().toLowerCase();
+            bool isCustomer = isCustomerStr == 'true' || isCustomerStr == 'y';
+            if (rawCustomer == null) isCustomer = true;
+            return !name.startsWith('~') && isCustomer && !isVendor;
           }).toList();
           _isLoading = false;
         });
@@ -69,13 +89,24 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error cargando diccionarios'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Error cargando diccionarios'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
 
   Future<Map<String, int>> _fetchMap(String url) async {
-    final response = await http.get(Uri.parse(url), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+    final response = await http.get(
+      Uri.parse(url),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': Token.token,
+      },
+    );
     if (response.statusCode == 200) {
       final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
       final records = jsonResponse['records'] as List;
@@ -93,17 +124,36 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
     if (_selectedPriority != null) changes['Prioridad'] = _selectedPriority!;
     if (_selectedStatus != null) changes['Estado'] = _selectedStatus!;
     if (_selectedBpId != null) {
-      final bpName = _bPartnersList.firstWhere((bp) => bp['id'] == _selectedBpId, orElse: () => <String, dynamic>{})['Name']?.toString() ?? 'Tercero $_selectedBpId';
+      final bpName =
+          _bPartnersList
+              .firstWhere(
+                (bp) => bp['id'] == _selectedBpId,
+                orElse: () => <String, dynamic>{},
+              )['Name']
+              ?.toString() ??
+          'Tercero $_selectedBpId';
       changes['Tercero'] = bpName;
     }
     if (_selectedUserId != null) {
-      final userName = _users.firstWhere((u) => (u['AD_User_ID'] ?? u['id']) == _selectedUserId, orElse: () => <String, dynamic>{})['Name']?.toString() ?? 'Usuario $_selectedUserId';
+      final userName =
+          _users
+              .firstWhere(
+                (u) => (u['AD_User_ID'] ?? u['id']) == _selectedUserId,
+                orElse: () => <String, dynamic>{},
+              )['Name']
+              ?.toString() ??
+          'Usuario $_selectedUserId';
       changes['Usuario Asignado'] = userName;
     }
 
     // 2. Validar que haya al menos un cambio seleccionado
     if (changes.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No has seleccionado ningún campo para modificar.'), backgroundColor: Colors.orange));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No has seleccionado ningún campo para modificar.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
       return;
     }
 
@@ -116,21 +166,35 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('¿Seguro que vas a hacer este cambio? Vas a afectar a ${widget.selectedIds.length} fila(s) en los siguientes campos:'),
+            Text(
+              '¿Seguro que vas a hacer este cambio? Vas a afectar a ${widget.selectedIds.length} fila(s) en los siguientes campos:',
+            ),
             const SizedBox(height: 16),
             ...changes.entries.map(
               (e) => Padding(
                 padding: const EdgeInsets.only(bottom: 6.0),
-                child: Text('• ${e.key}: ${e.value}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                child: Text(
+                  '• ${e.key}: ${e.value}',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
               ),
             ),
             const SizedBox(height: 16),
-            const Text('Esta acción se aplicará inmediatamente y no se puede deshacer de forma masiva.', style: TextStyle(color: Colors.red, fontSize: 12)),
+            const Text(
+              'Esta acción se aplicará inmediatamente y no se puede deshacer de forma masiva.',
+              style: TextStyle(color: Colors.red, fontSize: 12),
+            ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-          CustomButton(text: 'Continuar', onPressed: () => Navigator.pop(context, true)),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          CustomButton(
+            text: 'Continuar',
+            onPressed: () => Navigator.pop(context, true),
+          ),
         ],
       ),
     );
@@ -145,9 +209,15 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
       final result = await updateRemoteRequest(
         id: id,
         priority: _selectedPriority,
-        statusId: _selectedStatus != null ? _statusIdMap[_selectedStatus] : null,
-        requestTypeId: _selectedType != null ? _requestTypeMap[_selectedType] : null,
-        categoryId: _selectedCategory != null ? _categoryMap[_selectedCategory] : null,
+        statusId: _selectedStatus != null
+            ? _statusIdMap[_selectedStatus]
+            : null,
+        requestTypeId: _selectedType != null
+            ? _requestTypeMap[_selectedType]
+            : null,
+        categoryId: _selectedCategory != null
+            ? _categoryMap[_selectedCategory]
+            : null,
         groupId: _selectedGroup != null ? _groupMap[_selectedGroup] : null,
         bPartnerId: _selectedBpId,
         userId: _selectedUserId,
@@ -164,7 +234,14 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
     if (mounted) {
       setState(() => _isSaving = false);
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Edición masiva completada: $successCount exitosos, $errorCount errores.'), backgroundColor: errorCount > 0 ? Colors.orange : Colors.green));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Edición masiva completada: $successCount exitosos, $errorCount errores.',
+          ),
+          backgroundColor: errorCount > 0 ? Colors.orange : Colors.green,
+        ),
+      );
       widget.onSaved();
     }
   }
@@ -174,7 +251,10 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
     if (_isLoading)
       return const CustomModal(
         title: 'Edición Masiva',
-        content: SizedBox(height: 200, child: Center(child: CircularProgressIndicator())),
+        content: SizedBox(
+          height: 200,
+          child: Center(child: CircularProgressIndicator()),
+        ),
       );
 
     return CustomModal(
@@ -185,7 +265,10 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Seleccione los campos que desea actualizar. Los campos en "-- No modificar --" mantendrán su valor original.', style: TextStyle(color: Colors.grey)),
+            const Text(
+              'Seleccione los campos que desea actualizar. Los campos en "-- No modificar --" mantendrán su valor original.',
+              style: TextStyle(color: Colors.grey),
+            ),
             const SizedBox(height: 16),
             Row(
               children: [
@@ -194,8 +277,13 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
                     label: 'Tipo de Solicitud',
                     value: _selectedType,
                     items: [
-                      const DropdownMenuItem(value: null, child: Text('-- No modificar --')),
-                      ..._requestTypeMap.keys.map((k) => DropdownMenuItem(value: k, child: Text(k))),
+                      const DropdownMenuItem(
+                        value: null,
+                        child: Text('-- No modificar --'),
+                      ),
+                      ..._requestTypeMap.keys.map(
+                        (k) => DropdownMenuItem(value: k, child: Text(k)),
+                      ),
                     ],
                     onChanged: (val) => setState(() => _selectedType = val),
                   ),
@@ -206,8 +294,13 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
                     label: 'Categoría',
                     value: _selectedCategory,
                     items: [
-                      const DropdownMenuItem(value: null, child: Text('-- No modificar --')),
-                      ..._categoryMap.keys.map((k) => DropdownMenuItem(value: k, child: Text(k))),
+                      const DropdownMenuItem(
+                        value: null,
+                        child: Text('-- No modificar --'),
+                      ),
+                      ..._categoryMap.keys.map(
+                        (k) => DropdownMenuItem(value: k, child: Text(k)),
+                      ),
                     ],
                     onChanged: (val) => setState(() => _selectedCategory = val),
                   ),
@@ -222,8 +315,13 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
                     label: 'Grupo',
                     value: _selectedGroup,
                     items: [
-                      const DropdownMenuItem(value: null, child: Text('-- No modificar --')),
-                      ..._groupMap.keys.map((k) => DropdownMenuItem(value: k, child: Text(k))),
+                      const DropdownMenuItem(
+                        value: null,
+                        child: Text('-- No modificar --'),
+                      ),
+                      ..._groupMap.keys.map(
+                        (k) => DropdownMenuItem(value: k, child: Text(k)),
+                      ),
                     ],
                     onChanged: (val) => setState(() => _selectedGroup = val),
                   ),
@@ -234,8 +332,13 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
                     label: 'Prioridad',
                     value: _selectedPriority,
                     items: [
-                      const DropdownMenuItem(value: null, child: Text('-- No modificar --')),
-                      ...priorityMap.keys.map((k) => DropdownMenuItem(value: k, child: Text(k))),
+                      const DropdownMenuItem(
+                        value: null,
+                        child: Text('-- No modificar --'),
+                      ),
+                      ...priorityMap.keys.map(
+                        (k) => DropdownMenuItem(value: k, child: Text(k)),
+                      ),
                     ],
                     onChanged: (val) => setState(() => _selectedPriority = val),
                   ),
@@ -247,8 +350,13 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
               label: 'Estado',
               value: _selectedStatus,
               items: [
-                const DropdownMenuItem(value: null, child: Text('-- No modificar --')),
-                ..._statusIdMap.keys.map((k) => DropdownMenuItem(value: k, child: Text(k))),
+                const DropdownMenuItem(
+                  value: null,
+                  child: Text('-- No modificar --'),
+                ),
+                ..._statusIdMap.keys.map(
+                  (k) => DropdownMenuItem(value: k, child: Text(k)),
+                ),
               ],
               onChanged: (val) => setState(() => _selectedStatus = val),
             ),
@@ -260,11 +368,17 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
                     label: 'Tercero',
                     value: _selectedBpId,
                     items: [
-                      const DropdownMenuItem<int?>(value: null, child: Text('-- No modificar --')),
+                      const DropdownMenuItem<int?>(
+                        value: null,
+                        child: Text('-- No modificar --'),
+                      ),
                       ..._bPartnersList.map(
                         (bp) => DropdownMenuItem<int?>(
                           value: bp['id'],
-                          child: Text(bp['Name'] ?? 'Tercero ${bp['id']}', overflow: TextOverflow.ellipsis),
+                          child: Text(
+                            bp['Name'] ?? 'Tercero ${bp['id']}',
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       ),
                     ],
@@ -277,11 +391,17 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
                     label: 'Usuario Asignado',
                     value: _selectedUserId,
                     items: [
-                      const DropdownMenuItem<int?>(value: null, child: Text('-- No modificar --')),
+                      const DropdownMenuItem<int?>(
+                        value: null,
+                        child: Text('-- No modificar --'),
+                      ),
                       ..._users.map(
                         (u) => DropdownMenuItem<int?>(
                           value: u['AD_User_ID'] ?? u['id'],
-                          child: Text(u['Name'] ?? 'Sin Nombre', overflow: TextOverflow.ellipsis),
+                          child: Text(
+                            u['Name'] ?? 'Sin Nombre',
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       ),
                     ],
@@ -294,8 +414,15 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
         ),
       ),
       actions: [
-        TextButton(onPressed: _isSaving ? null : () => Navigator.pop(context), child: const Text('Cancelar')),
-        CustomButton(text: 'Aplicar a ${widget.selectedIds.length} solicitudes', onPressed: _handleSave, isLoading: _isSaving),
+        TextButton(
+          onPressed: _isSaving ? null : () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        CustomButton(
+          text: 'Aplicar a ${widget.selectedIds.length} solicitudes',
+          onPressed: _handleSave,
+          isLoading: _isSaving,
+        ),
       ],
     );
   }

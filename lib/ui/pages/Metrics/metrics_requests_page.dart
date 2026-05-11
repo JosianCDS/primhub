@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
-import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
-import 'package:primhub/ui/Shared_Custom/custom_table.dart';
-import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
+import 'package:primhub/ui/pages/Support/Requests/request_functions.dart'; 
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/ui/pages/Support/Requests/create_request_dialog.dart';
@@ -11,6 +8,7 @@ import 'package:primhub/ui/pages/Support/Requests/edit_request_dialog.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/pages/Metrics/graphic_functions.dart';
+import 'package:primhub/ui/Shared_Custom/requests_data_table_core.dart'; 
 import 'package:primhub/api/global_cache.dart';
 import 'package:primhub/ui/Shared_Custom/custom_skeleton.dart';
 
@@ -19,7 +17,7 @@ class ProjectRequestsPage extends StatefulWidget {
   final String? filterStatus;
   final String? filterCompliance;
   final int? projectId;
-  final List<String>? taskUUIDs; // UUIDs de tareas para filtro avanzado
+  final List<String>? taskUUIDs;
 
   const ProjectRequestsPage({super.key, this.filterType, this.filterStatus, this.filterCompliance, this.projectId, this.taskUUIDs});
 
@@ -28,7 +26,8 @@ class ProjectRequestsPage extends StatefulWidget {
 }
 
 class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
-  List<Map<String, dynamic>> _requests = [];
+  List<Map<String, dynamic>> _allRequests = []; 
+  List<Map<String, dynamic>> _paginatedRequests = []; 
   bool _isLoading = true;
   Map<int, String> _statusNameMap = {};
   Map<String, int> _statusIdMap = {};
@@ -39,6 +38,9 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
   int? _projectId;
   List<String>? _taskUUIDs;
   bool _isInit = true;
+
+  int _currentPage = 0;
+  int _rowsPerPage = 10;
 
   @override
   void initState() {
@@ -79,9 +81,11 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
   }
 
   Future<void> _initData({bool showLoading = true}) async {
-    if (showLoading && _requests.isEmpty) setState(() => _isLoading = true);
+    if (showLoading && _allRequests.isEmpty) setState(() => _isLoading = true);
     await _fetchStatusesMap();
-    await _loadRequests();
+    // Corrected method name to match the definition below
+    await _loadRequests(); 
+    _applyPagination(); 
   }
 
   Future<void> _fetchStatusesMap() async {
@@ -105,20 +109,15 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
 
   Future<void> _loadRequests() async {
     List<Map<String, dynamic>> rawRequests = [];
-
-    // Identificar si la navegación proviene de los gráficos de métricas
     bool isFromMetricsChart = _projectId != null && (_filterType != null || _filterStatus != null || _filterCompliance != null) && _taskUUIDs == null;
 
     if (isFromMetricsChart) {
-      // 1. Obtener exactamente la misma data base que el gráfico para garantizar consistencia total
       rawRequests = await GraphicsFunctions.fetchMetricsData(projectId: _projectId!);
     } else if (GlobalCache.isDataLoaded) {
-      // 2. Extraer desde la caché global sin hacer peticiones a la API
       List<String> uuidsToMatch = _taskUUIDs != null ? List.from(_taskUUIDs!) : [];
 
       if (_projectId != null && uuidsToMatch.isEmpty) {
         try {
-          // Si no tenemos los UUIDs de las tareas del proyecto, los extraemos del proyecto cacheado
           final project = GlobalCache.projects.firstWhere((p) => p['id'] == _projectId, orElse: () => null);
           if (project != null) {
             final phases = project['C_ProjectPhase'] as List? ?? [];
@@ -141,7 +140,6 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
       rawRequests = GlobalCache.requests.where((req) {
         bool isActive = req['IsActive'] == true || req['IsActive'] == 'Y';
         int? reqGroupId = req['R_Group_ID'] is Map ? req['R_Group_ID']['id'] : req['R_Group_ID'];
-
         if (!isActive || reqGroupId != 1000006) return false;
 
         if (!AccessControl.isAdmin && AccessControl.isProject && User.cBPartnerID != null) {
@@ -160,7 +158,6 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
         return true;
       }).toList();
     } else {
-      // 3. Fallback: Lógica para otras vistas haciendo petición API
       List<String> filters = ["IsActive eq true", "R_Group_ID eq 1000006"];
       if (!AccessControl.isAdmin && AccessControl.isProject && User.cBPartnerID != null) {
         filters.add("C_BPartner_ID eq ${User.cBPartnerID}");
@@ -179,7 +176,6 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
     }
 
     final filtered = rawRequests.where((req) {
-      // REPLICAR EXACTAMENTE LA LÓGICA DE METRICS.DART
       final statusObj = req['R_Status_ID'];
       final statusData = statusObj is Map ? statusObj : null;
       String rawStatusName = req['R_Status_Name'] ?? '';
@@ -195,9 +191,7 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
       }
 
       String cleanStatusName = rawStatusName.contains('_') ? rawStatusName.split('_').last.trim() : rawStatusName.trim();
-      String lowerStatus = rawStatusName.toLowerCase();
 
-      // 1. FILTRO DE TIPO / MÓDULO
       bool matchesType = true;
       if (_filterType != null) {
         String categoryName = '';
@@ -206,21 +200,17 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
           categoryName = categoryObj['Name'] ?? categoryObj['identifier'] ?? categoryObj['name'] ?? '';
         }
         if (categoryName.isEmpty) categoryName = 'Sin Módulo';
-
         String cleanFilter = _filterType!.replaceAll('.', '').trim();
         matchesType = categoryName == _filterType || categoryName.startsWith(cleanFilter);
       }
 
-      // 2. FILTRO DE ESTADO
       bool matchesStatus = true;
       if (_filterStatus != null) {
         matchesStatus = cleanStatusName == _filterStatus;
       }
 
-      // 3. FILTRO DE CUMPLIMIENTO (Pie chart / Módulo Series)
       bool matchesCompliance = true;
       if (_filterCompliance != null) {
-        // Usar la lógica centralizada para garantizar consistencia con los gráficos.
         final category = ProjectMetricsCalculator.getComplianceCategory(req);
         matchesCompliance = category == _filterCompliance;
       }
@@ -228,15 +218,27 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
       return matchesType && matchesStatus && matchesCompliance;
     }).toList();
 
-    // Procesar para tabla
     final processed = await processRequests(filtered, _statusIdMap);
 
     if (mounted) {
       setState(() {
-        _requests = processed['requests'];
+        _allRequests = (processed['requests'] as List<dynamic>).cast<Map<String, dynamic>>();
         _isLoading = false;
+        _currentPage = 0;
       });
     }
+  }
+
+  void _applyPagination() {
+    final int totalItems = _allRequests.length;
+    final int totalPages = (totalItems / _rowsPerPage).ceil();
+    if (_currentPage >= totalPages) _currentPage = totalPages > 0 ? totalPages - 1 : 0;
+    final int startIndex = _currentPage * _rowsPerPage;
+    final int endIndex = (startIndex + _rowsPerPage < totalItems) ? startIndex + _rowsPerPage : totalItems;
+    
+    setState(() {
+      _paginatedRequests = totalItems > 0 ? _allRequests.sublist(startIndex, endIndex) : <Map<String, dynamic>>[];
+    });
   }
 
   Future<void> _deleteRequest(dynamic id) async {
@@ -292,16 +294,19 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) {    
+    final int totalItems = _allRequests.length;
+    final int totalPages = (totalItems / _rowsPerPage).ceil();
+    
     return Scaffold(
       appBar: AppBar(
         title: Text('Solicitudes: ${_filterType ?? _filterStatus ?? _filterCompliance ?? "Detalle"}'),
         actions: [
           if (GlobalCache.backgroundSyncNotifier.value)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16.0),
               child: Center(
-                child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Theme.of(context).colorScheme.onPrimary)),
+                child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
               ),
             ),
           IconButton(
@@ -330,80 +335,51 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
           : null,
       body: _isLoading
           ? const SkeletonTable()
-          : _requests.isEmpty
-          ? const Center(child: Text('No se encontraron solicitudes para este tipo.'))
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: CustomTable(
-                columns: [
-                  const DataColumn(label: Text('#')),
-                  const DataColumn(label: Text('Ticket')),
-                  const DataColumn(label: Text('Resumen')),
-                  if (!AccessControl.isProject) const DataColumn(label: Text('Usuario')),
-                  if (!AccessControl.isProject) const DataColumn(label: Text('Representante Comercial')),
-                  const DataColumn(label: Text('Estado')),
-                  const DataColumn(label: Text('Prioridad')),
-                  const DataColumn(label: Text('Fecha')),
-                  const DataColumn(label: Text('Acciones')),
-                ],
-                rows: _requests.asMap().entries.map((entry) {
-                  final int index = entry.key + 1; // Numeración iniciando en 1
-                  final Map<String, dynamic> req = entry.value;
-                  return DataRow(
-                    cells: [
-                      DataCell(Text(index.toString(), style: const TextStyle(fontWeight: FontWeight.bold))),
-                      DataCell(
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
+          : _allRequests.isEmpty
+              ? const Center(child: Text('No se encontraron solicitudes para este tipo.'))
+              : Column(
+                  children: [
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(16),
+                        child: RequestsDataTableCore(
+                          requests: _paginatedRequests,
+                          statusIdMap: _statusIdMap,
+                          priorityMap: priorityMap,
+                          onEdit: _editRequest,
+                          onRefresh: () => _initData(showLoading: false),
+                          showProjectContext: AccessControl.isProject,
+                        ),
+                      ),
+                    ),
+                    if (totalPages > 1) 
+                      Padding(
+                        padding: const EdgeInsets.only(top: 16.0, bottom: 16.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text(req['id'].toString()),
-                            const SizedBox(width: 8),
-                            InkWell(
-                              borderRadius: BorderRadius.circular(4),
-                              onTap: () {
-                                Clipboard.setData(ClipboardData(text: req['id'].toString()));
-                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Código copiado al portapapeles')));
+                            DropdownButton<int>(
+                              value: _rowsPerPage,
+                              items: const [10, 25, 50, 100].map((int value) => DropdownMenuItem<int>(value: value, child: Text('$value filas'))).toList(),
+                              onChanged: (val) {
+                                if (val != null) {
+                                  setState(() {
+                                    _rowsPerPage = val;
+                                    _currentPage = 0;
+                                  });
+                                  _applyPagination();
+                                }
                               },
-                              child: const Padding(
-                                padding: EdgeInsets.all(4.0),
-                                child: Icon(Icons.copy, size: 16, color: Colors.grey),
-                              ),
                             ),
+                            const SizedBox(width: 20),
+                            IconButton(icon: const Icon(Icons.chevron_left), onPressed: _currentPage > 0 ? () => setState(() { _currentPage--; _applyPagination(); }) : null),
+                            Text('Página ${_currentPage + 1} de $totalPages', style: const TextStyle(fontWeight: FontWeight.bold)),
+                            IconButton(icon: const Icon(Icons.chevron_right), onPressed: _currentPage < totalPages - 1 ? () => setState(() { _currentPage++; _applyPagination(); }) : null),
                           ],
                         ),
                       ),
-                      DataCell(
-                        Tooltip(
-                          message: stripHtmlTags(req['description'] ?? ''),
-                          child: SizedBox(width: 300, child: Text(stripHtmlTags(req['description'] ?? '').length > 40 ? '${stripHtmlTags(req['description'] ?? '').substring(0, 40)}...' : stripHtmlTags(req['description'] ?? ''))),
-                        ),
-                      ),
-                      if (!AccessControl.isProject) DataCell(Text(req['userName'] ?? '')),
-                      if (!AccessControl.isProject) DataCell(Text(req['salesRepName'] ?? '')),
-                      DataCell(Text(req['status'] ?? '')),
-                      DataCell(Text(req['level'] ?? '')),
-                      DataCell(Text(req['time'] ?? '')),
-                      DataCell(
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.reply),
-                              tooltip: 'Responder Solicitud',
-                              onPressed: () {
-                                final id = Uri.encodeComponent(req['realId'].toString());
-                                GoRouter.of(context).push('/request-updates/$id', extra: {'docNo': req['id']});
-                              },
-                            ),
-                            if (AccessControl.canManageRequests) IconButton(icon: const Icon(Icons.edit), tooltip: 'Editar Solicitud', onPressed: () => _editRequest(req)),
-                          ],
-                        ),
-                      ),
-                    ],
-                  );
-                }).toList(),
-              ),
-            ),
+                  ],
+                ),
     );
   }
 }

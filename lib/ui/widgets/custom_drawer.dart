@@ -3,9 +3,10 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
+import 'package:primhub/api/token.dart';
 import 'package:primhub/endpoint/endpoint.dart';
-import '../../api/token.dart';
 import '../../api/access_control.dart';
+import '../../api/api_utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../Shared_Custom/custom_modal.dart';
 import '../Shared_Custom/custom_button.dart';
@@ -114,29 +115,6 @@ class _CustomDrawerState extends State<CustomDrawer> {
         _client = payload['client_name'] ?? payload['clientName'] ?? (clientId == 11 ? 'GardenWorld' : 'Cliente $clientId');
       });
     } catch (e) {}
-  }
-
-  void _showLogoutDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return CustomModal(
-          title: 'Cerrar Sesión',
-          content: const Text('¿Estás seguro de que quieres cerrar sesión y salir de la aplicación?'),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
-            CustomButton(
-              text: 'Sí, salir',
-              onPressed: () {
-                Token.clear();
-                context.go('/login');
-              },
-              backgroundColor: Colors.red,
-            ),
-          ],
-        );
-      },
-    );
   }
 
   @override
@@ -319,7 +297,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 title: Text('Cerrar sesión', style: TextStyle(color: isHovered ? colorScheme.error : colorScheme.onSurface)),
                 onTap: () {
                   Navigator.pop(context); // Cierra el menú
-                  _showLogoutDialog(context);
+                  showLogoutConfirmation(context); // Usa la función centralizada
                 },
               ),
             ),

@@ -225,7 +225,7 @@ class _MetricsPageState extends State<MetricsPage> {
           });
         }
       } else {
-        final bps = await ContractApi.getBPartnersWithSupportContracts();
+        final bps = await ContractApi.getBPartnersWithProductChips();
         if (mounted) {
           setState(() {
             _supportBPartners = bps;
@@ -255,7 +255,7 @@ class _MetricsPageState extends State<MetricsPage> {
       final projects = await ProjectsLogic().fetchProjectsForDropdown(bPartnerId: bPartnerIdForQuery);
       if (mounted) {
         setState(() {
-          _projects = projects ?? [];
+          _projects = projects;
           if (_projects.isNotEmpty) {
             if (_selectedProjectId == null || !_projects.any((p) => p['id'] == _selectedProjectId)) {
               _selectedProjectId = _projects.first['id'];

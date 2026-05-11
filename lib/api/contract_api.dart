@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:primhub/api/auth_api.dart';
 import 'package:http/http.dart' as http;
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/api_utils.dart';
@@ -7,10 +8,9 @@ import 'package:primhub/api/token.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 
 class ContractApi {
-  // Filtro unificado con los IDs válidos para productos de soporte (Mensual y Por Horas)
-  static const String validSupportProductsFilter = "(M_Product_ID eq 1000816 or M_Product_ID eq 1000161 or M_Product_ID eq 1000814 or M_Product_ID eq 1000693 or M_Product_ID eq 1000695)";
+  // Ahora usamos la Ficha de Producto del Tercero
+  static const String productChipEndpoint = "C_BPartner_Product_Chip";
 
-  // Función auxiliar para iterar la API y traer todos los registros sin el límite restrictivo de 100
   static Future<List<dynamic>> _fetchPaginated(String baseUrl) async {
     List<dynamic> allRecords = [];
     int skip = 0;
@@ -45,99 +45,121 @@ class ContractApi {
         }
       }
     } catch (e) {
-      debugPrint("Error en paginación ContractApi: $e");
+      debugPrint("Error en paginación ProductChipApi: $e");
     }
     return allRecords;
   }
 
-  static Future<List<Map<String, dynamic>>> getSupportContracts({int? bPartnerId, List<int>? bPartnerIds}) async {
-    if (ProductChip.mProductID == null) {
-      return [];
-    }
+  /// Obtiene las fichas de producto (chips) para soporte.
+  static Future<List<Map<String, dynamic>>> getSupportProductChips({int? bPartnerId, List<int>? bPartnerIds}) async {
+    final String endpoint = "${Endpoint.baseUrl}/api/v1/models/$productChipEndpoint";
+    
+    // Filtro inicial: eliminamos IsActive eq 'Y' para ser más inclusivos si el usuario reporta que no se ven
 
-    final String orderLineEndpoint = "${Endpoint.baseUrl}/api/v1/models/C_OrderLine";
-    String filter = validSupportProductsFilter;
 
-    // Construimos el filtro de terceros para la consulta de líneas
+    // Filtro por Tercero(s)
     List<int> finalBpIds = [];
     if (bPartnerId != null) finalBpIds.add(bPartnerId);
     if (bPartnerIds != null) finalBpIds.addAll(bPartnerIds);
+    
     if (finalBpIds.isEmpty && !AccessControl.isAdmin && !AccessControl.isRealSupport && User.cBPartnerID != null) {
       finalBpIds.add(User.cBPartnerID!);
     }
 
-    final String baseUrl = "$orderLineEndpoint?\$filter=$filter&\$expand=C_Order_ID(\$select=DocumentNo,DateOrdered,Created,C_BPartner_ID,DocStatus,IsSOTrx)";
+    // No aplicamos filtro por tercero aquí; recuperamos todas las fichas y luego se filtrarán en la UI según el BPartner seleccionado
+    // Construimos el filtro base (registros activos)
+    // Usamos tanto 'Y' como true para compatibilidad con distintas versiones de OData
+    String filter = "(IsActive eq 'Y' or IsActive eq true)";
+
+    if (finalBpIds.isNotEmpty) {
+      // Filtro simple directo sobre el ID del socio
+      String bpFilter = finalBpIds
+          .map((id) => "C_BPartner_ID eq $id")
+          .join(' or ');
+      filter = "$filter and ($bpFilter)";
+    }
+
+    final String baseUrl = "$endpoint?\$filter=$filter";
+    debugPrint("DEBUG ContractApi: Fetching chips from $baseUrl");
 
     try {
-      final lines = await _fetchPaginated(baseUrl);
-      Map<int, Map<String, dynamic>> contracts = {};
-
-      for (var line in lines) {
-        final orderInfo = line['C_Order_ID'];
-        if (orderInfo == null) continue;
-
-        final orderBpId = orderInfo['C_BPartner_ID']?['id'];
-        // Si se especificaron terceros, filtramos aquí
-        if (finalBpIds.isNotEmpty && !finalBpIds.contains(orderBpId)) {
-          continue;
-        }
-
-        final isSOTrx = orderInfo['IsSOTrx'] == true;
-        final docStatus = orderInfo['DocStatus'] is Map ? orderInfo['DocStatus']['id'] : orderInfo['DocStatus'];
-        final isValidStatus = docStatus == 'CO' || docStatus == 'CL' || docStatus == 'DR';
-
-        if (isSOTrx && isValidStatus) {
-          final orderId = orderInfo['id'];
-          final hoursInLine = (line['QtyEntered'] as num?)?.toDouble() ?? 0.0;
-
-          if (contracts.containsKey(orderId)) {
-            contracts[orderId]!['contractedHours'] += hoursInLine;
-          } else {
-            contracts[orderId] = {'id': orderId, 'DocumentNo': orderInfo['DocumentNo'], 'DateOrdered': orderInfo['DateOrdered'], 'contractedHours': hoursInLine, 'C_BPartner_ID': orderBpId};
-          }
-        }
-      }
-      final result = contracts.values.toList();
-      result.sort((a, b) => (a['DateOrdered'] as String).compareTo(b['DateOrdered'] as String));
-      return result;
+      final records = await _fetchPaginated(baseUrl);
+      return records.map((r) => Map<String, dynamic>.from(r)).toList();
     } catch (e) {
-      debugPrint("Error obteniendo contratos: $e");
+      debugPrint("Error obteniendo Product Chips: $e");
     }
     return [];
   }
 
-  static Future<List<Map<String, dynamic>>> getBPartnersWithSupportContracts() async {
-    if (ProductChip.mProductID == null) {
-      return [];
-    }
-
-    final String orderLineEndpoint = "${Endpoint.baseUrl}/api/v1/models/C_OrderLine";
-    final String baseUrl = "$orderLineEndpoint?\$filter=$validSupportProductsFilter&\$expand=C_Order_ID(\$select=C_BPartner_ID,DocStatus,IsSOTrx)";
+  /// Obtiene la lista de Terceros que tienen al menos una ficha de producto activa.
+  static Future<List<Map<String, dynamic>>> getBPartnersWithProductChips() async {
+    final String endpoint = "${Endpoint.baseUrl}/api/v1/models/$productChipEndpoint";
+    final String baseUrl = "$endpoint?\$filter=(IsActive eq 'Y' or IsActive eq true)&\$expand=C_BPartner_ID(\$select=Name)";
 
     try {
       final records = await _fetchPaginated(baseUrl);
       final Map<int, Map<String, dynamic>> bPartners = {};
-      for (var line in records) {
-        final orderInfo = line['C_Order_ID'];
-        if (orderInfo != null) {
-          final isSOTrx = orderInfo['IsSOTrx'] == true;
-          final docStatus = orderInfo['DocStatus'] is Map ? orderInfo['DocStatus']['id'] : orderInfo['DocStatus'];
-          final isValidStatus = docStatus == 'CO' || docStatus == 'CL' || docStatus == 'DR';
-
-          if (isSOTrx && isValidStatus) {
-            final bpInfo = orderInfo['C_BPartner_ID'];
-            if (bpInfo != null && bpInfo['id'] != null) {
-              final bpId = bpInfo['id'];
-              bPartners[bpId] = {'id': bpId, 'Name': bpInfo['identifier'] ?? bpInfo['Name'] ?? 'Tercero ${bpInfo['id']}'};
-            }
-          }
+      
+      for (var record in records) {
+        final bpInfo = record['C_BPartner_ID'];
+        if (bpInfo != null && bpInfo['id'] != null) {
+          final bpId = bpInfo['id'];
+          bPartners[bpId] = {
+            'id': bpId, 
+            'Name': bpInfo['identifier'] ?? bpInfo['Name'] ?? 'Tercero $bpId'
+          };
         }
       }
-      final result = bPartners.values.toList()..sort((a, b) => a['Name'].compareTo(b['Name']));
-      return result;
+      return bPartners.values.toList()..sort((a, b) => a['Name'].compareTo(b['Name']));
     } catch (e) {
-      debugPrint("Error obteniendo terceros: $e");
+      debugPrint("Error obteniendo terceros con Product Chips: $e");
     }
     return [];
+  }
+
+  /// Actualiza la descripción (nombre) de una ficha de producto.
+  static Future<bool> updateProductChipDescription(int chipId, String newDescription) async {
+    final String url = "${Endpoint.baseUrl}/api/v1/models/C_BPartner_Product_Chip/$chipId";
+    final Map<String, dynamic> data = {
+      "C_BPartner_Product_Chip_ID": chipId,
+      "Description": newDescription,
+    };
+
+    try {
+      debugPrint("DEBUG ContractApi: Updating chip $chipId with PUT. URL: $url");
+      
+      var response = await http.put(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': Token.token,
+        },
+        body: jsonEncode(data),
+      );
+
+      if (response.statusCode == 401) {
+        final refreshed = await handleTokenRefresh();
+        if (refreshed) {
+          response = await http.put(
+            Uri.parse(url),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': Token.token,
+            },
+            body: jsonEncode(data),
+          );
+        } else {
+          return false;
+        }
+      }
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        debugPrint("Error actualizando ficha (${response.statusCode}): ${response.body}");
+      }
+      return response.statusCode >= 200 && response.statusCode < 300;
+    } catch (e) {
+      debugPrint("Error actualizando descripción de Product Chip: $e");
+      return false;
+    }
   }
 }

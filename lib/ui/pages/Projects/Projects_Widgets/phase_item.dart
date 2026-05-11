@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/ui/pages/Projects/Projects_Widgets/task_item.dart';
+import 'package:primhub/ui/pages/Support/Requests/request_functions.dart'; // Para priorityMap
 import 'package:primhub/ui/pages/Projects/dialogs/item_edit_dialog.dart';
 import 'package:primhub/ui/pages/Projects/dialogs/task_create_dialog.dart';
 
@@ -21,46 +22,94 @@ class PhaseItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final tasks = phase['C_ProjectTask'] as List? ?? [];
     final int phaseId = phase['id'] is int ? phase['id'] as int : int.tryParse(phase['id'].toString()) ?? 0;
-    return ExpansionTile(
-      key: Key('phase-$phaseId'),
-      initiallyExpanded: initiallyExpanded,
-      title: Row(
-        children: [
-          Expanded(
-            child: Text(phase['Name'] ?? 'Fase', style: const TextStyle(fontWeight: FontWeight.w600)),
-          ),
-          if (tasks.isNotEmpty) ...[const Icon(Icons.task_outlined, size: 16, color: Colors.grey), const SizedBox(width: 4), Text('${tasks.length}', style: const TextStyle(color: Colors.grey))],
-        ],
+    return Container(
+      margin: const EdgeInsets.only(left: 12, right: 12, bottom: 8),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey[200]!),
       ),
-      subtitle: Text(phase['Description'] ?? '', style: const TextStyle(fontSize: 12)),
-      leading: const Icon(Icons.flag_outlined),
-      trailing: AccessControl.canEditProject && !isArchived
-          ? Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.add_task, size: 20),
-                  tooltip: 'Nueva Tarea',
-                  onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => TaskCreateDialog(onSave: (name, desc) => onCreateTask(phaseId, name, desc)),
-                    );
-                  },
+      child: ExpansionTile(
+        key: Key('phase-$phaseId'),
+        initiallyExpanded: initiallyExpanded,
+        backgroundColor: Colors.white, // Color cuando se expande
+        collapsedBackgroundColor: Colors.transparent,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(10)),
+        ),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                phase['Name'] ?? 'Fase',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.indigo[900],
                 ),
-                IconButton(
-                  icon: const Icon(Icons.edit, size: 20),
-                  onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => ItemEditDialog(type: 'phase', currentName: phase['Name'], currentDesc: phase['Description'] ?? '', onSave: (name, desc) => onEdit('phase', phaseId, name, desc)),
-                    );
-                  },
-                ),
-              ],
-            )
-          : null,
-      children: tasks.map((task) => TaskItem(task: task, phase: phase, initiallyExpanded: initiallyExpanded, statusIdMap: statusIdMap, priorityMap: priorityMap, onRefresh: onRefresh, onEdit: onEdit, isArchived: isArchived, projectId: projectId)).toList(),
+              ),
+            ),
+            if (tasks.isNotEmpty) ...[
+              const Icon(Icons.task_outlined, size: 16, color: Colors.grey),
+              const SizedBox(width: 4),
+              Text('${tasks.length}', style: const TextStyle(color: Colors.grey))
+            ],
+          ],
+        ),
+        subtitle: Text(
+          phase['Description'] ?? '',
+          style: const TextStyle(fontSize: 11, color: Colors.grey),
+        ),
+        leading: CircleAvatar(
+          backgroundColor: Colors.indigo[50],
+          radius: 16,
+          child: const Icon(Icons.flag_outlined, size: 18, color: Colors.indigo),
+        ),
+        trailing: AccessControl.canEditProject && !isArchived
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.add_task, size: 20, color: Colors.green),
+                    tooltip: 'Nueva Tarea',
+                    onPressed: () {
+                      showDialog(
+                        context: context,
+                        builder: (context) => TaskCreateDialog(
+                          onSave: (name, desc) => onCreateTask(phaseId, name, desc),
+                        ),
+                      );
+                    },
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.edit, size: 20, color: Colors.grey),
+                    onPressed: () {
+                      showDialog(
+                        context: context,
+                        builder: (context) => ItemEditDialog(
+                          type: 'phase',
+                          currentName: phase['Name'],
+                          currentDesc: phase['Description'] ?? '',
+                          onSave: (name, desc) => onEdit('phase', phaseId, name, desc),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              )
+            : null,
+        children: tasks
+            .map((task) => TaskItem(
+                task: task,
+                phase: phase,
+                initiallyExpanded: initiallyExpanded,
+                statusIdMap: statusIdMap,
+                priorityMap: priorityMap,
+                onRefresh: onRefresh,
+                onEdit: onEdit,
+                isArchived: isArchived,
+                projectId: projectId))
+            .toList(),
+      ),
     );
   }
 }

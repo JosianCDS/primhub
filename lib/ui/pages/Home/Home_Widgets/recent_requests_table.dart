@@ -7,6 +7,9 @@ import 'package:primhub/ui/Shared_Custom/custom_container.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/ui/Shared_Custom/custom_skeleton.dart';
 import 'package:primhub/ui/Shared_Custom/responsive_data_table.dart';
+import 'package:primhub/api/global_cache.dart';
+import 'package:primhub/ui/widgets/duration_formatter.dart';
+import 'package:primhub/ui/pages/Support/Requests/request_functions.dart' as DocumentsLogic;
 
 class RecentRequestsTable extends StatelessWidget {
   final List<Map<String, dynamic>> requests;
@@ -56,93 +59,68 @@ class _DesktopRequestTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final List<ResponsiveDataColumn> columns = [
+    final List<ResponsiveDataColumn> fixedColumns = [
+      const ResponsiveDataColumn(label: 'Acciones'),
       const ResponsiveDataColumn(label: 'Ticket'),
+      const ResponsiveDataColumn(label: 'Estado'),
       const ResponsiveDataColumn(label: 'Tipo de Solicitud'),
-      const ResponsiveDataColumn(label: 'Asunto'),
+    ];
+
+    final List<ResponsiveDataColumn> scrollableColumns = [
       if (AccessControl.isAdmin) const ResponsiveDataColumn(label: 'Tercero'),
       if (AccessControl.isAdmin) const ResponsiveDataColumn(label: 'Usuario'),
-      if (AccessControl.isAdmin) const ResponsiveDataColumn(label: 'Representante Comercial'),
-      if (AccessControl.isAdmin) const ResponsiveDataColumn(label: 'Orden de Venta'),
-      const ResponsiveDataColumn(label: 'Nivel'),
-      const ResponsiveDataColumn(label: 'Ultima Actualización'),
+      if (AccessControl.isAdmin) const ResponsiveDataColumn(label: 'Rep. Comercial'),
       const ResponsiveDataColumn(label: 'Descripción'),
-      const ResponsiveDataColumn(label: 'Estado'),
+      const ResponsiveDataColumn(label: 'Horas Consumidas'),
+      const ResponsiveDataColumn(label: 'Ficha de Producto'),
     ];
 
     return ResponsiveDataTable<Map<String, dynamic>>(
       items: requests,
-      scrollableColumns: columns,
+      fixedColumns: fixedColumns,
+      scrollableColumns: scrollableColumns,
       getId: (item) => item['original']['id'],
       onRowTap: onEdit,
-      fixedCellBuilder: (item) => [],
-      scrollableCellBuilder: (req) => [
+      fixedCellBuilder: (alert) => [
         DataCell(
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(req['code']),
-              const SizedBox(width: 8),
-              InkWell(
-                borderRadius: BorderRadius.circular(4),
-                onTap: () {
-                  Clipboard.setData(ClipboardData(text: req['code'].toString()));
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Código copiado al portapapeles')));
-                },
-                child: const Padding(
-                  padding: EdgeInsets.all(4.0),
-                  child: Icon(Icons.copy, size: 16, color: Colors.grey),
-                ),
+              IconButton(
+                icon: const Icon(Icons.forum),
+                onPressed: () => GoRouter.of(context).push('/request-updates/${Uri.encodeComponent((alert['realId'] ?? alert['original']['id']).toString())}', extra: {'docNo': alert['code']}),
+              ),
+              IconButton(
+                icon: Icon(AccessControl.canManageRequests ? Icons.edit : Icons.visibility),
+                onPressed: () => onEdit(alert),
               ),
             ],
           ),
         ),
-        DataCell(Text(req['situation'])),
-        DataCell(Tooltip(message: (req['emailSubject']?.toString() ?? '').substring(0, min(2000, (req['emailSubject']?.toString() ?? '').length)), child: Text((req['emailSubject']?.toString() ?? '').length > 25 ? '${(req['emailSubject']?.toString() ?? '').substring(0, 25)}...' : (req['emailSubject']?.toString() ?? '')))),
-        if (AccessControl.isAdmin) DataCell(Text(req['bpName'])),
-        if (AccessControl.isAdmin) DataCell(Text(req['userName'])),
-        if (AccessControl.isAdmin) DataCell(Text(req['salesRepName'] ?? '')),
-        if (AccessControl.isAdmin)
-          DataCell(
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(req['salesOrderNo'] ?? ''),
-                if (req['salesOrderNo'] != null) ...[
-                  const SizedBox(width: 8),
-                  InkWell(
-                    borderRadius: BorderRadius.circular(4),
-                    onTap: () {
-                      Clipboard.setData(ClipboardData(text: req['salesOrderNo'].toString()));
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Orden de venta copiada al portapapeles')));
-                    },
-                    child: const Padding(
-                      padding: EdgeInsets.all(4.0),
-                      child: Icon(Icons.copy, size: 16, color: Colors.grey),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        DataCell(
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(color: req['levelBgColor'], borderRadius: BorderRadius.circular(30)),
-            child: Text(
-              req['level'],
-              style: TextStyle(color: req['levelColor'], fontWeight: FontWeight.bold),
-            ),
-          ),
-        ),
-        DataCell(Text(req['time'])),
-        DataCell(
-          Tooltip(
-            message: (req['descriptionClean'] ?? '').substring(0, min(2000, (req['descriptionClean'] ?? '').length)),
-            child: SizedBox(width: 300, child: Text((req['descriptionClean'] ?? '').length > 70 ? '${(req['descriptionClean'] ?? '').substring(0, 70)}...' : (req['descriptionClean'] ?? ''))),
-          ),
-        ),
-        DataCell(Text(req['status'])),
+        DataCell(Text(alert['code']?.toString() ?? '')),
+        DataCell(Text(alert['status']?.toString() ?? 'Sin Estado')),
+        DataCell(Text(alert['situation']?.toString() ?? 'Sin tipo')),
+      ],
+      scrollableCellBuilder: (alert) => [
+        if (AccessControl.isAdmin) DataCell(Text(alert['bpName']?.toString() ?? '')),
+        if (AccessControl.isAdmin) DataCell(Text(alert['userName']?.toString() ?? '')),
+        if (AccessControl.isAdmin) DataCell(Text(alert['salesRepName']?.toString() ?? '')),
+        DataCell(Text(DocumentsLogic.stripHtmlTags(alert['descriptionClean'] ?? alert['description'] ?? '').length > 50 ? '${DocumentsLogic.stripHtmlTags(alert['descriptionClean'] ?? alert['description'] ?? '').substring(0, 50)}...' : DocumentsLogic.stripHtmlTags(alert['descriptionClean'] ?? alert['description'] ?? ''))),
+        DataCell(Text(DurationFormatter.format((alert['qtySpent'] as num?)?.toDouble() ?? 0.0))),
+        DataCell(Text(() {
+          final chipId = alert['productChipId'];
+          if (chipId == null) return 'N/A';
+          final found = GlobalCache.productChips.firstWhere(
+            (c) {
+              final cId = int.tryParse(c['id']?.toString() ?? '') ?? int.tryParse(c['C_BPartner_Product_Chip_ID']?.toString() ?? '');
+              final targetId = int.tryParse(chipId?.toString() ?? '');
+              return cId != null && targetId != null && cId == targetId;
+            },
+            orElse: () => {},
+          );
+          if (found.isEmpty) return '#$chipId';
+          return found['Description'] ?? found['Name'] ?? '#$chipId';
+        }())),
       ],
       mobileCardBuilder: (req) => _RecentRequestCard(request: req, onEdit: onEdit),
     );
@@ -265,6 +243,23 @@ class _RecentRequestCard extends StatelessWidget {
                       shape: StadiumBorder(side: BorderSide(color: colorScheme.outline.withOpacity(0.2))),
                       visualDensity: VisualDensity.compact,
                     ),
+                  () {
+                    final chipId = request['productChipId'];
+                    if (chipId == null) return const SizedBox.shrink();
+                    final found = GlobalCache.productChips.firstWhere(
+                      (c) => c['id'] == chipId,
+                      orElse: () => {},
+                    );
+                    final chipName = found.isEmpty ? '#$chipId' : (found['Description'] ?? found['Name'] ?? '#$chipId');
+                    return Chip(
+                      avatar: Icon(Icons.inventory_2_outlined, size: 14, color: colorScheme.primary),
+                      label: Text(chipName),
+                      labelStyle: theme.textTheme.bodySmall?.copyWith(color: colorScheme.primary, fontWeight: FontWeight.bold),
+                      backgroundColor: colorScheme.primaryContainer.withOpacity(0.3),
+                      shape: StadiumBorder(side: BorderSide(color: colorScheme.primary.withOpacity(0.2))),
+                      visualDensity: VisualDensity.compact,
+                    );
+                  }(),
                 ],
               ),
             ],

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
+import 'package:flutter/services.dart'; // Para FilteringTextInputFormatter
 import 'package:http/http.dart' as http;
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
@@ -15,6 +16,7 @@ import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:primhub/api/global_cache.dart';
+import 'package:primhub/api/api_utils.dart';
 
 class EditRequestDialog extends StatefulWidget {
   final Map<String, dynamic> request;
@@ -43,13 +45,15 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
   int? _selectedSalesRepId;
   int? _selectedBpId;
   int? _selectedUserId;
+  int? _selectedProductChipId;
 
   Map<String, int> _requestTypeMap = {};
   Map<String, int> _categoryMap = {};
   Map<String, int> _groupMap = {};
   List<dynamic> _users = [];
-  List<dynamic> _salesReps = [];
+  List<Map<String, dynamic>> _salesReps = [];
   List<dynamic> _bPartnersList = [];
+  List<Map<String, dynamic>> _productChips = [];
 
   bool _isLoadingTypes = true;
   bool _isLoadingCategories = true;
@@ -57,6 +61,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
   bool _isLoadingUsers = true;
   bool _isLoadingSalesReps = true;
   bool _isLoadingBPartners = true;
+  bool _isLoadingProducts = true;
 
   bool _isSaving = false;
 
@@ -85,7 +90,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
     _summaryController = TextEditingController(text: widget.request['description']);
     _dateStartController = TextEditingController(text: widget.request['dateStartPlan']);
     _dateCompleteController = TextEditingController(text: widget.request['dateCompletePlan']);
-    _qtyUsedController = TextEditingController(text: widget.request['qtyPlan']?.toString() ?? '0.0');
+    _qtyUsedController = TextEditingController(text: ((widget.request['qtySpent'] as num?)?.toDouble() ?? 0.0).toString());
     _emailSubjectController = TextEditingController(text: widget.request['emailSubject']);
 
     _selectedType = widget.request['type'];
@@ -94,6 +99,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
     _selectedSalesRepId = widget.request['salesRepId'];
     _selectedBpId = widget.request['bpId'];
     _selectedUserId = widget.request['userId'];
+    _selectedProductChipId = widget.request['productChipId'];
 
     _salesReps = GlobalCache.salesReps;
     _isLoadingSalesReps = false;
@@ -103,6 +109,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
 
   Future<void> _fetchInitialData() async {
     await Future.wait([_fetchStatuses(), _fetchRequestTypes(), _fetchCategories(), _fetchGroups(), _fetchUsers()]);
+    _fetchProductChips();
   }
 
   Future<void> _fetchBPartners() async {
@@ -112,10 +119,18 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
       if (mounted) {
         setState(() {
           // APLICAMOS EL FILTRO AQUÍ
+          // Excluir terceros que sean proveedores o que empiecen con '~'
           _bPartnersList = bps.where((bp) {
             final name = bp['Name']?.toString() ?? '';
-            final isCustomer = bp['IsCustomer'] == true || bp['IsCustomer'] == 'Y';
-            return !name.startsWith('~') && isCustomer;
+            final rawVendor = bp['IsVendor'] ?? bp['isVendor'];
+            final isVendorStr = rawVendor?.toString().trim().toLowerCase();
+            bool isVendor = isVendorStr == 'true' || isVendorStr == 'y';
+
+            final rawCustomer = bp['IsCustomer'] ?? bp['isCustomer'];
+            final isCustomerStr = rawCustomer?.toString().trim().toLowerCase();
+            bool isCustomer = isCustomerStr == 'true' || isCustomerStr == 'y';
+            if (rawCustomer == null) isCustomer = true;
+            return !name.startsWith('~') && isCustomer && !isVendor;
           }).toList();
 
           // Rescate: Si el tercero actual del ticket estaba inactivo o no es cliente,
@@ -128,6 +143,22 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
       }
     } catch (e) {
       if (mounted) setState(() => _isLoadingBPartners = false);
+    }
+  }
+
+  Future<void> _fetchProductChips() async {
+    if (_selectedBpId == null) {
+      if (mounted) setState(() => _isLoadingProducts = false);
+      return;
+    }
+    setState(() => _isLoadingProducts = true);
+    try {
+      final fetchedChips = await ContractApi.getSupportProductChips(bPartnerId: _selectedBpId);
+      if (mounted) {
+        setState(() => _productChips = fetchedChips);
+      }
+    } finally {
+      if (mounted) setState(() => _isLoadingProducts = false);
     }
   }
 
@@ -399,12 +430,10 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
     String? dateStartPlanToSend = _dateStartController.text != widget.request['dateStartPlan'] ? _dateStartController.text : null;
     String? dateCompletePlanToSend = _dateCompleteController.text != widget.request['dateCompletePlan'] ? _dateCompleteController.text : null;
 
-    double currentQty = double.tryParse(widget.request['qtyPlan']?.toString() ?? '0.0') ?? 0.0;
+    double currentQty = (widget.request['qtySpent'] as num?)?.toDouble() ?? 0.0;
     double inputQty = double.tryParse(_qtyUsedController.text) ?? 0.0;
 
-    // VALIDACIÓN DE HORAS DISPONIBLES
-    // Solo validamos si es una solicitud de soporte puro (sin Record_UU, aunque aquí no lo tenemos a mano fácil, asumimos soporte por contexto)
-    // y si hay un cambio en la cantidad o si se está cerrando.
+    // VALIDACIÓN DE HORAS DISPONIBLES (Ficha de Producto)
     if (inputQty > 0) {
       setState(() => _isSaving = true);
       final freshData = await fetchRequest(filter: "R_Request_ID eq ${widget.request['realId']}");
@@ -415,8 +444,8 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
 
         if (bpId != null && !ValidationManager.isExempt(bpId) && (recordUU == null || recordUU.toString().isEmpty)) {
           try {
-            final contracts = await ContractApi.getSupportContracts(bPartnerId: bpId);
-            final double totalContracted = contracts.fold(0.0, (sum, contract) => sum + ((contract['contractedHours'] as num?)?.toDouble() ?? 0.0));
+            final chips = await ContractApi.getSupportProductChips(bPartnerId: bpId);
+            final double totalContracted = chips.fold(0.0, (sum, chip) => sum + ((chip['Qty'] as num?)?.toDouble() ?? 0.0));
 
             final allRequests = await fetchRequest(filter: "C_BPartner_ID eq $bpId");
             double totalEstimatedAndConsumed = 0.0;
@@ -424,12 +453,18 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
             for (var r in allRequests) {
               if (r['Record_UU'] != null && r['Record_UU'].toString().isNotEmpty) continue;
               if (r['id'] == widget.request['realId']) continue;
-              totalEstimatedAndConsumed += (r['QtyPlan'] as num?)?.toDouble() ?? 0.0;
+              
+              // Sumamos QtySpent (consumidas) o QtyPlan (en progreso)
+              totalEstimatedAndConsumed += (r['QtySpent'] as num?)?.toDouble() ?? (r['QtyPlan'] as num?)?.toDouble() ?? 0.0;
             }
 
             if (totalEstimatedAndConsumed + inputQty > totalContracted) {
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No se puede exceder las horas estimadas/consumidas de las Disponibles.'), backgroundColor: Colors.red, duration: Duration(seconds: 4)));
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  content: Text('No se puede exceder las horas disponibles de las Fichas de Producto.'),
+                  backgroundColor: Colors.red,
+                  duration: Duration(seconds: 4)
+                ));
                 setState(() => _isSaving = false);
               }
               return;
@@ -439,20 +474,18 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
           }
         }
       }
-      // Si no hay freshData, o no hay bpId, o es exento, la validación se salta.
-      // No detenemos el spinner aquí, continúa al bloque de save.
     }
 
-    double? qtyPlanToSend;
+    double? qtySpentToSend;
 
     if ((inputQty - currentQty).abs() > 0.001) {
-      qtyPlanToSend = inputQty;
+      qtySpentToSend = inputQty;
     }
 
     String? startDateToSend;
     String? closeDateToSend;
 
-    final bool isClosing = _currentStatus == '9_Final Close' || _currentStatus == 'Final Close' || (statusIdToSend != null && statusIdToSend == 103);
+    final bool isClosing = _currentStatus == '9_Final Close' || _currentStatus == 'Final Close' || (statusIdToSend != null && (statusIdToSend == 103 || statusIdToSend == 1000019));
 
     if (isClosing) {
       if (_dateStartController.text.isNotEmpty) {
@@ -461,24 +494,71 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
       if (_dateCompleteController.text.isNotEmpty) {
         closeDateToSend = "${_dateCompleteController.text}T00:00:00Z";
       }
-
-      // Primera llamada (cuando se cierra): eliminamos priorityMap
-      await updateRemoteRequest(id: widget.request['realId'], priority: _currentPriority, summary: _summaryController.text, result: _resultController.text, dateStartPlan: dateStartPlanToSend, dateCompletePlan: dateCompletePlanToSend, qtyPlan: qtyPlanToSend, startDate: startDateToSend, closeDate: closeDateToSend);
-
-      statusIdToSend = _statusIdMap['9_Final Close'] ?? _statusIdMap.entries.firstWhere((e) => e.key.toLowerCase().contains('close'), orElse: () => const MapEntry('', 103)).value;
+      // Si estamos cerrando, forzamos el statusId a uno de cierre si no está ya definido
+      statusIdToSend ??= _statusIdMap['9_Final Close'] ?? _statusIdMap.entries.firstWhere((e) => e.key.toLowerCase().contains('close'), orElse: () => const MapEntry('', 103)).value;
       statusIdentifierToSend = null;
+    }
+
+    // Fase 1: Actualizar Tercero (y Usuario/Ficha si se seleccionaron nuevos) para asegurar consistencia
+    if (_selectedBpId != widget.request['bpId']) {
+      // VALIDACIÓN: El servidor no acepta null para el usuario al cambiar de tercero
+      if (_selectedUserId == null) {
+        if (mounted) {
+          setState(() => _isSaving = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Debe seleccionar un usuario para el nuevo tercero antes de guardar.'))
+          );
+        }
+        return;
+      }
+
+      final Map<String, dynamic> phase1Data = {
+        "C_BPartner_ID": {"id": _selectedBpId},
+        "AD_User_ID": {"id": _selectedUserId},
+        "C_BPartner_Product_Chip_ID": _selectedProductChipId != null ? {"id": _selectedProductChipId} : null,
+      };
+
+      final url = Uri.parse('${Endpoint.request}/${widget.request['realId']}');
+      var response = await http.put(
+        url,
+        headers: {'Content-Type': 'application/json', 'Authorization': Token.token},
+        body: jsonEncode(phase1Data),
+      );
+      
+      if (response.statusCode == 401) {
+        final refreshed = await handleTokenRefresh();
+        if (refreshed) {
+          response = await http.put(
+            url,
+            headers: {'Content-Type': 'application/json', 'Authorization': Token.token},
+            body: jsonEncode(phase1Data),
+          );
+        }
+      }
+
+      if (response.statusCode != 200 && response.statusCode != 201 && response.statusCode != 204) {
+        if (mounted) {
+          setState(() => _isSaving = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error al actualizar el tercero: ${response.body}'))
+          );
+        }
+        return;
+      }
+      // Actualizamos el ID local para que la segunda fase no tenga conflictos
+      widget.request['bpId'] = _selectedBpId;
     }
 
     final result = await updateRemoteRequest(
       id: widget.request['realId'],
-      priority: isClosing ? null : _currentPriority,
+      priority: _currentPriority,
       statusId: statusIdToSend,
       statusIdentifier: statusIdentifierToSend,
       result: _resultController.text,
-      summary: isClosing ? null : _summaryController.text,
+      summary: _summaryController.text,
       dateStartPlan: dateStartPlanToSend,
-      dateCompletePlan: dateCompletePlanToSend,
-      qtyPlan: qtyPlanToSend,
+      dateCompletePlan: dateCompletePlanToSend,      
+      qtySpent: qtySpentToSend,
       startDate: startDateToSend,
       closeDate: closeDateToSend,
       emailSubject: _emailSubjectController.text,
@@ -488,6 +568,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
       salesRepId: _selectedSalesRepId,
       bPartnerId: _selectedBpId,
       userId: _selectedUserId,
+      productChipId: _selectedProductChipId,
     );
 
     // Si hay una nueva actualización, la creamos
@@ -511,7 +592,9 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
 
     if (mounted) {
       if (result['success'] == true) {
-        Navigator.pop(context, true);
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop(true);
+        }
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Solicitud actualizada correctamente')));
         widget.onSave();
       } else {
@@ -593,10 +676,13 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                             onSelected: (val) {
                               setState(() {
                                 _selectedBpId = val;
+                                _selectedUserId = null; // Reseteamos usuario al cambiar tercero
+                                _selectedProductChipId = null;
                                 _users = [];
                                 _isLoadingUsers = true;
                               });
                               _fetchUsers();
+                              _fetchProductChips();
                             },
                           ),
                         ),
@@ -627,7 +713,41 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                ], // Cierre correcto del bloque isFullAccess
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: _buildSearchableField<int>(
+                          label: 'Ficha de Producto',
+                          hintText: _selectedBpId == null ? 'Seleccione un tercero' : 'Seleccione Ficha',
+                          value: _selectedProductChipId,
+                          isLoading: _isLoadingProducts,
+                          isDisabled: (() {
+                            final bool d = _isReadOnly || _isLoadingProducts || _selectedBpId == null;
+                            debugPrint("DEBUG EDIT CHIP: disabled=$d (ReadOnly=$_isReadOnly, Loading=$_isLoadingProducts, BP=$_selectedBpId)");
+                            return d;
+                          })(),
+                          displayText: _selectedProductChipId != null && _productChips.any((c) => c['id'] == _selectedProductChipId) 
+                              ? _productChips.firstWhere((c) => c['id'] == _selectedProductChipId)['Description'] ?? 'Ficha #${_selectedProductChipId}' 
+                              : '',
+                          onTap: () => _openSearchModal<int>(
+                            title: 'Ficha de Producto',
+                            items: _productChips,
+                            currentValue: _selectedProductChipId,
+                            getTitle: (item) => item['Description'] ?? 'Sin Descripción',
+                            getSubtitle: (item) => 'ID: ${item['id']}',
+                            getValue: (item) => item['id'] as int,
+                            onSelected: (val) => setState(() => _selectedProductChipId = val),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                ],
+
+                const SizedBox(height: 16),
+
 
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -643,7 +763,6 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                         onTap: () => _openSearchModal<String>(title: 'Tipo de Solicitud', items: _requestTypeMap.keys.toList(), currentValue: _selectedType, getTitle: (item) => item.toString(), getValue: (item) => item.toString(), onSelected: (val) => setState(() => _selectedType = val)),
                       ),
                     ),
-                    const SizedBox(width: 16),
                     Expanded(
                       child: _buildSearchableField<String>(
                         label: 'Categoría',
@@ -684,8 +803,8 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                           value: _selectedSalesRepId,
                           isLoading: _isLoadingSalesReps,
                           isDisabled: _isReadOnly || _isLoadingSalesReps,
-                          displayText: _selectedSalesRepId != null && _salesReps.any((u) => u['id'] == _selectedSalesRepId) ? _salesReps.firstWhere((u) => u['id'] == _selectedSalesRepId)['Name'] ?? '' : '',
-                          onTap: () => _openSearchModal<int>(title: 'Representante Comercial', items: _salesReps, currentValue: _selectedSalesRepId, getTitle: (item) => item['Name'] ?? 'Sin Nombre', getSubtitle: (item) => 'ID: ${item['id']}', getValue: (item) => item['id'] as int, onSelected: (val) => setState(() => _selectedSalesRepId = val)),
+                          displayText: _selectedSalesRepId != null && _salesReps.any((u) => (u['AD_User_ID'] ?? u['id']) == _selectedSalesRepId) ? _salesReps.firstWhere((u) => (u['AD_User_ID'] ?? u['id']) == _selectedSalesRepId)['Name'] ?? '' : '',
+                          onTap: () => _openSearchModal<int>(title: 'Representante Comercial', items: _salesReps, currentValue: _selectedSalesRepId, getTitle: (item) => item['Name'] ?? 'Sin Nombre', getSubtitle: (item) => 'ID: ${item['AD_User_ID'] ?? item['id']}', getValue: (item) => (item['AD_User_ID'] ?? item['id']) as int, onSelected: (val) => setState(() => _selectedSalesRepId = val)),
                         ),
                       ),
                     ],
@@ -779,7 +898,19 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
           },
           child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
         ),
-        TextButton(onPressed: () => Navigator.pop(context), child: Text(_isReadOnly ? 'Cerrar' : 'Cancelar')),
+        // BOTÓN DE RESPONDER (Estilo limpio)
+        TextButton.icon(
+          onPressed: () {
+            Navigator.pop(context); // Cerrar el diálogo de edición
+            context.push('/request-updates/${widget.request['realId']}', extra: {'docNo': widget.request['id']?.toString() ?? '...'});
+          },
+          icon: const Icon(Icons.reply, size: 20),
+          label: const Text('Responder', style: TextStyle(fontWeight: FontWeight.bold)),
+          style: TextButton.styleFrom(
+            foregroundColor: Theme.of(context).colorScheme.primary,
+          ),
+        ),
+        TextButton(onPressed: _isSaving ? null : () => Navigator.pop(context), child: Text(_isReadOnly ? 'Cerrar' : 'Cancelar')),
         if (!_isReadOnly) CustomButton(text: 'Guardar', isLoading: _isSaving, onPressed: _handleSave),
       ],
     );

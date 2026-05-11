@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/access_control.dart';
-import 'package:primhub/api/admin_view_mode.dart';
-import 'package:primhub/api/token.dart';
 import 'package:primhub/ui/pages/Projects/Documents/project_file_manager.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 import 'package:primhub/ui/pages/Projects/Projects_Widgets/project_item.dart';
 import 'package:primhub/ui/pages/Projects/Documents/project_form_page.dart';
 import '../../../widgets/custom_drawer.dart';
+import 'package:primhub/api/admin_view_mode.dart';
+import 'package:primhub/api/token.dart';
 import 'package:primhub/api/global_cache.dart';
 import 'package:primhub/ui/widgets/project_bottom_nav.dart';
 import 'package:primhub/api/api_utils.dart';
@@ -45,7 +45,13 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
   final ProjectsLogic _logic = ProjectsLogic();
 
   Map<String, int> _statusIdMap = {};
-  final Map<String, String> _priorityMap = {'Urgente': '1', 'Alta': '3', 'Media': '5', 'Baja': '7', 'Menor': '9'};
+  final Map<String, String> _priorityMap = {
+    'Urgente': '1',
+    'Alta': '3',
+    'Media': '5',
+    'Baja': '7',
+    'Menor': '9',
+  };
   Map<int, Map<String, dynamic>> _projectStats = {}; // Almacenar stats
 
   @override
@@ -86,16 +92,25 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
 
       List<dynamic> projects = [];
       if (_showInactive || _viewingInactive) {
-        projects = await _logic.fetchProjects(showInactive: _showInactive, onlyInactive: _viewingInactive, isViewingMine: _adminViewModeManager.isViewingMine);
+        projects = await _logic.fetchProjects(
+          showInactive: _showInactive,
+          onlyInactive: _viewingInactive,
+          isViewingMine: _adminViewModeManager.isViewingMine,
+        );
       } else {
         projects = GlobalCache.projects;
         if (_adminViewModeManager.isViewingMine && AccessControl.isAdmin) {
           int? partnerID = User.cBPartnerID;
           int? userID = User.userID;
           projects = projects.where((p) {
-            final bpId = p['C_BPartner_ID'] is Map ? p['C_BPartner_ID']['id'] : p['C_BPartner_ID'];
-            final repId = p['SalesRep_ID'] is Map ? p['SalesRep_ID']['id'] : p['SalesRep_ID'];
-            return (partnerID != null && bpId == partnerID) || (userID != null && repId == userID);
+            final bpId = p['C_BPartner_ID'] is Map
+                ? p['C_BPartner_ID']['id']
+                : p['C_BPartner_ID'];
+            final repId = p['SalesRep_ID'] is Map
+                ? p['SalesRep_ID']['id']
+                : p['SalesRep_ID'];
+            return (partnerID != null && bpId == partnerID) ||
+                (userID != null && repId == userID);
           }).toList();
         }
       }
@@ -113,7 +128,9 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
             extra = GoRouterState.of(context).extra;
           } catch (_) {}
 
-          final args = (extra ?? ModalRoute.of(context)?.settings.arguments) as Map<String, dynamic>?;
+          final args =
+              (extra ?? ModalRoute.of(context)?.settings.arguments)
+                  as Map<String, dynamic>?;
           if (args != null && _isInit) {
             _applyPendingArgs(args);
             _isInit = false;
@@ -142,14 +159,22 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
     final statuses = await DocumentsLogic.fetchStatuses();
     if (mounted) {
       setState(() {
-        _statusIdMap = {for (var s in statuses) s['name'].toString(): int.tryParse(s['id'].toString()) ?? 0};
+        _statusIdMap = {
+          for (var s in statuses)
+            s['name'].toString(): int.tryParse(s['id'].toString()) ?? 0,
+        };
       });
     }
   }
 
   // Navegación al formulario (Crear/Editar)
   Future<void> _navigateToForm({Map<String, dynamic>? project}) async {
-    final result = await Navigator.push(context, MaterialPageRoute(builder: (context) => ProjectFormPage(project: project)));
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ProjectFormPage(project: project),
+      ),
+    );
 
     if (result == true) {
       _loadProjects(forceRefresh: true);
@@ -159,13 +184,18 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
   void _applyPendingArgs(Map<String, dynamic> args) {
     final projectId = args['projectId'];
     final view = args['view'];
-    final project = _projects.firstWhere((p) => p['id'].toString() == projectId.toString(), orElse: () => null);
+    final project = _projects.firstWhere(
+      (p) => p['id'].toString() == projectId.toString(),
+      orElse: () => null,
+    );
     if (project == null) return;
 
     if (view == 'projects') {
       setState(() {
         final rawId = project['id'];
-        _targetExpandedProjectId = rawId is int ? rawId : int.tryParse(rawId.toString());
+        _targetExpandedProjectId = rawId is int
+            ? rawId
+            : int.tryParse(rawId.toString());
         _expandAll = false;
         _exitFileManager();
       });
@@ -192,10 +222,15 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
   }
 
   // Métodos de fases y tareas
-  Future<void> _createPhase(int projectId, String name, String description) async {
+  Future<void> _createPhase(
+    int projectId,
+    String name,
+    String description,
+  ) async {
     setState(() {
       _isLoadingProjects = true;
-      _targetExpandedProjectId = projectId; // Asegurar que este proyecto se expanda
+      _targetExpandedProjectId =
+          projectId; // Asegurar que este proyecto se expanda
     });
     final result = await _logic.createPhase(projectId, name, description);
     if (result['success'] == true) {
@@ -203,7 +238,12 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
     } else {
       if (mounted) {
         setState(() => _isLoadingProjects = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al crear fase: ${result['error']}'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al crear fase: ${result['error']}'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
@@ -211,12 +251,18 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
   Future<void> _createTask(int phaseId, String name, String description) async {
     // Necesitamos el ID del proyecto para mantenerlo expandido.
     // Buscamos el proyecto que contiene esta fase.
-    final project = _projects.firstWhere((p) => (p['C_ProjectPhase'] as List? ?? []).any((ph) => ph['id'] == phaseId), orElse: () => null);
+    final project = _projects.firstWhere(
+      (p) =>
+          (p['C_ProjectPhase'] as List? ?? []).any((ph) => ph['id'] == phaseId),
+      orElse: () => null,
+    );
     setState(() {
       _isLoadingProjects = true;
       if (project != null) {
         final rawId = project['id'];
-        _targetExpandedProjectId = rawId is int ? rawId : int.tryParse(rawId.toString());
+        _targetExpandedProjectId = rawId is int
+            ? rawId
+            : int.tryParse(rawId.toString());
       }
     });
     final result = await _logic.createTask(phaseId, name, description);
@@ -225,7 +271,12 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
     } else {
       if (mounted) {
         setState(() => _isLoadingProjects = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al crear tarea: ${result['error']}'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al crear tarea: ${result['error']}'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
@@ -243,7 +294,14 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
           children: [
             const Icon(Icons.admin_panel_settings),
             const SizedBox(width: 8),
-            Text(_adminViewModeManager.currentMode == AdminViewMode.support ? 'Modo Soporte' : (_adminViewModeManager.currentMode == AdminViewMode.project ? 'Modo Proyecto' : 'Modo Mixto'), style: const TextStyle(fontWeight: FontWeight.bold)),
+            Text(
+              _adminViewModeManager.currentMode == AdminViewMode.support
+                  ? 'Modo Soporte'
+                  : (_adminViewModeManager.currentMode == AdminViewMode.project
+                        ? 'Modo Proyecto'
+                        : 'Modo Mixto'),
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
             const Icon(Icons.arrow_drop_down),
           ],
         ),
@@ -251,29 +309,49 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
       itemBuilder: (BuildContext context) {
         final current = _adminViewModeManager.currentMode;
         final colorScheme = Theme.of(context).colorScheme;
-        PopupMenuItem<AdminViewMode> buildItem(AdminViewMode mode, String text) {
+        PopupMenuItem<AdminViewMode> buildItem(
+          AdminViewMode mode,
+          String text,
+        ) {
           final isSelected = current == mode;
           return PopupMenuItem<AdminViewMode>(
             value: mode,
             child: Container(
               width: double.infinity,
-              decoration: BoxDecoration(color: isSelected ? colorScheme.primary.withOpacity(0.1) : Colors.transparent, borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? colorScheme.primary.withOpacity(0.1)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+              ),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               child: Row(
                 children: [
                   Text(
                     text,
-                    style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? colorScheme.primary : colorScheme.onSurface),
+                    style: TextStyle(
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                      color: isSelected
+                          ? colorScheme.primary
+                          : colorScheme.onSurface,
+                    ),
                   ),
                   if (isSelected) const Spacer(),
-                  if (isSelected) Icon(Icons.check, size: 18, color: colorScheme.primary),
+                  if (isSelected)
+                    Icon(Icons.check, size: 18, color: colorScheme.primary),
                 ],
               ),
             ),
           );
         }
 
-        return [buildItem(AdminViewMode.mixed, 'Modo Mixto'), buildItem(AdminViewMode.support, 'Modo Soporte'), buildItem(AdminViewMode.project, 'Modo Proyecto')];
+        return [
+          buildItem(AdminViewMode.mixed, 'Modo Mixto'),
+          buildItem(AdminViewMode.support, 'Modo Soporte'),
+          buildItem(AdminViewMode.project, 'Modo Proyecto'),
+        ];
       },
     );
   }
@@ -281,15 +359,23 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
   Widget _buildProjectFilterPopupMenu() {
     return PopupMenuButton<bool>(
       tooltip: 'Filtrar proyectos',
-      onSelected: (bool viewingMine) => _adminViewModeManager.setViewingMine(viewingMine),
+      onSelected: (bool viewingMine) =>
+          _adminViewModeManager.setViewingMine(viewingMine),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(_adminViewModeManager.isViewingMine ? Icons.person : Icons.group),
+            Icon(
+              _adminViewModeManager.isViewingMine ? Icons.person : Icons.group,
+            ),
             const SizedBox(width: 8),
-            Text(_adminViewModeManager.isViewingMine ? 'Mis Proyectos' : 'Todos los Proyectos', style: const TextStyle(fontWeight: FontWeight.bold)),
+            Text(
+              _adminViewModeManager.isViewingMine
+                  ? 'Mis Proyectos'
+                  : 'Todos los Proyectos',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
             const Icon(Icons.arrow_drop_down),
           ],
         ),
@@ -297,31 +383,57 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
       itemBuilder: (BuildContext context) {
         final colorScheme = Theme.of(context).colorScheme;
         final isViewingMine = _adminViewModeManager.isViewingMine;
-        PopupMenuItem<bool> buildItem(bool isMineOption, String text, IconData icon) {
+        PopupMenuItem<bool> buildItem(
+          bool isMineOption,
+          String text,
+          IconData icon,
+        ) {
           final isSelected = isViewingMine == isMineOption;
           return PopupMenuItem<bool>(
             value: isMineOption,
             child: Container(
               width: double.infinity,
-              decoration: BoxDecoration(color: isSelected ? colorScheme.primary.withOpacity(0.1) : Colors.transparent, borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? colorScheme.primary.withOpacity(0.1)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+              ),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               child: Row(
                 children: [
-                  Icon(icon, size: 20, color: isSelected ? colorScheme.primary : colorScheme.onSurface),
+                  Icon(
+                    icon,
+                    size: 20,
+                    color: isSelected
+                        ? colorScheme.primary
+                        : colorScheme.onSurface,
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     text,
-                    style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? colorScheme.primary : colorScheme.onSurface),
+                    style: TextStyle(
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                      color: isSelected
+                          ? colorScheme.primary
+                          : colorScheme.onSurface,
+                    ),
                   ),
                   if (isSelected) const Spacer(),
-                  if (isSelected) Icon(Icons.check, size: 18, color: colorScheme.primary),
+                  if (isSelected)
+                    Icon(Icons.check, size: 18, color: colorScheme.primary),
                 ],
               ),
             ),
           );
         }
 
-        return [buildItem(true, 'Mis Proyectos', Icons.person), buildItem(false, 'Todos los Proyectos', Icons.group)];
+        return [
+          buildItem(true, 'Mis Proyectos', Icons.person),
+          buildItem(false, 'Todos los Proyectos', Icons.group),
+        ];
       },
     );
   }
@@ -333,9 +445,24 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
       if (GlobalCache.backgroundSyncNotifier.value)
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 16.0),
-          child: Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))),
+          child: Center(
+            child: SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
         ),
-      IconButton(icon: const Icon(Icons.refresh), tooltip: 'Refrescar', onPressed: () => _showingFiles ? _fileManagerKey.currentState?.refresh() : GlobalCache.performSmartSync(context, () async => await _loadProjects(forceRefresh: true))),
+      IconButton(
+        icon: const Icon(Icons.refresh),
+        tooltip: 'Refrescar',
+        onPressed: () => _showingFiles
+            ? _fileManagerKey.currentState?.refresh()
+            : GlobalCache.performSmartSync(
+                context,
+                () async => await _loadProjects(forceRefresh: true),
+              ),
+      ),
       if (!AccessControl.isAdmin)
         IconButton(
           icon: const Icon(Icons.logout, color: Colors.red),
@@ -347,8 +474,20 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
     if (_showingFiles) {
       final List<Widget> fileManagerActions = [];
       if (_isFileManagerRoot && AccessControl.canManageFiles) {
-        fileManagerActions.add(IconButton(icon: const Icon(Icons.create_new_folder_outlined), tooltip: 'Nueva Carpeta', onPressed: () => _fileManagerKey.currentState?.createFolderDialog()));
-        fileManagerActions.add(IconButton(icon: const Icon(Icons.upload_file), tooltip: 'Subir Archivo', onPressed: () => _fileManagerKey.currentState?.pickAndUploadFile()));
+        fileManagerActions.add(
+          IconButton(
+            icon: const Icon(Icons.create_new_folder_outlined),
+            tooltip: 'Nueva Carpeta',
+            onPressed: () => _fileManagerKey.currentState?.createFolderDialog(),
+          ),
+        );
+        fileManagerActions.add(
+          IconButton(
+            icon: const Icon(Icons.upload_file),
+            tooltip: 'Subir Archivo',
+            onPressed: () => _fileManagerKey.currentState?.pickAndUploadFile(),
+          ),
+        );
       }
       return [...fileManagerActions, ...commonActions];
     }
@@ -359,13 +498,27 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
         mobileMenuItems.add(
           PopupMenuItem<String>(
             value: 'admin_mode',
-            child: ListTile(leading: const Icon(Icons.admin_panel_settings), title: Text('Modo: ${_adminViewModeManager.currentMode == AdminViewMode.support ? 'Soporte' : (_adminViewModeManager.currentMode == AdminViewMode.project ? 'Proyecto' : 'Mixto')}')),
+            child: ListTile(
+              leading: const Icon(Icons.admin_panel_settings),
+              title: Text(
+                'Modo: ${_adminViewModeManager.currentMode == AdminViewMode.support ? 'Soporte' : (_adminViewModeManager.currentMode == AdminViewMode.project ? 'Proyecto' : 'Mixto')}',
+              ),
+            ),
           ),
         );
         mobileMenuItems.add(
           PopupMenuItem<String>(
             value: 'project_filter',
-            child: ListTile(leading: Icon(_adminViewModeManager.isViewingMine ? Icons.person : Icons.group), title: Text(_adminViewModeManager.isViewingMine ? 'Mis Proyectos' : 'Todos')),
+            child: ListTile(
+              leading: Icon(
+                _adminViewModeManager.isViewingMine
+                    ? Icons.person
+                    : Icons.group,
+              ),
+              title: Text(
+                _adminViewModeManager.isViewingMine ? 'Mis Proyectos' : 'Todos',
+              ),
+            ),
           ),
         );
       }
@@ -373,14 +526,22 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
         mobileMenuItems.add(
           PopupMenuItem<String>(
             value: 'toggle_inactive',
-            child: ListTile(leading: Icon(_viewingInactive ? Icons.visibility : Icons.visibility_off), title: Text(_viewingInactive ? 'Ver Activos' : 'Ver Inactivos')),
+            child: ListTile(
+              leading: Icon(
+                _viewingInactive ? Icons.visibility : Icons.visibility_off,
+              ),
+              title: Text(_viewingInactive ? 'Ver Activos' : 'Ver Inactivos'),
+            ),
           ),
         );
       }
       mobileMenuItems.add(
         PopupMenuItem<String>(
           value: 'toggle_expand',
-          child: ListTile(leading: Icon(_expandAll ? Icons.unfold_less : Icons.unfold_more), title: Text(_expandAll ? 'Contraer todo' : 'Expandir todo')),
+          child: ListTile(
+            leading: Icon(_expandAll ? Icons.unfold_less : Icons.unfold_more),
+            title: Text(_expandAll ? 'Contraer todo' : 'Expandir todo'),
+          ),
         ),
       );
 
@@ -418,9 +579,26 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
         desktopActions.add(_buildProjectFilterPopupMenu());
       }
       if (!AccessControl.isProject) {
-        desktopActions.add(IconButton(icon: Icon(_viewingInactive ? Icons.archive : Icons.archive_outlined), tooltip: _viewingInactive ? 'Ver Proyectos Activos' : 'Ver Proyectos Desactivados', onPressed: () => setState(() => _viewingInactive = !_viewingInactive)));
+        desktopActions.add(
+          IconButton(
+            icon: Icon(
+              _viewingInactive ? Icons.archive : Icons.archive_outlined,
+            ),
+            tooltip: _viewingInactive
+                ? 'Ver Proyectos Activos'
+                : 'Ver Proyectos Desactivados',
+            onPressed: () =>
+                setState(() => _viewingInactive = !_viewingInactive),
+          ),
+        );
       }
-      desktopActions.add(IconButton(icon: Icon(_expandAll ? Icons.unfold_less : Icons.unfold_more), tooltip: _expandAll ? 'Contraer todo' : 'Expandir todo', onPressed: () => setState(() => _expandAll = !_expandAll)));
+      desktopActions.add(
+        IconButton(
+          icon: Icon(_expandAll ? Icons.unfold_less : Icons.unfold_more),
+          tooltip: _expandAll ? 'Contraer todo' : 'Expandir todo',
+          onPressed: () => setState(() => _expandAll = !_expandAll),
+        ),
+      );
     }
 
     return [...desktopActions, ...commonActions];
@@ -430,27 +608,59 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_viewingInactive ? 'Bitácora de Proyectos' : 'Mis Proyectos', style: const TextStyle(fontSize: 22)),
-        leadingWidth: _showingFiles ? null : (!AccessControl.isAdmin ? 180 : null),
+        title: Text(
+          _viewingInactive ? 'Bitácora de Proyectos' : 'Mis Proyectos',
+          style: const TextStyle(fontSize: 22),
+        ),
+        leadingWidth: _showingFiles
+            ? null
+            : (!AccessControl.isAdmin ? 180 : null),
         leading: _showingFiles
             ? IconButton(
                 icon: const Icon(Icons.arrow_back),
                 onPressed: () {
-                  if (!(_fileManagerKey.currentState?.navigateBack() ?? false)) _exitFileManager();
+                  if (!(_fileManagerKey.currentState?.navigateBack() ?? false))
+                    _exitFileManager();
                 },
               )
             : (!AccessControl.isAdmin
                   ? const UserInfoLeading()
                   : Builder(
-                      builder: (ctx) => IconButton(icon: const Icon(Icons.menu_rounded), tooltip: 'Menú Principal', onPressed: () => Scaffold.of(ctx).openDrawer()),
+                      builder: (ctx) => IconButton(
+                        icon: const Icon(Icons.menu_rounded),
+                        tooltip: 'Menú Principal',
+                        onPressed: () => Scaffold.of(ctx).openDrawer(),
+                      ),
                     )),
         actions: _buildAppBarActions(context),
       ),
-      drawer: (_showingFiles || !AccessControl.isAdmin) ? null : const CustomDrawer(currentRoute: '/deliverables'),
-      bottomNavigationBar: (!AccessControl.isAdmin && !_showingFiles) ? const ProjectBottomNav(currentRoute: '/deliverables') : null,
-      floatingActionButton: !_showingFiles && !_viewingInactive && AccessControl.canCreateProjectItems ? FloatingActionButton(onPressed: () => _navigateToForm(), child: const Icon(Icons.add), tooltip: 'Nuevo Proyecto') : null,
+      drawer: (_showingFiles || !AccessControl.isAdmin)
+          ? null
+          : const CustomDrawer(currentRoute: '/deliverables'),
+      bottomNavigationBar: (!AccessControl.isAdmin && !_showingFiles)
+          ? const ProjectBottomNav(currentRoute: '/deliverables')
+          : null,
+      floatingActionButton:
+          !_showingFiles &&
+              !_viewingInactive &&
+              AccessControl.canCreateProjectItems
+          ? FloatingActionButton(
+              onPressed: () => _navigateToForm(),
+              child: const Icon(Icons.add),
+              tooltip: 'Nuevo Proyecto',
+            )
+          : null,
       body: SafeArea(
-        child: _showingFiles ? ProjectFileManager(key: _fileManagerKey, project: _selectedProject!, viewType: _currentViewType, onExit: _exitFileManager, onRootChanged: (isRoot) => setState(() => _isFileManagerRoot = isRoot)) : _buildProjectsView(),
+        child: _showingFiles
+            ? ProjectFileManager(
+                key: _fileManagerKey,
+                project: _selectedProject!,
+                viewType: _currentViewType,
+                onExit: _exitFileManager,
+                onRootChanged: (isRoot) =>
+                    setState(() => _isFileManagerRoot = isRoot),
+              )
+            : _buildProjectsView(),
       ),
     );
   }
@@ -467,12 +677,19 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
       children: [
         Padding(
           padding: const EdgeInsets.all(16.0),
-          child: CustomTextField(controller: _searchController, hintText: 'Buscar proyecto...', prefixIcon: const Icon(Icons.search)),
+          child: CustomTextField(
+            controller: _searchController,
+            hintText: 'Buscar proyecto...',
+            prefixIcon: const Icon(Icons.search),
+          ),
         ),
         if (_projectsErrorMessage != null)
           Padding(
             padding: const EdgeInsets.all(8.0),
-            child: Text(_projectsErrorMessage!, style: const TextStyle(color: Colors.red)),
+            child: Text(
+              _projectsErrorMessage!,
+              style: const TextStyle(color: Colors.red),
+            ),
           ),
         Expanded(
           child: filteredProjects.isEmpty
@@ -482,11 +699,14 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
                   itemCount: filteredProjects.length,
                   itemBuilder: (context, index) {
                     final project = filteredProjects[index];
-                    final projId = project['id'] is int ? project['id'] as int : int.tryParse(project['id'].toString()) ?? 0;
+                    final projId = project['id'] is int
+                        ? project['id'] as int
+                        : int.tryParse(project['id'].toString()) ?? 0;
                     return ProjectItem(
                       key: ValueKey('pj-$projId-$_expandAll'),
                       project: project,
-                      isExpanded: _expandAll || (_targetExpandedProjectId == projId),
+                      isExpanded:
+                          _expandAll || (_targetExpandedProjectId == projId),
                       statusIdMap: _statusIdMap,
                       priorityMap: _priorityMap,
                       onRefresh: _loadProjects,
@@ -497,14 +717,27 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
                         } else {
                           setState(() {
                             _isLoadingProjects = true;
-                            _targetExpandedProjectId = projId; // Mantener expandido
+                            _targetExpandedProjectId =
+                                projId; // Mantener expandido
                           });
-                          final result = await _logic.updateItem(type, id, name, desc);
+                          final result = await _logic.updateItem(
+                            type,
+                            id,
+                            name,
+                            desc,
+                          );
                           if (result['success'] == true) {
                             _loadProjects(forceRefresh: true);
                           } else if (mounted) {
                             setState(() => _isLoadingProjects = false);
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al actualizar: ${result['error']}'), backgroundColor: Colors.red));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Error al actualizar: ${result['error']}',
+                                ),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
                           }
                         }
                       },

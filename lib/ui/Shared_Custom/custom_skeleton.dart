@@ -72,7 +72,7 @@ class SkeletonTable extends StatelessWidget {
                   const SizedBox(width: 16),
                   const Expanded(flex: 3, child: CustomSkeleton(height: 30)),
                   const SizedBox(width: 16),
-                  const CustomSkeleton(height: 30, width: 100),
+                  const Expanded(flex: 1, child: CustomSkeleton(height: 30)),
                 ],
               ),
             ),

@@ -3,35 +3,82 @@ import 'package:primhub/api/access_control.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/Shared_Custom/customToast.dart';
+import 'package:primhub/ui/pages/Support/Requests/request_functions.dart'; // Para priorityMap
+import 'package:primhub/ui/widgets/duration_formatter.dart'; // Importar DurationFormatter
+import 'package:primhub/api/global_cache.dart';
+import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 
 /// Data class to hold filter state for requests.
 class RequestFilterModel {
-  final String? bpName;
+  final List<int> bpIds;
   final List<String> levels;
   final List<String> statuses;
+  final List<int> statusIds;
   final List<String> situations;
-  final List<String> salesRepNames;
-  final List<String> userNames;
+  final List<int> salesRepIds;
+  final List<int> userIds;
+  final List<int> requestTypeIds;
+  final List<int> categoryIds;
+  final List<int> productChipIds;
 
-  const RequestFilterModel({this.bpName, this.levels = const [], this.statuses = const [], this.situations = const [], this.salesRepNames = const [], this.userNames = const []});
+  const RequestFilterModel({
+    this.bpIds = const [],
+    this.levels = const [],
+    this.statuses = const [],
+    this.statusIds = const [],
+    this.situations = const [],
+    this.salesRepIds = const [],
+    this.userIds = const [],
+    this.requestTypeIds = const [],
+    this.categoryIds = const [],
+    this.productChipIds = const [],
+  });
 
   /// Creates a copy of this filter object with the given fields replaced with the new values.
-  RequestFilterModel copyWith({ValueGetter<String?>? bpName, List<String>? levels, List<String>? statuses, List<String>? situations, List<String>? salesRepNames, List<String>? userNames}) {
-    return RequestFilterModel(bpName: bpName != null ? bpName() : this.bpName, levels: levels ?? this.levels, statuses: statuses ?? this.statuses, situations: situations ?? this.situations, salesRepNames: salesRepNames ?? this.salesRepNames, userNames: userNames ?? this.userNames);
+  RequestFilterModel copyWith({
+    List<int>? bpIds,
+    List<String>? levels,
+    List<String>? statuses,
+    List<int>? statusIds,
+    List<String>? situations,
+    List<int>? salesRepIds,
+    List<int>? userIds,
+    List<int>? requestTypeIds,
+    List<int>? categoryIds,
+    List<int>? productChipIds,
+  }) {
+    return RequestFilterModel(
+      bpIds: bpIds ?? this.bpIds,
+      levels: levels ?? this.levels,
+      statuses: statuses ?? this.statuses,
+      statusIds: statusIds ?? this.statusIds,
+      situations: situations ?? this.situations,
+      salesRepIds: salesRepIds ?? this.salesRepIds,
+      userIds: userIds ?? this.userIds,
+      requestTypeIds: requestTypeIds ?? this.requestTypeIds,
+      categoryIds: categoryIds ?? this.categoryIds,
+      productChipIds: productChipIds ?? this.productChipIds,
+    );
   }
 
   /// Calculates the number of active filters.
   int get activeFilterCount {
     int count = 0;
-    if (bpName != null) count++;
-    count += levels.length;
-    count += statuses.length;
-    count += situations.length;
-    count += salesRepNames.length;
-    count += userNames.length;
+    if (bpIds.isNotEmpty) count++;
+    if (levels.isNotEmpty) count++;
+    if (statuses.isNotEmpty || statusIds.isNotEmpty) count++;
+    if (situations.isNotEmpty) count++;
+    if (salesRepIds.isNotEmpty) count++;
+    if (userIds.isNotEmpty) count++;
+    if (requestTypeIds.isNotEmpty) count++;
+    if (categoryIds.isNotEmpty) count++;
+    if (productChipIds.isNotEmpty) count++;
     return count;
   }
 }
+
+/// Enum para identificar los tipos de filtro activos.
+enum ActiveFilterType { year, bp, level, status, situation, salesRep, user, search, productChip }
 
 /// A reusable modal dialog for filtering requests.
 class RequestFilterModal extends StatefulWidget {
@@ -50,11 +97,68 @@ class RequestFilterModal extends StatefulWidget {
 
 class _RequestFilterModalState extends State<RequestFilterModal> {
   late RequestFilterModel _tempFilter;
+  bool _isLoadingMetadata = false;
+  List<Map<String, dynamic>> _bPartners = [];
+  List<dynamic> _users = [];
 
   @override
   void initState() {
     super.initState();
-    _tempFilter = widget.initialFilter;
+    _tempFilter = widget.initialFilter.copyWith();
+    _bPartners = widget.bPartners;
+    _users = widget.users;
+    
+    debugPrint("DEBUG MODAL: Abriendo modal con ${_bPartners.length} Terceros y ${_users.length} Usuarios.");
+    debugPrint("DEBUG MODAL: Filtros iniciales -> BPs: ${_tempFilter.bpIds}, Chips: ${_tempFilter.productChipIds}");
+    _loadMissingMetadata();
+  }
+
+  Future<void> _loadMissingMetadata() async {
+    // Si ya estamos cargando globalmente, esperamos
+    if (!GlobalCache.isDataLoaded) {
+      setState(() => _isLoadingMetadata = true);
+      await GlobalCache.syncData();
+      if (mounted) {
+        setState(() {
+          _bPartners = GlobalCache.bPartners;
+          _users = GlobalCache.users;
+          _isLoadingMetadata = false;
+        });
+      }
+      return;
+    }
+
+    bool needsBPs = _bPartners.isEmpty;
+    bool needsUsers = _users.isEmpty;
+    bool needsTypes = GlobalCache.requestTypes.isEmpty;
+    bool needsCats = GlobalCache.categories.isEmpty;
+    bool needsGroups = GlobalCache.groups.isEmpty;
+
+    if (needsBPs || needsUsers || needsTypes || needsCats || needsGroups) {
+      setState(() => _isLoadingMetadata = true);
+      try {
+        final logic = ProjectsLogic();
+        await Future.wait([
+          if (needsBPs)
+            logic.fetchBPartners().then((val) {
+              if (mounted) setState(() => _bPartners = List<Map<String, dynamic>>.from(val));
+            }),
+          if (needsUsers)
+            logic.fetchUsers().then((val) {
+              if (mounted) setState(() => _users = val);
+            }),
+          if (needsTypes)
+            fetchRequestTypes().then((val) => GlobalCache.requestTypes = val),
+          if (needsCats)
+            fetchCategories().then((val) => GlobalCache.categories = val),
+          if (needsGroups)
+            fetchGroups().then((val) => GlobalCache.groups = val),
+        ]);
+      } catch (e) {
+        debugPrint("Error loading filter metadata: $e");
+      }
+      if (mounted) setState(() => _isLoadingMetadata = false);
+    }
   }
 
   Future<void> _openSingleSelectSearchModal<T>({required String title, required List<dynamic> items, required T? currentValue, required String Function(dynamic) getTitle, String Function(dynamic)? getSubtitle, required T? Function(dynamic) getValue, required void Function(T?) onSelected}) async {
@@ -192,17 +296,17 @@ class _RequestFilterModalState extends State<RequestFilterModal> {
 
   @override
   Widget build(BuildContext context) {
-    List<dynamic> modalUsers = widget.users;
-    if (_tempFilter.bpName != null && _tempFilter.bpName != '__ALL__') {
-      final bpData = widget.bPartners.firstWhere((bp) => bp['Name'] == _tempFilter.bpName, orElse: () => {});
-      if (bpData.isNotEmpty) {
-        final bpId = bpData['id'];
-        modalUsers = widget.users.where((u) {
-          final userBpData = u['C_BPartner_ID'];
-          final uBpId = (userBpData is Map) ? userBpData['id'] : userBpData;
-          return uBpId == bpId;
-        }).toList();
-      }
+    List<dynamic> modalUsers = _users;
+    if (_tempFilter.bpIds.isNotEmpty) {
+      final selectedBpIds = _tempFilter.bpIds.toSet();
+      
+      modalUsers = _users.where((u) {
+        final userBpData = u['C_BPartner_ID'];
+        final userBpId = (userBpData is Map)
+            ? (userBpData['id'] as num?)?.toInt()
+            : (userBpData is num ? userBpData.toInt() : null);
+        return userBpId != null && selectedBpIds.contains(userBpId);
+      }).toList();
     }
 
     return CustomModal(
@@ -213,125 +317,159 @@ class _RequestFilterModalState extends State<RequestFilterModal> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (AccessControl.isAdmin) ...[
-              _buildSingleSearchableField<String>(
-                label: 'Tercero',
-                hintText: 'Todos los Terceros',
-                value: _tempFilter.bpName,
-                isLoading: false,
-                isDisabled: false,
-                displayText: _tempFilter.bpName ?? 'Todos los Terceros',
-                onTap: () => _openSingleSelectSearchModal<String>(
-                  title: 'Tercero',
-                  items: [
-                    '__ALL__',
-                    ...{
-                      for (var bp in widget.bPartners)
-                        if (bp['id'] != null) bp['id']: bp,
-                    }.values,
-                  ],
-                  currentValue: _tempFilter.bpName,
-                  getTitle: (item) => item == '__ALL__' ? 'Todos los Terceros' : (item['Name'] ?? 'Sin Nombre'),
-                  getSubtitle: (item) => item == '__ALL__' ? '' : 'ID: ${item['id']}',
-                  getValue: (item) => item == '__ALL__' ? null : item['Name']?.toString(),
-                  onSelected: (val) {
-                    setState(() {
-                      // Si el tercero cambia, validamos los usuarios seleccionados
-                      if (val != _tempFilter.bpName) {
-                        final List<String> validatedUserNames = [];
-                        List<String> removedUsers = [];
-                        if (_tempFilter.userNames.isNotEmpty && val != null) {
-                          final newBpData = widget.bPartners.firstWhere((bp) => bp['Name'] == val, orElse: () => {});
-                          if (newBpData.isNotEmpty) {
-                            final newBpId = newBpData['id'];
-                            for (final userName in _tempFilter.userNames) {
-                              final userRecord = widget.users.firstWhere((u) => u['Name'] == userName, orElse: () => {});
-                              if (userRecord.isNotEmpty) {
-                                final uBp = userRecord['C_BPartner_ID'];
-                                final uBpId = (uBp is Map) ? uBp['id'] : uBp;
-                                if (uBpId == newBpId) {
-                                  validatedUserNames.add(userName);
-                                } else {
-                                  removedUsers.add(userName);
-                                }
-                              }
-                            }
-                            if (removedUsers.isNotEmpty) {
-                              WidgetsBinding.instance.addPostFrameCallback((_) => ToastMessage.show(context: context, message: 'Usuarios removidos: ${removedUsers.join(", ")}', type: ToastType.help));
-                            }
-                          }
-                        } else {
-                          validatedUserNames.addAll(_tempFilter.userNames);
-                        }
-                        _tempFilter = _tempFilter.copyWith(bpName: () => val, userNames: validatedUserNames);
-                      } else {
-                        _tempFilter = _tempFilter.copyWith(bpName: () => val);
-                      }
-                    });
-                  },
-                ),
-              ),
-              const SizedBox(height: 16),
+            if (AccessControl.isAdmin || AccessControl.isRealSupport) ...[
               _buildMultiSearchableField(
-                label: 'Rep. Comercial',
-                hintText: 'Todos los Rep. Comerciales',
-                values: _tempFilter.salesRepNames,
-                isLoading: false,
+                label: 'Tercero',
+                hintText: _bPartners.isEmpty ? 'Cargando terceros...' : 'Todos los Terceros',
+                values: _bPartners
+                    .where((bp) => _tempFilter.bpIds.contains((bp['id'] as num?)?.toInt()))
+                    .map((bp) => (bp['Name'] ?? '').toString())
+                    .toList(),
+                isLoading: _isLoadingMetadata && _bPartners.isEmpty,
                 isDisabled: false,
                 onTap: () => _openMultiSelectSearchModal(
-                  title: 'Rep. Comercial',
-                  items: widget.allBPartners.where((bp) {
-                    final isRep = bp['IsSalesRep'] ?? bp['isSalesRep'] ?? bp['C_BPartner0IsSalesRep'] ?? false;
-                    return isRep == 'Y' || isRep == true;
-                  }).toList(),
-                  currentValues: _tempFilter.salesRepNames,
-                  getTitle: (item) => item['Name'] ?? 'Sin Nombre',
-                  getSubtitle: (item) => 'ID: ${item['id']}',
-                  getValue: (item) => item['Name']?.toString() ?? '',
-                  onSelected: (vals) => setState(() => _tempFilter = _tempFilter.copyWith(salesRepNames: vals)),
+                  title: 'Tercero',
+                  items: _bPartners,
+                  currentValues: _tempFilter.bpIds.map((id) => id.toString()).toList(),
+                  getTitle: (item) => (item['Name'] ?? '').toString(),
+                  getValue: (item) => (item['id'] as num).toInt().toString(),
+                  onSelected: (vals) => setState(() => _tempFilter = _tempFilter.copyWith(
+                    bpIds: vals.map((v) => int.parse(v)).toList()
+                  )),
                 ),
               ),
               const SizedBox(height: 16),
             ],
-            _buildMultiSearchableField(
-              label: 'Tipo de solicitud',
-              hintText: 'Todos los Tipos',
-              values: _tempFilter.situations,
-              isLoading: false,
-              isDisabled: false,
-              onTap: () => _openMultiSelectSearchModal(
-                title: 'Tipo de solicitud',
-                items: widget.requests.map((e) => e['situation'].toString()).toSet().toList(),
-                currentValues: _tempFilter.situations,
-                getTitle: (item) => item.toString(),
-                getValue: (item) => item.toString(),
-                onSelected: (vals) => setState(() => _tempFilter = _tempFilter.copyWith(situations: vals)),
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildMultiSearchableField(
+                    label: 'Rep. Comercial',
+                    hintText: 'Todos',
+                    values: GlobalCache.salesReps
+                        .where((rep) => _tempFilter.salesRepIds.contains(((rep['AD_User_ID'] ?? rep['id']) as num?)?.toInt()))
+                        .map((rep) => (rep['Name'] ?? '').toString())
+                        .toList(),
+                    isLoading: false,
+                    isDisabled: false,
+                    onTap: () => _openMultiSelectSearchModal(
+                      title: 'Representante Comercial',
+                      items: GlobalCache.salesReps,
+                      currentValues: _tempFilter.salesRepIds.map((id) => id.toString()).toList(),
+                      getTitle: (item) => (item['Name'] ?? '').toString(),
+                      getValue: (item) => ((item['AD_User_ID'] ?? item['id']) as num).toInt().toString(),
+                      onSelected: (vals) => setState(() => _tempFilter = _tempFilter.copyWith(
+                        salesRepIds: vals.map((v) => int.parse(v)).toList()
+                      )),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _buildMultiSearchableField(
+                    label: 'Usuario',
+                    hintText: _users.isEmpty ? 'Cargando...' : 'Todos',
+                    values: modalUsers
+                        .where((u) => _tempFilter.userIds.contains(((u['AD_User_ID'] ?? u['id']) as num?)?.toInt()))
+                        .map((u) => (u['Name'] ?? '').toString())
+                        .toList(),
+                    isLoading: _isLoadingMetadata && _users.isEmpty,
+                    isDisabled: false,
+                    onTap: () => _openMultiSelectSearchModal(
+                      title: 'Usuario',
+                      items: modalUsers,
+                      currentValues: _tempFilter.userIds.map((id) => id.toString()).toList(),
+                      getTitle: (item) => (item['Name'] ?? '').toString(),
+                      getValue: (item) => ((item['AD_User_ID'] ?? item['id']) as num).toInt().toString(),
+                      onSelected: (vals) => setState(() => _tempFilter = _tempFilter.copyWith(
+                        userIds: vals.map((v) => int.parse(v)).toList()
+                      )),
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
-            _buildMultiSearchableField(
-              label: 'Usuario',
-              hintText: 'Todos los Usuarios',
-              values: _tempFilter.userNames,
-              isLoading: false,
-              isDisabled: false,
-              onTap: () => _openMultiSelectSearchModal(
-                title: 'Usuario',
-                items: {
-                  for (var u in modalUsers)
-                    if ((u['AD_User_ID'] ?? u['id']) != null) (u['AD_User_ID'] ?? u['id']): u,
-                }.values.toList(),
-                currentValues: _tempFilter.userNames,
-                getTitle: (item) => item['Name'] ?? 'Sin Nombre',
-                getSubtitle: (item) => 'ID: ${item['AD_User_ID'] ?? item['id']}',
-                getValue: (item) => item['Name']?.toString() ?? '',
-                onSelected: (vals) => setState(() => _tempFilter = _tempFilter.copyWith(userNames: vals)),
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildMultiSearchableField(
+                    label: 'Tipo de solicitud',
+                    hintText: 'Todos',
+                    values: GlobalCache.requestTypes.entries
+                        .where((e) => _tempFilter.requestTypeIds.contains(e.value))
+                        .map((e) => e.key)
+                        .toList(),
+                    isLoading: _isLoadingMetadata,
+                    isDisabled: false,
+                    onTap: () => _openMultiSelectSearchModal(
+                      title: 'Tipo de solicitud',
+                      items: GlobalCache.requestTypes.entries.toList(),
+                      currentValues: _tempFilter.requestTypeIds.map((id) => id.toString()).toList(),
+                      getTitle: (item) => (item as MapEntry<String, int>).key,
+                      getValue: (item) => (item as MapEntry<String, int>).value.toString(),
+                      onSelected: (vals) => setState(() => _tempFilter = _tempFilter.copyWith(
+                        requestTypeIds: vals.map((v) => int.parse(v)).toList()
+                      )),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _buildMultiSearchableField(
+                    label: 'Categoría',
+                    hintText: 'Todos',
+                    values: GlobalCache.categories.entries
+                        .where((e) => _tempFilter.categoryIds.contains(e.value))
+                        .map((e) => e.key)
+                        .toList(),
+                    isLoading: _isLoadingMetadata,
+                    isDisabled: false,
+                    onTap: () => _openMultiSelectSearchModal(
+                      title: 'Categoría',
+                      items: GlobalCache.categories.entries.toList(),
+                      currentValues: _tempFilter.categoryIds.map((id) => id.toString()).toList(),
+                      getTitle: (item) => (item as MapEntry<String, int>).key,
+                      getValue: (item) => (item as MapEntry<String, int>).value.toString(),
+                      onSelected: (vals) => setState(() => _tempFilter = _tempFilter.copyWith(
+                        categoryIds: vals.map((v) => int.parse(v)).toList()
+                      )),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildMultiSearchableField(
+                    label: 'Estado',
+                    hintText: 'Todos',
+                    values: widget.statusIdMap.entries
+                        .where((e) => _tempFilter.statusIds.contains(e.value))
+                        .map((e) => e.key)
+                        .toList(),
+                    isLoading: _isLoadingMetadata && widget.statusIdMap.isEmpty,
+                    isDisabled: false,
+                    onTap: () => _openMultiSelectSearchModal(
+                      title: 'Estado',
+                      items: widget.statusIdMap.entries.toList(),
+                      currentValues: _tempFilter.statusIds.map((id) => id.toString()).toList(),
+                      getTitle: (item) => (item as MapEntry<String, int>).key,
+                      getValue: (item) => (item as MapEntry<String, int>).value.toString(),
+                      onSelected: (vals) => setState(() => _tempFilter = _tempFilter.copyWith(
+                        statusIds: vals.map((v) => int.parse(v)).toList()
+                      )),
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             _buildMultiSearchableField(
               label: 'Nivel',
-              hintText: 'Todos los Niveles',
+              hintText: 'Todos',
               values: _tempFilter.levels,
               isLoading: false,
               isDisabled: false,
@@ -346,26 +484,70 @@ class _RequestFilterModalState extends State<RequestFilterModal> {
             ),
             const SizedBox(height: 16),
             _buildMultiSearchableField(
-              label: 'Estado',
-              hintText: 'Todos los Estados',
-              values: _tempFilter.statuses,
+              label: 'Ficha de Producto',
+              hintText: _tempFilter.bpIds.isEmpty ? 'Seleccione primero un Tercero' : 'Todas las Fichas',
+              values: GlobalCache.productChips
+                  .where((c) => _tempFilter.productChipIds.contains((c['id'] as num?)?.toInt()))
+                  .map((c) => (c['Description'] ?? 'Ficha ${c['id']}').toString())
+                  .toList(),
               isLoading: false,
-              isDisabled: false,
-              onTap: () => _openMultiSelectSearchModal(
-                title: 'Estado',
-                items: (widget.statusIdMap.isNotEmpty ? (widget.statusIdMap.keys.toList()..sort()) : ['1_Open', '2_Waiting on customer', '3_Closed']),
-                currentValues: _tempFilter.statuses,
-                getTitle: (item) => item.toString(),
-                getValue: (item) => item.toString(),
-                onSelected: (vals) => setState(() => _tempFilter = _tempFilter.copyWith(statuses: vals)),
-              ),
+              isDisabled: _tempFilter.bpIds.isEmpty,
+              onTap: () {
+                if (_tempFilter.bpIds.isEmpty) {
+                  ToastMessage.show(
+                    context: context,
+                    message: 'Debe seleccionar al menos un Tercero primero',
+                    type: ToastType.warning,
+                  );
+                  return;
+                }
+
+                // Filtrar fichas según los terceros seleccionados en el filtro
+                List<Map<String, dynamic>> filteredChips = GlobalCache.productChips.where((chip) {
+                  final rawBp = chip['C_BPartner_ID'];
+                  final chipBpId = rawBp is Map ? (rawBp['id'] as num?)?.toInt() : (rawBp as num?)?.toInt();
+                  return _tempFilter.bpIds.contains(chipBpId);
+                }).toList();
+
+                debugPrint("DEBUG MODAL: Abriendo selección de chips. Fichas filtradas por BP: ${filteredChips.length}");
+
+                _openMultiSelectSearchModal(
+                  title: 'Ficha de Producto',
+                  items: filteredChips,
+                  currentValues: _tempFilter.productChipIds.map((id) => id.toString()).toList(),
+                  getTitle: (item) => (item['Description'] ?? 'Ficha ${item['id']}').toString(),
+                  getSubtitle: (item) {
+                    final rawBp = item['C_BPartner_ID'];
+                    final chipBpId = rawBp is Map ? (rawBp['id'] as num?)?.toInt() : (rawBp as num?)?.toInt();
+                    
+                    final bpInfo = GlobalCache.allBPartners.firstWhere(
+                      (bp) => bp['id'] == chipBpId,
+                      orElse: () => <String, dynamic>{},
+                    );
+                    final bpName = bpInfo.isNotEmpty ? (bpInfo['Name'] ?? 'ID $chipBpId') : 'ID $chipBpId';
+                    
+                    return "Tercero: $bpName";
+                  },
+                  getValue: (item) => (item['id'] as num).toInt().toString(),
+                  onSelected: (vals) {
+                    final newIds = vals.map((v) => int.parse(v)).toList();
+                    debugPrint("DEBUG MODAL: Chips seleccionados: $newIds");
+                    setState(() => _tempFilter = _tempFilter.copyWith(
+                      productChipIds: newIds
+                    ));
+                  },
+                );
+              },
             ),
           ],
         ),
       ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context, null), child: const Text('Cancelar')),
-        CustomButton(text: 'Aplicar Filtros', onPressed: () => Navigator.pop(context, _tempFilter)),
+        CustomButton(text: 'Aplicar Filtros', onPressed: () {
+          debugPrint("DEBUG MODAL: Aplicando filtros finales. BPs: ${_tempFilter.bpIds}, Chips: ${_tempFilter.productChipIds}");
+          Navigator.pop(context, _tempFilter);
+        }),
       ],
     );
   }
@@ -380,7 +562,7 @@ class _MultiSelectSearchDialog extends StatefulWidget {
   final String? Function(dynamic)? getSubtitle;
   final String Function(dynamic) getValue;
 
-  const _MultiSelectSearchDialog({required this.title, required this.items, required this.initialSelectedValues, required this.getTitle, this.getSubtitle, required this.getValue});
+  const _MultiSelectSearchDialog({super.key, required this.title, required this.items, required this.initialSelectedValues, required this.getTitle, this.getSubtitle, required this.getValue});
 
   @override
   State<_MultiSelectSearchDialog> createState() => __MultiSelectSearchDialogState();
@@ -393,7 +575,8 @@ class __MultiSelectSearchDialogState extends State<_MultiSelectSearchDialog> {
   @override
   void initState() {
     super.initState();
-    _tempSelectedValues = Set.from(widget.initialSelectedValues);
+    // Normalize initial selected values for robust comparison
+    _tempSelectedValues = Set.from(widget.initialSelectedValues.map((s) => s.toLowerCase().trim()));
   }
 
   @override
@@ -429,7 +612,7 @@ class __MultiSelectSearchDialogState extends State<_MultiSelectSearchDialog> {
                 separatorBuilder: (_, __) => const Divider(height: 1, color: Colors.grey, thickness: 0.3),
                 itemBuilder: (context, index) {
                   final item = filteredItems[index];
-                  final itemValue = widget.getValue(item);
+                  final itemValue = widget.getValue(item).toLowerCase().trim(); // Normalize item value for comparison
                   final isSelected = _tempSelectedValues.contains(itemValue);
 
                   return CheckboxListTile(

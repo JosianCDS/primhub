@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/contract_api.dart';
@@ -16,12 +17,12 @@ import '../../widgets/custom_drawer.dart';
 import 'package:primhub/ui/widgets/duration_formatter.dart';
 import 'Requests/request_functions.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
-import 'package:flutter_html/flutter_html.dart';
 import 'package:primhub/api/global_cache.dart';
 import 'package:primhub/ui/widgets/project_bottom_nav.dart';
 import 'package:primhub/api/api_utils.dart';
 import 'package:primhub/ui/Shared_Custom/custom_skeleton.dart';
 import 'package:primhub/ui/Shared_Custom/user_info_leading.dart';
+import 'package:primhub/ui/pages/Support/Request_Widgets/support_summary_premium.dart';
 
 class SupportDashboardPage extends StatefulWidget {
   const SupportDashboardPage({super.key});
@@ -35,6 +36,10 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
   bool _isLoading = true;
   double _totalConsumedHours = 0.0;
   double? _contractedHours;
+  double _inProgressHours = 0.0;
+  int _inProgressRequestsCount = 0;
+  int _completedRequestsCount = 0;
+  List<Map<String, dynamic>> _processedChips = [];
 
   bool _isInit = true;
 
@@ -42,6 +47,9 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
   List<Map<String, dynamic>> _bPartners = [];
   Map<String, int> _statusIdMap = {};
   int? _selectedBpId;
+  List<Map<String, dynamic>> _productChips = []; // Fichas crudas del API
+  List<Map<String, dynamic>> _allRequests = []; // Todas las solicitudes procesadas
+  int? _selectedSummaryChipId; // Chip seleccionado para el resumen superior
   final _adminViewModeManager = AdminViewModeManager();
 
   // Paginación y Filtros
@@ -59,14 +67,32 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
     _searchController.addListener(() => setState(() => _currentPage = 0));
   }
 
-  void _onBackgroundSyncChanged() {
+  int get _activeFilterCount {
+    int count = 0;
+    // Ya no contamos el BPartner aquí porque tiene su selector global arriba
+    if (_searchController.text.isNotEmpty) count++;
+    if (_selectedYears.isNotEmpty &&
+        (_selectedYears.length > 1 ||
+            (_selectedYears.first != DateTime.now().year))) {
+      count++;
+    }
+    return count;
+  }
+
+  void _onBackgroundSyncChanged() async {
     if (!GlobalCache.backgroundSyncNotifier.value && mounted) {
-      _refreshData();
+      // Asegurar que _refreshData se llama después del frame actual para evitar setState durante la construcción.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _refreshData();
+      });
     }
   }
 
-  void _onViewModeChanged() {
-    _refreshData();
+  void _onViewModeChanged() async {
+    // Asegurar que _initData se llama después del frame actual para evitar setState durante la construcción.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _initData();
+    });
   }
 
   @override
@@ -87,46 +113,66 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
       } catch (_) {}
 
       final args = extra as Map<String, dynamic>?;
-      if (args != null && args['bpId'] != null) {
-        _selectedBpId = args['bpId'];
+      if (args != null) {
+        if (args['bpId'] != null) _selectedBpId = args['bpId'];
+        if (args['chipId'] != null) _selectedSummaryChipId = args['chipId'];
       } else {
         _selectedBpId = AccessControl.isAdmin ? null : User.cBPartnerID;
       }
-      _initData();
-      GlobalCache.loadArchivedRequests();
+      // Diferir la carga de datos hasta después del primer frame para evitar el error "setState() called during build".
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _initData();
+      });
       _isInit = false;
     }
   }
 
   Future<void> _initData() async {
+    // Forzar sincronización de GlobalCache para tener los últimos datos (ej. renombramientos de fichas)
+    await GlobalCache.syncData(force: true);
+
     if (AccessControl.isAdmin && _bPartners.isEmpty) {
       // Obtenemos la lista cruda de la API
-      final rawBps = await ContractApi.getBPartnersWithSupportContracts();
+      // Fetch all BPs with their flags to apply consistent filtering
+      final allBps = await ProjectsLogic().fetchBPartners();
 
       if (mounted) {
         setState(() {
-          // Aplicamos el filtro de inactivos y clientes
-          _bPartners = rawBps.where((bp) {
-            final name = bp['Name']?.toString() ?? '';
+          // Aplicamos el filtro para que sean solo clientes activos y no proveedores
+          _bPartners = allBps
+              .where((bp) {
+                final name = bp['Name']?.toString() ?? '';
 
-            // Verificamos si es cliente (con salvavidas por si el campo viene nulo)
-            bool isCustomer = bp['IsCustomer'] == true || bp['IsCustomer'] == 'Y' || bp['isCustomer'] == true || bp['isCustomer'] == 'Y';
+                final rawVendor = bp['IsVendor'] ?? bp['isVendor'];
+                final isVendorStr = rawVendor?.toString().trim().toLowerCase();
+                bool isVendor = isVendorStr == 'true' || isVendorStr == 'y';
 
-            if (bp['IsCustomer'] == null && bp['isCustomer'] == null) {
-              isCustomer = true; // Salvavidas: si no viene el campo, lo permitimos
-            }
+                final rawCustomer = bp['IsCustomer'] ?? bp['isCustomer'];
+                final isCustomerStr = rawCustomer
+                    ?.toString()
+                    .trim()
+                    .toLowerCase();
+                bool isCustomer =
+                    isCustomerStr == 'true' || isCustomerStr == 'y';
+                if (rawCustomer == null) isCustomer = true;
 
-            // REGLA: No debe empezar con "~" y debe ser Cliente
-            return !name.startsWith('~') && isCustomer;
-          }).toList();
+                // REGLA: No debe empezar con "~" y debe ser Cliente
+                return !name.startsWith('~') &&
+                    isCustomer &&
+                    !isVendor; // Excluir proveedores
+              })
+              .map((bp) => Map<String, dynamic>.from(bp as Map))
+              .toList();
 
           // Si el tercero seleccionado previamente ya no está en la lista filtrada, lo limpiamos
-          if (_selectedBpId != null && !_bPartners.any((bp) => bp['id'] == _selectedBpId)) {
+          if (_selectedBpId != null &&
+              !_bPartners.any((bp) => bp['id'] == _selectedBpId)) {
             _selectedBpId = null;
           }
         });
       }
     }
+    await _fetchProductChips(); // Cargar fichas para el BP seleccionado
     _statusIdMap = await fetchStatuses();
     await _refreshData();
   }
@@ -140,44 +186,188 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
     }
   }
 
-  Future<void> _loadSupportData() async {
-    List<Map<String, dynamic>> rawRequests = GlobalCache.requests;
-
-    if (_selectedBpId != null) {
-      rawRequests = rawRequests.where((r) => (r['C_BPartner_ID'] is Map ? r['C_BPartner_ID']['id'] : r['C_BPartner_ID']) == _selectedBpId).toList();
-    } else if (!AccessControl.isAdmin && User.cBPartnerID != null) {
-      rawRequests = rawRequests.where((r) => (r['C_BPartner_ID'] is Map ? r['C_BPartner_ID']['id'] : r['C_BPartner_ID']) == User.cBPartnerID).toList();
+  Future<void> _fetchProductChips() async {
+    if (_selectedBpId == null) {
+      if (mounted) setState(() => _productChips = []);
+      return;
     }
-
-    // Usar la misma función de procesamiento que my_requests.dart para consistencia
-    final processedData = await processRequests(rawRequests, _statusIdMap);
-
-    // Filtrar solo las solicitudes cerradas (espejo de la bitácora)
-    final closedRequests = (processedData['requests'] as List<Map<String, dynamic>>).where((req) {
-      final status = req['status'] as String?;
-      final statusId = req['statusId'] as int?;
-      return status == '9_Final Close' || statusId == 103 || statusId == 1000019 || (status != null && status.toLowerCase().contains('archivada'));
+    
+    // Usamos GlobalCache para ser consistentes con el Home
+    final fetchedChips = GlobalCache.productChips.where((chip) {
+      final rawBp = chip['C_BPartner_ID'];
+      final chipBpId = rawBp is Map ? (rawBp['id'] as num?)?.toInt() : (rawBp as num?)?.toInt();
+      
+      final isActive = chip['IsActive'] == 'Y' || chip['IsActive'] == true;
+      return chipBpId == _selectedBpId && isActive;
     }).toList();
 
     if (mounted) {
-      setState(() {
-        _supportRecords = closedRequests;
-        _totalConsumedHours = (processedData['consumedHours'] as num?)?.toDouble() ?? 0.0;
-      });
+      setState(() => _productChips = fetchedChips);
     }
   }
 
-  Future<void> _loadContractedHours() async {
-    final contracts = GlobalCache.contracts.where((c) {
-      if (_selectedBpId != null) return c['C_BPartner_ID'] == _selectedBpId;
-      if (!AccessControl.isAdmin && User.cBPartnerID != null) return c['C_BPartner_ID'] == User.cBPartnerID;
+  Future<void> _loadSupportData() async {
+    String filter = "";
+    List<String> conditions = [];
+
+    if (_selectedBpId != null) {
+      conditions.add("(C_BPartner_ID eq $_selectedBpId)");
+    } else if (!AccessControl.isAdmin && User.cBPartnerID != null) {
+      conditions.add("(C_BPartner_ID eq ${User.cBPartnerID})");
+    }
+
+    // Eliminamos el filtro de año por defecto para ver todo el historial de consumo
+    // si el usuario desea filtrar por año lo hará desde la UI.
+    /*
+    if (_selectedYears.isNotEmpty) {
+      String yearFilterStr = _selectedYears.map((y) => "year(Created) eq $y").join(" or ");
+      conditions.add("($yearFilterStr)");
+    }
+    */
+
+    filter = conditions.join(" and ");
+
+    // Filtramos solo solicitudes que no sean de proyecto (Record_UU null)
+    // Eliminamos el filtro por R_RequestType_ID 1000006 para incluir todos los tipos de soporte (ej. RFQ)
+    final String supportFilter = "(Record_UU eq null)";
+    filter = filter.isNotEmpty ? "$filter and $supportFilter" : supportFilter;
+
+    final rawRequests = await fetchRequest(
+      filter: filter,
+      expand: 'C_Order_ID(\$select=DocumentNo)',
+    );
+
+    final processedData = await processRequests(rawRequests, _statusIdMap);
+    final allRequests = processedData['requests'] as List<Map<String, dynamic>>;
+
+    final archivedId = _statusIdMap.entries
+        .firstWhere((e) => e.key.toLowerCase().contains('archivada'), orElse: () => const MapEntry('', 0))
+        .value;
+
+    final List<Map<String, dynamic>> closedRequests = allRequests.where((req) => req['isClosed'] == true).toList();
+    final List<Map<String, dynamic>> inProgressRequests = allRequests.where((req) => req['isClosed'] != true).toList();
+
+    final searchedRequests = closedRequests.where((req) {
+      if (_searchController.text.isNotEmpty) {
+        final search = _searchController.text.toLowerCase();
+        return req['id'].toString().toLowerCase().contains(search) ||
+            (req['descriptionClean'] ?? '')
+                .toString()
+                .toLowerCase()
+                .contains(search);
+      }
       return true;
     }).toList();
 
     if (mounted) {
-      final double totalHours = contracts.fold(0.0, (sum, contract) => sum + ((contract['contractedHours'] as num?)?.toDouble() ?? 0.0));
       setState(() {
-        _contractedHours = totalHours;
+        _supportRecords = searchedRequests;
+        _allRequests = allRequests;
+        _totalConsumedHours = (processedData['consumedHours'] as num?)?.toDouble() ?? 0.0;
+        _inProgressHours = (processedData['inProgressHours'] as num?)?.toDouble() ?? 0.0;
+        _inProgressRequestsCount = inProgressRequests.length;
+        _completedRequestsCount = closedRequests.length;
+      });
+      await _loadContractedHours();
+    }
+  }
+
+  Future<void> _loadContractedHours() async {
+    if (mounted) {
+      // Ordenar fichas por fecha de creación (FIFO)
+      List<Map<String, dynamic>> sortedChips = List.from(_productChips);
+      sortedChips.sort((a, b) {
+        final dateA = DateTime.tryParse(a['Created'] ?? '') ?? DateTime(0);
+        final dateB = DateTime.tryParse(b['Created'] ?? '') ?? DateTime(0);
+        return dateA.compareTo(dateB);
+      });
+
+      double totalAcquired = 0.0;
+      for (var chip in sortedChips) {
+        totalAcquired += (chip['Qty'] as num?)?.toDouble() ?? 0.0;
+      }
+
+      // Mapeo de consumo y estimación por ID de ficha vinculada
+      final Map<int, double> chipConsumedMap = {};
+      final Map<int, double> chipEstimatedMap = {};
+      double globalUnlinkedConsumed = 0.0;
+      double globalUnlinkedEstimated = 0.0;
+
+      for (var req in _allRequests) {
+        final chipId = req['productChipId'] as int?;
+        final qty = (req['qtySpent'] as num?)?.toDouble() ?? 0.0;
+        final bool isClosed = req['isClosed'] == true;
+
+        if (chipId != null) {
+          if (isClosed) {
+            chipConsumedMap[chipId] = (chipConsumedMap[chipId] ?? 0.0) + qty;
+          } else {
+            chipEstimatedMap[chipId] = (chipEstimatedMap[chipId] ?? 0.0) + qty;
+          }
+        }
+        // Las solicitudes sin chipId se ignoran para el resumen global de consumo según instrucción
+      }
+
+      // El total consumido global ahora es la suma de los consumos vinculados
+      double totalConsumedLinked = chipConsumedMap.values.fold(0.0, (a, b) => a + b);
+      double totalEstimatedLinked = chipEstimatedMap.values.fold(0.0, (a, b) => a + b);
+
+      double remainingToDeduct = 0.0; // Ya no hay consumo global FIFO
+      double remainingEstimatedToDeduct = 0.0;
+      List<Map<String, dynamic>> processed = [];
+
+      for (var chip in sortedChips) {
+        final int chipId = chip['id'];
+        double totalQty = (chip['Qty'] as num?)?.toDouble() ?? 0.0;
+        
+        // Consumo directo vinculado
+        double consumedFromThis = chipConsumedMap[chipId] ?? 0.0;
+        double estimatedFromThis = chipEstimatedMap[chipId] ?? 0.0;
+        
+        // Si hay saldo después del consumo directo, deducir consumo global FIFO
+        double remainingCapacity = totalQty - consumedFromThis;
+        double additionalConsumption = 0.0;
+        double additionalEstimation = 0.0;
+        
+        if (remainingToDeduct > 0 && remainingCapacity > 0) {
+          if (remainingToDeduct >= remainingCapacity) {
+            additionalConsumption = remainingCapacity;
+            remainingToDeduct -= remainingCapacity;
+            remainingCapacity = 0;
+          } else {
+            additionalConsumption = remainingToDeduct;
+            remainingCapacity -= remainingToDeduct;
+            remainingToDeduct = 0;
+          }
+        }
+
+        if (remainingEstimatedToDeduct > 0 && remainingCapacity > 0) {
+          if (remainingEstimatedToDeduct >= remainingCapacity) {
+            additionalEstimation = remainingCapacity;
+            remainingEstimatedToDeduct -= remainingCapacity;
+          } else {
+            additionalEstimation = remainingEstimatedToDeduct;
+            remainingEstimatedToDeduct = 0;
+          }
+        }
+
+        double totalConsumed = consumedFromThis + additionalConsumption;
+        double totalEstimated = estimatedFromThis + additionalEstimation;
+
+        processed.add({
+          ...chip,
+          'available': totalQty - totalConsumed,
+          'available': totalQty - totalConsumed,
+          'consumed': totalConsumed,
+          'estimated': totalEstimated,
+        });
+      }
+
+      setState(() {
+        _contractedHours = totalAcquired;
+        _totalConsumedHours = totalConsumedLinked;
+        _inProgressHours = totalEstimatedLinked;
+        _processedChips = processed;
       });
     }
   }
@@ -185,7 +375,9 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
   Future<void> _showExceptionDialog() async {
     if (!AccessControl.isAdmin) return;
 
-    final Set<int> tempSelectedIds = Set.from(ValidationManager.hourValidationExceptions);
+    final Set<int> tempSelectedIds = Set.from(
+      ValidationManager.hourValidationExceptions,
+    );
     List<dynamic> allBPartners = [];
     bool isFetching = true;
 
@@ -202,14 +394,43 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                 ProjectsLogic().fetchBPartners().then((bps) {
                   if (context.mounted) {
                     setState(() {
-                      allBPartners = bps;
+                      // Aplicar el mismo filtro de clientes activos y no proveedores
+                      allBPartners = bps.where((bp) {
+                        final name = bp['Name']?.toString() ?? '';
+                        final rawVendor = bp['IsVendor'] ?? bp['isVendor'];
+                        final isVendorStr = rawVendor
+                            ?.toString()
+                            .trim()
+                            .toLowerCase();
+                        bool isVendor =
+                            isVendorStr == 'true' || isVendorStr == 'y';
+
+                        final rawCustomer =
+                            bp['IsCustomer'] ?? bp['isCustomer'];
+                        final isCustomerStr = rawCustomer
+                            ?.toString()
+                            .trim()
+                            .toLowerCase();
+                        bool isCustomer =
+                            isCustomerStr == 'true' || isCustomerStr == 'y';
+                        if (rawCustomer == null) isCustomer = true;
+                        return !name.startsWith('~') && isCustomer && !isVendor;
+                      }).toList();
+
                       isFetching = false;
                     });
                   }
                 });
               }
 
-              final filteredBps = allBPartners.where((bp) => (bp['Name'] ?? '').toString().toLowerCase().contains(searchQuery.toLowerCase())).toList();
+              final filteredBps = allBPartners
+                  .where(
+                    (bp) => (bp['Name'] ?? '')
+                        .toString()
+                        .toLowerCase()
+                        .contains(searchQuery.toLowerCase()),
+                  )
+                  .toList();
 
               return SizedBox(
                 height: 400,
@@ -221,22 +442,43 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                             decoration: InputDecoration(
                               hintText: 'Buscar tercero...',
                               prefixIcon: const Icon(Icons.search),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
                             ),
-                            onChanged: (val) => setState(() => searchQuery = val),
+                            onChanged: (val) =>
+                                setState(() => searchQuery = val),
                           ),
                           const SizedBox(height: 10),
                           Expanded(
                             child: filteredBps.isEmpty
-                                ? const Center(child: Text('No se encontraron terceros.'))
+                                ? const Center(
+                                    child: Text('No se encontraron terceros.'),
+                                  )
                                 : ListView.builder(
                                     itemCount: filteredBps.length,
                                     itemBuilder: (context, index) {
                                       final bp = filteredBps[index];
-                                      final rawId = bp['id'] ?? bp['C_BPartner_ID'];
-                                      final intId = rawId is int ? rawId : int.tryParse(rawId.toString()) ?? 0;
-                                      return CheckboxListTile(title: Text(bp['Name'] ?? 'Tercero $intId'), value: tempSelectedIds.contains(intId), onChanged: (bool? value) => setState(() => value == true ? tempSelectedIds.add(intId) : tempSelectedIds.remove(intId)));
+                                      final rawId =
+                                          bp['id'] ?? bp['C_BPartner_ID'];
+                                      final intId = rawId is int
+                                          ? rawId
+                                          : int.tryParse(rawId.toString()) ?? 0;
+                                      return CheckboxListTile(
+                                        title: Text(
+                                          bp['Name'] ?? 'Tercero $intId',
+                                        ),
+                                        value: tempSelectedIds.contains(intId),
+                                        onChanged: (bool? value) => setState(
+                                          () => value == true
+                                              ? tempSelectedIds.add(intId)
+                                              : tempSelectedIds.remove(intId),
+                                        ),
+                                      );
                                     },
                                   ),
                           ),
@@ -246,7 +488,10 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
             },
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancelar'),
+            ),
             CustomButton(
               text: 'Guardar',
               onPressed: () {
@@ -260,182 +505,24 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
     );
   }
 
-  void _showRequestDetails(Map<String, dynamic> record) {
-    final TextEditingController summaryController = TextEditingController(text: record['description'] ?? '');
-    final TextEditingController dateStartController = TextEditingController(text: record['dateStartPlan'] ?? '');
-    final TextEditingController dateCompleteController = TextEditingController(text: record['dateCompletePlan'] ?? '');
-    final TextEditingController startTimeController = TextEditingController(text: record['startTime'] ?? '');
-    final TextEditingController endTimeController = TextEditingController(text: record['endTime'] ?? '');
-
-    final double h = double.tryParse(record['qtyPlan']?.toString() ?? '0.0') ?? 0.0;
-    final TextEditingController qtyPlanController = TextEditingController(text: DurationFormatter.format(h));
-
-    showDialog(
-      context: context,
-      builder: (context) => CustomModal(
-        title: 'Detalle del Ticket ${record['id']}',
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Theme.of(context).colorScheme.outline.withOpacity(0.5)),
-                  borderRadius: BorderRadius.circular(8),
-                  color: Theme.of(context).colorScheme.surface,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Descripción / Resumen', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                    const SizedBox(height: 8),
-                    Html(
-                      data: record['description'] ?? '',
-                      style: {"body": Style(margin: Margins.zero, padding: HtmlPaddings.zero)},
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: CustomTextField(controller: dateStartController, label: 'Inicio Plan', readOnly: true, prefixIcon: const Icon(Icons.calendar_today)),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: CustomTextField(controller: dateCompleteController, label: 'Fin Plan', readOnly: true, prefixIcon: const Icon(Icons.calendar_today)),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: CustomTextField(controller: startTimeController, label: 'Hora Inicio', readOnly: true, prefixIcon: const Icon(Icons.access_time)),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: CustomTextField(controller: endTimeController, label: 'Hora Fin', readOnly: true, prefixIcon: const Icon(Icons.access_time)),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              CustomTextField(controller: qtyPlanController, label: 'Horas Consumidas', readOnly: true),
-            ],
-          ),
-        ),
-        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cerrar'))],
-      ),
-    );
-  }
-
-  Future<void> _openSearchModal<T>({required String title, required List<dynamic> items, required T? currentValue, required String Function(dynamic) getTitle, String Function(dynamic)? getSubtitle, required T? Function(dynamic) getValue, required void Function(T?) onSelected}) async {
-    final dynamic result = await showDialog(
-      context: context,
-      builder: (context) {
-        String searchQuery = '';
-        return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          child: Container(
-            width: 400,
-            height: MediaQuery.of(context).size.height * 0.6,
-            padding: const EdgeInsets.all(20),
-            child: StatefulBuilder(
-              builder: (context, setStateDialog) {
-                final filteredItems = items.where((item) {
-                  return getTitle(item).toLowerCase().contains(searchQuery.toLowerCase());
-                }).toList();
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Seleccionar $title', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w400)),
-                    const SizedBox(height: 16),
-                    TextField(
-                      decoration: const InputDecoration(
-                        prefixIcon: Icon(Icons.filter_list, color: Colors.grey),
-                        hintText: 'Filtrar...',
-                        enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
-                        focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.blue)),
-                      ),
-                      onChanged: (val) => setStateDialog(() => searchQuery = val),
-                    ),
-                    const SizedBox(height: 16),
-                    Expanded(
-                      child: ListView.separated(
-                        itemCount: filteredItems.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1, color: Colors.grey, thickness: 0.3),
-                        itemBuilder: (context, index) {
-                          final item = filteredItems[index];
-                          final itemValue = getValue(item);
-                          final isSelected = itemValue == currentValue;
-
-                          return ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            tileColor: isSelected ? Colors.grey.withOpacity(0.1) : null,
-                            title: Text(getTitle(item), style: const TextStyle(fontSize: 14)),
-                            subtitle: getSubtitle != null && itemValue != null ? Text(getSubtitle(item), style: const TextStyle(fontSize: 12, color: Colors.grey)) : null,
-                            onTap: () => Navigator.of(context).pop({'selected': true, 'value': itemValue}),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-          ),
-        );
-      },
-    );
-
-    if (result != null && result is Map && result['selected'] == true) {
-      onSelected(result['value'] as T?);
-    }
-  }
-
-  Widget _buildSearchableField<T>({required String label, required String? hintText, required T? value, required bool isLoading, required bool isDisabled, required String displayText, required VoidCallback onTap}) {
-    return InkWell(
-      onTap: (isLoading || isDisabled) ? null : onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: InputDecorator(
-        decoration: InputDecoration(
-          labelText: label,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-          floatingLabelBehavior: FloatingLabelBehavior.always,
-          suffixIcon: isLoading ? Transform.scale(scale: 0.5, child: const CircularProgressIndicator(strokeWidth: 3)) : const Icon(Icons.search),
-        ),
-        isEmpty: value == null && (displayText.isEmpty || displayText.startsWith('Todos')),
-        child: Text(
-          (value == null || displayText.isEmpty) ? (hintText ?? '') : displayText,
-          style: TextStyle(fontSize: 16, color: (isLoading || isDisabled || value == null) ? Colors.grey[600] : Theme.of(context).colorScheme.onSurface),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
-    );
-  }
-
   List<Map<String, dynamic>> _getFilteredRecords() {
     var filtered = _supportRecords.where((record) {
-      // Filtro por año
-      if (_selectedYears.isNotEmpty) {
-        final recordYear = DateTime.tryParse(record['time'] ?? '')?.year;
-        if (recordYear == null || !_selectedYears.contains(recordYear)) {
+      if (_searchController.text.isNotEmpty) {
+        final search = _searchController.text.toLowerCase();
+        final matchId =
+            record['id']?.toString().toLowerCase().contains(search) ?? false;
+        final matchDesc =
+            record['description']?.toString().toLowerCase().contains(search) ??
+            false;
+
+        if (!matchId && !matchDesc) {
           return false;
         }
       }
 
-      if (_searchController.text.isNotEmpty) {
-        final search = _searchController.text.toLowerCase();
-        final matchId = record['id']?.toString().toLowerCase().contains(search) ?? false;
-        final matchDesc = record['description']?.toString().toLowerCase().contains(search) ?? false;
-
-        if (!matchId && !matchDesc) {
+      if (_selectedSummaryChipId != null) {
+        final chipId = record['productChipId'];
+        if (chipId != _selectedSummaryChipId) {
           return false;
         }
       }
@@ -452,7 +539,10 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
   }
 
   Future<void> _showYearFilterModal() async {
-    final List<int> availableYears = List.generate(10, (i) => DateTime.now().year - i);
+    final List<int> availableYears = List.generate(
+      10,
+      (i) => DateTime.now().year - i,
+    );
     final List<int>? result = await showDialog<List<int>>(
       context: context,
       builder: (context) {
@@ -466,9 +556,11 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                 child: ListView(
                   children: [
                     CheckboxListTile(
-                        title: const Text('Todos los Años'),
-                        value: tempSelection.isEmpty,
-                        onChanged: (v) => setDialogState(() => tempSelection.clear())),
+                      title: const Text('Todos los Años'),
+                      value: tempSelection.isEmpty,
+                      onChanged: (v) =>
+                          setDialogState(() => tempSelection.clear()),
+                    ),
                     const Divider(),
                     ...availableYears.map((year) {
                       return CheckboxListTile(
@@ -485,7 +577,16 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                   ],
                 ),
               ),
-              actions: [TextButton(onPressed: () => Navigator.pop(context, null), child: const Text('Cancelar')), CustomButton(text: 'Aplicar', onPressed: () => Navigator.pop(context, tempSelection))],
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, null),
+                  child: const Text('Cancelar'),
+                ),
+                CustomButton(
+                  text: 'Aplicar',
+                  onPressed: () => Navigator.pop(context, tempSelection),
+                ),
+              ],
             );
           },
         );
@@ -493,9 +594,130 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
     );
 
     if (result == null) return;
-    setState(() => _selectedYears = result..sort((a, b) => b.compareTo(a)));
-    await GlobalCache.fetchRequestsForYears(_selectedYears);
+    setState(() {
+      _selectedYears = result..sort((a, b) => b.compareTo(a));
+      _currentPage = 0;
+    });
+    _refreshData();
   }
+
+  Future<void> _showBPartnerFilterModal() async {
+    if (!AccessControl.isAdmin) return;
+
+    final selectedId = await showDialog<int?>(
+      context: context,
+      builder: (context) {
+        String searchQuery = '';
+        List<dynamic> items = [
+          {'id': null, 'Name': 'Todos los Terceros'},
+          ..._bPartners,
+        ];
+
+        return CustomModal(
+          title: 'Filtrar por Tercero',
+          width: 500,
+          content: StatefulBuilder(
+            builder: (BuildContext context, StateSetter setModalState) {
+              final filteredItems = items.where((item) {
+                return (item['Name'] as String).toLowerCase().contains(
+                  searchQuery.toLowerCase(),
+                );
+              }).toList();
+
+              return SizedBox(
+                height: 400,
+                child: Column(
+                  children: [
+                    CustomTextField(
+                      hintText: 'Buscar tercero...',
+                      prefixIcon: const Icon(Icons.search),
+                      onChanged: (val) =>
+                          setModalState(() => searchQuery = val),
+                    ),
+                    const SizedBox(height: 10),
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: filteredItems.length,
+                        itemBuilder: (context, index) {
+                          final item = filteredItems[index];
+                          final int? itemValue = item['id'];
+                          return ListTile(
+                            title: Text(item['Name']),
+                            selected: itemValue == _selectedBpId,
+                            onTap: () => Navigator.of(context).pop(itemValue),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(_selectedBpId),
+              child: const Text('Cancelar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (selectedId != _selectedBpId) {
+      setState(() {
+        _selectedBpId = selectedId;
+      });
+      await _initData(); // Re-inicializar todos los datos para el nuevo tercero
+    }
+  }
+
+  Widget _buildSmallStat(BuildContext context, String label, String value, IconData icon, Color color) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.2),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                value,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
+              ),
+              Text(
+                label,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -506,10 +728,15 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
     final filteredRecords = _getFilteredRecords();
     final int totalItems = filteredRecords.length;
     final int totalPages = (totalItems / _rowsPerPage).ceil();
-    if (_currentPage >= totalPages) _currentPage = totalPages > 0 ? totalPages - 1 : 0;
+    if (_currentPage >= totalPages)
+      _currentPage = totalPages > 0 ? totalPages - 1 : 0;
     final int startIndex = _currentPage * _rowsPerPage;
-    final int endIndex = (startIndex + _rowsPerPage < totalItems) ? startIndex + _rowsPerPage : totalItems;
-    final paginatedRecords = totalItems > 0 ? filteredRecords.sublist(startIndex, endIndex) : <Map<String, dynamic>>[];
+    final int endIndex = (startIndex + _rowsPerPage < totalItems)
+        ? startIndex + _rowsPerPage
+        : totalItems;
+    final paginatedRecords = totalItems > 0
+        ? filteredRecords.sublist(startIndex, endIndex)
+        : <Map<String, dynamic>>[];
 
     return Scaffold(
       appBar: AppBar(
@@ -517,7 +744,11 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
         leading: !AccessControl.isAdmin
             ? const UserInfoLeading()
             : Builder(
-                builder: (ctx) => IconButton(icon: const Icon(Icons.menu_rounded), tooltip: 'Menú Principal', onPressed: () => Scaffold.of(ctx).openDrawer()),
+                builder: (ctx) => IconButton(
+                  icon: const Icon(Icons.menu_rounded),
+                  tooltip: 'Menú Principal',
+                  onPressed: () => Scaffold.of(ctx).openDrawer(),
+                ),
               ),
         title: const Text('Dashboard De Horas De Soporte'),
         actions: [
@@ -534,7 +765,15 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                   children: [
                     const Icon(Icons.admin_panel_settings),
                     const SizedBox(width: 8),
-                    Text(_adminViewModeManager.currentMode == AdminViewMode.support ? 'Modo Soporte' : (_adminViewModeManager.currentMode == AdminViewMode.project ? 'Modo Proyecto' : 'Modo Mixto'), style: const TextStyle(fontWeight: FontWeight.bold)),
+                    Text(
+                      _adminViewModeManager.currentMode == AdminViewMode.support
+                          ? 'Modo Soporte'
+                          : (_adminViewModeManager.currentMode ==
+                                    AdminViewMode.project
+                                ? 'Modo Proyecto'
+                                : 'Modo Mixto'),
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
                     const Icon(Icons.arrow_drop_down),
                   ],
                 ),
@@ -542,29 +781,56 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
               itemBuilder: (BuildContext context) {
                 final current = _adminViewModeManager.currentMode;
                 final colorScheme = Theme.of(context).colorScheme;
-                PopupMenuItem<AdminViewMode> buildItem(AdminViewMode mode, String text) {
+                PopupMenuItem<AdminViewMode> buildItem(
+                  AdminViewMode mode,
+                  String text,
+                ) {
                   final isSelected = current == mode;
                   return PopupMenuItem<AdminViewMode>(
                     value: mode,
                     child: Container(
                       width: double.infinity,
-                      decoration: BoxDecoration(color: isSelected ? colorScheme.primary.withOpacity(0.1) : Colors.transparent, borderRadius: BorderRadius.circular(8)),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? colorScheme.primary.withOpacity(0.1)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                       child: Row(
                         children: [
                           Text(
                             text,
-                            style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? colorScheme.primary : colorScheme.onSurface),
+                            style: TextStyle(
+                              fontWeight: isSelected
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                              color: isSelected
+                                  ? colorScheme.primary
+                                  : colorScheme.onSurface,
+                            ),
                           ),
                           if (isSelected) const Spacer(),
-                          if (isSelected) Icon(Icons.check, size: 18, color: colorScheme.primary),
+                          if (isSelected)
+                            Icon(
+                              Icons.check,
+                              size: 18,
+                              color: colorScheme.primary,
+                            ),
                         ],
                       ),
                     ),
                   );
                 }
 
-                return [buildItem(AdminViewMode.mixed, 'Modo Mixto'), buildItem(AdminViewMode.support, 'Modo Soporte'), buildItem(AdminViewMode.project, 'Modo Proyecto')];
+                return [
+                  buildItem(AdminViewMode.mixed, 'Modo Mixto'),
+                  buildItem(AdminViewMode.support, 'Modo Soporte'),
+                  buildItem(AdminViewMode.project, 'Modo Proyecto'),
+                ];
               },
             ),
           if (AccessControl.isAdmin)
@@ -577,7 +843,10 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                   children: [
                     Icon(Icons.shield_outlined),
                     SizedBox(width: 8),
-                    Text('Excepción de Horas', style: TextStyle(fontWeight: FontWeight.bold)),
+                    Text(
+                      'Excepción de Horas',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
                   ],
                 ),
               ),
@@ -586,7 +855,14 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: Center(
-                child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Theme.of(context).colorScheme.onPrimary)),
+                child: SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Theme.of(context).colorScheme.onPrimary,
+                  ),
+                ),
               ),
             ),
           IconButton(
@@ -604,8 +880,12 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
             ),
         ],
       ),
-      drawer: AccessControl.isAdmin ? const CustomDrawer(currentRoute: '/support') : null,
-      bottomNavigationBar: !AccessControl.isAdmin ? const ProjectBottomNav(currentRoute: '/support') : null,
+      drawer: AccessControl.isAdmin
+          ? const CustomDrawer(currentRoute: '/support')
+          : null,
+      bottomNavigationBar: !AccessControl.isAdmin
+          ? const ProjectBottomNav(currentRoute: '/support')
+          : null,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16.0),
@@ -613,123 +893,123 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 20),
-              Card(
-                elevation: 4,
-                color: isDark ? colorScheme.surface : const Color(0xFFFEFEFE),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Resumen del contrato', style: Theme.of(context).textTheme.titleLarge),
-                      const SizedBox(height: 10),
-                      LayoutBuilder(
-                        builder: (context, constraints) {
-                          final card1 = CardCustom(
-                            height: 150,
-                            width: null,
-                            elevation: 0,
-                            color: isDark ? colorScheme.surfaceContainerHighest : const Color(0xFFF6F8FA),
-                            hover: true,
-                            child: Container(
-                              padding: const EdgeInsets.all(8.0),
-                              alignment: Alignment.center,
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    'Horas Contratadas',
-                                    textAlign: TextAlign.center,
-                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(color: isDark ? colorScheme.onSurfaceVariant : const Color(0xff777D8A)),
-                                  ),
-                                  Text(
-                                    _contractedHours == null ? '...' : DurationFormatter.format(_contractedHours!),
-                                    textAlign: TextAlign.center,
-                                    style: Theme.of(context).textTheme.titleLarge?.copyWith(color: isDark ? colorScheme.onSurface : const Color(0xFF1C2430)),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                          final card2 = CardCustom(
-                            height: 150,
-                            width: null,
-                            elevation: 0,
-                            color: isDark ? colorScheme.surfaceContainerHighest : const Color(0xFFF6F8FA),
-                            hover: true,
-                            child: Container(
-                              padding: const EdgeInsets.all(8.0),
-                              alignment: Alignment.center,
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    'Horas Consumidas',
-                                    textAlign: TextAlign.center,
-                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(color: isDark ? colorScheme.onSurfaceVariant : const Color(0xff777D8A)),
-                                  ),
-                                  Text(
-                                    _isLoading ? '...' : DurationFormatter.format(_totalConsumedHours),
-                                    textAlign: TextAlign.center,
-                                    style: Theme.of(context).textTheme.titleLarge?.copyWith(color: isDark ? colorScheme.error : const Color(0xFFD12324)),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                          final card3 = CardCustom(
-                            height: 150,
-                            width: null,
-                            elevation: 0,
-                            color: isDark ? colorScheme.surfaceContainerHighest : const Color(0xFFE9EFFD),
-                            hover: true,
-                            child: Container(
-                              padding: const EdgeInsets.all(8.0),
-                              alignment: Alignment.center,
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    'Horas Disponibles',
-                                    textAlign: TextAlign.center,
-                                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: isDark ? colorScheme.primary : const Color(0xFF463EE2)),
-                                  ),
-                                  Text(
-                                    _isLoading || _contractedHours == null ? '...' : DurationFormatter.format(_contractedHours! - _totalConsumedHours),
-                                    textAlign: TextAlign.center,
-                                    style: Theme.of(context).textTheme.titleLarge?.copyWith(color: isDark ? colorScheme.primary : const Color(0xFF463EE2)),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-
-                          if (constraints.maxWidth < 800) {
-                            return Column(
-                              children: [
-                                SizedBox(width: double.infinity, child: card1),
-                                const SizedBox(height: 10),
-                                SizedBox(width: double.infinity, child: card2),
-                                const SizedBox(height: 10),
-                                SizedBox(width: double.infinity, child: card3),
-                              ],
-                            );
-                          } else {
-                            return Row(
-                              children: [
-                                Expanded(child: card1),
-                                const SizedBox(width: 10),
-                                Expanded(child: card2),
-                                const SizedBox(width: 10),
-                                Expanded(child: card3),
-                              ],
-                            );
-                          }
-                        },
+              if (AccessControl.isAdmin)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 24.0),
+                  child: InkWell(
+                    onTap: _bPartners.isEmpty ? null : _showBPartnerFilterModal,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(_bPartners.isEmpty ? 0.1 : 0.3),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
+                        ),
                       ),
-                    ],
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.business_outlined,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Tercero a Consultar',
+                                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        GlobalCache.bPartners.isEmpty && !GlobalCache.isDataLoaded
+                                          ? 'Cargando terceros...'
+                                          : (_selectedBpId == null 
+                                            ? 'Selecciona un tercero para ver sus fichas'
+                                            : (_bPartners.firstWhere(
+                                                (bp) => bp['id'] == _selectedBpId,
+                                                orElse: () => {'Name': 'Tercero Seleccionado'},
+                                              )['Name'] ?? 'Tercero ${_selectedBpId}')),
+                                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    if (GlobalCache.bPartners.isEmpty && !GlobalCache.isDataLoaded)
+                                      const SizedBox(
+                                        width: 12,
+                                        height: 12,
+                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                      ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(
+                            Icons.search,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
+              // --- NUEVA TARJETA DE RESUMEN PREMIUM ---
+              Builder(
+                builder: (context) {
+                  double contracted = _contractedHours ?? 0.0;
+                  double consumed = _totalConsumedHours;
+                  double inProgress = _inProgressHours;
+                  double available = contracted - consumed;
+
+                  if (_selectedSummaryChipId != null) {
+                    final chip = _processedChips.firstWhere(
+                      (c) => c['id'] == _selectedSummaryChipId,
+                      orElse: () => {},
+                    );
+                    if (chip.isNotEmpty) {
+                      contracted = (chip['Qty'] as num?)?.toDouble() ?? 0.0;
+                      consumed = (chip['consumed'] as num?)?.toDouble() ?? 0.0;
+                      inProgress = (chip['estimated'] as num?)?.toDouble() ?? 0.0;
+                      available = (chip['available'] as num?)?.toDouble() ?? 0.0;
+                    }
+                  } else {
+                    available = contracted - consumed;
+                  }
+
+                  return SupportSummaryPremium(
+                    contractedHours: contracted,
+                    consumedHours: consumed,
+                    inProgressHours: inProgress,
+                    availableHours: available,
+                    processedChips: _processedChips,
+                    selectedChipId: _selectedSummaryChipId,
+                    onChipTap: (id) {
+                      setState(() {
+                        if (_selectedSummaryChipId == id) {
+                          _selectedSummaryChipId = null;
+                        } else {
+                          _selectedSummaryChipId = id;
+                        }
+                      });
+                    },
+                    onRefresh: () => _initData(),
+                    allowRename: true,
+                    emptyMessage: AccessControl.isAdmin && _selectedBpId == null
+                        ? '(Como administrador) seleccione un tercero para ver sus fichas de producto'
+                        : null,
+                  );
+                }
               ),
               const SizedBox(height: 30),
               CustomContainer(
@@ -737,76 +1017,63 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 16.0),
-                      child: Wrap(
-                        spacing: 16,
-                        runSpacing: 16,
-                        crossAxisAlignment: WrapCrossAlignment.center,
+                    _SupportDashboardFilterBar(
+                      searchController: _searchController,
+                      isAscending: _isAscending,
+                      rowsPerPage: _rowsPerPage,
+                      selectedYears: _selectedYears,
+                      onShowYearFilter: _showYearFilterModal,
+                      onSortChanged: () => setState(() {
+                        _isAscending = !_isAscending;
+                        _currentPage = 0;
+                      }),
+                      onRowsPerPageChanged: (val) => setState(() {
+                        _rowsPerPage = val!;
+                        _currentPage = 0;
+                      }),
+                      onClearFilters: () => setState(() {
+                        _searchController.clear();
+                        _isAscending = false;
+                        _currentPage = 0;
+                        _selectedYears = [DateTime.now().year];
+                        if (AccessControl.isAdmin) _selectedBpId = null;
+                        _refreshData();
+                      }),
+                      onShowBPartnerFilter: _showBPartnerFilterModal,
+                      activeFilterCount: _activeFilterCount,
+                      selectedBpId: _selectedBpId,
+                    ),
+                    // CONTROLES DE PAGINACIÓN (ARRIBA)
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          SizedBox(
-                            width: 300,
-                            child: CustomTextField(controller: _searchController, hintText: 'Buscar por ticket o actividad...', prefixIcon: const Icon(Icons.search)),
+                          Text(
+                            '${totalItems == 0 ? 0 : (_currentPage * _rowsPerPage) + 1} - ${((_currentPage + 1) * _rowsPerPage < totalItems) ? (_currentPage + 1) * _rowsPerPage : totalItems} de $totalItems',
+                            style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
                           ),
-                          if (AccessControl.isAdmin)
-                            SizedBox(
-                              width: 250,
-                              child: _buildSearchableField<int>(
-                                label: 'Filtrar por Tercero',
-                                hintText: 'Todos los Terceros',
-                                value: _selectedBpId,
-                                isLoading: _isLoading,
-                                isDisabled: false,
-                                displayText: _selectedBpId != null && _bPartners.any((bp) => bp['id'] == _selectedBpId) ? _bPartners.firstWhere((bp) => bp['id'] == _selectedBpId)['Name'] ?? '' : 'Todos los Terceros',
-                                onTap: () => _openSearchModal<int>(
-                                  title: 'Tercero',
-                                  items: ['__ALL__', ..._bPartners],
-                                  currentValue: _selectedBpId,
-                                  getTitle: (item) => item == '__ALL__' ? 'Todos los Terceros' : (item['Name'] ?? 'Sin Nombre'),
-                                  getSubtitle: (item) => item == '__ALL__' ? '' : 'ID: ${item['id']}',
-                                  getValue: (item) => item == '__ALL__' ? null : item['id'] as int,
-                                  onSelected: (val) {
-                                    setState(() {
-                                      _selectedBpId = val;
-                                      _currentPage = 0; // Reiniciar página al filtrar
-                                    });
-                                    _refreshData(); // Llamar a tu función de actualización
-                                  },
-                                ),
+                          Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.chevron_left),
+                                onPressed: _currentPage > 0
+                                    ? () => setState(() => _currentPage--)
+                                    : null,
                               ),
-                            ),
-                          ActionChip(
-                            avatar: Icon(_isAscending ? Icons.arrow_upward : Icons.arrow_downward, size: 16),
-                            label: Text(_isAscending ? 'Más antiguas' : 'Más recientes'),
-                            onPressed: () => setState(() {
-                              _isAscending = !_isAscending;
-                              _currentPage = 0;
-                            }),
-                          ),
-                          DropdownButton<int>(
-                            value: _rowsPerPage,
-                            items: [10, 25, 50, 100].map((int value) => DropdownMenuItem<int>(value: value, child: Text('$value filas'))).toList(),
-                            onChanged: (val) => setState(() {
-                              _rowsPerPage = val!;
-                              _currentPage = 0;
-                            }),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.filter_alt_off),
-                            tooltip: 'Limpiar filtros',
-                            onPressed: () {
-                              setState(() {
-                                _searchController.clear();
-                                _isAscending = false;
-                                _currentPage = 0;
-                                if (AccessControl.isAdmin) _selectedBpId = null;
-                              });
-                              _refreshData();
-                            },
+                              IconButton(
+                                icon: const Icon(Icons.chevron_right),
+                                onPressed: _currentPage < totalPages - 1
+                                    ? () => setState(() => _currentPage++)
+                                    : null,
+                              ),
+                            ],
                           ),
                         ],
                       ),
                     ),
+                    const Divider(),
+                    const SizedBox(height: 16),
                     AnimatedSwitcher(
                       duration: const Duration(milliseconds: 300),
                       child: _isLoading
@@ -815,31 +1082,33 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                           ? const Padding(
                               padding: EdgeInsets.all(32.0),
                               child: Center(
-                                child: Text('No hay registros de horas consumidas para este filtro.', style: TextStyle(color: Colors.grey, fontSize: 16)),
+                                child: Text(
+                                  'No hay registros de horas consumidas para este filtro.',
+                                  style: TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 16,
+                                  ),
+                                ),
                               ),
                             )
                           : LayoutBuilder(
                               builder: (context, constraints) {
                                 if (constraints.maxWidth < 800) {
-                                  return _MobileRecordList(records: paginatedRecords, onRecordTap: _showRequestDetails);
+                                  return _MobileRecordList(
+                                    records: paginatedRecords,
+                                    onRecordTap: (record) =>
+                                        _showRequestDetails(context, record),
+                                  );
                                 } else {
-                                  return _DesktopRecordTable(records: paginatedRecords, onRecordTap: _showRequestDetails);
+                                  return _DesktopRecordTable(
+                                    records: paginatedRecords,
+                                    onRecordTap: (record) =>
+                                        _showRequestDetails(context, record),
+                                  );
                                 }
                               },
                             ),
                     ),
-                    if (totalPages > 1)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 16.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            IconButton(icon: const Icon(Icons.chevron_left), onPressed: _currentPage > 0 ? () => setState(() => _currentPage--) : null),
-                            Text('Página ${_currentPage + 1} de $totalPages', style: const TextStyle(fontWeight: FontWeight.bold)),
-                            IconButton(icon: const Icon(Icons.chevron_right), onPressed: _currentPage < totalPages - 1 ? () => setState(() => _currentPage++) : null),
-                          ],
-                        ),
-                      ),
                   ],
                 ),
               ),
@@ -849,6 +1118,149 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
       ),
     );
   }
+}
+
+class _SupportDashboardFilterBar extends StatelessWidget {
+  final TextEditingController searchController;
+  final bool isAscending;
+  final int rowsPerPage;
+  final List<int> selectedYears;
+  final VoidCallback onShowYearFilter;
+  final VoidCallback onSortChanged;
+  final Function(int?) onRowsPerPageChanged;
+  final VoidCallback onClearFilters;
+  final VoidCallback onShowBPartnerFilter;
+  final int activeFilterCount;
+  final int? selectedBpId;
+
+  const _SupportDashboardFilterBar({
+    super.key,
+    required this.searchController,
+    required this.isAscending,
+    required this.rowsPerPage,
+    required this.selectedYears,
+    required this.onShowYearFilter,
+    required this.onSortChanged,
+    required this.onRowsPerPageChanged,
+    required this.onClearFilters,
+    required this.onShowBPartnerFilter,
+    required this.activeFilterCount,
+    this.selectedBpId,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 400,
+          child: CustomTextField(
+            controller: searchController,
+            hintText: 'Buscar por ticket o actividad...',
+            prefixIcon: const Icon(Icons.search),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 16.0,
+          runSpacing: 8.0,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            // Eliminado el botón de "Filtros" (BPartner) para administradores ya que existe el selector global superior.
+            ActionChip(
+              avatar: const Icon(Icons.calendar_today, size: 16),
+              label: Text(() {
+                if (selectedYears.isEmpty) return 'Año: Todos';
+                if (selectedYears.length == 1) {
+                  if (selectedYears.first == DateTime.now().year)
+                    return 'Año: Actual';
+                  return 'Año: ${selectedYears.first}';
+                }
+                return 'Años: ${selectedYears.length}';
+              }()),
+              onPressed: onShowYearFilter,
+            ),
+            ActionChip(
+              avatar: Icon(
+                isAscending ? Icons.arrow_upward : Icons.arrow_downward,
+                size: 16,
+              ),
+              label: Text(isAscending ? 'Más antiguas' : 'Más recientes'),
+              onPressed: onSortChanged,
+            ),
+            DropdownButton<int>(
+              value: rowsPerPage,
+              items: [10, 25, 50, 100]
+                  .map(
+                    (int value) => DropdownMenuItem<int>(
+                      value: value,
+                      child: Text('$value filas'),
+                    ),
+                  )
+                  .toList(),
+              onChanged: onRowsPerPageChanged,
+            ),
+            IconButton(
+              icon: const Icon(Icons.filter_alt_off),
+              onPressed: onClearFilters,
+              tooltip: 'Limpiar filtros',
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+void _showRequestDetails(BuildContext context, Map<String, dynamic> record) {
+  final double h = (record['qtySpent'] as num?)?.toDouble() ?? 0.0;
+  final qtyPlanController = TextEditingController(
+    text: DurationFormatter.format(h),
+  );
+
+  showDialog(
+    context: context,
+    builder: (context) => CustomModal(
+      title: 'Detalle del Ticket ${record['id']}',
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CustomTextField(
+              controller: TextEditingController(
+                text: record['emailSubject'] ?? record['descriptionClean'],
+              ),
+              label: 'Asunto / Actividad',
+              readOnly: true,
+              maxLines: 3,
+            ),
+            const SizedBox(height: 16),
+            CustomTextField(
+              controller: TextEditingController(
+                text: record['dateStartPlan'] ?? '',
+              ),
+              label: 'Fecha de Cierre',
+              readOnly: true,
+              prefixIcon: const Icon(Icons.calendar_today),
+            ),
+            const SizedBox(height: 16),
+            CustomTextField(
+              controller: qtyPlanController,
+              label: 'Horas Consumidas',
+              readOnly: true,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cerrar'),
+        ),
+      ],
+    ),
+  );
 }
 
 class _DesktopRecordTable extends StatelessWidget {
@@ -861,14 +1273,14 @@ class _DesktopRecordTable extends StatelessWidget {
   Widget build(BuildContext context) {
     return CustomTable(
       columns: const [
-        DataColumn(label: Text('Ticket Relacionado')),
-        DataColumn(label: Text('Actividad/Tarea')),
-        DataColumn(label: Text('Fecha de inicio Planeada')),
-        DataColumn(label: Text('Fecha de Terminacion Planeada')),
+        DataColumn(label: Text('Ticket')),
+        DataColumn(label: Text('Asunto / Actividad')),
+        DataColumn(label: Text('Estado')),
         DataColumn(label: Text('Horas Consumidas')),
+        DataColumn(label: Text('Ficha de Producto')),
       ],
       rows: records.map((record) {
-        final double h = double.tryParse(record['qtyPlan']?.toString() ?? '0.0') ?? 0.0;
+        final double h = (record['qtySpent'] as num?)?.toDouble() ?? 0.0;
         final hours = DurationFormatter.format(h);
         return DataRow(
           onSelectChanged: (value) => onRecordTap(record),
@@ -882,8 +1294,14 @@ class _DesktopRecordTable extends StatelessWidget {
                   InkWell(
                     borderRadius: BorderRadius.circular(4),
                     onTap: () {
-                      Clipboard.setData(ClipboardData(text: record['id']?.toString() ?? ''));
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Código copiado al portapapeles')));
+                      Clipboard.setData(
+                        ClipboardData(text: record['id']?.toString() ?? ''),
+                      );
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Código copiado al portapapeles'),
+                        ),
+                      );
                     },
                     child: const Padding(
                       padding: EdgeInsets.all(4.0),
@@ -896,15 +1314,25 @@ class _DesktopRecordTable extends StatelessWidget {
             DataCell(
               SizedBox(
                 width: 300,
-                child: Text(() {
-                  final cleanDesc = stripHtmlTags(record['description'] ?? '');
-                  return cleanDesc.length > 80 ? '${cleanDesc.substring(0, 80)}...' : cleanDesc;
-                }()),
+                child: Text(
+                  record['emailSubject'] ?? record['descriptionClean'] ?? '',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ),
-            DataCell(Text(record['dateStartPlan'] ?? '')),
-            DataCell(Text(record['dateCompletePlan'] ?? '')),
-            DataCell(Text(hours)),
+            DataCell(Text(record['status'] ?? '')),
+            DataCell(Text(hours, style: const TextStyle(fontWeight: FontWeight.bold))),
+            DataCell(Text(() {
+              final chipId = record['productChipId'];
+              if (chipId == null) return 'N/A';
+              final found = GlobalCache.productChips.firstWhere(
+                (c) => c['id'] == chipId,
+                orElse: () => {},
+              );
+              if (found.isEmpty) return '#$chipId';
+              return found['Description'] ?? found['Name'] ?? '#$chipId';
+            }())),
           ],
         );
       }).toList(),
@@ -926,7 +1354,10 @@ class _MobileRecordList extends StatelessWidget {
       itemCount: records.length,
       itemBuilder: (context, index) {
         final record = records[index];
-        return _SupportRecordCard(record: record, onTap: () => onRecordTap(record));
+        return _SupportRecordCard(
+          record: record,
+          onTap: () => onRecordTap(record),
+        );
       },
     );
   }
@@ -942,9 +1373,12 @@ class _SupportRecordCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final double h = double.tryParse(record['qtyPlan']?.toString() ?? '0.0') ?? 0.0;
+    final double h = (record['qtySpent'] as num?)?.toDouble() ?? 0.0;
     final hours = DurationFormatter.format(h);
-    final cleanDesc = stripHtmlTags(record['description'] ?? 'Sin descripción');
+    final subject =
+        record['emailSubject'] ??
+        record['descriptionClean'] ??
+        'Sin descripción';
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -958,19 +1392,39 @@ class _SupportRecordCard extends StatelessWidget {
             children: [
               Text(
                 'Ticket #${record['id']}',
-                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.primary),
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.primary,
+                ),
               ),
               const SizedBox(height: 8),
-              Text(cleanDesc, style: theme.textTheme.bodyLarge, maxLines: 2, overflow: TextOverflow.ellipsis),
+              Text(
+                subject,
+                style: theme.textTheme.bodyLarge,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
               const Divider(height: 24),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Fecha: ${record['dateStartPlan'] ?? 'N/A'}', style: theme.textTheme.bodySmall),
+                  Text(
+                    record['status'] ?? '',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: Colors.green,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   Chip(
                     label: Text(hours),
-                    avatar: Icon(Icons.timer_outlined, size: 16, color: colorScheme.secondary),
-                    backgroundColor: colorScheme.secondaryContainer.withOpacity(0.5),
+                    avatar: Icon(
+                      Icons.timer_outlined,
+                      size: 16,
+                      color: colorScheme.secondary,
+                    ),
+                    backgroundColor: colorScheme.secondaryContainer.withOpacity(
+                      0.5,
+                    ),
                     visualDensity: VisualDensity.compact,
                   ),
                 ],

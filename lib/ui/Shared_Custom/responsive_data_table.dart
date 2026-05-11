@@ -46,8 +46,6 @@ class _ResponsiveDataTableState<T> extends State<ResponsiveDataTable<T>> {
         if (constraints.maxWidth < 800) {
           // Mobile View: List of cards
           return ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
             itemCount: widget.items.length,
             itemBuilder: (context, index) {
               return widget.mobileCardBuilder(widget.items[index]);
@@ -165,34 +163,40 @@ class _ResponsiveDataTableState<T> extends State<ResponsiveDataTable<T>> {
     return Card(
       elevation: 4,
       clipBehavior: Clip.hardEdge,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // --- Fixed Part ---
-          DataTableTheme(
-            data: fixedDataTableTheme,
-            child: DataTable(
-              showCheckboxColumn: false, // Handled manually
-              columns: allFixedColumns,
-              rows: fixedRows,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.vertical,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // --- Fixed Part ---
+            DataTableTheme(
+              data: fixedDataTableTheme,
+              child: DataTable(
+                showCheckboxColumn: false, // Handled manually
+                columns: allFixedColumns,
+                rows: fixedRows,
+              ),
             ),
-          ),
-          // --- Scrollable Part ---
-          Expanded(
-            child: Scrollbar(
-              controller: _horizontalScrollController,
-              thumbVisibility: true,
-              child: SingleChildScrollView(
+            // --- Scrollable Part ---
+            Expanded(
+              child: Scrollbar(
                 controller: _horizontalScrollController,
-                scrollDirection: Axis.horizontal,
-                child: DataTableTheme(
-                  data: scrollableDataTableTheme,
-                  child: DataTable(showCheckboxColumn: false, columns: allScrollableColumns, rows: scrollableRows),
+                thumbVisibility: true,
+                child: SingleChildScrollView(
+                  controller: _horizontalScrollController,
+                  scrollDirection: Axis.horizontal,
+                  child: DataTableTheme(
+                    data: scrollableDataTableTheme,
+                    child: DataTable(
+                        showCheckboxColumn: false,
+                        columns: allScrollableColumns,
+                        rows: scrollableRows),
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

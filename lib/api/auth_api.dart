@@ -73,6 +73,11 @@ Future<bool> finalizeLogin(String username, String password, Map<String, dynamic
       final responseBody = jsonDecode(response.body);
       Token.auth = responseBody['token'];
       Token.refreshToken = responseBody['refresh_token'];
+      //--------------------------------------------------
+      //borrar, esto es para una prueba con garden admin.
+      User.name = username; // Establecer User.name con el nombre de usuario
+      //--------------------------------------------------
+
       User.userID = responseBody['userId'];
       User.cBPartnerID = await getPartnerID(userId: User.userID!);
 
@@ -104,8 +109,8 @@ Future<bool> finalizeLogin(String username, String password, Map<String, dynamic
         // For other users (like Project users)
         await getProductChip();
         if (ProductChip.mProductID != null) {
-          final contracts = await ContractApi.getSupportContracts(bPartnerId: User.cBPartnerID);
-          hasSupport = contracts.isNotEmpty;
+          final chips = await ContractApi.getSupportProductChips(bPartnerId: User.cBPartnerID);
+          hasSupport = chips.isNotEmpty;
         } else {
           hasSupport = false;
         }
@@ -177,7 +182,7 @@ Future<bool> getPrimConfig({required int rolId, required BuildContext context}) 
 //Ficha de Producto
 Future<void> getProductChip() async {
   try {
-    final response = await get(Uri.parse('${Endpoint.productChip}?\$filter=C_BPartner_ID eq ${User.cBPartnerID} and ${ContractApi.validSupportProductsFilter}&\$orderBy=Created desc'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+    final response = await get(Uri.parse('${Endpoint.productChip}?\$filter=C_BPartner_ID eq ${User.cBPartnerID} and IsActive eq \'Y\'&\$orderBy=Created desc'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
     if (response.statusCode == 200) {
       final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
       final records = jsonResponse['records'] as List;

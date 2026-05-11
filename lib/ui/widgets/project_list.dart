@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
+import 'package:primhub/ui/pages/Projects/Projects_Widgets/phase_item.dart'; // Para PhaseItem
 
 class ProjectListView extends StatefulWidget {
   final List<dynamic> projects;

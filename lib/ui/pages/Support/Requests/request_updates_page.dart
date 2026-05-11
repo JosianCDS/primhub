@@ -24,25 +24,51 @@ class RequestUpdatesPage extends StatefulWidget {
 
 class _RequestUpdatesPageState extends State<RequestUpdatesPage> {
   late Future<List<Map<String, dynamic>>> _updatesFuture;
-  int _currentIndex = 0;
+  Map<String, dynamic>? _requestDetails;
+  bool _isLoadingDetails = true;
 
   @override
   void initState() {
     super.initState();
+    _fetchDetails();
     _refreshUpdates();
+  }
+
+  Future<void> _fetchDetails() async {
+    try {
+      final reqs = await fetchRequest(filter: "R_Request_ID eq ${widget.requestId}");
+      if (reqs.isNotEmpty && mounted) {
+        setState(() {
+          _requestDetails = reqs.first;
+          _isLoadingDetails = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoadingDetails = false);
+    }
   }
 
   void _refreshUpdates() {
     setState(() {
-      _currentIndex = 0;
-      _updatesFuture = fetchRequestUpdates(widget.requestId);
+      _updatesFuture = fetchRequestUpdates(widget.requestId).then((list) {
+        // Ordenar por fecha de creación descendente (más recientes arriba)
+        list.sort((a, b) {
+          final dateA = DateTime.tryParse(a['Created'] ?? '') ?? DateTime(1900);
+          final dateB = DateTime.tryParse(b['Created'] ?? '') ?? DateTime(1900);
+          return dateB.compareTo(dateA);
+        });
+        return list;
+      });
     });
   }
 
   Future<void> _addUpdate() async {
     final result = await showDialog<bool>(
       context: context,
-      builder: (context) => _AddUpdateDialog(requestId: widget.requestId),
+      builder: (context) => _AddUpdateDialog(
+        requestId: widget.requestId,
+        summary: _requestDetails?['Summary'] ?? _requestDetails?['description'] ?? 'Sin resumen.',
+      ),
     );
 
     if (result == true) {
@@ -52,50 +78,91 @@ class _RequestUpdatesPageState extends State<RequestUpdatesPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text('Actualizaciones para la Solicitud ${widget.docNo}')),
-      floatingActionButton: AccessControl.canAddUpdates ? FloatingActionButton(onPressed: _addUpdate, tooltip: 'Añadir Actualización', child: const Icon(Icons.add_comment)) : null,
-      body: FutureBuilder<List<Map<String, dynamic>>>(
-        future: _updatesFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text('No hay actualizaciones para esta solicitud.'));
-          }
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
-          final updates = snapshot.data!;
-          return Column(
-            children: [
-              if (updates.length > 1)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 16.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      IconButton(icon: const Icon(Icons.chevron_left), onPressed: _currentIndex > 0 ? () => setState(() => _currentIndex--) : null),
-                      Text('Actualización ${_currentIndex + 1} de ${updates.length}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                      IconButton(icon: const Icon(Icons.chevron_right), onPressed: _currentIndex < updates.length - 1 ? () => setState(() => _currentIndex++) : null),
-                    ],
+    return Scaffold(
+      appBar: AppBar(title: Text('Actualizaciones: ${widget.docNo}')),
+      floatingActionButton: AccessControl.canAddUpdates
+          ? FloatingActionButton.extended(
+              onPressed: _addUpdate,
+              label: Text('Responder', style: textTheme.labelLarge?.copyWith(color: colorScheme.onPrimary, fontWeight: FontWeight.bold)),
+              icon: Icon(Icons.reply, color: colorScheme.onPrimary),
+            )
+          : null,
+      body: Column(
+        children: [
+          // Cabecera Desplegable con el resumen de la solicitud
+          if (_requestDetails != null)
+            Theme(
+              data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+              child: ExpansionTile(
+                backgroundColor: colorScheme.surface,
+                collapsedBackgroundColor: colorScheme.surface,
+                shape: Border(bottom: BorderSide(color: colorScheme.outlineVariant, width: 1)),
+                collapsedShape: Border(bottom: BorderSide(color: colorScheme.outlineVariant, width: 1)),
+                title: Text(
+                  'RESUMEN DE LA SOLICITUD',
+                  style: textTheme.labelSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.primary,
+                    letterSpacing: 1.1,
                   ),
                 ),
-              Expanded(
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 300),
-                  child: SingleChildScrollView(
-                    key: ValueKey<int>(_currentIndex),
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: _UpdateCard(update: updates[_currentIndex]),
+                leading: Icon(Icons.info_outline, color: colorScheme.primary, size: 20),
+                children: [
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: MediaQuery.of(context).size.height * 0.4, // Límite de expansión
+                    ),
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      child: Text(
+                        _requestDetails?['Summary'] ?? _requestDetails?['description'] ?? 'Sin descripción.',
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onSurface,
+                          height: 1.5,
+                        ),
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
-            ],
-          );
-        },
+            ),
+          Expanded(
+            child: FutureBuilder<List<Map<String, dynamic>>>(
+              future: _updatesFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return Center(child: Text('Error: ${snapshot.error}'));
+                }
+                if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.chat_bubble_outline, size: 48, color: colorScheme.outline),
+                        const SizedBox(height: 16),
+                        Text('No hay respuestas aún', style: textTheme.bodyLarge?.copyWith(color: colorScheme.outline)),
+                      ],
+                    ),
+                  );
+                }
+
+                final updates = snapshot.data!;
+                return ListView.separated(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: updates.length,
+                  separatorBuilder: (context, index) => const SizedBox(height: 16),
+                  itemBuilder: (context, index) => _UpdateCard(update: updates[index]),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -107,8 +174,11 @@ class _UpdateCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final created = DateTime.tryParse(update['Created'] ?? '')?.toLocal();
-    final formattedDate = created != null ? '${created.day}/${created.month}/${created.year} a las ${created.hour}:${created.minute.toString().padLeft(2, '0')}' : 'Fecha desconocida';
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    final created = DateTime.tryParse(update['Created'] ?? '');
+    final formattedDate = created != null ? '${created.day}/${created.month}/${created.year} a las ${created.hour.toString().padLeft(2, '0')}:${created.minute.toString().padLeft(2, '0')}' : 'Fecha desconocida';
     final result = update['Result'] ?? 'Sin resultado.';
     final confidential = update['ConfidentialTypeEntry']?['identifier'] ?? 'N/A';
     final isPrinted = update['IsPrinted'] == true;
@@ -127,8 +197,12 @@ class _UpdateCard extends StatelessWidget {
     }
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      elevation: 2,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: colorScheme.outlineVariant, width: 1),
+      ),
+      color: colorScheme.surface,
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -137,33 +211,68 @@ class _UpdateCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(formattedDate, style: Theme.of(context).textTheme.bodySmall),
-                Wrap(
-                  spacing: 8.0,
+                Row(
                   children: [
-                    Chip(
-                      label: Text(confidential, style: const TextStyle(fontSize: 10)),
-                      padding: EdgeInsets.zero,
-                      visualDensity: VisualDensity.compact,
+                    Icon(Icons.account_circle, size: 20, color: colorScheme.primary),
+                    const SizedBox(width: 8),
+                    Text(
+                      formattedDate,
+                      style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant, fontWeight: FontWeight.bold),
                     ),
-                    Chip(
-                      label: Text(isPrinted ? 'Impreso' : 'No Impreso', style: const TextStyle(fontSize: 10)),
-                      avatar: Icon(isPrinted ? Icons.print_outlined : Icons.print_disabled_outlined, size: 12),
-                      padding: EdgeInsets.zero,
-                      visualDensity: VisualDensity.compact,
-                    ),
+                  ],
+                ),
+                Wrap(
+                  spacing: 4.0,
+                  children: [
+                    _buildBadge(context, confidential, colorScheme.tertiaryContainer, colorScheme.onTertiaryContainer),
+                    if (isPrinted) _buildBadge(context, 'Impreso', colorScheme.primaryContainer, colorScheme.onPrimaryContainer, icon: Icons.print),
                   ],
                 ),
               ],
             ),
-            const Divider(),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12.0),
+              child: Divider(height: 1),
+            ),
             Html(
               data: result,
-              style: {"body": Style(margin: Margins.zero, padding: HtmlPaddings.zero)},
+              style: {
+                "body": Style(
+                  margin: Margins.zero,
+                  padding: HtmlPaddings.zero,
+                  fontSize: FontSize(14),
+                  fontFamily: 'Poppins',
+                  color: colorScheme.onSurface,
+                )
+              },
             ),
-            if (imageIds.isNotEmpty) ...[const SizedBox(height: 12), Wrap(spacing: 8, runSpacing: 8, children: imageIds.map((id) => _ImagePreview(imageId: id)).toList())],
+            if (imageIds.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: imageIds.map((id) => _ImagePreview(imageId: id)).toList(),
+              )
+            ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildBadge(BuildContext context, String label, Color bgColor, Color textColor, {IconData? icon}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[Icon(icon, size: 10, color: textColor), const SizedBox(width: 4)],
+          Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: textColor)),
+        ],
       ),
     );
   }
@@ -171,7 +280,8 @@ class _UpdateCard extends StatelessWidget {
 
 class _AddUpdateDialog extends StatefulWidget {
   final int requestId;
-  const _AddUpdateDialog({required this.requestId});
+  final String summary;
+  const _AddUpdateDialog({required this.requestId, required this.summary});
 
   @override
   State<_AddUpdateDialog> createState() => _AddUpdateDialogState();
@@ -262,6 +372,43 @@ class _AddUpdateDialogState extends State<_AddUpdateDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Resumen de referencia con scroll si es muy largo (Estilo Neutro)
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 120),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'REFERENCIA: RESUMEN DE LA SOLICITUD',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).colorScheme.primary,
+                              letterSpacing: 1.0,
+                            ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        widget.summary,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context).colorScheme.onSurface,
+                              height: 1.4,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
             CustomTextField(controller: _resultController, label: 'Resultado o comentario *', maxLines: 5),
             const SizedBox(height: 16),
             Row(

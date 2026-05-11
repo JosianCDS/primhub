@@ -42,7 +42,7 @@ class _SplashLoadingPageState extends State<SplashLoadingPage> with SingleTicker
     if (mounted) {
       // 3. Acelera la animación para que llegue al 100% de inmediato y sin esperas innecesarias.
       if (_progressController.value < 1.0) {
-        await _progressController.animateTo(1.0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+        await _progressController.animateTo(1.0, duration: const Duration(milliseconds: 50), curve: Curves.easeOut);
       }
       // 4. Navega a la pantalla principal.
       context.go('/');

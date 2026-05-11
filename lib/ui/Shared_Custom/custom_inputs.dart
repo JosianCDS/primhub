@@ -19,6 +19,9 @@ class CustomTextField extends StatelessWidget {
   final ScrollController? scrollController;
   // --- Nuevo parámetro añadido ---
   final List<TextInputFormatter>? inputFormatters;
+  final ValueChanged<String>? onChanged;
+  final bool autofocus;
+
 
   const CustomTextField({
     super.key,
@@ -38,6 +41,8 @@ class CustomTextField extends StatelessWidget {
     this.maxLength,
     this.scrollController,
     this.inputFormatters, // Se añade al constructor
+    this.onChanged,
+    this.autofocus = false,
   });
 
   @override
@@ -56,6 +61,8 @@ class CustomTextField extends StatelessWidget {
         keyboardType: keyboardType,
         readOnly: readOnly,
         inputFormatters: inputFormatters, // Se pasa al TextFormField nativo
+        onChanged: onChanged,
+        autofocus: autofocus,
         decoration: InputDecoration(
           labelText: label,
           hintText: hintText,

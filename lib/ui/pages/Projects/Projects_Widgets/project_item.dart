@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/access_control.dart';
-import 'package:primhub/ui/pages/Projects/Projects_Widgets/phase_item.dart';
-import 'package:primhub/ui/pages/Projects/Projects_Widgets/task_item.dart';
 import 'package:primhub/ui/pages/Projects/dialogs/item_edit_dialog.dart';
 import 'package:primhub/ui/pages/Projects/dialogs/phase_create_dialog.dart';
 import 'package:primhub/ui/pages/Projects/dialogs/project_calendar_dialog.dart';
 import 'package:primhub/ui/pages/Projects/dialogs/project_info_dialog.dart';
+import 'package:primhub/ui/pages/Projects/Projects_Widgets/phase_item.dart';
+import 'package:primhub/ui/pages/Projects/Projects_Widgets/task_item.dart';
 
 class ProjectItem extends StatelessWidget {
   final Map<String, dynamic> project;
@@ -49,126 +49,184 @@ class ProjectItem extends StatelessWidget {
 
     final int projId = project['id'] is int ? project['id'] as int : int.tryParse(project['id'].toString()) ?? 0;
     return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ExpansionTile(
-        key: Key('project-$projId'),
-        initiallyExpanded: isExpanded,
-        leading: const Icon(Icons.folder, color: Color(0xFF4F47E5)),
-        title: Row(
-          children: [
-            Expanded(
-              child: Text(project['Name'] ?? 'Sin Nombre', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            ),
-            if (phases.isNotEmpty) ...[const Icon(Icons.layers_outlined, size: 16, color: Colors.grey), const SizedBox(width: 4), Text('${phases.length}', style: const TextStyle(fontSize: 14, color: Colors.grey)), const SizedBox(width: 8)],
-          ],
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (project['Description'] != null) Text(project['Description'], style: const TextStyle(fontSize: 12, color: Colors.grey)),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 16.0,
-              runSpacing: 8.0,
-              children: [
-                _buildActionButton(Icons.folder_open, 'Entregables', Colors.orange, () => onShowFiles(project, 'Entregables') /*, hasPending: stats?['pendingEt'] ?? false*/),
-                _buildActionButton(Icons.assignment, 'Seguimiento', Colors.blue, () => onShowFiles(project, 'Seguimiento') /*, hasPending: stats?['pendingSg'] ?? false*/),
-                _buildActionButton(Icons.assignment_add, 'General', Colors.grey, () => onShowFiles(project, 'General') /*, hasPending: stats?['pendingGn'] ?? false*/),
-                if (AccessControl.isAdmin)
-                  _buildActionButton(Icons.calendar_today, 'Calendario', Colors.purple, () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => ProjectCalendarDialog(project: project),
-                    );
-                  }),
-                if (AccessControl.isAdmin)
-                  _buildActionButton(Icons.list_alt, 'Solicitudes', Colors.indigo, () {
-                    context.push('/project-requests', extra: {'projectId': projId, 'showAllGroups': true});
-                  }),
-                if (AccessControl.isAdmin)
-                  _buildActionButton(Icons.info_outline, 'Información', Colors.teal, () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => ProjectInfoDialog(project: project),
-                    );
-                  }),
-              ],
-            ),
-          ],
-        ),
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                if (AccessControl.canCreateProjectItems && !isArchived)
-                  TextButton.icon(
-                    icon: const Icon(Icons.add),
-                    label: const Text('Nueva Fase'),
-                    onPressed: () {
-                      showDialog(
-                        context: context,
-                        builder: (context) => PhaseCreateDialog(onSave: (name, desc) => onCreatePhase(projId, name, desc)),
-                      );
-                    },
-                  ),
-                if (AccessControl.canEditProject)
-                  IconButton(
-                    icon: const Icon(Icons.edit, size: 20),
-                    tooltip: isArchived ? 'Reactivar Proyecto' : 'Editar Proyecto',
-                    onPressed: () {
-                      onEdit('project', projId, project['Name'] ?? '', project['Description'] ?? '');
-                    },
-                  ),
-              ],
-            ),
+      margin: const EdgeInsets.only(bottom: 16, left: 4, right: 4),
+      elevation: 3,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey[200]!, width: 1),
+      ),
+      child: Container(
+        decoration: const BoxDecoration(
+          border: Border(
+            left: BorderSide(color: Color(0xFF4F47E5), width: 6),
           ),
-          const Divider(),
-          if (phases.isEmpty && directTasks.isEmpty) const Padding(padding: EdgeInsets.all(16.0), child: Text('No hay fases ni tareas registradas.')),
-          ...phases.map((phase) => PhaseItem(phase: phase, initiallyExpanded: isExpanded, statusIdMap: statusIdMap, priorityMap: priorityMap, onRefresh: onRefresh, onEdit: onEdit, onCreateTask: onCreateTask, isArchived: isArchived, projectId: projId)),
-          ...directTasks.map((task) => TaskItem(task: task, initiallyExpanded: isExpanded, statusIdMap: statusIdMap, priorityMap: priorityMap, onRefresh: onRefresh, onEdit: onEdit, isArchived: isArchived, projectId: projId)),
-        ],
+        ),
+        child: ExpansionTile(
+          key: Key('project-$projId'),
+          initiallyExpanded: isExpanded,
+          backgroundColor: Colors.white,
+          collapsedBackgroundColor: Colors.white,
+          iconColor: const Color(0xFF4F47E5),
+          leading: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.indigo[50],
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(Icons.folder, color: Color(0xFF4F47E5), size: 24),
+          ),
+          title: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  project['Name'] ?? 'Sin Nombre',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 17,
+                    color: Color(0xFF1E293B),
+                  ),
+                ),
+              ),
+              if (phases.isNotEmpty) ...[
+                const Icon(Icons.layers_outlined, size: 16, color: Colors.grey),
+                const SizedBox(width: 4),
+                Text('${phases.length}', style: const TextStyle(fontSize: 14, color: Colors.grey)),
+                const SizedBox(width: 8)
+              ],
+            ],
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (project['Description'] != null)
+                Text(
+                  project['Description'],
+                  style: const TextStyle(fontSize: 12, color: Colors.blueGrey),
+                ),
+              const SizedBox(height: 12),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _buildActionButton(Icons.folder_open, 'Entregables', Colors.orange, () => onShowFiles(project, 'Entregables')),
+                    const SizedBox(width: 8),
+                    _buildActionButton(Icons.assignment, 'Seguimiento', Colors.blue, () => onShowFiles(project, 'Seguimiento')),
+                    const SizedBox(width: 8),
+                    _buildActionButton(Icons.assignment_add, 'General', Colors.grey, () => onShowFiles(project, 'General')),
+                    const SizedBox(width: 8),
+                    if (AccessControl.isAdmin)
+                      _buildActionButton(Icons.calendar_today, 'Calendario', Colors.purple, () {
+                        showDialog(
+                          context: context,
+                          builder: (context) => ProjectCalendarDialog(project: project),
+                        );
+                      }),
+                    const SizedBox(width: 8),
+                    if (AccessControl.isAdmin)
+                      _buildActionButton(Icons.list_alt, 'Solicitudes', Colors.indigo, () {
+                        context.push('/project-requests', extra: {'projectId': projId, 'showAllGroups': true});
+                      }),
+                    const SizedBox(width: 8),
+                    if (AccessControl.isAdmin)
+                      _buildActionButton(Icons.info_outline, 'Información', Colors.teal, () {
+                        showDialog(
+                          context: context,
+                          builder: (context) => ProjectInfoDialog(project: project),
+                        );
+                      }),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          children: [
+            Container(
+              color: Colors.grey[50]?.withOpacity(0.5),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Estructura del Proyecto',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey,
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            if (AccessControl.canCreateProjectItems && !isArchived)
+                              TextButton.icon(
+                                icon: const Icon(Icons.add, size: 18),
+                                label: const Text('Nueva Fase', style: TextStyle(fontSize: 13)),
+                                onPressed: () {
+                                  showDialog(
+                                    context: context,
+                                    builder: (context) => PhaseCreateDialog(onSave: (name, desc) => onCreatePhase(projId, name, desc)),
+                                  );
+                                },
+                              ),
+                            if (AccessControl.canEditProject)
+                              IconButton(
+                                icon: const Icon(Icons.edit, size: 18, color: Colors.blueGrey),
+                                tooltip: isArchived ? 'Reactivar Proyecto' : 'Editar Proyecto',
+                                onPressed: () {
+                                  onEdit('project', projId, project['Name'] ?? '', project['Description'] ?? '');
+                                },
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  if (phases.isEmpty && directTasks.isEmpty)
+                    const Padding(padding: EdgeInsets.all(24.0), child: Text('No hay fases ni tareas registradas.', style: TextStyle(color: Colors.grey))),
+                  const SizedBox(height: 8),
+                  ...phases.map((phase) => PhaseItem(phase: phase, initiallyExpanded: isExpanded, statusIdMap: statusIdMap, priorityMap: priorityMap, onRefresh: onRefresh, onEdit: onEdit, onCreateTask: onCreateTask, isArchived: isArchived, projectId: projId)),
+                  ...directTasks.map((task) => TaskItem(task: task, initiallyExpanded: isExpanded, statusIdMap: statusIdMap, priorityMap: priorityMap, onRefresh: onRefresh, onEdit: onEdit, isArchived: isArchived, projectId: projId)),
+                  const SizedBox(height: 12),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildActionButton(IconData icon, String label, Color color, VoidCallback onPressed /*, {bool hasPending = false}*/) {
+  Widget _buildActionButton(IconData icon, String label, Color color, VoidCallback onPressed) {
     return InkWell(
       onTap: onPressed,
       borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
+      hoverColor: color.withOpacity(0.1), // Sombreado sutil al pasar el mouse
+      splashColor: color.withOpacity(0.2),
+      highlightColor: color.withOpacity(0.05),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 12.0),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          // Se puede añadir un borde sutil si se desea más definición
+        ),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Stack(
-              children: [
-                Icon(icon, color: color, size: 24),
-                // if (hasPending)
-                //   Positioned(
-                //     right: 0,
-                //     top: 0,
-                //     child: Container(
-                //       width: 8,
-                //       height: 8,
-                //       decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
-                //     ),
-                //   )
-                // else
-                //   Positioned(
-                //     right: 0,
-                //     top: 0,
-                //     child: Container(
-                //       width: 8,
-                //       height: 8,
-                //       decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle),
-                //     ),
-                //   ),
-              ],
+            Icon(icon, color: color, size: 24),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: color,
+              ),
             ),
-            Text(label, style: TextStyle(fontSize: 10, color: color)),
           ],
         ),
       ),
