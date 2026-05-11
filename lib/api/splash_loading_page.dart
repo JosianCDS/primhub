@@ -18,8 +18,8 @@ class _SplashLoadingPageState extends State<SplashLoadingPage> with SingleTicker
   void initState() {
     super.initState();
 
-    // Animación base ajustada al máximo permitido (6 segundos).
-    _progressController = AnimationController(vsync: this, duration: const Duration(seconds: 6));
+    // Animación base ajustada al máximo permitido (8 segundos).
+    _progressController = AnimationController(vsync: this, duration: const Duration(seconds: 8));
 
     _progressAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _progressController, curve: Curves.easeOutQuart));
 
@@ -36,8 +36,8 @@ class _SplashLoadingPageState extends State<SplashLoadingPage> with SingleTicker
     // 1. Inicia la animación para que el usuario vea el progreso.
     _progressController.forward();
 
-    // 2. Carga los datos esenciales, pero forzando un tiempo máximo de 6 segundos.
-    await Future.any([GlobalCache.syncData(), Future.delayed(const Duration(seconds: 6))]);
+    // 2. Carga los datos esenciales, pero forzando un tiempo máximo de 8 segundos.
+    await Future.any([GlobalCache.syncData(force: true), Future.delayed(const Duration(seconds: 8))]);
 
     if (mounted) {
       // 3. Acelera la animación para que llegue al 100% de inmediato y sin esperas innecesarias.

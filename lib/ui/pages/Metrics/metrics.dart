@@ -298,118 +298,34 @@ class _MetricsPageState extends State<MetricsPage> {
     setState(() => _isLoading = true);
 
     try {
-      print("DEBUG: Iniciando carga para Proyecto ID: '$_selectedProjectId'");
-
+      // 1. Obtener los datos crudos
       final requests = await GraphicsFunctions.fetchMetricsData(projectId: _selectedProjectId!);
 
-      print("DEBUG: Registros recibidos de API (Processed=false): ${requests.length}");
-
-      final Map<String, int> statusCounts = {};
-      final Map<String, int> compliancePieData = {'TERMINADA': 0, 'PENDIENTE': 0, 'ESPERA DE CLIENTE': 0};
-      final Map<String, Map<String, int>> moduleStatusCounts = {};
-      final Map<String, String> debugStatusMapping = {};
-      int totalForCompliance = 0;
-      int ignoredByGroup = 0;
-
-      for (var req in requests) {
-        final statusData = req['R_Status_ID'] as Map?;
-        final groupData = req['R_Group_ID'] as Map?;
-        final typeData = req['R_RequestType_ID'] as Map?;
-        final categoryData = req['R_Category_ID'] as Map?;
-
-        // Limpieza de nombres (quitar 10_, 20_, etc)
-        String rawStatusName = statusData?['Name'] ?? statusData?['identifier'] ?? req['R_Status_Name'] ?? 'Sin Estado';
-        String statusName = rawStatusName.contains('_') ? rawStatusName.split('_').last.trim() : rawStatusName.trim();
-
-        String categoryName = categoryData?['Name'] ?? categoryData?['identifier'] ?? 'Sin Módulo';
-
-        bool isOpen = true;
-        String lowerStatusTemp = rawStatusName.toLowerCase();
-
-        if (statusData != null && statusData['IsOpen'] != null) {
-          isOpen = (statusData['IsOpen'] == 'Y' || statusData['IsOpen'] == true);
-        } else {
-          if (req['R_Status_ID'] == 103 || req['R_Status_ID'] == 1000019 || lowerStatusTemp.contains('close') || lowerStatusTemp.contains('cerrad') || lowerStatusTemp.contains('archivada') || lowerStatusTemp.contains('aprobada') || lowerStatusTemp.contains('implementada') || lowerStatusTemp.contains('entregad')) {
-            isOpen = false;
-          }
-        }
-
-        // Validación robusta por ID de Grupo (1000006 = Requerimiento de cliente)
-        // Evita depender del texto que puede cambiar o no expandirse correctamente
-        final dynamic rawGroup = req['R_Group_ID'];
-        final String groupId = rawGroup is Map ? rawGroup['id']?.toString() ?? '' : rawGroup?.toString() ?? '';
-        final bool isClientReq = groupId == '1000006';
-
-        if (isClientReq) {
-          String lowerStatus = rawStatusName.toLowerCase();
-
-          totalForCompliance++;
-
-          // --- LÓGICA DE AGRUPACIÓN PARA EL PIE CHART ---
-          String category = 'PENDIENTE';
-
-          if (lowerStatus.contains('asignad')) {
-            category = 'PENDIENTE';
-          } else if (lowerStatus.contains('espera de cliente') || lowerStatus.contains('espera del cliente')) {
-            category = 'ESPERA DE CLIENTE';
-          } else if (!isOpen || req['R_Status_ID'] == 1000019 || lowerStatus.contains('close') || lowerStatus.contains('cerrad') || lowerStatus.contains('archivada') || lowerStatus.contains('aprobada') || lowerStatus.contains('implementada') || lowerStatus.contains('entregad') || lowerStatus.contains('anulada')) {
-            category = 'TERMINADA';
-          }
-
-          compliancePieData[category] = (compliancePieData[category] ?? 0) + 1;
-          if (!debugStatusMapping.containsKey(rawStatusName)) {
-            debugStatusMapping[rawStatusName] = category;
-            print("DEBUG MAPPING: Estado Original: '$rawStatusName' -> Asignado a: $category");
-          }
-          moduleStatusCounts.putIfAbsent(categoryName, () => {'TERMINADA': 0, 'PENDIENTE': 0, 'ESPERA DE CLIENTE': 0});
-          moduleStatusCounts[categoryName]![category] = (moduleStatusCounts[categoryName]![category] ?? 0) + 1;
-
-          statusCounts[statusName] = (statusCounts[statusName] ?? 0) + 1;
-        } else {
-          ignoredByGroup++;
-        }
-      }
-
-      print("--- DEBUG RESULTADOS FINALES ---");
-      print("Total calculado (Objetivo ~264): $totalForCompliance");
-      print("Detalle de estados: $statusCounts");
-      print("--- DEBUG CUMPLIMIENTO (PIE CHART) ---");
-      compliancePieData.forEach((key, value) => print(" -$key: $value"));
-      print("--------------------------------");
+      // 2. Calcular las métricas usando la clase dedicada
+      final metrics = ProjectMetricsCalculator.calculate(requests);
 
       if (mounted) {
         setState(() {
-          _statusLabels = statusCounts.keys.toList();
-          _statusValues = statusCounts.values.map((v) => v.toDouble()).toList();
-          _complianceLabels = compliancePieData.keys.where((k) => compliancePieData[k]! > 0).toList();
-          _complianceValues = _complianceLabels.map((k) => compliancePieData[k]!.toDouble()).toList();
+          // 3. Actualizar el estado de la UI con los datos procesados
+          _statusLabels = metrics.statusData.labels;
+          _statusValues = metrics.statusData.values;
 
-          _moduleFullLabels = moduleStatusCounts.keys.toList();
-          _moduleLabels = _moduleFullLabels.map((l) => l.length > 8 ? '${l.substring(0, 8)}.' : l).toList();
+          _complianceLabels = metrics.complianceData.labels;
+          _complianceValues = metrics.complianceData.values;
 
-          _moduleTerminadaValues = [];
-          _modulePendienteValues = [];
-          _moduleEsperaValues = [];
-          _modulePercentageValues = [];
+          _moduleLabels = metrics.moduleStatusData.labels;
+          _moduleFullLabels = metrics.moduleStatusData.fullLabels;
+          _moduleTerminadaValues = metrics.moduleStatusData.seriesValues[0];
+          _modulePendienteValues = metrics.moduleStatusData.seriesValues[1];
+          _moduleEsperaValues = metrics.moduleStatusData.seriesValues[2];
 
-          for (String mod in _moduleFullLabels) {
-            int term = moduleStatusCounts[mod]!['TERMINADA'] ?? 0;
-            int pend = moduleStatusCounts[mod]!['PENDIENTE'] ?? 0;
-            int esp = moduleStatusCounts[mod]!['ESPERA DE CLIENTE'] ?? 0;
-            int total = term + pend + esp;
+          _modulePercentageValues = metrics.modulePercentageData.values;
 
-            _moduleTerminadaValues.add(term.toDouble());
-            _modulePendienteValues.add(pend.toDouble());
-            _moduleEsperaValues.add(esp.toDouble());
-
-            double pct = total > 0 ? (term / total) * 100 : 0.0;
-            _modulePercentageValues.add(pct);
-          }
           _isLoading = false;
         });
       }
     } catch (e) {
-      print("DEBUG ERROR EN METRICS: $e");
+      debugPrint("DEBUG ERROR EN METRICS: $e");
       if (mounted) setState(() => _isLoading = false);
     }
   }

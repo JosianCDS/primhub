@@ -107,6 +107,13 @@ class HomeController extends ChangeNotifier {
       // Fase 1: Carga proyectos, maestros y las primeras 100 solicitudes (ya preparadas por el Splash)
       await GlobalCache.syncData(force: forceRefresh);
 
+      // Esperar a que la Fase 2 (carga del año actual) termine antes de continuar.
+      try {
+        if (GlobalCache.phase2SyncFuture != null) await GlobalCache.phase2SyncFuture;
+      } catch (e) {
+        debugPrint("Error esperando la Fase 2 de la caché en Home: $e");
+      }
+
       // Configuramos los proyectos para la vista actual
       await loadValidationData();
       if (AccessControl.isAdmin) {
@@ -133,8 +140,8 @@ class HomeController extends ChangeNotifier {
     // para hacer tiempo mientras siguen cargando las solicitudes en segundo plano.
     if (!_hasShownInitialSkeleton) {
       final elapsed = DateTime.now().difference(startTime);
-      if (elapsed.inSeconds < 5) {
-        await Future.delayed(const Duration(seconds: 5) - elapsed);
+      if (elapsed.inSeconds < 4) {
+        await Future.delayed(const Duration(seconds: 4) - elapsed);
       }
       _hasShownInitialSkeleton = true;
     }
@@ -336,6 +343,7 @@ class HomeController extends ChangeNotifier {
         'status': status,
         'bpName': bpName,
         'userName': userName,
+        'salesOrderNo': r['C_Order_ID'] is Map ? r['C_Order_ID']['DocumentNo'] : null,
         'original': r,
       };
     }).toList();

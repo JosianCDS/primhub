@@ -90,6 +90,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   }
 
   void _login() async {
+    TextInput.finishAutofillContext();
     setState(() {
       _isLoading = true;
     });
@@ -288,97 +289,102 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                           margin: const EdgeInsets.all(3),
                           padding: const EdgeInsets.all(29),
                           decoration: BoxDecoration(color: theme.cardColor, borderRadius: BorderRadius.circular(21)),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Container(
-                                height: 130,
-                                width: 130,
-                                decoration: BoxDecoration(color: theme.colorScheme.primary.withOpacity(0.1), shape: BoxShape.circle),
-                                child: Padding(padding: const EdgeInsets.all(12.0), child: Image.asset('assets/LogoPrimHub.png')),
-                              ),
-                              const SizedBox(height: 24),
-                              Text(
-                                'PrimHub',
-                                textAlign: TextAlign.center,
-                                style: theme.textTheme.titleLarge?.copyWith(color: theme.colorScheme.onSurface),
-                              ),
-                              const SizedBox(height: 32),
-                              TextFormField(
-                                controller: _userController,
-                                textInputAction: TextInputAction.next,
-                                focusNode: _userFocus,
-                                decoration: InputDecoration(
-                                  labelText: 'Usuario',
-                                  hintText: 'Ingrese su usuario',
-                                  prefixIcon: const Icon(Icons.person_rounded),
-                                  suffixIcon: (_userFocus.hasFocus && (_isCapsLockOn != _isShiftPressed))
-                                      ? const Tooltip(
-                                          message: 'Mayúsculas activadas',
-                                          child: Icon(Icons.keyboard_capslock_rounded, color: Colors.orange),
-                                        )
-                                      : null,
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          child: AutofillGroup(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Container(
+                                  height: 130,
+                                  width: 130,
+                                  decoration: BoxDecoration(color: theme.colorScheme.primary.withOpacity(0.1), shape: BoxShape.circle),
+                                  child: Padding(padding: const EdgeInsets.all(12.0), child: Image.asset('assets/LogoPrimHub.png')),
                                 ),
-                              ),
-                              const SizedBox(height: 16),
-                              TextFormField(
-                                controller: _passController,
-                                obscureText: _obscurePassword,
-                                textInputAction: TextInputAction.done,
-                                onFieldSubmitted: (_) => _login(),
-                                focusNode: _passFocus,
-                                decoration: InputDecoration(
-                                  labelText: 'Contraseña',
-                                  hintText: 'Ingrese su contraseña',
-                                  prefixIcon: const Icon(Icons.lock_rounded),
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                                  suffixIcon: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      if (_passFocus.hasFocus && (_isCapsLockOn != _isShiftPressed))
-                                        const Tooltip(
-                                          message: 'Mayúsculas activadas',
-                                          child: Icon(Icons.keyboard_capslock_rounded, color: Colors.orange),
-                                        ),
-                                      IconButton(
-                                        icon: Icon(_obscurePassword ? Icons.visibility_rounded : Icons.visibility_off_rounded),
-                                        onPressed: () {
-                                          setState(() => _obscurePassword = !_obscurePassword);
-                                        },
-                                      ),
-                                    ],
+                                const SizedBox(height: 24),
+                                Text(
+                                  'PrimHub',
+                                  textAlign: TextAlign.center,
+                                  style: theme.textTheme.titleLarge?.copyWith(color: theme.colorScheme.onSurface),
+                                ),
+                                const SizedBox(height: 32),
+                                TextFormField(
+                                  controller: _userController,
+                                  textInputAction: TextInputAction.next,
+                                  focusNode: _userFocus,
+                                  autofillHints: const [AutofillHints.username],
+                                  decoration: InputDecoration(
+                                    labelText: 'Usuario',
+                                    hintText: 'Ingrese su usuario',
+                                    prefixIcon: const Icon(Icons.person_rounded),
+                                    suffixIcon: (_userFocus.hasFocus && (_isCapsLockOn != _isShiftPressed))
+                                        ? const Tooltip(
+                                            message: 'Mayúsculas activadas',
+                                            child: Icon(Icons.keyboard_capslock_rounded, color: Colors.orange),
+                                          )
+                                        : null,
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(height: 24),
-                              AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 500),
-                                switchInCurve: Curves.elasticOut,
-                                switchOutCurve: Curves.easeIn,
-                                transitionBuilder: (child, animation) => ScaleTransition(scale: animation, child: child),
-                                child: _isLoading
-                                    ? Container(
-                                        key: const ValueKey('loading'),
-                                        width: double.infinity,
-                                        padding: const EdgeInsets.symmetric(vertical: 16),
-                                        decoration: BoxDecoration(color: theme.colorScheme.primary, borderRadius: BorderRadius.circular(12)),
-                                        child: Row(
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          children: [
-                                            Text(
-                                              _loadingMessage,
-                                              style: TextStyle(color: theme.colorScheme.onPrimary, fontWeight: FontWeight.bold, fontSize: 16),
-                                            ),
-                                            const SizedBox(width: 12),
-                                            SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: theme.colorScheme.onPrimary, strokeWidth: 2)),
-                                          ],
+                                const SizedBox(height: 16),
+                                TextFormField(
+                                  controller: _passController,
+                                  obscureText: _obscurePassword,
+                                  textInputAction: TextInputAction.done,
+                                  onFieldSubmitted: (_) => _login(),
+                                  focusNode: _passFocus,
+                                  autofillHints: const [AutofillHints.password],
+                                  onEditingComplete: _login, // Para que el autocompletado funcione mejor
+                                  decoration: InputDecoration(
+                                    labelText: 'Contraseña',
+                                    hintText: 'Ingrese su contraseña',
+                                    prefixIcon: const Icon(Icons.lock_rounded),
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                    suffixIcon: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (_passFocus.hasFocus && (_isCapsLockOn != _isShiftPressed))
+                                          const Tooltip(
+                                            message: 'Mayúsculas activadas',
+                                            child: Icon(Icons.keyboard_capslock_rounded, color: Colors.orange),
+                                          ),
+                                        IconButton(
+                                          icon: Icon(_obscurePassword ? Icons.visibility_rounded : Icons.visibility_off_rounded),
+                                          onPressed: () {
+                                            setState(() => _obscurePassword = !_obscurePassword);
+                                          },
                                         ),
-                                      )
-                                    : CustomButton(key: const ValueKey('button'), text: 'Ingresar', onPressed: _login, isLoading: false, width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 16), borderRadius: 12),
-                              ),
-                            ],
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 24),
+                                AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 500),
+                                  switchInCurve: Curves.elasticOut,
+                                  switchOutCurve: Curves.easeIn,
+                                  transitionBuilder: (child, animation) => ScaleTransition(scale: animation, child: child),
+                                  child: _isLoading
+                                      ? Container(
+                                          key: const ValueKey('loading'),
+                                          width: double.infinity,
+                                          padding: const EdgeInsets.symmetric(vertical: 16),
+                                          decoration: BoxDecoration(color: theme.colorScheme.primary, borderRadius: BorderRadius.circular(12)),
+                                          child: Row(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              Text(
+                                                _loadingMessage,
+                                                style: TextStyle(color: theme.colorScheme.onPrimary, fontWeight: FontWeight.bold, fontSize: 16),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: theme.colorScheme.onPrimary, strokeWidth: 2)),
+                                            ],
+                                          ),
+                                        )
+                                      : CustomButton(key: const ValueKey('button'), text: 'Ingresar', onPressed: _login, isLoading: false, width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 16), borderRadius: 12),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ],

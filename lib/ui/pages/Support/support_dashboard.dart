@@ -49,6 +49,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
   int _currentPage = 0;
   int _rowsPerPage = 25;
   bool _isAscending = false;
+  List<int> _selectedYears = [DateTime.now().year];
 
   @override
   void initState() {
@@ -92,6 +93,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
         _selectedBpId = AccessControl.isAdmin ? null : User.cBPartnerID;
       }
       _initData();
+      GlobalCache.loadArchivedRequests();
       _isInit = false;
     }
   }
@@ -420,6 +422,14 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
 
   List<Map<String, dynamic>> _getFilteredRecords() {
     var filtered = _supportRecords.where((record) {
+      // Filtro por año
+      if (_selectedYears.isNotEmpty) {
+        final recordYear = DateTime.tryParse(record['time'] ?? '')?.year;
+        if (recordYear == null || !_selectedYears.contains(recordYear)) {
+          return false;
+        }
+      }
+
       if (_searchController.text.isNotEmpty) {
         final search = _searchController.text.toLowerCase();
         final matchId = record['id']?.toString().toLowerCase().contains(search) ?? false;
@@ -439,6 +449,52 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
     });
 
     return filtered;
+  }
+
+  Future<void> _showYearFilterModal() async {
+    final List<int> availableYears = List.generate(10, (i) => DateTime.now().year - i);
+    final List<int>? result = await showDialog<List<int>>(
+      context: context,
+      builder: (context) {
+        List<int> tempSelection = List.from(_selectedYears);
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return CustomModal(
+              title: 'Seleccionar Años',
+              content: SizedBox(
+                height: 300,
+                child: ListView(
+                  children: [
+                    CheckboxListTile(
+                        title: const Text('Todos los Años'),
+                        value: tempSelection.isEmpty,
+                        onChanged: (v) => setDialogState(() => tempSelection.clear())),
+                    const Divider(),
+                    ...availableYears.map((year) {
+                      return CheckboxListTile(
+                        title: Text(year.toString()),
+                        value: tempSelection.contains(year),
+                        onChanged: (bool? selected) {
+                          setDialogState(() {
+                            if (selected == true) tempSelection.add(year);
+                            if (selected == false) tempSelection.remove(year);
+                          });
+                        },
+                      );
+                    }),
+                  ],
+                ),
+              ),
+              actions: [TextButton(onPressed: () => Navigator.pop(context, null), child: const Text('Cancelar')), CustomButton(text: 'Aplicar', onPressed: () => Navigator.pop(context, tempSelection))],
+            );
+          },
+        );
+      },
+    );
+
+    if (result == null) return;
+    setState(() => _selectedYears = result..sort((a, b) => b.compareTo(a)));
+    await GlobalCache.fetchRequestsForYears(_selectedYears);
   }
 
   @override

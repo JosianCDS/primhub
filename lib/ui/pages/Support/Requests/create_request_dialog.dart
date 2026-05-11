@@ -73,12 +73,9 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
   @override
   void initState() {
     super.initState();
-    _fetchStatuses();
-    _fetchRequestTypes();
-    _fetchCategories();
-    _fetchGroups();
-    _fetchSalesReps(); // Cargar representantes de ventas al inicio
-    // No se cargan usuarios de contacto al inicio, se espera a que se seleccione un tercero.
+    _salesReps = GlobalCache.salesReps;
+    _isLoadingSalesReps = false;
+    _fetchInitialData();
     final now = DateTime.now();
     final todayStr = "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
     _dateStartController.text = todayStr;
@@ -98,6 +95,10 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
       _selectedBpId = User.cBPartnerID;
       _fetchUsers(); // Cargar usuarios para el tercero del usuario actual
     }
+  }
+
+  Future<void> _fetchInitialData() async {
+    await Future.wait([_fetchStatuses(), _fetchRequestTypes(), _fetchCategories(), _fetchGroups()]);
   }
 
   Future<void> _fetchBPartners() async {
@@ -271,28 +272,6 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
       }
     } catch (e) {
       if (mounted) setState(() => _isLoadingUsers = false);
-    }
-  }
-
-  Future<void> _fetchSalesReps() async {
-    try {
-      final logic = ProjectsLogic();
-      final allBps = await logic.fetchBPartners();
-
-      if (mounted) {
-        setState(() {
-          _salesReps = allBps.where((bp) {
-            // Buscamos todas las variantes posibles del campo en el JSON
-            final isRep = bp['IsSalesRep'] ?? bp['isSalesRep'] ?? bp['C_BPartner0IsSalesRep'] ?? false;
-
-            return isRep == 'Y' || isRep == true;
-          }).toList();
-
-          _isLoadingSalesReps = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) setState(() => _isLoadingSalesReps = false);
     }
   }
 
@@ -551,6 +530,50 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
       return;
     }
 
+    // --- LÓGICA PARA SELECCIONAR ORDEN DE VENTA ---
+    int? orderId;
+    if (widget.linkedRecordUU == null && bpId != null) {
+      // Solo aplica para solicitudes de soporte, no para las de tareas de proyecto.
+      final contracts = await ContractApi.getSupportContracts(bPartnerId: bpId);
+      if (contracts.length > 1) {
+        // Si hay más de un contrato, mostrar modal para seleccionar.
+        orderId = await showDialog<int>(
+          context: context,
+          builder: (context) {
+            int? tempOrderId;
+            return StatefulBuilder(
+              builder: (context, setModalState) {
+                return CustomModal(
+                  title: 'Seleccionar Contrato',
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('Este tercero tiene múltiples contratos de soporte. Por favor, seleccione de cuál se deben descontar las horas.'),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<int>(
+                        value: tempOrderId,
+                        hint: const Text('Seleccione un contrato'),
+                        items: contracts.map((c) => DropdownMenuItem(value: c['id'] as int, child: Text(c['DocumentNo'] as String))).toList(),
+                        onChanged: (val) => setModalState(() => tempOrderId = val),
+                        validator: (val) => val == null ? 'Debe seleccionar un contrato' : null,
+                      ),
+                    ],
+                  ),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(context, null), child: const Text('Cancelar')),
+                    CustomButton(text: 'Confirmar', onPressed: () => Navigator.pop(context, tempOrderId)),
+                  ],
+                );
+              },
+            );
+          },
+        );
+        if (orderId == null) return;
+      } else if (contracts.length == 1) {
+        orderId = contracts.first['id'] as int?;
+      }
+    }
+
     final bool? confirm = await showDialog<bool>(
       context: context,
       builder: (context) => CustomModal(
@@ -566,6 +589,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     if (confirm != true) return;
 
     if (!mounted) return;
+
     if (!_isSubmitting) setState(() => _isSubmitting = true);
 
     try {
@@ -580,7 +604,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
 
       // Inyectamos directamente la relación a la tabla y el UUID en el modelo R_Request
       // asegurando que herede el proyecto y se vincule a la tarea.
-      await _createManualRequest(clientId, orgId, userId, openStatusId, isFullAccess);
+      await _createManualRequest(clientId, orgId, userId, openStatusId, isFullAccess, orderId);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
@@ -590,7 +614,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     }
   }
 
-  Future<void> _createManualRequest(int? clientId, int? orgId, int? userId, int openStatusId, bool isFullAccess) async {
+  Future<void> _createManualRequest(int? clientId, int? orgId, int? userId, int openStatusId, bool isFullAccess, int? orderId) async {
     final url = Uri.parse(Endpoint.request);
     double qty = double.tryParse(_qtyUsedController.text) ?? 0.0;
 
@@ -600,6 +624,10 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
       'R_RequestType_ID': {'id': _requestTypeMap[_selectedType!]},
       'R_Status_ID': {'id': isFullAccess ? (_statusIdMap[_selectedStatus] ?? openStatusId) : openStatusId},
     };
+
+    if (orderId != null) {
+      data['C_Order_ID'] = {'id': orderId};
+    }
 
     if (_emailSubjectController.text.isNotEmpty) {
       data['CDS_EmailSubject'] = _emailSubjectController.text;
@@ -826,46 +854,8 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                         value: _selectedSalesRepId,
                         isLoading: _isLoadingSalesReps,
                         isDisabled: false,
-                        displayText: _selectedSalesRepId != null && _salesReps.any((u) => (u['AD_User_ID'] ?? u['id']) == _selectedSalesRepId) ? _salesReps.firstWhere((u) => (u['AD_User_ID'] ?? u['id']) == _selectedSalesRepId)['Name'] ?? '' : '',
-                        onTap: () => _openSearchModal<int>(
-                          title: 'Representante Comercial',
-                          items: _salesReps.where((u) => (u['AD_User_ID'] ?? u['id']) != null).toList(),
-                          currentValue: _selectedSalesRepId,
-                          getTitle: (item) => item['Name'] ?? 'Sin Nombre',
-                          getSubtitle: (item) => 'ID: ${item['AD_User_ID'] ?? item['id']}',
-                          getValue: (item) => (item['AD_User_ID'] ?? item['id']) as int,
-                          onSelected: (val) => setState(() => _selectedSalesRepId = val),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: _buildSearchableField<String>(
-                        label: 'Tipo de Solicitud',
-                        hintText: 'Seleccione Tipo',
-                        value: _selectedType,
-                        isLoading: _isLoadingTypes,
-                        isDisabled: false,
-                        displayText: _selectedType ?? '',
-                        onTap: () => _openSearchModal<String>(title: 'Tipo de Solicitud', items: _requestTypeMap.keys.toList(), currentValue: _selectedType, getTitle: (item) => item.toString(), getValue: (item) => item.toString(), onSelected: (val) => setState(() => _selectedType = val)),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: _buildSearchableField<String>(
-                        label: 'Categoría',
-                        hintText: 'Seleccione Categoría',
-                        value: _selectedCategory,
-                        isLoading: _isLoadingCategories,
-                        isDisabled: false,
-                        displayText: _selectedCategory ?? '',
-                        onTap: () => _openSearchModal<String>(title: 'Categoría', items: _categoryMap.keys.toList(), currentValue: _selectedCategory, getTitle: (item) => item.toString(), getValue: (item) => item.toString(), onSelected: (val) => setState(() => _selectedCategory = val)),
+                        displayText: _selectedSalesRepId != null && _salesReps.any((u) => u['id'] == _selectedSalesRepId) ? _salesReps.firstWhere((u) => u['id'] == _selectedSalesRepId)['Name'] ?? '' : '',
+                        onTap: () => _openSearchModal<int>(title: 'Representante Comercial', items: _salesReps, currentValue: _selectedSalesRepId, getTitle: (item) => item['Name'] ?? 'Sin Nombre', getSubtitle: (item) => 'ID: ${item['id']}', getValue: (item) => item['id'] as int, onSelected: (val) => setState(() => _selectedSalesRepId = val)),
                       ),
                     ),
                   ],
@@ -899,14 +889,14 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                         value: _selectedSalesRepId,
                         isLoading: _isLoadingSalesReps, // Usar el estado de carga correcto
                         isDisabled: false,
-                        displayText: _selectedSalesRepId != null && _salesReps.any((u) => (u['AD_User_ID'] ?? u['id']) == _selectedSalesRepId) ? _salesReps.firstWhere((u) => (u['AD_User_ID'] ?? u['id']) == _selectedSalesRepId)['Name'] ?? '' : '', // Usar la lista correcta
+                        displayText: _selectedSalesRepId != null && _salesReps.any((u) => u['id'] == _selectedSalesRepId) ? _salesReps.firstWhere((u) => u['id'] == _selectedSalesRepId)['Name'] ?? '' : '', // Usar la lista correcta
                         onTap: () => _openSearchModal<int>(
                           title: 'Representante Comercial',
-                          items: _salesReps.where((u) => (u['AD_User_ID'] ?? u['id']) != null).toList(), // Usar la lista correcta
+                          items: _salesReps, // Usar la lista correcta
                           currentValue: _selectedSalesRepId,
                           getTitle: (item) => item['Name'] ?? 'Sin Nombre',
-                          getSubtitle: (item) => 'ID: ${item['AD_User_ID'] ?? item['id']}',
-                          getValue: (item) => (item['AD_User_ID'] ?? item['id']) as int,
+                          getSubtitle: (item) => 'ID: ${item['id']}',
+                          getValue: (item) => item['id'] as int,
                           onSelected: (val) => setState(() => _selectedSalesRepId = val),
                         ),
                       ),

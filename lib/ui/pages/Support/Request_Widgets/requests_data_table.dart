@@ -1,21 +1,22 @@
 import 'dart:convert';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
 import 'package:primhub/api/access_control.dart';
+import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ImagesManagment/fecthAttachments.dart';
 import 'package:primhub/ImagesManagment/postAttachments.dart';
 import 'package:primhub/ImagesManagment/downloadAttachments.dart';
-import 'package:primhub/endpoint/endpoint.dart';
-import 'package:http/http.dart' as http;
 import 'package:primhub/api/token.dart';
 import 'package:primhub/ui/pages/Projects/Projects_Widgets/file_preview_manager.dart';
 import 'package:primhub/ui/widgets/duration_formatter.dart';
 import 'package:primhub/ui/pages/Support/Requests/bulk_edit_request_dialog.dart';
 import 'dart:math';
+import 'package:primhub/ui/Shared_Custom/responsive_data_table.dart';
 
 class RequestsDataTable extends StatefulWidget {
   final List<Map<String, dynamic>> requests;
@@ -80,288 +81,202 @@ class _RequestsDataTableState extends State<RequestsDataTable> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    // --- 1. Definir las columnas fijas y desplazables ---
-    final fixedColumns = <DataColumn>[
-      if (AccessControl.canManageRequests)
-        DataColumn(
-          label: Checkbox(value: (widget.requests.isNotEmpty && _selectedIds.length == widget.requests.length) ? true : (_selectedIds.isNotEmpty ? null : false), tristate: true, onChanged: (val) => _handleSelectAll(val == true)),
-        ),
-      const DataColumn(label: Text('Acciones')),
-      const DataColumn(label: Text('Ticket')),
-      const DataColumn(label: Text('Tipo de Solicitud')),
-    ];
-
-    final scrollableColumns = <DataColumn>[
-      const DataColumn(label: Text('Asunto')),
-      const DataColumn(label: Text('Categoría')),
-      const DataColumn(label: Text('Nivel')),
-      if (AccessControl.isAdmin) const DataColumn(label: Text('Tercero')),
-      if (AccessControl.isAdmin) const DataColumn(label: Text('Usuario')),
-      if (AccessControl.isAdmin) const DataColumn(label: Text('Rep. Comercial')),
-      const DataColumn(label: Text('Descripción')),
-      const DataColumn(label: Text('Estado')),
-      const DataColumn(label: Text('Horas')),
-      const DataColumn(label: Text('Ultima Actualización')),
-    ];
-
-    // --- 2. Generar las celdas para cada fila ---
-    final List<Map<String, List<DataCell>>> allCells = widget.requests.asMap().entries.map((entry) {
-      final int index = entry.key;
-      final Map<String, dynamic> alert = entry.value;
-      final double h = double.tryParse(alert['qtyPlan']?.toString() ?? '0.0') ?? 0.0;
-      final String hoursStr = DurationFormatter.format(h);
-      final int realId = _getRealId(alert);
-
-      final fixedCells = <DataCell>[
-        if (AccessControl.canManageRequests) DataCell(Checkbox(value: _selectedIds.contains(realId), onChanged: (selected) => _handleRowSelection(selected, index, realId))),
-        DataCell(
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                icon: Icon(AccessControl.canAddUpdates ? Icons.reply : Icons.forum),
-                tooltip: AccessControl.canAddUpdates ? 'Responder Solicitud' : 'Ver Actualizaciones',
-                onPressed: () => GoRouter.of(context).push('/request-updates/${Uri.encodeComponent(alert['realId'].toString())}', extra: {'docNo': alert['id']}),
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        ResponsiveDataTable<Map<String, dynamic>>(
+          items: widget.requests,
+          getId: (item) => _getRealId(item),
+          onRowTap: (item) => widget.onEdit(item),
+          showCheckboxColumn: AccessControl.canManageRequests,
+          selectedIds: _selectedIds,
+          onSelectAll: _handleSelectAll,
+          onSelectChanged: (id, isSelected) {
+            final index = widget.requests.indexWhere((r) => _getRealId(r) == id);
+            if (index != -1) {
+              _handleRowSelection(isSelected, index, id);
+            }
+          },
+          // --- Columnas Fijas ---
+          fixedColumns: const [
+            ResponsiveDataColumn(label: 'Acciones'),
+            ResponsiveDataColumn(label: 'Ticket'),
+            ResponsiveDataColumn(label: 'Tipo de Solicitud'),
+          ],
+          // --- Celdas Fijas ---
+          fixedCellBuilder: (alert) => [
+            DataCell(
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: Icon(AccessControl.canAddUpdates ? Icons.reply : Icons.forum),
+                    tooltip: AccessControl.canAddUpdates ? 'Responder Solicitud' : 'Ver Actualizaciones',
+                    onPressed: () => GoRouter.of(context).push('/request-updates/${Uri.encodeComponent(alert['realId'].toString())}', extra: {'docNo': alert['id']}),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.attach_file),
+                    tooltip: 'Ver / Añadir Adjuntos',
+                    onPressed: () => showDialog(
+                      context: context,
+                      builder: (context) => _RequestAttachmentsDialog(requestId: alert['realId'], documentNo: alert['id']),
+                    ),
+                  ),
+                  if (AccessControl.canManageRequests) IconButton(icon: const Icon(Icons.edit), tooltip: 'Editar', onPressed: () => widget.onEdit(alert)) else IconButton(icon: const Icon(Icons.visibility), tooltip: 'Ver Detalles', onPressed: () => widget.onEdit(alert)),
+                ],
               ),
-              IconButton(
-                icon: const Icon(Icons.attach_file),
-                tooltip: 'Ver / Añadir Adjuntos',
-                onPressed: () => showDialog(
-                  context: context,
-                  builder: (context) => _RequestAttachmentsDialog(requestId: alert['realId'], documentNo: alert['id']),
+            ),
+            DataCell(
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(alert['id'].toString()),
+                  const SizedBox(width: 8),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(4),
+                    onTap: () => Clipboard.setData(ClipboardData(text: alert['id'].toString())).then((_) => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Código copiado al portapapeles')))),
+                    child: const Padding(padding: EdgeInsets.all(4.0), child: Icon(Icons.copy, size: 16)),
+                  ),
+                ],
+              ),
+            ),
+            DataCell(Text(alert['situation'])),
+          ],
+          // --- Columnas con Scroll ---
+          scrollableColumns: [
+            const ResponsiveDataColumn(label: 'Asunto'),
+            const ResponsiveDataColumn(label: 'Categoría'),
+            const ResponsiveDataColumn(label: 'Nivel'),
+            if (AccessControl.isAdmin) const ResponsiveDataColumn(label: 'Tercero'),
+            if (AccessControl.isAdmin) const ResponsiveDataColumn(label: 'Usuario'),
+            if (AccessControl.isAdmin) const ResponsiveDataColumn(label: 'Rep. Comercial'),
+            if (AccessControl.isAdmin) const ResponsiveDataColumn(label: 'Orden de Venta'),
+            const ResponsiveDataColumn(label: 'Descripción'),
+            const ResponsiveDataColumn(label: 'Estado'),
+            const ResponsiveDataColumn(label: 'Horas'),
+            const ResponsiveDataColumn(label: 'Ultima Actualización'),
+          ],
+          // --- Celdas con Scroll ---
+          scrollableCellBuilder: (alert) {
+            final double h = double.tryParse(alert['qtyPlan']?.toString() ?? '0.0') ?? 0.0;
+            final String hoursStr = DurationFormatter.format(h);
+            return [
+              DataCell(
+                Tooltip(
+                  message: (alert['emailSubject']?.toString() ?? '').substring(0, min(2000, (alert['emailSubject']?.toString() ?? '').length)),
+                  preferBelow: false,
+                  child: SizedBox(width: 200, child: Text((alert['emailSubject']?.toString() ?? '').length > 25 ? '${(alert['emailSubject']?.toString() ?? '').substring(0, 25)}...' : (alert['emailSubject']?.toString() ?? ''))),
                 ),
               ),
-              if (AccessControl.canManageRequests) IconButton(icon: const Icon(Icons.edit), tooltip: 'Editar', onPressed: () => widget.onEdit(alert)) else IconButton(icon: const Icon(Icons.visibility), tooltip: 'Ver Detalles', onPressed: () => widget.onEdit(alert)),
-            ],
-          ),
-        ),
-        DataCell(
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(alert['id'].toString()),
-              const SizedBox(width: 8),
-              InkWell(
-                borderRadius: BorderRadius.circular(4),
-                onTap: () => Clipboard.setData(ClipboardData(text: alert['id'].toString())).then((_) => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Código copiado al portapapeles')))),
-                child: const Padding(padding: EdgeInsets.all(4.0), child: Icon(Icons.copy, size: 16)),
+              DataCell(Text(alert['category']?.toString() ?? 'Sin categoría')),
+              DataCell(
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(color: alert['levelBgColor'], borderRadius: BorderRadius.circular(30)),
+                  child: Text(
+                    alert['level'],
+                    style: TextStyle(color: alert['levelColor'], fontWeight: FontWeight.bold),
+                  ),
+                ),
               ),
-            ],
-          ),
-          onTap: () => widget.onEdit(alert),
-        ),
-        DataCell(Text(alert['situation']), onTap: () => widget.onEdit(alert)),
-      ];
-
-      final scrollableCells = <DataCell>[
-        DataCell(
-          Tooltip(
-            message: (alert['emailSubject'] != null && alert['emailSubject'].toString().trim().isNotEmpty) ? alert['emailSubject'].toString() : 'Sin asunto',
-            preferBelow: false,
-            child: SizedBox(width: 200, child: Text((alert['emailSubject']?.toString() ?? '').length > 25 ? '${(alert['emailSubject']?.toString() ?? '').substring(0, 25)}...' : (alert['emailSubject']?.toString() ?? ''))),
-          ),
-          onTap: () => widget.onEdit(alert),
-        ),
-        DataCell(Text(alert['category']?.toString() ?? 'Sin categoría'), onTap: () => widget.onEdit(alert)),
-        DataCell(
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(color: alert['levelBgColor'], borderRadius: BorderRadius.circular(30)),
-            child: Text(
-              alert['level'],
-              style: TextStyle(color: alert['levelColor'], fontWeight: FontWeight.bold),
-            ),
-          ),
-        ),
-        if (AccessControl.isAdmin) DataCell(Text(alert['bpName']?.toString() ?? ''), onTap: () => widget.onEdit(alert)),
-        if (AccessControl.isAdmin) DataCell(Text(alert['userName']?.toString() ?? ''), onTap: () => widget.onEdit(alert)),
-        if (AccessControl.isAdmin) DataCell(Text(alert['salesRepName']?.toString() ?? ''), onTap: () => widget.onEdit(alert)),
-        DataCell(
-          Tooltip(
-            message: (alert['descriptionClean'] != null && alert['descriptionClean'].toString().trim().isNotEmpty) ? alert['descriptionClean'].toString() : 'Sin descripción',
-            preferBelow: false,
-            child: SizedBox(width: 300, child: Text((alert['descriptionClean']?.toString() ?? '').length > 70 ? '${(alert['descriptionClean']?.toString() ?? '').substring(0, 70)}...' : (alert['descriptionClean']?.toString() ?? ''))),
-          ),
-        ),
-        DataCell(Row(mainAxisSize: MainAxisSize.min, children: [const SizedBox(width: 8), Text(alert['status'])])),
-        DataCell(Text(hoursStr)),
-        DataCell(Text(alert['time'] ?? '')),
-      ];
-
-      return {'fixed': fixedCells, 'scrollable': scrollableCells};
-    }).toList();
-
-    // --- 3. Construir las DataRows para cada tabla ---
-    final fixedRows = widget.requests.asMap().entries.map((entry) {
-      final int realId = _getRealId(entry.value);
-      return DataRow(selected: _selectedIds.contains(realId), onSelectChanged: (_) => widget.onEdit(entry.value), cells: allCells[entry.key]['fixed']!);
-    }).toList();
-
-    final scrollableRows = widget.requests.asMap().entries.map((entry) {
-      final int realId = _getRealId(entry.value);
-      return DataRow(selected: _selectedIds.contains(realId), onSelectChanged: (_) => widget.onEdit(entry.value), cells: allCells[entry.key]['scrollable']!);
-    }).toList();
-
-    // --- 4. Definir un tema consistente para ambas tablas ---
-    const double rowHeight = 52.0;
-    final baseDataTableTheme = DataTableTheme.of(context).copyWith(
-      dataRowMinHeight: rowHeight,
-      dataRowMaxHeight: rowHeight,
-      headingRowHeight: rowHeight,
-      headingTextStyle: TextStyle(fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface),
-    );
-
-    final scrollableDataTableTheme = baseDataTableTheme.copyWith(
-      headingRowColor: MaterialStateProperty.all(theme.colorScheme.surfaceContainerHighest.withOpacity(0.3)),
-      dataRowColor: MaterialStateProperty.resolveWith<Color?>((Set<MaterialState> states) {
-        if (states.contains(MaterialState.hovered)) return theme.colorScheme.primary.withOpacity(0.08);
-        return null;
-      }),
-    );
-
-    final fixedDataTableTheme = baseDataTableTheme.copyWith(
-      headingRowColor: MaterialStateProperty.all(theme.colorScheme.surfaceContainerHighest), // Encabezado fijo más oscuro
-      dataRowColor: MaterialStateProperty.resolveWith<Color?>((Set<MaterialState> states) {
-        if (states.contains(MaterialState.hovered)) return theme.colorScheme.primary.withOpacity(0.12);
-        // Tono de fondo permanente para distinguir la sección fija
-        return theme.colorScheme.surfaceContainerHigh; // Filas fijas más oscuras
-      }),
-    );
-
-    // --- 5. Vista móvil ---
-    Widget mobileView = ListView.builder(
-      shrinkWrap: true, // Evita que el ListView intente ocupar un espacio infinito.
-      physics: const NeverScrollableScrollPhysics(), // Deshabilita el scroll del ListView, el padre (SingleChildScrollView) se encargará.
-      itemCount: widget.requests.length,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      itemBuilder: (context, index) {
-        final request = widget.requests[index];
-        return _RequestCard(
-          request: request,
-          onEdit: widget.onEdit,
-          onGoToUpdates: () => GoRouter.of(context).push('/request-updates/${Uri.encodeComponent(request['realId'].toString())}', extra: {'docNo': request['id']}),
-          onShowAttachments: () => showDialog(
-            context: context,
-            builder: (context) => _RequestAttachmentsDialog(requestId: request['realId'], documentNo: request['id']),
-          ),
-        );
-      },
-    );
-
-    // --- 6. Vista de escritorio ---
-    Widget desktopView = Card(
-      elevation: 4,
-      clipBehavior: Clip.hardEdge,
-      child: Stack(
-        children: [
-          SingleChildScrollView(
-            child: Column(
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // --- Parte Fija ---
-                    DataTableTheme(
-                      data: fixedDataTableTheme,
-                      child: DataTable(
-                        showCheckboxColumn: false, // La manejamos manualmente
-                        columns: fixedColumns,
-                        rows: fixedRows,
-                      ),
-                    ),
-                    // --- Parte con Scroll ---
-                    Expanded(
-                      child: Scrollbar(
-                        controller: _horizontalScrollController,
-                        thumbVisibility: true,
-                        child: SingleChildScrollView(
-                          controller: _horizontalScrollController,
-                          scrollDirection: Axis.horizontal,
-                          child: DataTableTheme(
-                            data: scrollableDataTableTheme,
-                            child: DataTable(showCheckboxColumn: false, columns: scrollableColumns, rows: scrollableRows),
-                          ),
+              if (AccessControl.isAdmin) DataCell(Text(alert['bpName']?.toString() ?? '')),
+              if (AccessControl.isAdmin) DataCell(Text(alert['userName']?.toString() ?? '')),
+              if (AccessControl.isAdmin) DataCell(Text(alert['salesRepName']?.toString() ?? '')),
+              if (AccessControl.isAdmin)
+                DataCell(
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(alert['salesOrderNo'] ?? ''),
+                      if (alert['salesOrderNo'] != null) ...[
+                        const SizedBox(width: 8),
+                        InkWell(
+                          borderRadius: BorderRadius.circular(4),
+                          onTap: () => Clipboard.setData(ClipboardData(text: alert['salesOrderNo'].toString())).then((_) => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Orden de venta copiada al portapapeles')))),
+                          child: const Padding(padding: EdgeInsets.all(4.0), child: Icon(Icons.copy, size: 16)),
                         ),
-                      ),
-                    ),
-                  ],
+                      ],
+                    ],
+                  ),
                 ),
-                // Espaciador animado para permitir scroll debajo del Toast flotante
-                AnimatedContainer(duration: const Duration(milliseconds: 250), height: _selectedIds.isNotEmpty && AccessControl.canManageRequests ? 80.0 : 0.0),
-              ],
-            ),
-          ),
-          Positioned(
-            bottom: 16,
-            left: 16,
-            right: 16,
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 250),
-              transitionBuilder: (child, animation) => FadeTransition(
-                opacity: animation,
-                child: SlideTransition(
-                  position: Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero).animate(animation),
-                  child: child,
+              DataCell(
+                Tooltip(
+                  message: (alert['descriptionClean']?.toString() ?? '').substring(0, min(2000, (alert['descriptionClean']?.toString() ?? '').length)),
+                  preferBelow: false,
+                  child: SizedBox(width: 300, child: Text((alert['descriptionClean']?.toString() ?? '').length > 70 ? '${(alert['descriptionClean']?.toString() ?? '').substring(0, 70)}...' : (alert['descriptionClean']?.toString() ?? ''))),
                 ),
               ),
-              child: _selectedIds.isNotEmpty && AccessControl.canManageRequests
-                  ? Container(
-                      key: const ValueKey('action_bar'),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.secondaryContainer,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 8, offset: const Offset(0, 4))],
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.check_box, color: Theme.of(context).colorScheme.onSecondaryContainer),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${_selectedIds.length} solicitudes seleccionadas',
-                            style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSecondaryContainer),
-                          ),
-                          const Spacer(),
-                          TextButton(
-                            onPressed: () => setState(() {
-                              _selectedIds.clear();
-                              _lastSelectedIndex = null;
-                            }),
-                            child: const Text('Cancelar'),
-                          ),
-                          const SizedBox(width: 8),
-                          ElevatedButton.icon(
-                            icon: const Icon(Icons.edit),
-                            label: const Text('Edición Masiva'),
-                            onPressed: () => showDialog(
-                              context: context,
-                              builder: (context) => BulkEditRequestDialog(
-                                selectedIds: _selectedIds,
-                                onSaved: () {
-                                  setState(() {
-                                    _selectedIds.clear();
-                                    _lastSelectedIndex = null;
-                                  });
-                                  widget.onRefresh?.call();
-                                },
-                              ),
+              DataCell(Row(mainAxisSize: MainAxisSize.min, children: [const SizedBox(width: 8), Text(alert['status'])])),
+              DataCell(Text(hoursStr)),
+              DataCell(Text(alert['time'] ?? '')),
+            ];
+          },
+          // --- Vista Móvil ---
+          mobileCardBuilder: (item) => _RequestCard(
+            request: item,
+            onEdit: widget.onEdit,
+            onGoToUpdates: () => GoRouter.of(context).push('/request-updates/${Uri.encodeComponent(item['realId'].toString())}', extra: {'docNo': item['id']}),
+            onShowAttachments: () => showDialog(
+              context: context,
+              builder: (context) => _RequestAttachmentsDialog(requestId: item['realId'], documentNo: item['id']),
+            ),
+          ),
+        ),
+        // --- Barra de acciones flotante ---
+        Positioned(
+          bottom: 16,
+          left: 16,
+          right: 16,
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 250),
+            transitionBuilder: (child, animation) => FadeTransition(
+              opacity: animation,
+              child: SlideTransition(
+                position: Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero).animate(animation),
+                child: child,
+              ),
+            ),
+            child: _selectedIds.isNotEmpty && AccessControl.canManageRequests
+                ? Container(
+                    key: const ValueKey('action_bar'),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.secondaryContainer,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 8, offset: const Offset(0, 4))],
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.check_box, color: theme.colorScheme.onSecondaryContainer),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${_selectedIds.length} seleccionadas',
+                          style: TextStyle(fontWeight: FontWeight.bold, color: theme.colorScheme.onSecondaryContainer),
+                        ),
+                        const Spacer(),
+                        TextButton(onPressed: () => setState(() => _selectedIds.clear()), child: const Text('Cancelar')),
+                        const SizedBox(width: 8),
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.edit),
+                          label: const Text('Edición Masiva'),
+                          onPressed: () => showDialog(
+                            context: context,
+                            builder: (context) => BulkEditRequestDialog(
+                              selectedIds: _selectedIds,
+                              onSaved: () {
+                                setState(() => _selectedIds.clear());
+                                widget.onRefresh?.call();
+                              },
                             ),
                           ),
-                        ],
-                      ),
-                    )
-                  : const SizedBox.shrink(key: ValueKey('empty_bar')),
-            ),
+                        ),
+                      ],
+                    ),
+                  )
+                : const SizedBox.shrink(key: ValueKey('empty_bar')),
           ),
-        ],
-      ),
-    );
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // Usar 800 como punto de quiebre para cambiar a la vista de tarjetas
-        return constraints.maxWidth < 800 ? mobileView : desktopView;
-      },
+        ),
+      ],
     );
   }
 }
@@ -416,11 +331,10 @@ class _RequestAttachmentsDialogState extends State<_RequestAttachmentsDialog> {
 
     setState(() => _isUploading = true);
 
-    final tableName = '${Endpoint.baseUrl}/api/v1/models/R_Request';
     final file = result.files.first;
 
     final convertedFile = {'title': file.name, 'base64': base64Encode(file.bytes!)};
-    final success = await postAttachments(recordID: widget.requestId, tableName: tableName, convertedFile: convertedFile);
+    final success = await postAttachments(recordID: widget.requestId, tableName: 'R_Request', convertedFile: convertedFile);
 
     if (mounted) {
       setState(() => _isUploading = false);
@@ -435,7 +349,7 @@ class _RequestAttachmentsDialogState extends State<_RequestAttachmentsDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final tableName = '${Endpoint.baseUrl}/api/v1/models/R_Request';
+    const tableName = 'R_Request';
 
     return CustomModal(
       title: 'Adjuntos: ${widget.documentNo}',
@@ -466,7 +380,7 @@ class _RequestAttachmentsDialogState extends State<_RequestAttachmentsDialog> {
                     FilePreviewManager.showPreview(context, {'id': widget.requestId, 'Status': 'N/A', 'VersionNo': 'N/A'}, tableName, att['name'] ?? '', () async {
                       try {
                         setState(() => _isLoading = true);
-                        final url = Uri.parse('$tableName/${widget.requestId}/attachments/${Uri.encodeComponent(att['name'] ?? '')}');
+                        final url = Uri.parse('${Endpoint.baseUrl}/api/v1/models/$tableName/${widget.requestId}/attachments/${Uri.encodeComponent(att['name'] ?? '')}');
                         final response = await http.delete(url, headers: {'Authorization': Token.token});
                         if (response.statusCode == 200 || response.statusCode == 204) {
                           if (mounted) {

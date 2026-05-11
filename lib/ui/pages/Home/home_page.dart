@@ -35,6 +35,8 @@ class _HomePageState extends State<HomePage> {
   late final HomeController _controller;
   final _adminViewModeManager = AdminViewModeManager();
   final Set<int> _expandedBps = {};
+  bool _isEnforcedDelayActive = true;
+  bool _showAllContracts = false;
 
   @override
   void initState() {
@@ -42,6 +44,14 @@ class _HomePageState extends State<HomePage> {
     _controller = HomeController();
     _controller.initData();
     _adminViewModeManager.addListener(_onViewModeChanged);
+    // Inicia un temporizador para el retardo de carga obligatorio.
+    Future.delayed(const Duration(seconds: 4), () {
+      if (mounted) {
+        setState(() {
+          _isEnforcedDelayActive = false;
+        });
+      }
+    });
   }
 
   @override
@@ -294,7 +304,8 @@ class _HomePageState extends State<HomePage> {
           child: AnimatedBuilder(
             animation: _controller,
             builder: (context, child) {
-              if (_controller.validationLoading) {
+              // Muestra el esqueleto si el controlador está cargando O si el retardo forzado está activo.
+              if (_controller.validationLoading || _isEnforcedDelayActive) {
                 return SingleChildScrollView(
                   padding: const EdgeInsets.all(20.0),
                   child: Column(
@@ -431,81 +442,46 @@ class _HomePageState extends State<HomePage> {
                             );
                           }
 
-                          return Wrap(
-                            spacing: 20,
-                            runSpacing: 20,
-                            alignment: WrapAlignment.center,
-                            children: bpsToRender.map((bpId) {
-                              final bpContracts = _controller.supportContracts.where((c) => c['C_BPartner_ID'] == bpId).toList();
-                              final stats = _controller.requestsStatsByBp[bpId];
-                              final bpInfo = _controller.supportBPartners.firstWhere((bp) => bp['id'] == bpId, orElse: () => <String, dynamic>{'Name': 'Tercero $bpId'});
-                              final bpName = bpInfo['Name'];
+                          return Column(
+                            children: [
+                              if (_controller.supportContracts.any((c) => (DateTime.tryParse(c['DateOrdered'] ?? '')?.year ?? DateTime.now().year) != DateTime.now().year))
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 16.0),
+                                  child: TextButton.icon(icon: Icon(_showAllContracts ? Icons.visibility_off_outlined : Icons.visibility_outlined), label: Text(_showAllContracts ? 'Mostrar solo contratos del año actual' : 'Expandir todos los contratos'), onPressed: () => setState(() => _showAllContracts = !_showAllContracts)),
+                                ),
+                              Wrap(
+                                spacing: 20,
+                                runSpacing: 20,
+                                alignment: WrapAlignment.center,
+                                children: bpsToRender.map((bpId) {
+                                  final allBpContracts = _controller.supportContracts.where((c) => c['C_BPartner_ID'] == bpId).toList();
+                                  final bpContracts = _showAllContracts
+                                      ? allBpContracts
+                                      : allBpContracts.where((c) {
+                                          final contractYear = DateTime.tryParse(c['DateOrdered'] ?? '')?.year;
+                                          return contractYear == DateTime.now().year;
+                                        }).toList();
 
-                              final List<Widget> cards = [];
+                                  final stats = _controller.requestsStatsByBp[bpId];
+                                  final bpInfo = _controller.supportBPartners.firstWhere((bp) => bp['id'] == bpId, orElse: () => <String, dynamic>{'Name': 'Tercero $bpId'});
+                                  final bpName = bpInfo['Name'];
 
-                              if (_controller.isLoading) {
-                                cards.add(
-                                  const CardCustom(
-                                    hover: false,
-                                    child: SizedBox(height: 200, width: 250, child: Center(child: CircularProgressIndicator())),
-                                  ),
-                                );
-                              } else {
-                                if (bpContracts.isNotEmpty) {
-                                  if (bpContracts.length == 1) {
+                                  final List<Widget> cards = [];
+
+                                  if (_controller.isLoading) {
                                     cards.add(
-                                      Stack(
-                                        children: [
-                                          SupportHoursCard(contract: bpContracts.first, isDark: isDark, textColor: textColor, bpName: bpName),
-                                          Positioned(
-                                            top: 8,
-                                            right: 8,
-                                            child: IconButton(
-                                              icon: const Icon(Icons.copy, size: 20),
-                                              color: textColor.withOpacity(0.5),
-                                              tooltip: 'Copiar código de contrato',
-                                              onPressed: () {
-                                                final code = bpContracts.first['DocumentNo']?.toString() ?? '';
-                                                Clipboard.setData(ClipboardData(text: code));
-                                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Código de contrato copiado')));
-                                              },
-                                            ),
-                                          ),
-                                        ],
+                                      const CardCustom(
+                                        hover: false,
+                                        child: SizedBox(height: 200, width: 250, child: Center(child: CircularProgressIndicator())),
                                       ),
                                     );
                                   } else {
-                                    final bool isExpanded = _expandedBps.contains(bpId);
-
-                                    // Botón para alternar la vista
-                                    cards.add(
-                                      SizedBox(
-                                        width: MediaQuery.of(context).size.width,
-                                        child: Center(
-                                          child: TextButton.icon(
-                                            icon: Icon(isExpanded ? Icons.layers : Icons.grid_view),
-                                            label: Text(isExpanded ? 'Apilar contratos' : 'Desplegar contratos (${bpContracts.length})'),
-                                            onPressed: () {
-                                              setState(() {
-                                                if (isExpanded) {
-                                                  _expandedBps.remove(bpId);
-                                                } else {
-                                                  _expandedBps.add(bpId);
-                                                }
-                                              });
-                                            },
-                                          ),
-                                        ),
-                                      ),
-                                    );
-
-                                    if (isExpanded) {
-                                      // Vista de Cuadrícula (Individual)
-                                      for (var contract in bpContracts) {
+                                    if (bpContracts.isNotEmpty) {
+                                      if (bpContracts.length == 1) {
                                         cards.add(
                                           Stack(
                                             children: [
-                                              SupportHoursCard(contract: contract, isDark: isDark, textColor: textColor, bpName: bpName),
+                                              SupportHoursCard(contract: bpContracts.first, isDark: isDark, textColor: textColor, bpName: bpName),
                                               Positioned(
                                                 top: 8,
                                                 right: 8,
@@ -514,7 +490,7 @@ class _HomePageState extends State<HomePage> {
                                                   color: textColor.withOpacity(0.5),
                                                   tooltip: 'Copiar código de contrato',
                                                   onPressed: () {
-                                                    final code = contract['DocumentNo']?.toString() ?? '';
+                                                    final code = bpContracts.first['DocumentNo']?.toString() ?? '';
                                                     Clipboard.setData(ClipboardData(text: code));
                                                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Código de contrato copiado')));
                                                   },
@@ -523,21 +499,72 @@ class _HomePageState extends State<HomePage> {
                                             ],
                                           ),
                                         );
+                                      } else {
+                                        final bool isExpanded = _expandedBps.contains(bpId);
+
+                                        // Botón para alternar la vista
+                                        cards.add(
+                                          SizedBox(
+                                            width: MediaQuery.of(context).size.width,
+                                            child: Center(
+                                              child: TextButton.icon(
+                                                icon: Icon(isExpanded ? Icons.layers : Icons.grid_view),
+                                                label: Text(isExpanded ? 'Apilar contratos' : 'Desplegar contratos (${bpContracts.length})'),
+                                                onPressed: () {
+                                                  setState(() {
+                                                    if (isExpanded) {
+                                                      _expandedBps.remove(bpId);
+                                                    } else {
+                                                      _expandedBps.add(bpId);
+                                                    }
+                                                  });
+                                                },
+                                              ),
+                                            ),
+                                          ),
+                                        );
+
+                                        if (isExpanded) {
+                                          // Vista de Cuadrícula (Individual)
+                                          for (var contract in bpContracts) {
+                                            cards.add(
+                                              Stack(
+                                                children: [
+                                                  SupportHoursCard(contract: contract, isDark: isDark, textColor: textColor, bpName: bpName),
+                                                  Positioned(
+                                                    top: 8,
+                                                    right: 8,
+                                                    child: IconButton(
+                                                      icon: const Icon(Icons.copy, size: 20),
+                                                      color: textColor.withOpacity(0.5),
+                                                      tooltip: 'Copiar código de contrato',
+                                                      onPressed: () {
+                                                        final code = contract['DocumentNo']?.toString() ?? '';
+                                                        Clipboard.setData(ClipboardData(text: code));
+                                                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Código de contrato copiado')));
+                                                      },
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                          }
+                                        } else {
+                                          // Vista Apilada (Swiper)
+                                          cards.add(_SupportContractsSwiper(contracts: bpContracts, isDark: isDark, textColor: textColor, bpName: bpName));
+                                        }
                                       }
-                                    } else {
-                                      // Vista Apilada (Swiper)
-                                      cards.add(_SupportContractsSwiper(contracts: bpContracts, isDark: isDark, textColor: textColor, bpName: bpName));
+                                    }
+
+                                    if (stats != null && (((stats['closed'] as num?)?.toInt() ?? 0) > 0 || ((stats['inProgress'] as num?)?.toInt() ?? 0) > 0)) {
+                                      cards.add(SupportRequestsCard(bpId: bpId, bpName: bpName, closedRequestsCount: (stats['closed'] as num?)?.toInt() ?? 0, inProgressRequestsCount: (stats['inProgress'] as num?)?.toInt() ?? 0, textColor: textColor));
                                     }
                                   }
-                                }
 
-                                if (stats != null && (((stats['closed'] as num?)?.toInt() ?? 0) > 0 || ((stats['inProgress'] as num?)?.toInt() ?? 0) > 0)) {
-                                  cards.add(SupportRequestsCard(bpId: bpId, bpName: bpName, closedRequestsCount: (stats['closed'] as num?)?.toInt() ?? 0, inProgressRequestsCount: (stats['inProgress'] as num?)?.toInt() ?? 0, textColor: textColor));
-                                }
-                              }
-
-                              return Wrap(spacing: 20, runSpacing: 20, alignment: WrapAlignment.center, children: cards);
-                            }).toList(),
+                                  return Wrap(spacing: 20, runSpacing: 20, alignment: WrapAlignment.center, children: cards);
+                                }).toList(),
+                              ),
+                            ],
                           );
                         },
                       ),

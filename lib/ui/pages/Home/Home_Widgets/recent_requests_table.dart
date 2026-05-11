@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:math';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/Shared_Custom/custom_container.dart';
-import 'package:primhub/ui/Shared_Custom/custom_table.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/ui/Shared_Custom/custom_skeleton.dart';
+import 'package:primhub/ui/Shared_Custom/responsive_data_table.dart';
 
 class RecentRequestsTable extends StatelessWidget {
   final List<Map<String, dynamic>> requests;
@@ -55,34 +56,65 @@ class _DesktopRequestTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CustomTable(
-      columns: [
-        const DataColumn(label: Text('Ticket')),
-        const DataColumn(label: Text('Tipo de Solicitud')),
-        const DataColumn(label: Text('Asunto')),
-        if (AccessControl.isAdmin) const DataColumn(label: Text('Tercero')),
-        if (AccessControl.isAdmin) const DataColumn(label: Text('Usuario')),
-        if (AccessControl.isAdmin) const DataColumn(label: Text('Representante Comercial')),
-        const DataColumn(label: Text('Nivel')),
-        const DataColumn(label: Text('Ultima Actualización')),
-        const DataColumn(label: Text('Descripción')),
-        const DataColumn(label: Text('Estado')),
-      ],
-      rows: requests.map((req) {
-        return DataRow(
-          onSelectChanged: (value) => onEdit(req),
-          cells: [
-            DataCell(
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(req['code']),
+    final List<ResponsiveDataColumn> columns = [
+      const ResponsiveDataColumn(label: 'Ticket'),
+      const ResponsiveDataColumn(label: 'Tipo de Solicitud'),
+      const ResponsiveDataColumn(label: 'Asunto'),
+      if (AccessControl.isAdmin) const ResponsiveDataColumn(label: 'Tercero'),
+      if (AccessControl.isAdmin) const ResponsiveDataColumn(label: 'Usuario'),
+      if (AccessControl.isAdmin) const ResponsiveDataColumn(label: 'Representante Comercial'),
+      if (AccessControl.isAdmin) const ResponsiveDataColumn(label: 'Orden de Venta'),
+      const ResponsiveDataColumn(label: 'Nivel'),
+      const ResponsiveDataColumn(label: 'Ultima Actualización'),
+      const ResponsiveDataColumn(label: 'Descripción'),
+      const ResponsiveDataColumn(label: 'Estado'),
+    ];
+
+    return ResponsiveDataTable<Map<String, dynamic>>(
+      items: requests,
+      scrollableColumns: columns,
+      getId: (item) => item['original']['id'],
+      onRowTap: onEdit,
+      fixedCellBuilder: (item) => [],
+      scrollableCellBuilder: (req) => [
+        DataCell(
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(req['code']),
+              const SizedBox(width: 8),
+              InkWell(
+                borderRadius: BorderRadius.circular(4),
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: req['code'].toString()));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Código copiado al portapapeles')));
+                },
+                child: const Padding(
+                  padding: EdgeInsets.all(4.0),
+                  child: Icon(Icons.copy, size: 16, color: Colors.grey),
+                ),
+              ),
+            ],
+          ),
+        ),
+        DataCell(Text(req['situation'])),
+        DataCell(Tooltip(message: (req['emailSubject']?.toString() ?? '').substring(0, min(2000, (req['emailSubject']?.toString() ?? '').length)), child: Text((req['emailSubject']?.toString() ?? '').length > 25 ? '${(req['emailSubject']?.toString() ?? '').substring(0, 25)}...' : (req['emailSubject']?.toString() ?? '')))),
+        if (AccessControl.isAdmin) DataCell(Text(req['bpName'])),
+        if (AccessControl.isAdmin) DataCell(Text(req['userName'])),
+        if (AccessControl.isAdmin) DataCell(Text(req['salesRepName'] ?? '')),
+        if (AccessControl.isAdmin)
+          DataCell(
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(req['salesOrderNo'] ?? ''),
+                if (req['salesOrderNo'] != null) ...[
                   const SizedBox(width: 8),
                   InkWell(
                     borderRadius: BorderRadius.circular(4),
                     onTap: () {
-                      Clipboard.setData(ClipboardData(text: req['code'].toString()));
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Código copiado al portapapeles')));
+                      Clipboard.setData(ClipboardData(text: req['salesOrderNo'].toString()));
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Orden de venta copiada al portapapeles')));
                     },
                     child: const Padding(
                       padding: EdgeInsets.all(4.0),
@@ -90,34 +122,29 @@ class _DesktopRequestTable extends StatelessWidget {
                     ),
                   ),
                 ],
-              ),
+              ],
             ),
-            DataCell(Text(req['situation'])),
-            DataCell(Tooltip(message: req['emailSubject']?.toString() ?? '', child: Text((req['emailSubject']?.toString() ?? '').length > 25 ? '${(req['emailSubject']?.toString() ?? '').substring(0, 25)}...' : (req['emailSubject']?.toString() ?? '')))),
-            if (AccessControl.isAdmin) DataCell(Text(req['bpName'])),
-            if (AccessControl.isAdmin) DataCell(Text(req['userName'])),
-            if (AccessControl.isAdmin) DataCell(Text(req['salesRepName'] ?? '')),
-            DataCell(
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(color: req['levelBgColor'], borderRadius: BorderRadius.circular(30)),
-                child: Text(
-                  req['level'],
-                  style: TextStyle(color: req['levelColor'], fontWeight: FontWeight.bold),
-                ),
-              ),
+          ),
+        DataCell(
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(color: req['levelBgColor'], borderRadius: BorderRadius.circular(30)),
+            child: Text(
+              req['level'],
+              style: TextStyle(color: req['levelColor'], fontWeight: FontWeight.bold),
             ),
-            DataCell(Text(req['time'])),
-            DataCell(
-              Tooltip(
-                message: req['descriptionClean'] ?? '',
-                child: SizedBox(width: 300, child: Text((req['descriptionClean'] ?? '').length > 70 ? '${(req['descriptionClean'] ?? '').substring(0, 70)}...' : (req['descriptionClean'] ?? ''))),
-              ),
-            ),
-            DataCell(Text(req['status'])),
-          ],
-        );
-      }).toList(),
+          ),
+        ),
+        DataCell(Text(req['time'])),
+        DataCell(
+          Tooltip(
+            message: (req['descriptionClean'] ?? '').substring(0, min(2000, (req['descriptionClean'] ?? '').length)),
+            child: SizedBox(width: 300, child: Text((req['descriptionClean'] ?? '').length > 70 ? '${(req['descriptionClean'] ?? '').substring(0, 70)}...' : (req['descriptionClean'] ?? ''))),
+          ),
+        ),
+        DataCell(Text(req['status'])),
+      ],
+      mobileCardBuilder: (req) => _RecentRequestCard(request: req, onEdit: onEdit),
     );
   }
 }

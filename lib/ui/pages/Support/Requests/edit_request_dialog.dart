@@ -95,13 +95,14 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
     _selectedBpId = widget.request['bpId'];
     _selectedUserId = widget.request['userId'];
 
-    _fetchStatuses();
-    _fetchRequestTypes();
-    _fetchCategories();
-    _fetchGroups();
-    _fetchUsers();
-    _fetchSalesReps();
+    _salesReps = GlobalCache.salesReps;
+    _isLoadingSalesReps = false;
     _fetchBPartners();
+    _fetchInitialData();
+  }
+
+  Future<void> _fetchInitialData() async {
+    await Future.wait([_fetchStatuses(), _fetchRequestTypes(), _fetchCategories(), _fetchGroups(), _fetchUsers()]);
   }
 
   Future<void> _fetchBPartners() async {
@@ -241,28 +242,6 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
       }
     } catch (e) {
       if (mounted) setState(() => _isLoadingUsers = false);
-    }
-  }
-
-  Future<void> _fetchSalesReps() async {
-    try {
-      final logic = ProjectsLogic();
-      final allBps = await logic.fetchBPartners();
-
-      if (mounted) {
-        setState(() {
-          _salesReps = allBps.where((bp) {
-            // Buscamos todas las variantes posibles del campo en el JSON
-            final isRep = bp['IsSalesRep'] ?? bp['isSalesRep'] ?? bp['C_BPartner0IsSalesRep'] ?? false;
-
-            return isRep == 'Y' || isRep == true;
-          }).toList();
-
-          _isLoadingSalesReps = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) setState(() => _isLoadingSalesReps = false);
     }
   }
 
@@ -705,19 +684,8 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                           value: _selectedSalesRepId,
                           isLoading: _isLoadingSalesReps,
                           isDisabled: _isReadOnly || _isLoadingSalesReps,
-                          displayText: _selectedSalesRepId != null && _salesReps.any((u) => (u['AD_User_ID'] ?? u['id']) == _selectedSalesRepId) ? _salesReps.firstWhere((u) => (u['AD_User_ID'] ?? u['id']) == _selectedSalesRepId)['Name'] ?? '' : '',
-                          onTap: () => _openSearchModal<int>(
-                            title: 'Representante Comercial',
-                            items: _salesReps.where((u) => (u['AD_User_ID'] ?? u['id']) != null).toList(),
-                            currentValue: _selectedSalesRepId,
-                            getTitle: (item) => item['Name'] ?? 'Sin Nombre',
-                            getSubtitle: (item) => 'ID: ${item['AD_User_ID'] ?? item['id']}',
-                            getValue: (item) {
-                              var id = item['AD_User_ID'] ?? item['id'];
-                              return id is int ? id : int.tryParse(id.toString());
-                            },
-                            onSelected: (val) => setState(() => _selectedSalesRepId = val),
-                          ),
+                          displayText: _selectedSalesRepId != null && _salesReps.any((u) => u['id'] == _selectedSalesRepId) ? _salesReps.firstWhere((u) => u['id'] == _selectedSalesRepId)['Name'] ?? '' : '',
+                          onTap: () => _openSearchModal<int>(title: 'Representante Comercial', items: _salesReps, currentValue: _selectedSalesRepId, getTitle: (item) => item['Name'] ?? 'Sin Nombre', getSubtitle: (item) => 'ID: ${item['id']}', getValue: (item) => item['id'] as int, onSelected: (val) => setState(() => _selectedSalesRepId = val)),
                         ),
                       ),
                     ],

@@ -8,6 +8,8 @@ class RequestFilterBar extends StatelessWidget {
   final bool isAscending;
   final int rowsPerPage;
   final bool showHistory;
+  final List<int> selectedYears;
+  final VoidCallback onShowYearFilter;
   final VoidCallback onSortChanged;
   final Function(int?) onRowsPerPageChanged;
   final VoidCallback onClearFilters;
@@ -17,7 +19,23 @@ class RequestFilterBar extends StatelessWidget {
   final VoidCallback onShowFilters;
   final int activeFilterCount;
 
-  const RequestFilterBar({super.key, required this.searchController, required this.isAscending, required this.rowsPerPage, required this.showHistory, required this.onSortChanged, required this.onRowsPerPageChanged, required this.onClearFilters, required this.onAddRequest, required this.onToggleHistory, required this.onShowFilters, required this.activeFilterCount, required this.onShowCalendar});
+  const RequestFilterBar({
+    super.key,
+    required this.searchController,
+    required this.isAscending,
+    required this.rowsPerPage,
+    required this.showHistory,
+    required this.selectedYears,
+    required this.onShowYearFilter,
+    required this.onSortChanged,
+    required this.onRowsPerPageChanged,
+    required this.onClearFilters,
+    required this.onAddRequest,
+    required this.onToggleHistory,
+    required this.onShowFilters,
+    required this.activeFilterCount,
+    required this.onShowCalendar,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -48,6 +66,18 @@ class RequestFilterBar extends StatelessWidget {
                     visualDensity: VisualDensity.compact,
                   ),
                 ActionChip(avatar: Icon(isAscending ? Icons.arrow_upward : Icons.arrow_downward, size: 16), label: Text(isAscending ? 'Más antiguas' : 'Más recientes'), onPressed: onSortChanged),
+                ActionChip(
+                  avatar: const Icon(Icons.calendar_today, size: 16),
+                  label: Text(() {
+                    if (selectedYears.isEmpty) return 'Año: Todos';
+                    if (selectedYears.length == 1) {
+                      if (selectedYears.first == DateTime.now().year) return 'Año: Actual';
+                      return 'Año: ${selectedYears.first}';
+                    }
+                    return 'Años: ${selectedYears.length}';
+                  }()),
+                  onPressed: onShowYearFilter,
+                ),
                 DropdownButton<int>(
                   // ignore: sort_child_properties_last
                   value: rowsPerPage,

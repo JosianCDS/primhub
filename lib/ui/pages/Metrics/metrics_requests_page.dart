@@ -183,7 +183,6 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
       final statusObj = req['R_Status_ID'];
       final statusData = statusObj is Map ? statusObj : null;
       String rawStatusName = req['R_Status_Name'] ?? '';
-      bool isOpen = true;
 
       if (statusData != null) {
         rawStatusName = statusData['Name'] ?? statusData['identifier'] ?? rawStatusName;
@@ -191,21 +190,12 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
       if (rawStatusName.isEmpty && statusObj is int) {
         rawStatusName = _statusNameMap[statusObj] ?? '';
       }
-
       if (rawStatusName.isEmpty) {
         rawStatusName = _statusIdMap.keys.firstWhere((k) => _statusIdMap[k] == req['R_Status_ID'], orElse: () => 'Sin Estado');
       }
 
       String cleanStatusName = rawStatusName.contains('_') ? rawStatusName.split('_').last.trim() : rawStatusName.trim();
       String lowerStatus = rawStatusName.toLowerCase();
-
-      if (statusData != null && statusData['IsOpen'] != null) {
-        isOpen = (statusData['IsOpen'] == 'Y' || statusData['IsOpen'] == true);
-      } else {
-        if (req['R_Status_ID'] == 103 || req['R_Status_ID'] == 1000019 || lowerStatus.contains('close') || lowerStatus.contains('cerrad') || lowerStatus.contains('archivada') || lowerStatus.contains('aprobada') || lowerStatus.contains('implementada') || lowerStatus.contains('entregad') || lowerStatus.contains('anulada')) {
-          isOpen = false;
-        }
-      }
 
       // 1. FILTRO DE TIPO / MÓDULO
       bool matchesType = true;
@@ -230,14 +220,8 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
       // 3. FILTRO DE CUMPLIMIENTO (Pie chart / Módulo Series)
       bool matchesCompliance = true;
       if (_filterCompliance != null) {
-        String category = 'PENDIENTE';
-        if (lowerStatus.contains('asignad')) {
-          category = 'PENDIENTE';
-        } else if (lowerStatus.contains('espera de cliente') || lowerStatus.contains('espera del cliente')) {
-          category = 'ESPERA DE CLIENTE';
-        } else if (!isOpen || req['R_Status_ID'] == 1000019 || lowerStatus.contains('close') || lowerStatus.contains('cerrad') || lowerStatus.contains('archivada') || lowerStatus.contains('aprobada') || lowerStatus.contains('implementada') || lowerStatus.contains('entregad') || lowerStatus.contains('anulada')) {
-          category = 'TERMINADA';
-        }
+        // Usar la lógica centralizada para garantizar consistencia con los gráficos.
+        final category = ProjectMetricsCalculator.getComplianceCategory(req);
         matchesCompliance = category == _filterCompliance;
       }
 

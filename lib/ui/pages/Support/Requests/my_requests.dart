@@ -1,5 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:file_picker/file_picker.dart';
+import 'package:primhub/endpoint/endpoint.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/contract_api.dart';
@@ -41,7 +44,6 @@ class MyRequestsPage extends StatefulWidget {
 class _MyRequestsPageState extends State<MyRequestsPage> {
   List<Map<String, dynamic>> _requests = [];
   List<dynamic> _rawRequests = [];
-  List<dynamic> _allFetchedRequests = [];
   List<Map<String, dynamic>> _allContracts = [];
   bool _isLoading = true;
   bool _isAscending = false;
@@ -54,6 +56,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   int _currentPage = 0;
   int _rowsPerPage = 10;
   final TextEditingController _searchController = TextEditingController();
+  List<int> _selectedYears = [DateTime.now().year];
   RequestFilterModel _filters = const RequestFilterModel();
 
   int? _bpId;
@@ -138,6 +141,14 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
 
     await GlobalCache.syncData();
 
+    // Esperar a que la Fase 2 (carga del año actual) termine antes de continuar.
+    // Esto asegura que el skeleton se muestre hasta que los datos estén listos.
+    try {
+      if (GlobalCache.phase2SyncFuture != null) await GlobalCache.phase2SyncFuture;
+    } catch (e) {
+      debugPrint("Error esperando la Fase 2 de la caché: $e");
+    }
+
     if (AccessControl.isAdmin) {
       // Ya viene filtrada y unificada directamente desde GlobalCache
       _bPartners = GlobalCache.bPartners;
@@ -191,7 +202,13 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       );
     }
 
-    if (_filters.year != null) addChip('Año: ${_filters.year}', ActiveFilterType.year);
+    if (_selectedYears.isNotEmpty) {
+      String yearLabel = _selectedYears.length == 1 ? _selectedYears.first.toString() : '${_selectedYears.length} años';
+      if (_selectedYears.length == 1 && _selectedYears.first == DateTime.now().year) {
+        yearLabel = 'Año Actual';
+      }
+      addChip('Año: $yearLabel', ActiveFilterType.year);
+    }
     if (_filters.bpName != null) addChip('Tercero: ${_filters.bpName}', ActiveFilterType.bp);
 
     if (_filters.levels.isNotEmpty) {
@@ -227,9 +244,6 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   void _removeFilter(ActiveFilterType type) {
     setState(() {
       switch (type) {
-        case ActiveFilterType.year:
-          _filters = _filters.copyWith(year: () => null);
-          break;
         case ActiveFilterType.bp:
           _filters = _filters.copyWith(bpName: () => null);
           _bpId = null; // También limpia el ID del tercero
@@ -252,6 +266,9 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
         case ActiveFilterType.search:
           _searchController.clear();
           break;
+        case ActiveFilterType.year:
+          _selectedYears = [DateTime.now().year];
+          break;
       }
       _currentPage = 0; // Reinicia la paginación
     });
@@ -262,6 +279,51 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     } else {
       _updateStatsLocally();
     }
+  }
+
+  Future<void> _showYearFilterModal() async {
+    final List<int> availableYears = List.generate(10, (i) => DateTime.now().year - i);
+    final List<int>? result = await showDialog<List<int>>(
+      context: context,
+      builder: (context) {
+        List<int> tempSelection = List.from(_selectedYears);
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return CustomModal(
+              title: 'Seleccionar Años',
+              content: SizedBox(
+                height: 300,
+                child: ListView(
+                  children: availableYears.map((year) {
+                    return CheckboxListTile(
+                      title: Text(year.toString()),
+                      value: tempSelection.contains(year),
+                      onChanged: (bool? selected) {
+                        setDialogState(() {
+                          if (selected == true) {
+                            tempSelection.add(year);
+                          } else {
+                            tempSelection.remove(year);
+                          }
+                        });
+                      },
+                    );
+                  }).toList(),
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(context, null), child: const Text('Cancelar')),
+                CustomButton(text: 'Aplicar', onPressed: () => Navigator.pop(context, tempSelection)),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (result == null) return;
+    setState(() => _selectedYears = result..sort((a, b) => b.compareTo(a)));
+    await GlobalCache.fetchRequestsForYears(_selectedYears);
   }
 
   Future<void> _showFilterModal() async {
@@ -392,14 +454,14 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       await GlobalCache.syncData(force: true);
     }
 
-    List<dynamic> allFetchedRequests = GlobalCache.requests;
+    // Siempre obtener la lista más reciente de la caché para evitar datos obsoletos.
+    List<dynamic> currentGlobalRequests = List.from(GlobalCache.requests);
     if (AccessControl.isAdmin && _bpId != null) {
-      allFetchedRequests = allFetchedRequests.where((r) => r['C_BPartner_ID'] is Map ? r['C_BPartner_ID']['id'] == _bpId : r['C_BPartner_ID'] == _bpId).toList();
+      currentGlobalRequests = currentGlobalRequests.where((r) => r['C_BPartner_ID'] is Map ? r['C_BPartner_ID']['id'] == _bpId : r['C_BPartner_ID'] == _bpId).toList();
     }
-    _allFetchedRequests = allFetchedRequests;
 
     // === LA CLAVE: Filtrar las que NO son de proyecto ===
-    final supportRequestsOnly = _allFetchedRequests.where((req) {
+    final supportRequestsOnly = currentGlobalRequests.where((req) {
       final recordUU = req['Record_UU'];
       return recordUU == null || recordUU.toString().isEmpty;
     }).toList();
@@ -668,9 +730,12 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       if (_filters.levels.isNotEmpty && !(_filters.levels.contains(req['level']))) return false;
       if (_filters.statuses.isNotEmpty && !(_filters.statuses.contains(req['status']))) return false;
       if (_filters.bpName != null && req['bpName'] != _filters.bpName) return false;
-      if (_filters.year != null && req['time'] != null && req['time'].toString().isNotEmpty) {
+      if (_selectedYears.isNotEmpty && req['time'] != null && req['time'].toString().isNotEmpty) {
         try {
-          if (int.parse(req['time'].toString().substring(0, 4)) != _filters.year) return false;
+          final reqYear = int.parse(req['time'].toString().substring(0, 4));
+          if (!_selectedYears.contains(reqYear)) {
+            return false;
+          }
         } catch (_) {}
       }
       if (_filters.situations.isNotEmpty && !(_filters.situations.contains(req['situation']))) return false;
@@ -773,6 +838,8 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
             isAscending: _isAscending,
             rowsPerPage: _rowsPerPage,
             showHistory: _showHistory,
+            selectedYears: _selectedYears,
+            onShowYearFilter: _showYearFilterModal,
             onShowFilters: _showFilterModal,
             onShowCalendar: () => setState(() => _showCalendar = true), // Callback para mostrar el calendario
             activeFilterCount: _activeFilterCount,
@@ -780,10 +847,12 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
               _isAscending = !_isAscending;
               _currentPage = 0;
             }),
-            onRowsPerPageChanged: (val) => setState(() {
-              _rowsPerPage = val!;
-              _currentPage = 0;
-            }),
+            onRowsPerPageChanged: (val) {
+              setState(() {
+                _rowsPerPage = val!;
+                _currentPage = 0;
+              });
+            },
             onClearFilters: () {
               setState(() {
                 _filters = const RequestFilterModel();
@@ -791,6 +860,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                 _isAscending = false;
                 _currentPage = 0;
                 _bpId = null; // Reiniciar memoria de navegación
+                _selectedYears = [DateTime.now().year];
                 _isLoading = true;
               });
               _initData();
@@ -807,6 +877,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
             onToggleHistory: () => setState(() {
               _showHistory = !_showHistory;
               _filters = _filters.copyWith(statuses: []);
+              if (_showHistory) GlobalCache.loadArchivedRequests();
               if (_showHistory) {
                 _startHistorySkeleton();
               } else {
@@ -821,6 +892,11 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
             padding: const EdgeInsets.only(bottom: 8.0),
             child: Text('$totalItems solicitudes encontradas', style: Theme.of(context).textTheme.titleMedium),
           ),
+          if (_selectedYears.length == 1 && _selectedYears.first == DateTime.now().year)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 16.0),
+              child: Text("Mostrando solicitudes del año actual. Use el filtro de año para ver más años.", style: TextStyle(color: Colors.grey)),
+            ),
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 1000),
             child: (_isLoading || (_showHistory && _isHistorySkeletonActive)) ? const SkeletonTable() : RequestsDataTable(requests: paginatedAlerts, onEdit: _editRequest, onRefresh: () => _refreshRequest(fetchNetwork: false)),

@@ -46,9 +46,12 @@ class SessionManager {
                 text: 'Aceptar',
                 onPressed: () {
                   _isDialogShowing = false;
+                  // Primero, cerramos el diálogo actual.
+                  Navigator.of(dialogContext).pop();
                   Token.clear();
                   GlobalCache.clear();
-                  GoRouter.of(context).go('/login');
+                  // Luego, usamos el contexto del navigatorKey para una navegación segura.
+                  if (navigatorKey.currentContext != null) GoRouter.of(navigatorKey.currentContext!).go('/login');
                 },
               ),
             ],

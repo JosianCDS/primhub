@@ -6,7 +6,6 @@ import 'package:primhub/ui/Shared_Custom/customToast.dart';
 
 /// Data class to hold filter state for requests.
 class RequestFilterModel {
-  final int? year;
   final String? bpName;
   final List<String> levels;
   final List<String> statuses;
@@ -14,17 +13,16 @@ class RequestFilterModel {
   final List<String> salesRepNames;
   final List<String> userNames;
 
-  const RequestFilterModel({this.year, this.bpName, this.levels = const [], this.statuses = const [], this.situations = const [], this.salesRepNames = const [], this.userNames = const []});
+  const RequestFilterModel({this.bpName, this.levels = const [], this.statuses = const [], this.situations = const [], this.salesRepNames = const [], this.userNames = const []});
 
   /// Creates a copy of this filter object with the given fields replaced with the new values.
-  RequestFilterModel copyWith({ValueGetter<int?>? year, ValueGetter<String?>? bpName, List<String>? levels, List<String>? statuses, List<String>? situations, List<String>? salesRepNames, List<String>? userNames}) {
-    return RequestFilterModel(year: year != null ? year() : this.year, bpName: bpName != null ? bpName() : this.bpName, levels: levels ?? this.levels, statuses: statuses ?? this.statuses, situations: situations ?? this.situations, salesRepNames: salesRepNames ?? this.salesRepNames, userNames: userNames ?? this.userNames);
+  RequestFilterModel copyWith({ValueGetter<String?>? bpName, List<String>? levels, List<String>? statuses, List<String>? situations, List<String>? salesRepNames, List<String>? userNames}) {
+    return RequestFilterModel(bpName: bpName != null ? bpName() : this.bpName, levels: levels ?? this.levels, statuses: statuses ?? this.statuses, situations: situations ?? this.situations, salesRepNames: salesRepNames ?? this.salesRepNames, userNames: userNames ?? this.userNames);
   }
 
   /// Calculates the number of active filters.
   int get activeFilterCount {
     int count = 0;
-    if (year != null) count++;
     if (bpName != null) count++;
     count += levels.length;
     count += statuses.length;
@@ -215,23 +213,6 @@ class _RequestFilterModalState extends State<RequestFilterModal> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildSingleSearchableField<int>(
-              label: 'Año',
-              hintText: 'Todos los Años',
-              value: _tempFilter.year,
-              isLoading: false,
-              isDisabled: false,
-              displayText: _tempFilter.year?.toString() ?? 'Todos los Años',
-              onTap: () => _openSingleSelectSearchModal<int>(
-                title: 'Año',
-                items: ['__ALL__', ...List.generate(10, (index) => (DateTime.now().year - 3) + index)],
-                currentValue: _tempFilter.year,
-                getTitle: (item) => item == '__ALL__' ? 'Todos los Años' : item.toString(),
-                getValue: (item) => item == '__ALL__' ? null : item as int,
-                onSelected: (val) => setState(() => _tempFilter = _tempFilter.copyWith(year: () => val)),
-              ),
-            ),
-            const SizedBox(height: 16),
             if (AccessControl.isAdmin) ...[
               _buildSingleSearchableField<String>(
                 label: 'Tercero',

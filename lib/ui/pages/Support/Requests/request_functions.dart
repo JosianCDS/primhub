@@ -277,6 +277,7 @@ Future<Map<String, dynamic>> processRequests(List<dynamic> requests, Map<String,
       'salesRepId': req['SalesRep_ID'] is Map ? req['SalesRep_ID']['id'] : req['SalesRep_ID'],
       'salesRepName': req['SalesRep_ID'] is Map ? (req['SalesRep_ID']['identifier'] ?? req['SalesRep_ID']['Name'] ?? '') : '',
       'emailSubject': req['CDS_EmailSubject'] ?? '',
+      'salesOrderNo': req['C_Order_ID'] is Map ? req['C_Order_ID']['DocumentNo'] : null,
       'recordUU': req['Record_UU'],
       'original': req,
     });
