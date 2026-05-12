@@ -155,9 +155,9 @@ class ProjectsLogic {
     if (bPartnerId != null) filter += ' and C_BPartner_ID eq $bPartnerId';
     if (salesRepId != null) filter += ' and SalesRep_ID eq $salesRepId';
 
-    // Evitamos el $select anidado dentro de $expand, ya que causa errores 400 al traer volumenes grandes en iDempiere
+    // Evitamos el $select para ser más compatibles con diferentes versiones de iDempiere y asegurar que traiga el UUID
     String url =
-        '${Endpoint.project}?\$filter=$filter&\$select=C_Project_ID,Name,C_BPartner_ID&\$expand=C_BPartner_ID&\$orderby=Name';
+        '${Endpoint.project}?\$filter=$filter&\$expand=C_BPartner_ID&\$orderby=Name';
     final records = await _safeFetchPaginated(url, 'lista de proyectos');
 
     debugPrint(
@@ -179,11 +179,13 @@ class ProjectsLogic {
               ' (Tercero $bpData)'; // Fallback si la API solo devuelve el ID
         return {
           'id': e['id'] ?? e['C_Project_ID'],
+          'uuid': e['Record_UU'] ?? e['UUID'] ?? e['uuid'] ?? e['uid'],
           'Name': '${e['Name'] ?? 'Sin Nombre'}$bpName',
         };
       } catch (_) {
         return {
           'id': e['id'] ?? e['C_Project_ID'],
+          'uuid': e['Record_UU'] ?? e['UUID'] ?? e['uuid'] ?? e['uid'],
           'Name': e['Name'] ?? 'Sin Nombre',
         };
       }

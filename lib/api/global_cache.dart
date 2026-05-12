@@ -369,75 +369,60 @@ class GlobalCache {
         );
     }
   }
-  /// Carga todas las solicitudes de un proyecto en segundo plano.
+  static Map<int, Completer<void>> _activeProjectCompleters = {};
+
+  /// Carga todas las solicitudes de un proyecto en segundo plano de forma completa.
   static Future<void> loadProjectRequestsInBackground(
     int projectId, {
     List<String>? taskUUIDs,
     Function(List<Map<String, dynamic>>)? onUpdate,
   }) async {
-    if (projectLoadingStatus[projectId] == true) return;
+    // Si ya se está cargando este proyecto, devolvemos el futuro existente para que el llamante espere.
+    if (_activeProjectCompleters.containsKey(projectId)) {
+      return _activeProjectCompleters[projectId]!.future;
+    }
+
+    final completer = Completer<void>();
+    _activeProjectCompleters[projectId] = completer;
     projectLoadingStatus[projectId] = true;
 
     try {
-      debugPrint("CACHE: Iniciando carga OPTIMIZADA para Proyecto $projectId");
+      debugPrint("CACHE: Iniciando carga COMPLETA para Proyecto $projectId");
       
       final currentYear = DateTime.now().year;
       final fiveYearsAgo = currentYear - 5;
-      final uuids = taskUUIDs ?? await ProjectsLogic().fetchProjectTaskUUIDs(projectId);
       
-      if (uuids.isEmpty) {
-        debugPrint("CACHE: No se encontraron UUIDs para el proyecto $projectId");
-        return;
+      // 1. Cargar solicitudes del AÑO ACTUAL para este Proyecto (por ID directo)
+      final filterCurrent = "C_Project_ID eq $projectId and Created ge '$currentYear-01-01T00:00:00Z'";
+      final reqsCurrent = await fetchRequest(
+        filter: filterCurrent, 
+        expand: 'C_Order_ID(\$select=DocumentNo),R_Status_ID,R_RequestType_ID,R_Category_ID'
+      );
+      
+      if (reqsCurrent.isNotEmpty) {
+        _updateProjectCache(projectId, reqsCurrent);
+        if (onUpdate != null) onUpdate(projectRequestsCache[projectId]!);
       }
 
-      // 1. Cargar AÑO ACTUAL para todos los UUIDs de forma paralela (Chunks de 20)
-      // Esto da una respuesta rápida al usuario con lo más relevante
-      List<Future<void>> currentYearTasks = [];
-      for (var i = 0; i < uuids.length; i += 20) {
-        final chunk = uuids.sublist(i, i + 20 > uuids.length ? uuids.length : i + 20);
-        String chunkFilter = chunk.map((u) => "Record_UU eq '$u'").join(' or ');
-        
-        currentYearTasks.add(() async {
-          final filter = "($chunkFilter) and Created ge '$currentYear-01-01T00:00:00Z'";
-          final reqs = await fetchRequest(
-            filter: filter, 
-            expand: 'C_Order_ID(\$select=DocumentNo),R_Status_ID,R_RequestType_ID,R_Category_ID'
-          );
-          if (reqs.isNotEmpty) {
-            _updateProjectCache(projectId, reqs);
-            if (onUpdate != null) onUpdate(projectRequestsCache[projectId]!);
-          }
-        }());
-      }
-      await Future.wait(currentYearTasks);
+      // 2. Cargar HISTÓRICO (5 años) para este Proyecto (por ID directo)
+      final filterHistory = "C_Project_ID eq $projectId and Created ge '$fiveYearsAgo-01-01T00:00:00Z' and Created lt '$currentYear-01-01T00:00:00Z'";
+      final reqsHistory = await fetchRequest(
+        filter: filterHistory, 
+        expand: 'C_Order_ID(\$select=DocumentNo),R_Status_ID,R_RequestType_ID,R_Category_ID'
+      );
 
-      // 2. Cargar HISTÓRICO (5 años previos) en segundo plano, también en paralelo
-      // Usamos un solo filtro de fecha para no multiplicar peticiones por cada año
-      List<Future<void>> historyTasks = [];
-      for (var i = 0; i < uuids.length; i += 20) {
-        final chunk = uuids.sublist(i, i + 20 > uuids.length ? uuids.length : i + 20);
-        String chunkFilter = chunk.map((u) => "Record_UU eq '$u'").join(' or ');
-
-        historyTasks.add(() async {
-          final filter = "($chunkFilter) and Created ge '$fiveYearsAgo-01-01T00:00:00Z' and Created lt '$currentYear-01-01T00:00:00Z'";
-          final reqs = await fetchRequest(
-            filter: filter, 
-            expand: 'C_Order_ID(\$select=DocumentNo),R_Status_ID,R_RequestType_ID,R_Category_ID'
-          );
-          if (reqs.isNotEmpty) {
-            _updateProjectCache(projectId, reqs);
-            if (onUpdate != null) onUpdate(projectRequestsCache[projectId]!);
-          }
-        }());
+      if (reqsHistory.isNotEmpty) {
+        _updateProjectCache(projectId, reqsHistory);
+        if (onUpdate != null) onUpdate(projectRequestsCache[projectId]!);
       }
-      // No esperamos al historial para liberar el hilo principal si es necesario, 
-      // pero lo lanzamos para que se cargue gradualmente.
-      Future.wait(historyTasks);
-      debugPrint("CACHE: Carga gradual completada para Proyecto $projectId.");
+
+      debugPrint("CACHE: Carga completa para Proyecto $projectId (Total: ${projectRequestsCache[projectId]?.length ?? 0} recs).");
     } catch (e) {
-      debugPrint("CACHE: Error en carga gradual de proyecto $projectId: $e");
+      debugPrint("CACHE: Error en carga de proyecto $projectId: $e");
     } finally {
       projectLoadingStatus[projectId] = false;
+      _activeProjectCompleters.remove(projectId);
+      if (!completer.isCompleted) completer.complete();
     }
   }
 

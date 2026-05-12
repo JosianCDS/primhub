@@ -4,7 +4,7 @@ import 'package:super_drag_and_drop/super_drag_and_drop.dart';
 class BreadcrumbNavigator extends StatelessWidget {
   final List<String> currentPath;
   final Function(int index) onNavigate;
-  final Function(Map data)? onDropToRoot;
+  final Function(int index, Map data)? onDropToRoot;
 
   const BreadcrumbNavigator({super.key, required this.currentPath, required this.onNavigate, this.onDropToRoot});
 
@@ -20,49 +20,88 @@ class BreadcrumbNavigator extends StatelessWidget {
     return Icons.folder_open; // Subcarpetas
   }
 
+  Color _getCrumbColor(BuildContext context, int index, String name) {
+    final theme = Theme.of(context);
+    if (index == 0) return Colors.grey;
+    if (index == 1) return theme.colorScheme.primary;
+    if (index == 2) {
+      if (name == 'Entregables') return Colors.amber.shade700;
+      if (name == 'Seguimiento') return Colors.blue.shade700;
+      if (name == 'General') return Colors.green.shade700;
+    }
+    return Colors.amber.shade600; // Subcarpetas
+  }
+
   @override
   Widget build(BuildContext context) {
     List<Widget> crumbs = [];
     for (int i = 0; i < currentPath.length; i++) {
       final isLast = i == currentPath.length - 1;
-      final color = isLast ? Theme.of(context).textTheme.bodyLarge?.color : Theme.of(context).colorScheme.primary;
+      final color = _getCrumbColor(context, i, currentPath[i]);
 
-      Widget crumb = InkWell(
-        onTap: isLast ? null : () => onNavigate(i),
-        borderRadius: BorderRadius.circular(4),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 4.0),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(_getIconForCrumb(i, currentPath[i]), size: 16, color: color),
-              const SizedBox(width: 6),
-              Text(
-                currentPath[i].split('.').first,
-                style: TextStyle(color: color, fontWeight: isLast ? FontWeight.bold : FontWeight.normal),
-              ),
-            ],
+      Widget crumb = Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4.0),
+        child: InkWell(
+          onTap: isLast ? null : () => onNavigate(i),
+          borderRadius: BorderRadius.circular(8),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 6.0),
+            decoration: BoxDecoration(
+              color: isLast ? color.withOpacity(0.1) : Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+              border: isLast ? Border.all(color: color.withOpacity(0.3)) : null,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(_getIconForCrumb(i, currentPath[i]), size: 18, color: color),
+                const SizedBox(width: 8),
+                Text(
+                  currentPath[i].split('.').first,
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: isLast ? FontWeight.bold : FontWeight.w500,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
 
-      // El nivel 2 es "Entregables", "Seguimiento", etc (La Raíz real de los archivos). Convertirlo en zona de Drop.
-      if (!isLast && i <= 2 && onDropToRoot != null) {
-        crumb = DropRegion(
-          formats: Formats.standardFormats,
-          onDropOver: (event) {
-            if (event.session.items.isEmpty) return DropOperation.none;
-            final item = event.session.items.first;
-            if (item.localData != null && item.localData is Map && (item.localData as Map)['type'] == 'file') {
-              return DropOperation.copy; // Compatible con Linux y Desktop
-            }
-            return DropOperation.none;
+      // Permitir soltar en cualquier nivel previo (Padres o Raíz)
+      if (!isLast && i >= 2 && onDropToRoot != null) {
+        bool isDragOver = false;
+        crumb = StatefulBuilder(
+          builder: (context, setStateSB) {
+            return DropRegion(
+              formats: Formats.standardFormats,
+              onDropEnter: (event) => setStateSB(() => isDragOver = true),
+              onDropLeave: (event) => setStateSB(() => isDragOver = false),
+              onDropOver: (event) {
+                if (event.session.items.isEmpty) return DropOperation.none;
+                return DropOperation.move;
+              },
+              onPerformDrop: (event) async {
+                setStateSB(() => isDragOver = false);
+                final item = event.session.items.first;
+                if (item.localData is Map) {
+                  onDropToRoot!(i, item.localData as Map);
+                }
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                decoration: BoxDecoration(
+                  color: isDragOver ? Colors.blue.withOpacity(0.15) : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                  border: isDragOver ? Border.all(color: Colors.blue.shade300) : null,
+                ),
+                child: crumb,
+              ),
+            );
           },
-          onPerformDrop: (event) async {
-            final item = event.session.items.first;
-            if (item.localData is Map) onDropToRoot!(item.localData as Map);
-          },
-          child: crumb,
         );
       }
 
@@ -70,8 +109,8 @@ class BreadcrumbNavigator extends StatelessWidget {
       if (!isLast) {
         crumbs.add(
           const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 8.0),
-            child: Icon(Icons.chevron_right, color: Colors.grey, size: 16),
+            padding: EdgeInsets.symmetric(horizontal: 4.0),
+            child: Icon(Icons.chevron_right_rounded, color: Colors.grey, size: 16),
           ),
         );
       }

@@ -29,6 +29,7 @@ class MetricsPage extends StatefulWidget {
 
 class _MetricsPageState extends State<MetricsPage> {
   bool _isLoading = true;
+  bool _isProjectsLoading = true;
   int? _selectedProjectId;
   List<dynamic> _projects = [];
 
@@ -243,7 +244,8 @@ class _MetricsPageState extends State<MetricsPage> {
     }
   }
 
-  Future<void> _loadProjects() async {
+   Future<void> _loadProjects() async {
+    setState(() => _isProjectsLoading = true);
     try {
       int? bPartnerIdForQuery;
       if (AccessControl.isAdmin) {
@@ -253,40 +255,35 @@ class _MetricsPageState extends State<MetricsPage> {
       }
 
       final projects = await ProjectsLogic().fetchProjectsForDropdown(bPartnerId: bPartnerIdForQuery);
+      debugPrint("DEBUG METRICS: Proyectos recibidos: ${projects.length}");
+      
       if (mounted) {
         setState(() {
           _projects = projects;
-          if (_projects.isNotEmpty) {
-            if (_selectedProjectId == null || !_projects.any((p) => p['id'] == _selectedProjectId)) {
-              _selectedProjectId = _projects.first['id'];
-            }
-          } else {
+          _isProjectsLoading = false;
+          // Solo mantenemos la selección si el proyecto aún existe en la nueva lista.
+          if (_selectedProjectId != null && !_projects.any((p) => p['id'] == _selectedProjectId)) {
             _selectedProjectId = null;
           }
         });
+
         if (_selectedProjectId != null) {
           _loadMetrics();
         } else {
           setState(() {
             _isLoading = false;
-            _statusLabels = [];
-            _statusValues = [];
-            _complianceLabels = [];
-            _complianceValues = [];
-            _moduleLabels = [];
-            _modulePercentageValues = [];
-            _moduleTerminadaValues = [];
-            _modulePendienteValues = [];
-            _moduleEsperaValues = [];
-            _moduleFullLabels = [];
           });
         }
       }
     } catch (e) {
       debugPrint("Error cargando proyectos: $e");
       if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error cargando lista de proyectos: $e')),
+        );
         setState(() {
           _isLoading = false;
+          _isProjectsLoading = false;
           _projects = [];
         });
       }
@@ -298,6 +295,18 @@ class _MetricsPageState extends State<MetricsPage> {
     setState(() => _isLoading = true);
 
     try {
+      // 0. Trigger hierarchical load to ensure specific project requests are in cache
+      final projData = _projects.firstWhere(
+        (p) => p['id'] == _selectedProjectId, 
+        orElse: () => <String, dynamic>{},
+      );
+      final projectUU = projData['uuid'];
+      if (projectUU != null && projectUU.toString().isNotEmpty) {
+        // Cargamos las solicitudes del proyecto (siguiendo la jerarquía Fase -> Tarea)
+        // Esto garantiza que tengamos los datos exactos que el usuario ve en la pantalla de proyecto
+        await GlobalCache.loadProjectRequestsInBackground(_selectedProjectId!);
+      }
+
       // 1. Obtener los datos crudos
       final requests = await GraphicsFunctions.fetchMetricsData(projectId: _selectedProjectId!);
 
@@ -531,26 +540,39 @@ class _MetricsPageState extends State<MetricsPage> {
                       decoration: InputDecoration(
                         hintText: 'Buscar proyecto...',
                         prefixIcon: const Icon(Icons.search),
+                        suffixIcon: _isProjectsLoading ? const SizedBox(width: 20, height: 20, child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(strokeWidth: 2))) : null,
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                       ),
                       onChanged: (val) => setModalState(() => searchQuery = val),
                     ),
                     const SizedBox(height: 10),
                     Expanded(
-                      child: ListView.builder(
-                        itemCount: filteredProjects.length,
-                        itemBuilder: (context, index) {
-                          final p = filteredProjects[index];
-                          return ListTile(
-                            title: Text(p['Name'] ?? 'Sin Nombre'),
-                            onTap: () {
-                              setState(() => _selectedProjectId = p['id']);
-                              _loadMetrics();
-                              Navigator.pop(context);
-                            },
-                          );
-                        },
-                      ),
+                      child: _isProjectsLoading && _projects.isEmpty
+                          ? const Center(child: CircularProgressIndicator())
+                          : _projects.isEmpty
+                              ? Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Text("No se encontraron proyectos"),
+                                      TextButton(onPressed: _loadProjects, child: const Text("Reintentar")),
+                                    ],
+                                  ),
+                                )
+                              : ListView.builder(
+                                  itemCount: filteredProjects.length,
+                                  itemBuilder: (context, index) {
+                                    final p = filteredProjects[index];
+                                    return ListTile(
+                                      title: Text(p['Name'] ?? 'Sin Nombre'),
+                                      onTap: () {
+                                        setState(() => _selectedProjectId = p['id']);
+                                        _loadMetrics();
+                                        Navigator.pop(context);
+                                      },
+                                    );
+                                  },
+                                ),
                     ),
                   ],
                 ),
@@ -666,6 +688,8 @@ class _MetricsPageState extends State<MetricsPage> {
   @override
   Widget build(BuildContext context) {
     final isLargeScreen = MediaQuery.of(context).size.width >= 1100;
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
       appBar: AppBar(
         leadingWidth: !AccessControl.isAdmin ? 180 : null,
@@ -702,76 +726,225 @@ class _MetricsPageState extends State<MetricsPage> {
       drawer: AccessControl.isAdmin ? const CustomDrawer(currentRoute: '/metrics') : null,
       bottomNavigationBar: !AccessControl.isAdmin ? const ProjectBottomNav(currentRoute: '/metrics') : null,
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(24),
         child: Column(
           children: [
+            // --- SECCIÓN PROYECTOS ---
             if (AccessControl.canViewProjectCharts) ...[
-              Padding(
-                padding: const EdgeInsets.only(bottom: 20),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text('Métricas de Proyecto', style: Theme.of(context).textTheme.titleLarge),
-                ),
-              ),
-              _buildProjectFilters(),
-              const SizedBox(height: 20),
-              _isLoading
-                  ? Column(
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(child: CustomSkeleton(height: 300, borderRadius: 12)),
-                            SizedBox(width: 20),
-                            Expanded(child: CustomSkeleton(height: 300, borderRadius: 12)),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-                        Row(
-                          children: [
-                            Expanded(child: CustomSkeleton(height: 300, borderRadius: 12)),
-                            SizedBox(width: 20),
-                            Expanded(child: CustomSkeleton(height: 300, borderRadius: 12)),
-                          ],
-                        ),
-                      ],
-                    )
-                  : _buildDashboardGrid(isLargeScreen),
-            ] else ...[
-              const SizedBox.shrink(),
+              _buildSectionHeader(context, 'Métricas de Proyecto', Icons.insights_rounded),
+              _buildControlCenterContainer(context, child: _buildProjectFilters()),
+              const SizedBox(height: 24),
+              
+              if (_selectedProjectId == null)
+                _buildWaitingForSelection(context, 'Seleccione un proyecto para visualizar sus indicadores')
+              else if (_isLoading)
+                _buildSkeletonGrid()
+              else ...[
+                _buildProjectKPIRow(context),
+                const SizedBox(height: 24),
+                _buildDashboardGrid(isLargeScreen),
+              ],
             ],
-            if (AccessControl.canViewProjectCharts && AccessControl.canViewSupportCharts) const Padding(padding: EdgeInsets.symmetric(vertical: 20), child: Divider(thickness: 1)),
+
+            if (AccessControl.canViewProjectCharts && AccessControl.canViewSupportCharts) 
+              const Padding(padding: EdgeInsets.symmetric(vertical: 32), child: Divider(thickness: 1.5, color: Colors.black12)),
+
+            // --- SECCIÓN SOPORTE ---
             if (AccessControl.canViewSupportCharts) ...[
-              Padding(
-                padding: const EdgeInsets.only(bottom: 20),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text('Métricas de Soporte', style: Theme.of(context).textTheme.titleLarge),
-                ),
-              ),
-              _buildSupportFilters(),
-              const SizedBox(height: 20),
+              _buildSectionHeader(context, 'Métricas de Soporte', Icons.support_agent_rounded),
+              _buildControlCenterContainer(context, child: _buildSupportFilters()),
+              const SizedBox(height: 24),
+
+              if (!_isLoadingSupport) _buildSupportKPIRow(context),
+              const SizedBox(height: 24),
+
               _isLoadingSupport
-                  ? Row(
-                      children: [
-                        Expanded(child: CustomSkeleton(height: 300, borderRadius: 12)),
-                        const SizedBox(width: 20),
-                        Expanded(child: CustomSkeleton(height: 300, borderRadius: 12)),
-                      ],
-                    )
+                  ? _buildSkeletonGrid()
                   : _buildSupportDashboardGrid(isLargeScreen),
             ],
+
             if (!AccessControl.canViewProjectCharts && !AccessControl.canViewSupportCharts)
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(50.0),
-                  child: Text("No hay métricas disponibles para la vista actual.", style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.grey)),
-                ),
-              ),
+              _buildNoDataView(context),
           ],
         ),
       ),
     );
   }
+
+  Widget _buildSectionHeader(BuildContext context, String title, IconData icon) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Row(
+        children: [
+          Icon(icon, color: colorScheme.primary, size: 28),
+          const SizedBox(width: 12),
+          Text(
+            title,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildControlCenterContainer(BuildContext context, {required Widget child}) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.5)),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: child,
+    );
+  }
+
+  Widget _buildProjectKPIRow(BuildContext context) {
+    // Calculamos el total basado en los datos de cumplimiento (mismo que el gráfico de dona)
+    final totalComp = _complianceValues.isEmpty ? 0 : _complianceValues.reduce((a, b) => a + b).toInt();
+    
+    double completedPct = 0;
+    int completedIdx = _complianceLabels.indexOf('TERMINADA');
+    if (completedIdx != -1 && totalComp > 0) {
+      completedPct = (_complianceValues[completedIdx] / totalComp) * 100;
+    }
+    
+    int pendingCount = 0;
+    int pendingIdx = _complianceLabels.indexOf('PENDIENTE');
+    if (pendingIdx != -1) pendingCount = _complianceValues[pendingIdx].toInt();
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 600;
+        return Wrap(
+          spacing: 16,
+          runSpacing: 16,
+          children: [
+            _KPICard(
+              title: 'Total Solicitudes',
+              value: totalComp.toString(),
+              icon: Icons.assignment_rounded,
+              color: Colors.blue,
+              width: isNarrow ? (constraints.maxWidth - 16) / 2 : (constraints.maxWidth - 32) / 3,
+            ),
+            _KPICard(
+              title: 'Cumplimiento',
+              value: '${completedPct.toStringAsFixed(1)}%',
+              icon: Icons.check_circle_outline_rounded,
+              color: ColorTheme.success,
+              width: isNarrow ? (constraints.maxWidth - 16) / 2 : (constraints.maxWidth - 32) / 3,
+            ),
+            _KPICard(
+              title: 'Pendientes',
+              value: pendingCount.toString(),
+              icon: Icons.pending_actions_rounded,
+              color: ColorTheme.atention,
+              width: isNarrow ? (constraints.maxWidth - 16) / 2 : (constraints.maxWidth - 32) / 3,
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildSupportKPIRow(BuildContext context) {
+    final total = _supportStatusValues.isEmpty ? 0 : _supportStatusValues.reduce((a, b) => a + b).toInt();
+    
+    int urgentCount = 0;
+    int urgentIdx = _supportPriorityLabels.indexOf('Urgente');
+    if (urgentIdx != -1) urgentCount = _supportPriorityValues[urgentIdx].toInt();
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 600;
+        return Wrap(
+          spacing: 16,
+          runSpacing: 16,
+          children: [
+            _KPICard(
+              title: 'Solicitudes Totales',
+              value: total.toString(),
+              icon: Icons.confirmation_number_rounded,
+              color: Colors.indigo,
+              width: isNarrow ? (constraints.maxWidth - 16) / 2 : (constraints.maxWidth - 16) / 2,
+            ),
+            _KPICard(
+              title: 'Tickets Críticos',
+              value: urgentCount.toString(),
+              icon: Icons.warning_amber_rounded,
+              color: Colors.red,
+              width: isNarrow ? (constraints.maxWidth - 16) / 2 : (constraints.maxWidth - 16) / 2,
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildSkeletonGrid() => Column(
+    children: [
+      Row(
+        children: [
+          Expanded(child: CustomSkeleton(height: 300, borderRadius: 16)),
+          const SizedBox(width: 20),
+          Expanded(child: CustomSkeleton(height: 300, borderRadius: 16)),
+        ],
+      ),
+      const SizedBox(height: 24),
+      Row(
+        children: [
+          Expanded(child: CustomSkeleton(height: 300, borderRadius: 16)),
+          const SizedBox(width: 20),
+          Expanded(child: CustomSkeleton(height: 300, borderRadius: 16)),
+        ],
+      ),
+    ],
+  );
+
+  Widget _buildNoDataView(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(64.0),
+      child: Column(
+        children: [
+          Icon(Icons.bar_chart_rounded, size: 64, color: Colors.grey.withOpacity(0.3)),
+          const SizedBox(height: 16),
+          Text(
+            "No hay métricas disponibles para la vista actual.",
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.grey),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  Widget _buildWaitingForSelection(BuildContext context, String message) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(48.0),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primary.withOpacity(0.05),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.ads_click_rounded, size: 48, color: Theme.of(context).colorScheme.primary.withOpacity(0.5)),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.grey, fontWeight: FontWeight.w500),
+          ),
+        ],
+      ),
+    ),
+  );
 
   Widget _buildDashboardGrid(bool isLargeScreen) {
     final List<Color> pieColors = [const Color(0xFF42A5F5), const Color(0xFF66BB6A), const Color(0xFFFFA726), const Color(0xFFAB47BC), const Color(0xFFEF5350), const Color(0xFF26A69A), const Color(0xFFEC407A), const Color(0xFFFFCA28), const Color(0xFF5C6BC0), const Color(0xFF8D6E63)];
@@ -1005,11 +1178,12 @@ class _MetricsPageState extends State<MetricsPage> {
         const SizedBox(width: 15),
         Expanded(
           child: InkWell(
-            onTap: _projects.isEmpty ? null : _showProjectSearchModal,
+            onTap: _showProjectSearchModal,
             child: InputDecorator(
               decoration: InputDecoration(
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0)),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                suffixIcon: _isProjectsLoading ? const SizedBox(width: 20, height: 20, child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(strokeWidth: 2))) : null,
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1219,6 +1393,83 @@ class _DonutWithLegendWidgetState extends State<_DonutWithLegendWidget> {
           boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2))],
         ),
         child: Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
+      ),
+    );
+  }
+}
+
+class _KPICard extends StatelessWidget {
+  final String title;
+  final String value;
+  final IconData icon;
+  final Color color;
+  final double width;
+
+  const _KPICard({
+    required this.title,
+    required this.value,
+    required this.icon,
+    required this.color,
+    required this.width,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
+    return Container(
+      width: width,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.15)),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: color, size: 24),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.onSurface.withOpacity(0.5),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

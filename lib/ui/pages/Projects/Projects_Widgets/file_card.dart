@@ -47,6 +47,7 @@ class FileCard extends StatefulWidget {
 
 class _FileCardState extends State<FileCard> {
   bool _isHovered = false;
+  bool _isDragOver = false;
 
   @override
   Widget build(BuildContext context) {
@@ -60,6 +61,7 @@ class _FileCardState extends State<FileCard> {
 
     // Colores basados en el tipo de archivo/carpeta
     final baseColor = widget.isFolder ? Colors.amber.shade700 : widget.color;
+    final highlightColor = _isDragOver ? Colors.blue.shade600 : baseColor;
 
     Widget cardContent = MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -70,16 +72,18 @@ class _FileCardState extends State<FileCard> {
           duration: const Duration(milliseconds: 250),
           curve: Curves.easeOutCubic,
           decoration: BoxDecoration(
-            color: theme.cardColor,
+            color: _isDragOver ? Colors.blue.withOpacity(0.05) : theme.cardColor,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: _isHovered ? baseColor.withOpacity(0.5) : colorScheme.outlineVariant.withOpacity(0.3),
-              width: _isHovered ? 2 : 1,
+              color: _isDragOver 
+                  ? Colors.blue.shade400 
+                  : (_isHovered ? baseColor.withOpacity(0.5) : colorScheme.outlineVariant.withOpacity(0.3)),
+              width: (_isHovered || _isDragOver) ? 2 : 1,
             ),
-            boxShadow: _isHovered
+            boxShadow: (_isHovered || _isDragOver)
                 ? [
                     BoxShadow(
-                      color: baseColor.withOpacity(0.15),
+                      color: (_isDragOver ? Colors.blue : baseColor).withOpacity(0.15),
                       blurRadius: 15,
                       offset: const Offset(0, 8),
                       spreadRadius: 2,
@@ -108,8 +112,8 @@ class _FileCardState extends State<FileCard> {
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                           colors: [
-                            baseColor.withOpacity(_isHovered ? 0.15 : 0.08),
-                            baseColor.withOpacity(_isHovered ? 0.08 : 0.03),
+                            highlightColor.withOpacity((_isHovered || _isDragOver) ? 0.15 : 0.08),
+                            highlightColor.withOpacity((_isHovered || _isDragOver) ? 0.08 : 0.03),
                           ],
                         ),
                       ),
@@ -118,7 +122,7 @@ class _FileCardState extends State<FileCard> {
                               tag: 'folder_${widget.details['id']}',
                               child: Icon(
                                 Icons.folder_rounded,
-                                color: baseColor.withOpacity(_isHovered ? 1.0 : 0.8),
+                                color: highlightColor.withOpacity((_isHovered || _isDragOver) ? 1.0 : 0.8),
                                 size: isCompact ? 56 : 80,
                               ),
                             )
@@ -129,7 +133,7 @@ class _FileCardState extends State<FileCard> {
                                     if (snapshot.hasData && snapshot.data != null) {
                                       return AnimatedOpacity(
                                         duration: const Duration(milliseconds: 300),
-                                        opacity: _isHovered ? 0.9 : 1.0,
+                                        opacity: (_isHovered || _isDragOver) ? 0.9 : 1.0,
                                         child: Image.memory(
                                           snapshot.data!,
                                           fit: BoxFit.cover,
@@ -142,7 +146,7 @@ class _FileCardState extends State<FileCard> {
                                     return Center(
                                       child: Icon(
                                         DocumentsLogic.getFileIcon(widget.extension),
-                                        color: baseColor,
+                                        color: highlightColor,
                                         size: isCompact ? 48 : 72,
                                       ),
                                     );
@@ -151,7 +155,7 @@ class _FileCardState extends State<FileCard> {
                               : Center(
                                   child: Icon(
                                     DocumentsLogic.getFileIcon(widget.extension),
-                                    color: baseColor.withOpacity(_isHovered ? 1.0 : 0.7),
+                                    color: highlightColor.withOpacity((_isHovered || _isDragOver) ? 1.0 : 0.7),
                                     size: isCompact ? 48 : 72,
                                   ),
                                 )),
@@ -166,7 +170,7 @@ class _FileCardState extends State<FileCard> {
                         vertical: 8.0,
                       ),
                       decoration: BoxDecoration(
-                        color: _isHovered ? baseColor.withOpacity(0.02) : null,
+                        color: (_isHovered || _isDragOver) ? highlightColor.withOpacity(0.02) : null,
                       ),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -175,7 +179,7 @@ class _FileCardState extends State<FileCard> {
                             visualName.split('.').first,
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              fontWeight: _isHovered ? FontWeight.bold : FontWeight.w600,
+                              fontWeight: (_isHovered || _isDragOver) ? FontWeight.bold : FontWeight.w600,
                               fontSize: isCompact ? 11 : 12.5,
                               color: colorScheme.onSurface,
                             ),
@@ -210,7 +214,7 @@ class _FileCardState extends State<FileCard> {
                               padding: const EdgeInsets.only(top: 6.0),
                               child: Icon(
                                 widget.isFolder ? Icons.open_in_new_rounded : Icons.file_download_outlined,
-                                color: _isHovered ? baseColor : colorScheme.primary.withOpacity(0.5),
+                                color: (_isHovered || _isDragOver) ? highlightColor : colorScheme.primary.withOpacity(0.5),
                                 size: 16,
                               ),
                             ),
@@ -253,7 +257,7 @@ class _FileCardState extends State<FileCard> {
                   left: 4,
                   child: AnimatedOpacity(
                     duration: const Duration(milliseconds: 200),
-                    opacity: _isHovered ? 0.8 : 0.2,
+                    opacity: (_isHovered || _isDragOver) ? 0.8 : 0.2,
                     child: Container(
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
@@ -272,18 +276,23 @@ class _FileCardState extends State<FileCard> {
 
     Widget dropRegion = DropRegion(
       formats: Formats.standardFormats,
+      onDropEnter: (event) {
+        setState(() => _isDragOver = true);
+      },
+      onDropLeave: (event) {
+        setState(() => _isDragOver = false);
+      },
       onDropOver: (event) {
         if (event.session.items.isEmpty) return DropOperation.none;
         final item = event.session.items.first;
         if (item.localData != null && item.localData is Map) {
-          final draggedData = item.localData as Map;
-          final draggedId = draggedData['id'];
+          final data = item.localData as Map;
+          if (data['id'] == widget.details['id']) return DropOperation.none;
 
-          if (draggedId == widget.details['id']) return DropOperation.none;
-
-          final draggedType = draggedData['type'];
-          if (widget.isFolder && draggedType == 'file') {
-            return DropOperation.move;
+          // REGLA: Si soltamos sobre una CARPETA, movemos adentro.
+          // Si soltamos sobre un ARCHIVO, reordenamos.
+          if (widget.isFolder) {
+            return DropOperation.move; // Mostramos cursor de mover para carpetas
           } else {
             return DropOperation.copy;
           }
@@ -291,15 +300,14 @@ class _FileCardState extends State<FileCard> {
         return DropOperation.none;
       },
       onPerformDrop: (event) async {
+        setState(() => _isDragOver = false);
         final item = event.session.items.first;
         if (item.localData is Map) {
           final data = item.localData as Map;
-          final draggedId = data['id'];
-          final draggedType = data['type'];
-          if (widget.isFolder && draggedType == 'file') {
+          if (widget.isFolder) {
             widget.onMoveToFolder?.call(data['doc'], data['tableName'], widget.details['id']);
           } else {
-            widget.onReorder?.call(draggedId, widget.details['id']);
+            widget.onReorder?.call(data['id'], widget.details['id']);
           }
         }
       },
