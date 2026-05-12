@@ -67,9 +67,8 @@ class ContractApi {
     }
 
     // No aplicamos filtro por tercero aquí; recuperamos todas las fichas y luego se filtrarán en la UI según el BPartner seleccionado
-    // Construimos el filtro base (registros activos)
-    // Usamos tanto 'Y' como true para compatibilidad con distintas versiones de OData
-    String filter = "(IsActive eq 'Y' or IsActive eq true)";
+    // Construimos el filtro base (registros activos y que correspondan al producto de Soporte Técnico por Hora: 1000161)
+    String filter = "(IsActive eq 'Y' or IsActive eq true) and M_Product_ID eq 1000161";
 
     if (finalBpIds.isNotEmpty) {
       // Filtro simple directo sobre el ID del socio
@@ -91,10 +90,13 @@ class ContractApi {
     return [];
   }
 
-  /// Obtiene la lista de Terceros que tienen al menos una ficha de producto activa.
+  /// Obtiene la lista de Terceros que tienen al menos una ficha de producto activa de soporte.
   static Future<List<Map<String, dynamic>>> getBPartnersWithProductChips() async {
     final String endpoint = "${Endpoint.baseUrl}/api/v1/models/$productChipEndpoint";
-    final String baseUrl = "$endpoint?\$filter=(IsActive eq 'Y' or IsActive eq true)&\$expand=C_BPartner_ID(\$select=Name)";
+    
+    // Filtro de Ficha: Activo y Producto Soporte Técnico por Hora (1000161)
+    // También exigimos que el Tercero esté activo (IsActive eq true)
+    final String baseUrl = "$endpoint?\$filter=(IsActive eq 'Y' or IsActive eq true) and M_Product_ID eq 1000161&\$expand=C_BPartner_ID(\$select=Name,IsActive;\$filter=IsActive eq true)";
 
     try {
       final records = await _fetchPaginated(baseUrl);

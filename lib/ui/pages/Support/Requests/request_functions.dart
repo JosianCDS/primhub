@@ -72,6 +72,11 @@ String stripHtmlTags(String htmlString) {
   return htmlString.replaceAll(exp, ' ').replaceAll(RegExp(r'\s+'), ' ').replaceAll('&nbsp;', ' ').trim();
 }
 
+/// Limpia los nombres de estado eliminando prefijos numéricos como '10_'
+String cleanStatusName(String name) {
+  return name.replaceAll(RegExp(r'^\d+_'), '').trim();
+}
+
 double? tryGetDouble(Map<String, dynamic> map, List<String> keys) {
   for (var key in keys) {
     if (map.containsKey(key) && map[key] != null) {
@@ -169,10 +174,13 @@ Future<List<Map<String, dynamic>>> fetchRequest({String? model = 'R_Request', St
         }
       } else {
         hasMore = false;
+        debugPrint("DEBUG: API Error in fetchRequest ($model): ${response.statusCode} - ${response.body}");
         if (allRecords.isEmpty) throw Exception('Error API: ${response.statusCode}');
       }
     }
-  } catch (e) {}
+  } catch (e) {
+    debugPrint("DEBUG: Exception in fetchRequest ($model): $e");
+  }
   return allRecords;
 }
 
@@ -334,13 +342,13 @@ Future<List<Map<String, dynamic>>> fetchProjectAndTaskRequests(int projectId, {L
     taskUUIDs = await ProjectsLogic().fetchProjectTaskUUIDs(projectId);
   }
 
-  String baseFilter = "C_Project_ID eq $projectId";
+  String baseFilter = "C_Project_ID eq $projectId and Record_UU ne null";
   if (additionalFilter != null && additionalFilter.isNotEmpty) {
     baseFilter = "($baseFilter) and $additionalFilter";
   }
 
   // 1. Solicitudes vinculadas a nivel de proyecto (Cabecera)
-  final pReqs = await fetchRequest(filter: baseFilter, select: select, expand: expand);
+  final pReqs = await fetchRequest(filter: baseFilter, select: select, expand: expand ?? 'C_Order_ID(\$select=DocumentNo),R_Status_ID,R_RequestType_ID,R_Category_ID,Priority');
   allReqs.addAll(pReqs);
 
   // 2. Solicitudes vinculadas a nivel de Tareas (Record_UU) particionadas de a 10
@@ -516,17 +524,29 @@ Future<Map<String, dynamic>> processRequests(List<dynamic> requests, Map<String,
     }
 
     // Formateo de UI
-    String level = req['Priority'] is Map ? (req['Priority']['identifier'] ?? req['Priority']['Name'] ?? 'Baja') : 'Baja';
+    String level = 'Media';
+    final rawPriority = req['Priority'];
+    if (rawPriority is Map) {
+      level = (rawPriority['identifier'] ?? rawPriority['Name'] ?? 'Media').toString();
+    } else if (rawPriority != null) {
+      final pStr = rawPriority.toString();
+      if (pStr == '1') level = 'Urgente';
+      else if (pStr == '3') level = 'Alta';
+      else if (pStr == '5') level = 'Media';
+      else if (pStr == '7') level = 'Baja';
+      else if (pStr == '9') level = 'Menor';
+      else level = pStr; // Fallback al valor crudo si no coincide
+    }
     String status = statusName;
     int? statusId = statusIdFromReq;
 
     if (statusId != null) {
       if (SUPPORT_STATUS_MAPPING.containsKey(statusId)) {
-        status = SUPPORT_STATUS_MAPPING[statusId]!;
+        status = cleanStatusName(SUPPORT_STATUS_MAPPING[statusId]!);
       } else if (statusIdMap.isNotEmpty) {
         for (var entry in statusIdMap.entries) {
           if (entry.value == statusId) {
-            status = entry.key;
+            status = cleanStatusName(entry.key);
             break;
           }
         }
@@ -574,11 +594,11 @@ Future<Map<String, dynamic>> processRequests(List<dynamic> requests, Map<String,
     }
 
     processedRequests.add({
-      'descriptionClean': stripHtmlTags(req['Summary'] ?? ''),
+      'descriptionClean': stripHtmlTags(req['Description'] ?? req['Summary'] ?? ''),
       'id': req['DocumentNo'] ?? req['id'].toString(),
       'realId': req['id'],
       'situation': req['R_RequestType_ID'] is Map ? (req['R_RequestType_ID']['identifier'] ?? req['R_RequestType_ID']['Name'] ?? 'Solicitud') : 'Solicitud',
-      'description': req['Summary'] ?? '',
+      'description': req['Description'] ?? req['Summary'] ?? '',
       'level': level,
       'status': status.trim(),
       'statusId': statusId,
@@ -619,7 +639,7 @@ Future<Map<String, dynamic>> processRequests(List<dynamic> requests, Map<String,
 
 Future<List<Map<String, dynamic>>> fetchRequestUpdates(int requestId) async {
   // Usa la función genérica fetchRequest para obtener las actualizaciones
-  return await fetchRequest(model: 'R_RequestUpdate', filter: "R_Request_ID eq $requestId", orderBy: 'Created desc', select: 'Created,Result,ConfidentialTypeEntry,AD_Image_ID,AD_Image1_ID,AD_Image2_ID,AD_Image3_ID,IsPrinted');
+  return await fetchRequest(model: 'R_RequestUpdate', filter: "R_Request_ID eq $requestId", orderBy: 'Created desc', select: 'Created,Result,ConfidentialTypeEntry,AD_Image_ID,AD_Image1_ID,AD_Image2_ID,AD_Image3_ID');
 }
 
 Future<Map<String, dynamic>> updateRemoteRequest({
@@ -694,31 +714,44 @@ Future<Map<String, dynamic>> updateRemoteRequest({
     if (response.statusCode != 200 && response.statusCode != 201) {
       return {'success': false, 'error': 'Error ${response.statusCode}'};
     }
+
+    // Sincronizar el caché global inmediatamente para que todas las pantallas se enteren
+    await GlobalCache.syncSingleRequest(id);
+
     return {'success': true};
   } catch (e) {
     return {'success': false, 'error': e.toString()};
   }
 }
 
-Future<Map<String, dynamic>> createRequestUpdate({required int requestId, required String resultText, required String confidentialType, required bool isPrinted, required List<PlatformFile?> evidences}) async {
+Future<Map<String, dynamic>> createRequestUpdate({
+  required int requestId,
+  required String resultText,
+  required String confidentialType,
+  required List<PlatformFile?> evidences,
+}) async {
   try {
     final url = Uri.parse('${Endpoint.baseUrl}/api/v1/models/R_RequestUpdate');
-    final Map<String, dynamic> body = {"R_Request_ID": requestId, "Result": resultText, "ConfidentialTypeEntry": confidentialType, "IsPrinted": isPrinted};
+    final Map<String, dynamic> body = {
+      "R_Request_ID": requestId,
+      "Result": resultText,
+      "ConfidentialTypeEntry": confidentialType
+    };
 
-    // Anidamos las evidencias usando el formato exacto {"data": "base64..."}
-    final List<String> imageKeys = ["AD_Image_ID", "AD_Image1_ID", "AD_Image2_ID", "AD_Image3_ID"];
-    for (int i = 0; i < evidences.length && i < 4; i++) {
-      if (evidences[i] != null && evidences[i]!.bytes != null) {
-        body[imageKeys[i]] = {"data": base64Encode(evidences[i]!.bytes!)};
-      }
-    }
-
-    var response = await http.post(url, headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: jsonEncode(body));
+    var response = await http.post(
+      url,
+      headers: {'Content-Type': 'application/json', 'Authorization': Token.token},
+      body: jsonEncode(body),
+    );
 
     if (response.statusCode == 401) {
       final refreshed = await handleTokenRefresh();
       if (refreshed) {
-        response = await http.post(url, headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: jsonEncode(body));
+        response = await http.post(
+          url,
+          headers: {'Content-Type': 'application/json', 'Authorization': Token.token},
+          body: jsonEncode(body),
+        );
       } else {
         return {'success': false, 'message': 'Sesión expirada'};
       }
@@ -728,7 +761,34 @@ Future<Map<String, dynamic>> createRequestUpdate({required int requestId, requir
       return {'success': false, 'message': 'Error creando actualización: ${response.body}'};
     }
 
-    return {'success': true, 'message': 'Actualización creada'};
+    // Si llegamos aquí, se creó el registro. Ahora subimos los adjuntos si existen.
+    final newRecord = jsonDecode(utf8.decode(response.bodyBytes));
+    final int newRecordId = newRecord['id'];
+    final String tableName = '${Endpoint.baseUrl}/api/v1/models/R_RequestUpdate';
+
+    bool allUploadsOk = true;
+    for (var file in evidences) {
+      if (file != null && file.bytes != null) {
+        final success = await postAttachments(
+          recordID: newRecordId,
+          tableName: tableName,
+          convertedFile: {
+            'title': file.name,
+            'base64': base64Encode(file.bytes!),
+          },
+        );
+        if (!success) allUploadsOk = false;
+      }
+    }
+
+    if (!allUploadsOk) {
+      return {
+        'success': true, 
+        'message': 'Actualización creada, pero algunos archivos no se pudieron subir.'
+      };
+    }
+
+    return {'success': true, 'message': 'Actualización creada con éxito'};
   } catch (e) {
     return {'success': false, 'message': e.toString()};
   }

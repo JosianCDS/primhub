@@ -97,7 +97,24 @@ class _DesktopRequestTable extends StatelessWidget {
             ],
           ),
         ),
-        DataCell(Text(alert['code']?.toString() ?? '')),
+        DataCell(
+          InkWell(
+            onTap: () {
+              Clipboard.setData(ClipboardData(text: alert['code']?.toString() ?? ''));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Ticket copiado'), duration: Duration(seconds: 1))
+              );
+            },
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(alert['code']?.toString() ?? ''),
+                const SizedBox(width: 4),
+                const Icon(Icons.copy, size: 14, color: Colors.grey),
+              ],
+            ),
+          ),
+        ),
         DataCell(Text(alert['status']?.toString() ?? 'Sin Estado')),
         DataCell(Text(alert['situation']?.toString() ?? 'Sin tipo')),
       ],

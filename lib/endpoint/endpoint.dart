@@ -27,5 +27,10 @@ class PostMedia {
 
   PostMedia({required this.recordID, required this.tableName});
 
-  String get endPoint => '$tableName/$recordID/attachments';
+  String get endPoint {
+    if (tableName.startsWith('http')) {
+      return '$tableName/$recordID/attachments';
+    }
+    return '${Endpoint.baseUrl}/api/v1/models/$tableName/$recordID/attachments';
+  }
 }

@@ -272,8 +272,44 @@ class ProjectsLogic {
   Future<List<dynamic>> fetchBPartners() async {
     return await _safeFetchPaginated(
       '${Endpoint.cBPartner}?\$orderby=Name',
-      'terceros',
+      'terceros genéricos',
     );
+  }
+
+  /// Específico para Soporte: Solo Clientes activos (Filtro base)
+  Future<List<dynamic>> fetchSupportPartners() async {
+    // Exigimos que sea Cliente, esté Activo y NO sea Colaborador
+    const String filter = "IsCustomer eq true and IsActive eq true and IsEmployee eq 'N'";
+    final List<dynamic> raw = await _safeFetchPaginated(
+      '${Endpoint.cBPartner}?\$filter=$filter&\$orderby=Name',
+      'terceros soporte raw',
+    );
+
+    return raw.where((bp) {
+      final name = (bp['Name']?.toString() ?? '').trim();
+      return !name.startsWith('~');
+    }).toList();
+  }
+
+  /// Específico para Representantes Comerciales (Filtro según Imagen 2)
+  Future<List<dynamic>> fetchSalesReps() async {
+    // Según Imagen 2: IsSalesRep = true, IsEmployee = true, IsActive = true
+    const String filter = "IsActive eq true and IsSalesRep eq true and IsEmployee eq true";
+    final List<dynamic> raw = await _safeFetchPaginated(
+      '${Endpoint.cBPartner}?\$filter=$filter&\$orderby=Name',
+      'representantes comerciales raw',
+    );
+
+    return raw.where((bp) {
+      final name = (bp['Name']?.toString() ?? '').trim();
+      return !name.startsWith('~');
+    }).toList();
+  }
+
+  bool _toBool(dynamic value) {
+    if (value == null) return false;
+    final s = value.toString().toLowerCase();
+    return s == 'true' || s == 'y';
   }
 
   Future<List<dynamic>> fetchUsers({int? bPartnerId}) async {
@@ -334,23 +370,37 @@ class ProjectsLogic {
       }
       if (response.statusCode == 200) {
         final data = json.decode(utf8.decode(response.bodyBytes));
+        
+        // Agregar UUID del Proyecto
+        final projUU = data['Record_UU'] ?? data['UUID'] ?? data['uuid'] ?? data['uid'];
+        if (projUU != null && projUU.toString().isNotEmpty) {
+          uuids.add(projUU.toString());
+        }
+
         final phases = data['C_ProjectPhase'] as List? ?? [];
         final directTasks = data['C_ProjectTask'] as List? ?? [];
 
-        void addUUIDs(List<dynamic> tasks) {
-          for (var task in tasks) {
+        void addUUIDs(List<dynamic> items) {
+          for (var item in items) {
             final uuid =
-                task['Record_UU'] ??
-                task['UUID'] ??
-                task['uuid'] ??
-                task['uid'];
+                item['Record_UU'] ??
+                item['UUID'] ??
+                item['uuid'] ??
+                item['uid'];
             if (uuid != null && uuid.toString().isNotEmpty)
               uuids.add(uuid.toString());
           }
         }
 
-        for (var phase in phases)
+        for (var phase in phases) {
+          // Agregar UUID de la Fase
+          final phaseUU = phase['Record_UU'] ?? phase['UUID'] ?? phase['uuid'] ?? phase['uid'];
+          if (phaseUU != null && phaseUU.toString().isNotEmpty) {
+            uuids.add(phaseUU.toString());
+          }
+          // Agregar UUIDs de sus Tareas
           addUUIDs(phase['C_ProjectTask'] as List? ?? []);
+        }
         addUUIDs(directTasks);
       }
     } catch (e) {}
@@ -1124,8 +1174,10 @@ class DocumentsLogic {
     String fileName,
   ) async {
     try {
-      final url =
-          '$tableName/$recordId/attachments/${Uri.encodeComponent(fileName)}';
+      final String baseUrl = tableName.startsWith('http')
+          ? tableName
+          : '${Endpoint.baseUrl}/api/v1/models/$tableName';
+      final url = '$baseUrl/$recordId/attachments/${Uri.encodeComponent(fileName)}';
       var response = await http.get(
         Uri.parse(url),
         headers: {'Authorization': Token.token},

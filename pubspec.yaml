@@ -21,6 +21,7 @@ dependencies:
   super_drag_and_drop: ^0.9.1
   card_stack_swiper: ^1.1.1
   flutter_html: ^3.0.0-beta.2
+  intl: ^0.18.1
 
 dev_dependencies:
   flutter_test:

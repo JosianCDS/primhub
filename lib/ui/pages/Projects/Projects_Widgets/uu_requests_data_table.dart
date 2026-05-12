@@ -195,7 +195,11 @@ class _RequestsDataTableState extends State<RequestsDataTable> {
                     ),
                     DataCell(
                       Tooltip(
-                        message: stripHtmlTags(DocumentsLogic.extractValue(req['Summary'])),
+                        message: () {
+                          final text = stripHtmlTags(DocumentsLogic.extractValue(req['Summary']));
+                          return text.length > 2000 ? '${text.substring(0, 2000)}...' : text;
+                        }(),
+                        waitDuration: const Duration(milliseconds: 500),
                         child: Text(() {
                           final text = stripHtmlTags(DocumentsLogic.extractValue(req['Summary']));
                           return text.length > 35 ? '${text.substring(0, 35)}...' : text;
@@ -207,7 +211,11 @@ class _RequestsDataTableState extends State<RequestsDataTable> {
                     DataCell(Text(DocumentsLogic.extractValue(req['R_RequestType_ID']))),
                     DataCell(
                       Tooltip(
-                        message: req['CDS_EmailSubject']?.toString() ?? '',
+                        message: () {
+                          final text = req['CDS_EmailSubject']?.toString() ?? '';
+                          return text.length > 2000 ? '${text.substring(0, 2000)}...' : text;
+                        }(),
+                        waitDuration: const Duration(milliseconds: 500),
                         child: Text(() {
                           final text = req['CDS_EmailSubject']?.toString() ?? '';
                           return text.length > 25 ? '${text.substring(0, 25)}...' : text;

@@ -5,7 +5,12 @@ import 'package:primhub/api/api_utils.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 
-Future<bool> postAttachments({required int recordID, required String tableName, required Map<String, String> convertedFile}) async {
+Future<bool> postAttachments({
+  required int recordID,
+  required String tableName,
+  required Map<String, String> convertedFile,
+  bool shouldUpdateStatus = true,
+}) async {
   try {
     final Map<String, dynamic> data = {"name": convertedFile['title'], "data": convertedFile['base64']};
 
@@ -27,7 +32,9 @@ Future<bool> postAttachments({required int recordID, required String tableName, 
     }
 
     if (response.statusCode == 200 || response.statusCode == 201) {
-      _updateStatus(tableName, recordID, 'Pendiente');
+      if (shouldUpdateStatus) {
+        _updateStatus(tableName, recordID, 'Pendiente');
+      }
       return true;
     } else {
       return false;

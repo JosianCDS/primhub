@@ -11,6 +11,9 @@ import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:primhub/api/access_control.dart';
+import 'package:primhub/api/global_cache.dart';
+import 'package:primhub/ImagesManagment/fecthAttachments.dart';
+import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 
 class RequestUpdatesPage extends StatefulWidget {
   final int requestId;
@@ -25,6 +28,7 @@ class RequestUpdatesPage extends StatefulWidget {
 class _RequestUpdatesPageState extends State<RequestUpdatesPage> {
   late Future<List<Map<String, dynamic>>> _updatesFuture;
   Map<String, dynamic>? _requestDetails;
+  String? _memoizedDescription;
   bool _isLoadingDetails = true;
 
   @override
@@ -34,23 +38,94 @@ class _RequestUpdatesPageState extends State<RequestUpdatesPage> {
     _refreshUpdates();
   }
 
-  Future<void> _fetchDetails() async {
+  Future<void> _fetchDetails({bool forceNetwork = false}) async {
     try {
-      final reqs = await fetchRequest(filter: "R_Request_ID eq ${widget.requestId}");
-      if (reqs.isNotEmpty && mounted) {
-        setState(() {
-          _requestDetails = reqs.first;
-          _isLoadingDetails = false;
-        });
+      debugPrint("DEBUG: [INIT] Fetching details. ID: ${widget.requestId}, DocNo: ${widget.docNo}, Force: $forceNetwork");
+
+      // 1. INTENTO EN CACHÉ (Instantáneo si no se fuerza red)
+      if (!forceNetwork) {
+        final cached = GlobalCache.requests.where((r) {
+          final rId = r['id']?.toString();
+          final rDocNo = r['DocumentNo']?.toString();
+          return rId == widget.requestId.toString() || rDocNo == widget.docNo;
+        }).toList();
+
+        if (cached.isNotEmpty) {
+          debugPrint("DEBUG: [CACHE] Found request in GlobalCache.");
+          _handleFoundRequest(cached.first);
+          return;
+        }
       }
+
+      // 2. INTENTO API POR DOCUMENT NO (Máxima precisión para lo que ve el usuario)
+      if (widget.docNo.isNotEmpty) {
+        debugPrint("DEBUG: [STAGE 1] Searching by DocumentNo: ${widget.docNo}");
+        final reqsDoc = await fetchRequest(
+          filter: "DocumentNo eq '${widget.docNo}'",
+          select: "id,DocumentNo,Summary,Description,Help,Result,CDS_EmailSubject,Created,Priority,R_Status_ID,R_Category_ID,R_RequestType_ID,C_BPartner_ID,AD_User_ID,SalesRep_ID,QtySpent,ConfidentialTypeEntry",
+        );
+        if (reqsDoc.isNotEmpty) {
+          debugPrint("DEBUG: [STAGE 1 SUCCESS] Found via DocumentNo.");
+          _handleFoundRequest(reqsDoc.first);
+          return;
+        }
+      }
+
+      // 3. INTENTO API POR ID (Respaldo técnico)
+      debugPrint("DEBUG: [STAGE 2] DocumentNo search failed. Searching by ID: ${widget.requestId}");
+      final reqsId = await fetchRequest(
+        filter: "id eq ${widget.requestId} or R_Request_ID eq ${widget.requestId}",
+        select: "id,DocumentNo,Summary,Description,Help,Result,CDS_EmailSubject,Created,Priority,R_Status_ID,R_Category_ID,R_RequestType_ID,C_BPartner_ID,AD_User_ID,SalesRep_ID,QtySpent,ConfidentialTypeEntry",
+      );
+
+      if (reqsId.isNotEmpty) {
+        debugPrint("DEBUG: [STAGE 2 SUCCESS] Found via internal ID.");
+        _handleFoundRequest(reqsId.first);
+        return;
+      }
+
+      debugPrint("DEBUG: [FAILED] No request found after all stages for identifier: ${widget.requestId} / ${widget.docNo}");
+      if (mounted) setState(() => _isLoadingDetails = false);
+
     } catch (e) {
+      debugPrint("DEBUG: [ERROR] Exception in _fetchDetails: $e");
       if (mounted) setState(() => _isLoadingDetails = false);
     }
   }
 
-  void _refreshUpdates() {
+  void _handleFoundRequest(Map<String, dynamic> details) {
+    if (!mounted) return;
+    
+    final realId = details['id'] is int ? details['id'] : int.tryParse(details['id']?.toString() ?? '');
+    final docNo = details['DocumentNo']?.toString();
+
+    debugPrint("DEBUG: [RESOLVED] ID: $realId, DocNo: $docNo");
+
+    if (realId != null && realId != widget.requestId) {
+      debugPrint("DEBUG: [SYNC] Refreshing updates with REAL ID: $realId");
+      _refreshUpdates(realId);
+    }
+
     setState(() {
-      _updatesFuture = fetchRequestUpdates(widget.requestId).then((list) {
+      _requestDetails = details;
+      _isLoadingDetails = false;
+      // Pre-calcular descripción para evitar lag en renderizado
+      final fields = ['Description', 'description', 'Help', 'help', 'Result', 'result'];
+      _memoizedDescription = 'Sin descripción adicional.';
+      for (var f in fields) {
+        final val = details[f]?.toString();
+        if (val != null && val.trim().isNotEmpty && val != 'null') {
+          _memoizedDescription = val;
+          break;
+        }
+      }
+    });
+  }
+
+  void _refreshUpdates([int? id]) {
+    final targetId = id ?? widget.requestId;
+    setState(() {
+      _updatesFuture = fetchRequestUpdates(targetId).then((list) {
         // Ordenar por fecha de creación descendente (más recientes arriba)
         list.sort((a, b) {
           final dateA = DateTime.tryParse(a['Created'] ?? '') ?? DateTime(1900);
@@ -66,12 +141,17 @@ class _RequestUpdatesPageState extends State<RequestUpdatesPage> {
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => _AddUpdateDialog(
-        requestId: widget.requestId,
-        summary: _requestDetails?['Summary'] ?? _requestDetails?['description'] ?? 'Sin resumen.',
+        requestId: _requestDetails?['id'] ?? widget.requestId,
+        currentStatusId: _requestDetails?['R_Status_ID'] is Map 
+            ? (_requestDetails!['R_Status_ID']['id'] as num?)?.toInt() 
+            : (_requestDetails?['R_Status_ID'] as num?)?.toInt(),
+        summary: (_requestDetails?['Summary'] ?? _requestDetails?['summary'] ?? widget.docNo).toString(),
+        description: _memoizedDescription ?? 'Cargando...',
       ),
     );
 
     if (result == true) {
+      _fetchDetails(forceNetwork: true); // Recargar detalles forzando red para ver el nuevo estado
       _refreshUpdates();
     }
   }
@@ -94,40 +174,10 @@ class _RequestUpdatesPageState extends State<RequestUpdatesPage> {
         children: [
           // Cabecera Desplegable con el resumen de la solicitud
           if (_requestDetails != null)
-            Theme(
-              data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-              child: ExpansionTile(
-                backgroundColor: colorScheme.surface,
-                collapsedBackgroundColor: colorScheme.surface,
-                shape: Border(bottom: BorderSide(color: colorScheme.outlineVariant, width: 1)),
-                collapsedShape: Border(bottom: BorderSide(color: colorScheme.outlineVariant, width: 1)),
-                title: Text(
-                  'RESUMEN DE LA SOLICITUD',
-                  style: textTheme.labelSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.primary,
-                    letterSpacing: 1.1,
-                  ),
-                ),
-                leading: Icon(Icons.info_outline, color: colorScheme.primary, size: 20),
-                children: [
-                  ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxHeight: MediaQuery.of(context).size.height * 0.4, // Límite de expansión
-                    ),
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                      child: Text(
-                        _requestDetails?['Summary'] ?? _requestDetails?['description'] ?? 'Sin descripción.',
-                        style: textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.onSurface,
-                          height: 1.5,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+            _RequestSummaryHeader(
+              details: _requestDetails!,
+              docNo: widget.docNo,
+              description: _memoizedDescription ?? 'Sin descripción.',
             ),
           Expanded(
             child: FutureBuilder<List<Map<String, dynamic>>>(
@@ -181,7 +231,6 @@ class _UpdateCard extends StatelessWidget {
     final formattedDate = created != null ? '${created.day}/${created.month}/${created.year} a las ${created.hour.toString().padLeft(2, '0')}:${created.minute.toString().padLeft(2, '0')}' : 'Fecha desconocida';
     final result = update['Result'] ?? 'Sin resultado.';
     final confidential = update['ConfidentialTypeEntry']?['identifier'] ?? 'N/A';
-    final isPrinted = update['IsPrinted'] == true;
 
     final List<int> imageIds = [];
     for (String key in ['AD_Image_ID', 'AD_Image1_ID', 'AD_Image2_ID', 'AD_Image3_ID']) {
@@ -225,7 +274,6 @@ class _UpdateCard extends StatelessWidget {
                   spacing: 4.0,
                   children: [
                     _buildBadge(context, confidential, colorScheme.tertiaryContainer, colorScheme.onTertiaryContainer),
-                    if (isPrinted) _buildBadge(context, 'Impreso', colorScheme.primaryContainer, colorScheme.onPrimaryContainer, icon: Icons.print),
                   ],
                 ),
               ],
@@ -246,13 +294,14 @@ class _UpdateCard extends StatelessWidget {
                 )
               },
             ),
-            if (imageIds.isNotEmpty) ...[
+            // Mostramos tanto imágenes en campos fijos como archivos adjuntos
+            if (imageIds.isNotEmpty || update['id'] != null) ...[
               const SizedBox(height: 16),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: imageIds.map((id) => _ImagePreview(imageId: id)).toList(),
-              )
+              AttachmentPreviewList(
+                recordId: update['id'] is int ? update['id'] : int.tryParse(update['id']?.toString() ?? '') ?? 0,
+                tableName: '${Endpoint.baseUrl}/api/v1/models/R_RequestUpdate',
+                fixedImageIds: imageIds,
+              ),
             ],
           ],
         ),
@@ -281,7 +330,9 @@ class _UpdateCard extends StatelessWidget {
 class _AddUpdateDialog extends StatefulWidget {
   final int requestId;
   final String summary;
-  const _AddUpdateDialog({required this.requestId, required this.summary});
+  final String description;
+  final int? currentStatusId;
+  const _AddUpdateDialog({required this.requestId, required this.summary, required this.description, this.currentStatusId});
 
   @override
   State<_AddUpdateDialog> createState() => _AddUpdateDialogState();
@@ -290,16 +341,26 @@ class _AddUpdateDialog extends StatefulWidget {
 class _AddUpdateDialogState extends State<_AddUpdateDialog> {
   final _resultController = TextEditingController();
   String _confidentialType = 'I'; // Internal
-  bool _isPrinted = false;
   List<PlatformFile?> _evidences = [null, null, null, null];
   bool _isSaving = false;
+  int? _newStatusId;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.currentStatusId != null && SUPPORT_STATUS_MAPPING.containsKey(widget.currentStatusId)) {
+      _newStatusId = widget.currentStatusId;
+    } else {
+      _newStatusId = null;
+    }
+  }
 
   Future<void> _pickFile(int index) async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.image, withData: true);
+    FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.any, withData: true);
 
     if (result != null && result.files.isNotEmpty) {
       if (result.files.first.bytes == null) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al leer la imagen. Verifique que no sea un archivo en la nube o intente con otro formato.'), backgroundColor: Colors.orange));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al leer el archivo.'), backgroundColor: Colors.orange));
         return;
       }
       setState(() {
@@ -322,12 +383,20 @@ class _AddUpdateDialogState extends State<_AddUpdateDialog> {
 
     setState(() => _isSaving = true);
 
-    final result = await createRequestUpdate(requestId: widget.requestId, resultText: _resultController.text, confidentialType: _confidentialType, isPrinted: _isPrinted, evidences: _evidences);
+    final result = await createRequestUpdate(requestId: widget.requestId, resultText: _resultController.text, confidentialType: _confidentialType, evidences: _evidences);
 
     if (mounted) {
       setState(() => _isSaving = false);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result['message'] ?? 'Error desconocido'), backgroundColor: result['success'] == true ? Colors.green : Colors.red));
       if (result['success'] == true) {
+        if (_newStatusId != null && _newStatusId != widget.currentStatusId) {
+          final statusResult = await updateRemoteRequest(id: widget.requestId, statusId: _newStatusId!);
+          if (statusResult['success'] == true) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Estado actualizado correctamente'), backgroundColor: Colors.green));
+            }
+          }
+        }
         Navigator.of(context).pop(true);
       }
     }
@@ -356,7 +425,7 @@ class _AddUpdateDialogState extends State<_AddUpdateDialog> {
             ),
           ),
           const SizedBox(width: 8),
-          if (file == null) IconButton(icon: const Icon(Icons.attach_file), onPressed: () => _pickFile(index), tooltip: 'Adjuntar Imagen', color: theme.colorScheme.primary) else IconButton(icon: const Icon(Icons.delete), onPressed: () => _removeFile(index), tooltip: 'Eliminar Imagen', color: theme.colorScheme.error),
+          if (file == null) IconButton(icon: const Icon(Icons.attach_file), onPressed: () => _pickFile(index), tooltip: 'Adjuntar Archivo', color: theme.colorScheme.primary) else IconButton(icon: const Icon(Icons.delete), onPressed: () => _removeFile(index), tooltip: 'Eliminar Archivo', color: theme.colorScheme.error),
         ],
       ),
     );
@@ -372,9 +441,8 @@ class _AddUpdateDialogState extends State<_AddUpdateDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Resumen de referencia con scroll si es muy largo (Estilo Neutro)
             ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 120),
+              constraints: const BoxConstraints(maxHeight: 200),
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
@@ -389,20 +457,28 @@ class _AddUpdateDialogState extends State<_AddUpdateDialog> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'REFERENCIA: RESUMEN DE LA SOLICITUD',
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        widget.summary.toUpperCase(),
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
                               fontWeight: FontWeight.bold,
                               color: Theme.of(context).colorScheme.primary,
-                              letterSpacing: 1.0,
+                              letterSpacing: 0.5,
                             ),
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        widget.summary,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurface,
-                              height: 1.4,
-                            ),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 4.0),
+                        child: Divider(height: 12),
+                      ),
+                      Html(
+                        data: widget.description,
+                        style: {
+                          "body": Style(
+                            margin: Margins.zero,
+                            padding: HtmlPaddings.zero,
+                            fontSize: FontSize(12),
+                            color: Theme.of(context).colorScheme.onSurface,
+                            height: Height(1.4),
+                          )
+                        },
                       ),
                     ],
                   ),
@@ -429,20 +505,22 @@ class _AddUpdateDialogState extends State<_AddUpdateDialog> {
                 ),
                 const SizedBox(width: 16),
                 Expanded(
-                  child: CheckboxListTile(
-                    title: const Text('Impreso'),
-                    value: _isPrinted,
+                  child: CustomDropdown<int>(
+                    label: 'Estado',
+                    value: _newStatusId,
+                    items: SUPPORT_STATUS_MAPPING.entries.map((e) => DropdownMenuItem(
+                      value: e.key,
+                      child: Text(cleanStatusName(e.value)),
+                    )).toList(),
                     onChanged: (val) {
-                      if (val != null) setState(() => _isPrinted = val);
+                      if (val != null) setState(() => _newStatusId = val);
                     },
-                    controlAffinity: ListTileControlAffinity.leading,
-                    contentPadding: EdgeInsets.zero,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 24),
-            const Text('Evidencias (Opcional, hasta 4 imágenes):', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 12),
+            const Text('Evidencias (Opcional, hasta 4 archivos):', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             const SizedBox(height: 12),
             _buildEvidenceField(0),
             _buildEvidenceField(1),
@@ -455,6 +533,150 @@ class _AddUpdateDialogState extends State<_AddUpdateDialog> {
         TextButton(onPressed: _isSaving ? null : () => Navigator.pop(context, false), child: const Text('Cancelar')),
         CustomButton(text: 'Guardar', onPressed: _handleSave, isLoading: _isSaving),
       ],
+    );
+  }
+}
+
+class AttachmentPreviewList extends StatelessWidget {
+  final int recordId;
+  final String tableName;
+  final List<int> fixedImageIds;
+
+  const AttachmentPreviewList({
+    super.key,
+    required this.recordId,
+    required this.tableName,
+    required this.fixedImageIds,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<dynamic>>(
+      future: fetchAttachments(recordID: recordId, tableName: tableName),
+      builder: (context, snapshot) {
+        final List<Widget> previews = [];
+
+        // 1. Imágenes de campos fijos (Legacy/Compatibilidad)
+        for (var id in fixedImageIds) {
+          previews.add(_ImagePreview(imageId: id));
+        }
+
+        // 2. Archivos adjuntos reales
+        if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+          for (var attr in snapshot.data!) {
+            final fileName = attr['name']?.toString() ?? 'archivo';
+            previews.add(_AttachmentItem(
+              tableName: tableName,
+              recordId: recordId,
+              fileName: fileName,
+            ));
+          }
+        }
+
+        if (previews.isEmpty && (snapshot.connectionState == ConnectionState.done)) {
+          return const SizedBox.shrink();
+        }
+
+        return Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: previews,
+        );
+      },
+    );
+  }
+}
+
+class _AttachmentItem extends StatelessWidget {
+  final String tableName;
+  final int recordId;
+  final String fileName;
+
+  const _AttachmentItem({
+    required this.tableName,
+    required this.recordId,
+    required this.fileName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final extension = fileName.contains('.') ? fileName.split('.').last.toLowerCase() : '';
+    final isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].contains(extension);
+
+    if (isImage) {
+      return FutureBuilder<Uint8List?>(
+        future: DocumentsLogic.fetchImagePreview(tableName, recordId, fileName),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return _buildBox(const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)));
+          }
+          if (snapshot.hasData && snapshot.data != null) {
+            return InkWell(
+              onTap: () => _showFullScreen(context, snapshot.data!),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.memory(snapshot.data!, width: 80, height: 80, fit: BoxFit.cover),
+              ),
+            );
+          }
+          return _buildBox(const Icon(Icons.broken_image_outlined, color: Colors.grey));
+        },
+      );
+    }
+
+    return InkWell(
+      onTap: () {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Abriendo $fileName...')));
+      },
+      child: _buildBox(
+        Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(DocumentsLogic.getFileIcon(extension), size: 32, color: Colors.indigo),
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                fileName,
+                style: const TextStyle(fontSize: 8),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBox(Widget child) {
+    return Container(
+      width: 80,
+      height: 80,
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Center(child: child),
+    );
+  }
+
+  void _showFullScreen(BuildContext context, Uint8List data) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        child: Stack(
+          alignment: Alignment.topRight,
+          children: [
+            InteractiveViewer(child: Image.memory(data)),
+            IconButton(
+              icon: const Icon(Icons.close, color: Colors.white, shadows: [Shadow(blurRadius: 4)]),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -522,6 +744,80 @@ class _ImagePreview extends StatelessWidget {
           child: const Icon(Icons.broken_image_outlined, color: Colors.grey),
         );
       },
+    );
+  }
+}
+
+class _RequestSummaryHeader extends StatelessWidget {
+  final Map<String, dynamic> details;
+  final String docNo;
+  final String description;
+
+  const _RequestSummaryHeader({
+    required this.details,
+    required this.docNo,
+    required this.description,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest.withOpacity(0.3),
+        border: Border(bottom: BorderSide(color: colorScheme.outlineVariant)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'RESUMEN DE LA SOLICITUD',
+            style: textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: colorScheme.primary.withOpacity(0.8),
+              letterSpacing: 1.2,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.25,
+            ),
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    (details['Summary'] ?? details['summary'] ?? 'Sin resumen').toString(),
+                    style: textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Html(
+                    data: description,
+                    style: {
+                      "body": Style(
+                        margin: Margins.zero,
+                        padding: HtmlPaddings.zero,
+                        fontSize: FontSize(14),
+                        color: colorScheme.onSurfaceVariant,
+                        height: Height(1.5),
+                      )
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

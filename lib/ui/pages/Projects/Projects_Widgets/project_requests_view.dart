@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:primhub/ui/Shared_Custom/custom_skeleton.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/ui/pages/Support/Requests/edit_request_dialog.dart';
@@ -8,6 +9,7 @@ import 'package:primhub/api/global_cache.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/ui/Shared_Custom/requests_data_table_core.dart'; // Usar el componente core
 import 'package:primhub/api/token.dart'; // Necesario para priorityMap
+import 'package:primhub/ui/pages/Projects/Projects_Widgets/project_request_filter_modal.dart';
 
 class ProjectRequestsView extends StatefulWidget {
   final String? filterType;
@@ -40,15 +42,7 @@ class _ProjectRequestsViewState extends State<ProjectRequestsView> {
   final TextEditingController _searchController = TextEditingController();
   String _projectName = '';
 
-  String? _selectedType;
-  // ignore: unused_field
-  String? _selectedStatus;
-  int? _selectedUserId;
-  String? _selectedLevel;
-  String? _selectedPhase;
-  String? _selectedTask;
-  String? _selectedCategory;
-  int? _selectedSalesRepId;
+  ProjectRequestFilterModel _filters = const ProjectRequestFilterModel();
   // ignore: unused_field
   bool _isAscending = false;
 
@@ -171,10 +165,10 @@ class _ProjectRequestsViewState extends State<ProjectRequestsView> {
       final cached = GlobalCache.projectRequestsCache[projectId];
       
       if (cached != null && cached.isNotEmpty) {
-        debugPrint("PROJECT_VIEW: Usando datos de caché para Proyecto $projectId");
+        debugPrint("PROJECT_VIEW: Usando datos de caché para Proyecto $projectId (${cached.length} registros)");
         _processRawRequests(cached, uuidToTaskName, uuidToPhaseName, taskIdToTaskName, taskIdToPhaseName, idToPhaseName, resetPage: resetPage);
         
-        // Refrescar en fondo igual por si hay cambios
+        // Refrescar en fondo igual por si hay cambios o faltan años
         GlobalCache.loadProjectRequestsInBackground(
           projectId,
           taskUUIDs: taskUUIDs,
@@ -183,28 +177,25 @@ class _ProjectRequestsViewState extends State<ProjectRequestsView> {
           }
         );
       } else {
-        debugPrint("PROJECT_VIEW: Iniciando carga rápida + fondo para Proyecto $projectId");
+        debugPrint("PROJECT_VIEW: Iniciando carga gradual para Proyecto $projectId");
         
-        // Lanzar carga en fondo inmediatamente
+        // Lanzar carga gradual en fondo inmediatamente
         GlobalCache.loadProjectRequestsInBackground(
           projectId,
           taskUUIDs: taskUUIDs,
           onUpdate: (newList) {
-            if (mounted) _processRawRequests(newList, uuidToTaskName, uuidToPhaseName, taskIdToTaskName, taskIdToPhaseName, idToPhaseName, resetPage: false);
+            if (mounted) {
+              _processRawRequests(newList, uuidToTaskName, uuidToPhaseName, taskIdToTaskName, taskIdToPhaseName, idToPhaseName, resetPage: false);
+            }
           }
         );
-        
-        // Carga rápida inicial de solo la cabecera para mostrar algo de inmediato
-        final quickHeader = await fetchRequest(
-          filter: "C_Project_ID eq $projectId", 
-          expand: 'C_Order_ID(\$select=DocumentNo),R_Status_ID,R_RequestType_ID,R_Category_ID,Priority'
-        );
-        
-        if (mounted && quickHeader.isNotEmpty && (GlobalCache.projectRequestsCache[projectId]?.length ?? 0) <= quickHeader.length) {
-          _processRawRequests(quickHeader, uuidToTaskName, uuidToPhaseName, taskIdToTaskName, taskIdToPhaseName, idToPhaseName, resetPage: resetPage);
-        } else if (quickHeader.isEmpty && !GlobalCache.projectLoadingStatus[projectId]!) {
-          setState(() => _isLoading = false);
-        }
+
+        // Opcional: Esperar un poco a la primera ráfaga para no quitar el skeleton demasiado rápido
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted && _allProjectRequests.isEmpty && !GlobalCache.projectLoadingStatus[projectId]!) {
+            setState(() => _isLoading = false);
+          }
+        });
       }
     }
   }
@@ -282,20 +273,23 @@ class _ProjectRequestsViewState extends State<ProjectRequestsView> {
     if (resetPage) _currentSkip = 0;
     
     final filtered = _allProjectRequests.where((req) {
-      if (_selectedType != null && req['type'] != _selectedType)
-        return false; // This filter is applied to _rawRequests
-      if (_selectedStatus != null && req['status'] != _selectedStatus)
+      if (_filters.types.isNotEmpty && !_filters.types.contains(req['type']))
         return false;
-      if (_selectedLevel != null && req['level'] != _selectedLevel)
+      if (_filters.statuses.isNotEmpty && !_filters.statuses.contains(req['status']))
         return false;
-      if (_selectedPhase != null && req['phaseName'] != _selectedPhase)
+      if (_filters.levels.isNotEmpty && !_filters.levels.contains(req['level']))
         return false;
-      if (_selectedTask != null && req['taskName'] != _selectedTask)
+      if (_filters.phases.isNotEmpty && !_filters.phases.contains(req['phaseName']))
         return false;
-      if (_selectedCategory != null && req['category'] != _selectedCategory)
+      if (_filters.tasks.isNotEmpty && !_filters.tasks.contains(req['taskName']))
         return false;
-      if (_selectedSalesRepId != null &&
-          req['salesRepId'] != _selectedSalesRepId)
+      if (_filters.categories.isNotEmpty && !_filters.categories.contains(req['category']))
+        return false;
+      if (_filters.salesRepIds.isNotEmpty &&
+          !_filters.salesRepIds.contains(req['salesRepId']))
+        return false;
+      if (_filters.userIds.isNotEmpty &&
+          !_filters.userIds.contains(req['userId']))
         return false;
 
       if (_searchController.text.isNotEmpty) {
@@ -409,200 +403,64 @@ class _ProjectRequestsViewState extends State<ProjectRequestsView> {
         children: [
           _buildSearchAndFilters(),
           Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _requests.isEmpty
-                ? const Center(
-                    child: Text('No se encontraron solicitudes vinculadas.'),
-                  )
-                : Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: RequestsDataTableCore(
-                      requests: _requests,
-                      statusIdMap: _statusIdMap,
-                      priorityMap: priorityMap,
-                      onEdit: (req) => _editRequest(req),
-                      onRefresh: () => _initData(showLoading: false),
-                      showProjectContext: true,
-                      serverSidePagination: true,
-                      paginationControls: _buildPaginationControls(),
-                      useSimpleStatus: true,
-                    ),
-                  ),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              child: _isLoading
+                  ? const SkeletonTable()
+                  : _requests.isEmpty
+                      ? const Center(
+                          child: Text('No se encontraron solicitudes vinculadas.'),
+                        )
+                      : Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: RequestsDataTableCore(
+                            requests: _requests,
+                            statusIdMap: _statusIdMap,
+                            priorityMap: priorityMap,
+                            onEdit: (req) => _editRequest(req),
+                            onRefresh: () => _initData(showLoading: false),
+                            showProjectContext: true,
+                            serverSidePagination: true,
+                            paginationControls: _buildPaginationControls(),
+                            useSimpleStatus: true,
+                          ),
+                        ),
+            ),
           ),
         ],
       ),
     );
   }
 
-  int get _activeFilterCount {
-    int count = 0;
-    if (_selectedPhase != null) count++;
-    if (_selectedTask != null) count++;
-    if (_selectedCategory != null) count++;
-    if (_selectedType != null) count++;
-    if (_selectedSalesRepId != null) count++;
-    if (_selectedStatus != null) count++;
-    if (_selectedLevel != null) count++;
-    return count;
-  }
+  int get _activeFilterCount => _filters.activeFilterCount;
 
   Future<void> _showFilterModal() async {
-    final phases =
-        _allProjectRequests
-            .map((e) => e['phaseName'].toString())
-            .where((e) => e != '-')
-            .toSet()
-            .toList()
-          ..sort();
-    final categories =
-        _allProjectRequests
-            .map((e) => e['category'].toString())
-            .where((e) => e.isNotEmpty && e != 'null')
-            .toSet()
-            .toList()
-          ..sort();
-    final types =
-        _allProjectRequests
-            .map((e) => e['type'].toString())
-            .where((e) => e.isNotEmpty && e != 'null')
-            .toSet()
-            .toList()
-          ..sort();
+    final phases = _allProjectRequests
+        .map((e) => e['phaseName'].toString())
+        .where((e) => e != '-' && e != 'null' && e.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
 
-    await showDialog(
+    final result = await showDialog<ProjectRequestFilterModel>(
       context: context,
       builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            final tasks =
-                _allProjectRequests
-                    .where(
-                      (e) =>
-                          _selectedPhase == null ||
-                          e['phaseName'] == _selectedPhase,
-                    )
-                    .map((e) => e['taskName'].toString())
-                    .where((e) => e != 'General / Proyecto')
-                    .toSet()
-                    .toList()
-                  ..sort();
-
-            Widget simpleModalDropdown(
-              String label,
-              String? value,
-              List<String> items,
-              Function(String?) onChanged,
-            ) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12.0),
-                child: CustomDropdown<String?>(
-                  label: label,
-                  value: value,
-                  items: [
-                    const DropdownMenuItem(value: null, child: Text('Todos')),
-                    ...items
-                        .where((i) => i != 'null')
-                        .map(
-                          (i) => DropdownMenuItem(
-                            value: i,
-                            child: Text(i, overflow: TextOverflow.ellipsis),
-                          ),
-                        ),
-                  ],
-                  onChanged: (v) {
-                    onChanged(v);
-                    setModalState(() {});
-                  },
-                ),
-              );
-            }
-
-            return CustomModal(
-              title: 'Filtros de Proyecto',
-              width: 500,
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    simpleModalDropdown('Fase', _selectedPhase, phases, (v) {
-                      _selectedPhase = v;
-                      _selectedTask = null; // Reset task if phase changes
-                    }),
-                    simpleModalDropdown(
-                      'Tarea',
-                      _selectedTask,
-                      tasks,
-                      (v) => _selectedTask = v,
-                    ),
-                    simpleModalDropdown(
-                      'Categoría',
-                      _selectedCategory,
-                      categories,
-                      (v) => _selectedCategory = v,
-                    ),
-                    simpleModalDropdown(
-                      'Tipo',
-                      _selectedType,
-                      types,
-                      (v) => _selectedType = v,
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12.0),
-                      child: CustomDropdown<int?>(
-                        label: 'Rep. Comercial',
-                        items: [
-                          const DropdownMenuItem(
-                            value: null,
-                            child: Text('Todos'),
-                          ),
-                          ..._users.map(
-                            (u) => DropdownMenuItem<int?>(
-                              value: u['AD_User_ID'] ?? u['id'],
-                              child: Text(
-                                u['Name'] ?? 'Sin Nombre',
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ),
-                        ],
-                        value: _selectedSalesRepId,
-                        onChanged: (val) {
-                          _selectedSalesRepId = val;
-                          setModalState(() {});
-                        },
-                      ),
-                    ),
-                    simpleModalDropdown(
-                      'Estado',
-                      _selectedStatus,
-                      _statusIdMap.keys.toList()..sort(),
-                      (v) => _selectedStatus = v,
-                    ),
-                    simpleModalDropdown('Prioridad', _selectedLevel, [
-                      'Urgente',
-                      'Alta',
-                      'Media',
-                      'Baja',
-                      'Menor',
-                    ], (v) => _selectedLevel = v),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    _applyFilters(resetPage: true);
-                  },
-                  child: const Text('Aplicar y Cerrar'),
-                ),
-              ],
-            );
-          },
+        return ProjectRequestFilterModal(
+          initialFilter: _filters,
+          availablePhases: phases,
+          allProjectRequests: _allProjectRequests,
+          users: _users,
+          statusIdMap: _statusIdMap,
         );
       },
     );
+
+    if (result != null) {
+      setState(() {
+        _filters = result;
+      });
+      _applyFilters(resetPage: true);
+    }
   }
 
   Widget _buildSearchAndFilters() {
@@ -655,15 +513,10 @@ class _ProjectRequestsViewState extends State<ProjectRequestsView> {
                 tooltip: 'Limpiar filtros',
                 onPressed: () {
                   setState(() {
-                    _selectedType = null;
-                    _selectedStatus = null;
-                    _selectedLevel = null;
-                    _selectedPhase = null;
-                    _selectedTask = null;
-                    _selectedCategory = null;
-                    _selectedSalesRepId = null;
+                    _filters = const ProjectRequestFilterModel();
                   });
                   _searchController.clear();
+                  _applyFilters(resetPage: true);
                 },
               ),
             ],

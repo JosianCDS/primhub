@@ -1312,12 +1312,19 @@ class _DesktopRecordTable extends StatelessWidget {
               ),
             ),
             DataCell(
-              SizedBox(
-                width: 300,
-                child: Text(
-                  record['emailSubject'] ?? record['descriptionClean'] ?? '',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+              Tooltip(
+                message: () {
+                  final text = record['emailSubject'] ?? record['descriptionClean'] ?? '';
+                  return text.length > 2000 ? '${text.substring(0, 2000)}...' : text;
+                }(),
+                waitDuration: const Duration(milliseconds: 500),
+                child: SizedBox(
+                  width: 300,
+                  child: Text(
+                    record['emailSubject'] ?? record['descriptionClean'] ?? '',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ),
             ),

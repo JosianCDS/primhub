@@ -18,14 +18,29 @@ class ProjectItem extends StatelessWidget {
   final Function(int projectId, String name, String desc) onCreatePhase;
   final Function(int phaseId, String name, String desc) onCreateTask;
   final Function(Map<String, dynamic> project, String viewType) onShowFiles;
+  final VoidCallback? onToggleExpansion; // Nueva callback
   final bool isArchived;
-  final Map<String, dynamic>? stats; // Nuevo parámetro para indicadores
+  final Map<String, dynamic>? stats;
 
-  const ProjectItem({super.key, required this.project, required this.isExpanded, required this.statusIdMap, required this.priorityMap, required this.onRefresh, required this.onEdit, required this.onCreatePhase, required this.onCreateTask, required this.onShowFiles, this.isArchived = false, this.stats});
+  const ProjectItem({
+    super.key,
+    required this.project,
+    required this.isExpanded,
+    required this.statusIdMap,
+    required this.priorityMap,
+    required this.onRefresh,
+    required this.onEdit,
+    required this.onCreatePhase,
+    required this.onCreateTask,
+    required this.onShowFiles,
+    this.onToggleExpansion,
+    this.isArchived = false,
+    this.stats,
+  });
 
   @override
   Widget build(BuildContext context) {
-    // Ordenar Fases por ID Ascendente (Las nuevas van al fondo)
+    // ... (sorting logic stays same)
     final phases = (project['C_ProjectPhase'] as List? ?? []).map((e) {
       if (e is Map) return Map<String, dynamic>.from(e);
       return <String, dynamic>{};
@@ -36,7 +51,6 @@ class ProjectItem extends StatelessWidget {
       return idA.compareTo(idB);
     });
 
-    // Ordenar Tareas Directas por ID Ascendente
     final directTasks = (project['C_ProjectTask'] as List? ?? []).map((e) {
       if (e is Map) return Map<String, dynamic>.from(e);
       return <String, dynamic>{};
@@ -63,7 +77,7 @@ class ProjectItem extends StatelessWidget {
           ),
         ),
         child: ExpansionTile(
-          key: Key('project-$projId'),
+          key: Key('project-$projId-$isExpanded'), // Forzamos reconstrucción al cambiar estado
           initiallyExpanded: isExpanded,
           backgroundColor: Colors.white,
           collapsedBackgroundColor: Colors.white,
@@ -88,6 +102,16 @@ class ProjectItem extends StatelessWidget {
                   ),
                 ),
               ),
+              if (onToggleExpansion != null)
+                IconButton(
+                  icon: Icon(
+                    isExpanded ? Icons.unfold_less : Icons.unfold_more,
+                    size: 20,
+                    color: const Color(0xFF4F47E5),
+                  ),
+                  tooltip: isExpanded ? 'Contraer' : 'Expandir por completo',
+                  onPressed: onToggleExpansion,
+                ),
               if (phases.isNotEmpty) ...[
                 const Icon(Icons.layers_outlined, size: 16, color: Colors.grey),
                 const SizedBox(width: 4),

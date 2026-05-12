@@ -578,7 +578,6 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
         requestId: widget.request['realId'],
         resultText: newUpdateText,
         confidentialType: 'I', // Valor por defecto para actualizaciones rápidas
-        isPrinted: false, // Valor por defecto
         evidences: [null, null, null, null], // Sin archivos adjuntos desde aquí
       );
     }
@@ -763,6 +762,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                         onTap: () => _openSearchModal<String>(title: 'Tipo de Solicitud', items: _requestTypeMap.keys.toList(), currentValue: _selectedType, getTitle: (item) => item.toString(), getValue: (item) => item.toString(), onSelected: (val) => setState(() => _selectedType = val)),
                       ),
                     ),
+                    const SizedBox(width: 16),
                     Expanded(
                       child: _buildSearchableField<String>(
                         label: 'Categoría',
@@ -868,17 +868,43 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                 Stack(
                   alignment: Alignment.topRight,
                   children: [
-                    CustomTextField(
-                      controller: _summaryController,
-                      scrollController: _descriptionScrollController,
-                      label: 'Descripción / Resumen',
-                      readOnly: _isReadOnly,
-                      maxLines: 4,
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) return 'Por favor ingrese una descripción';
-                        return null;
-                      },
-                    ),
+                    _isReadOnly 
+                    ? Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Theme.of(context).colorScheme.outline.withOpacity(0.5)),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Descripción / Resumen', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Theme.of(context).colorScheme.primary)),
+                            const SizedBox(height: 8),
+                            Html(
+                              data: _summaryController.text,
+                              style: {
+                                "body": Style(
+                                  margin: Margins.zero,
+                                  padding: HtmlPaddings.zero,
+                                  fontSize: FontSize(14),
+                                ),
+                              },
+                            ),
+                          ],
+                        ),
+                      )
+                    : CustomTextField(
+                        controller: _summaryController,
+                        scrollController: _descriptionScrollController,
+                        label: 'Descripción / Resumen',
+                        readOnly: _isReadOnly,
+                        maxLines: 4,
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) return 'Por favor ingrese una descripción';
+                          return null;
+                        },
+                      ),
                     Padding(
                       padding: const EdgeInsets.only(top: 4.0, right: 4.0),
                       child: IconButton(icon: const Icon(Icons.zoom_out_map), tooltip: 'Ver descripción completa', onPressed: () => _showFullDescription(context)),

@@ -38,7 +38,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
   bool _showInactive = false;
   bool _viewingInactive = false;
 
-  bool _expandAll = false;
+  final Set<int> _expandedProjectIds = {};
   int? _targetExpandedProjectId;
   bool _isInit = true;
   String _currentViewType = '';
@@ -149,10 +149,6 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
 
   Future<void> _loadProjectStats() async {
     // Implementación simplificada o llamada a lógica compartida
-    // Por ahora, para no duplicar código complejo de HomeController aquí,
-    // podrías mover la lógica de 'loadDocumentStats' a DocumentsLogic.
-    // Asumiremos que DocumentsLogic tiene un método para esto o lo añadimos.
-    // Ver paso 7.
   }
 
   Future<void> _fetchStatuses() async {
@@ -193,10 +189,9 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
     if (view == 'projects') {
       setState(() {
         final rawId = project['id'];
-        _targetExpandedProjectId = rawId is int
-            ? rawId
-            : int.tryParse(rawId.toString());
-        _expandAll = false;
+        final id = rawId is int ? rawId : int.tryParse(rawId.toString()) ?? 0;
+        _expandedProjectIds.add(id);
+        _targetExpandedProjectId = id;
         _exitFileManager();
       });
     } else {
@@ -229,8 +224,8 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
   ) async {
     setState(() {
       _isLoadingProjects = true;
-      _targetExpandedProjectId =
-          projectId; // Asegurar que este proyecto se expanda
+      _expandedProjectIds.add(projectId);
+      _targetExpandedProjectId = projectId;
     });
     final result = await _logic.createPhase(projectId, name, description);
     if (result['success'] == true) {
@@ -249,8 +244,6 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
   }
 
   Future<void> _createTask(int phaseId, String name, String description) async {
-    // Necesitamos el ID del proyecto para mantenerlo expandido.
-    // Buscamos el proyecto que contiene esta fase.
     final project = _projects.firstWhere(
       (p) =>
           (p['C_ProjectPhase'] as List? ?? []).any((ph) => ph['id'] == phaseId),
@@ -260,9 +253,9 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
       _isLoadingProjects = true;
       if (project != null) {
         final rawId = project['id'];
-        _targetExpandedProjectId = rawId is int
-            ? rawId
-            : int.tryParse(rawId.toString());
+        final id = rawId is int ? rawId : int.tryParse(rawId.toString()) ?? 0;
+        _expandedProjectIds.add(id);
+        _targetExpandedProjectId = id;
       }
     });
     final result = await _logic.createTask(phaseId, name, description);
@@ -535,34 +528,19 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
           ),
         );
       }
-      mobileMenuItems.add(
-        PopupMenuItem<String>(
-          value: 'toggle_expand',
-          child: ListTile(
-            leading: Icon(_expandAll ? Icons.unfold_less : Icons.unfold_more),
-            title: Text(_expandAll ? 'Contraer todo' : 'Expandir todo'),
-          ),
-        ),
-      );
 
       return [
         if (mobileMenuItems.isNotEmpty)
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
             onSelected: (value) {
-              if (value == 'admin_mode') {
-                // No se puede llamar a un widget directamente, se necesita un diálogo
-              } else if (value == 'project_filter') {
-                // No se puede llamar a un widget directamente, se necesita un diálogo
-              } else if (value == 'toggle_inactive') {
+              if (value == 'toggle_inactive') {
                 setState(() {
                   _viewingInactive = !_viewingInactive;
                   _targetExpandedProjectId = null;
-                  _expandAll = false;
+                  _expandedProjectIds.clear();
                 });
                 _loadProjects();
-              } else if (value == 'toggle_expand') {
-                setState(() => _expandAll = !_expandAll);
               }
             },
             itemBuilder: (context) => mobileMenuItems,
@@ -592,13 +570,6 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
           ),
         );
       }
-      desktopActions.add(
-        IconButton(
-          icon: Icon(_expandAll ? Icons.unfold_less : Icons.unfold_more),
-          tooltip: _expandAll ? 'Contraer todo' : 'Expandir todo',
-          onPressed: () => setState(() => _expandAll = !_expandAll),
-        ),
-      );
     }
 
     return [...desktopActions, ...commonActions];
@@ -702,14 +673,23 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
                     final projId = project['id'] is int
                         ? project['id'] as int
                         : int.tryParse(project['id'].toString()) ?? 0;
+                    final isExpanded = _expandedProjectIds.contains(projId);
                     return ProjectItem(
-                      key: ValueKey('pj-$projId-$_expandAll'),
+                      key: ValueKey('pj-$projId-$isExpanded'),
                       project: project,
-                      isExpanded:
-                          _expandAll || (_targetExpandedProjectId == projId),
+                      isExpanded: isExpanded,
                       statusIdMap: _statusIdMap,
                       priorityMap: _priorityMap,
                       onRefresh: _loadProjects,
+                      onToggleExpansion: () {
+                        setState(() {
+                          if (isExpanded) {
+                            _expandedProjectIds.remove(projId);
+                          } else {
+                            _expandedProjectIds.add(projId);
+                          }
+                        });
+                      },
                       // Al editar, abrimos el formulario de administrador
                       onEdit: (type, id, name, desc) async {
                         if (type == 'project') {
@@ -717,8 +697,8 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
                         } else {
                           setState(() {
                             _isLoadingProjects = true;
-                            _targetExpandedProjectId =
-                                projId; // Mantener expandido
+                            _expandedProjectIds.add(projId);
+                            _targetExpandedProjectId = projId;
                           });
                           final result = await _logic.updateItem(
                             type,

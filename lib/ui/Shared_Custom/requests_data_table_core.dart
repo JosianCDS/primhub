@@ -133,7 +133,24 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
                     ],
                   ),
                 ),
-                DataCell(Text(alert['id']?.toString() ?? '')),
+                DataCell(
+                  InkWell(
+                    onTap: () {
+                      Clipboard.setData(ClipboardData(text: alert['id']?.toString() ?? ''));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Ticket copiado'), duration: Duration(seconds: 1))
+                      );
+                    },
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(alert['id']?.toString() ?? ''),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.copy, size: 14, color: Colors.grey),
+                      ],
+                    ),
+                  ),
+                ),
                 DataCell(Text(alert['status']?.toString() ?? 'Sin Estado')),
                 DataCell(Text(alert['situation']?.toString() ?? 'Sin tipo')),
               ],
@@ -149,7 +166,14 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
                 const ResponsiveDataColumn(label: 'Ficha de Producto'),
               ],
               scrollableCellBuilder: (alert) => [
-                DataCell(Text((alert['emailSubject']?.toString() ?? '').length > 25 ? '${(alert['emailSubject']?.toString() ?? '').substring(0, 25)}...' : (alert['emailSubject']?.toString() ?? ''))),
+                DataCell(
+                  Tooltip(
+                    message: alert['emailSubject']?.toString() ?? '',
+                    waitDuration: const Duration(milliseconds: 500),
+                    showDuration: const Duration(seconds: 2),
+                    child: Text((alert['emailSubject']?.toString() ?? '').length > 25 ? '${(alert['emailSubject']?.toString() ?? '').substring(0, 25)}...' : (alert['emailSubject']?.toString() ?? '')),
+                  ),
+                ),
                 DataCell(Text(alert['category']?.toString() ?? 'Sin categoría')),
                 DataCell(
                   Container(
@@ -161,18 +185,19 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
                 if (AccessControl.isAdmin) DataCell(Text(alert['bpName']?.toString() ?? '')),
                 if (AccessControl.isAdmin) DataCell(Text(alert['userName']?.toString() ?? '')),
                 if (AccessControl.isAdmin) DataCell(Text(alert['salesRepName']?.toString() ?? '')),
-                DataCell(Text(DocumentsLogic.stripHtmlTags(alert['description'] ?? '').length > 50 ? '${DocumentsLogic.stripHtmlTags(alert['description'] ?? '').substring(0, 50)}...' : DocumentsLogic.stripHtmlTags(alert['description'] ?? ''))),
+                DataCell(
+                  Tooltip(
+                    message: alert['descriptionClean'] ?? '',
+                    waitDuration: const Duration(milliseconds: 500),
+                    child: Text(
+                      (alert['descriptionClean'] ?? '').length > 50 
+                        ? '${(alert['descriptionClean'] ?? '').substring(0, 50)}...' 
+                        : (alert['descriptionClean'] ?? '')
+                    ),
+                  ),
+                ),
                 DataCell(Text(DurationFormatter.format((alert['qtySpent'] as num?)?.toDouble() ?? 0.0))),
-                DataCell(Text(() {
-                  final chipId = alert['productChipId'];
-                  if (chipId == null) return 'N/A';
-                  final found = GlobalCache.productChips.firstWhere(
-                    (c) => c['id'] == chipId,
-                    orElse: () => {},
-                  );
-                  if (found.isEmpty) return '#$chipId';
-                  return found['Description'] ?? found['Name'] ?? '#$chipId';
-                }())),
+                DataCell(Text(alert['productChipName'] ?? 'N/A')),
               ],
               mobileCardBuilder: (item) => _RequestCard(
                 request: item,
@@ -249,8 +274,9 @@ class _RequestAttachmentsDialogState extends State<_RequestAttachmentsDialog> {
   /// Carga los adjuntos de la solicitud desde la API.
   Future<void> _loadAttachments() async {
     setState(() => _isLoading = true);
-    const tableName = 'R_Request'; // La tabla es siempre R_Request para adjuntos de solicitudes
-    final attachments = await fetchAttachments(recordID: widget.requestId, tableName: '${Endpoint.baseUrl}/api/v1/models/$tableName');
+    const tableName = 'R_Request';
+    final String fullTableUrl = '${Endpoint.baseUrl}/api/v1/models/$tableName';
+    final attachments = await fetchAttachments(recordID: widget.requestId, tableName: fullTableUrl);
     if (mounted) {
       setState(() {
         _attachments = attachments;
@@ -267,25 +293,41 @@ class _RequestAttachmentsDialogState extends State<_RequestAttachmentsDialog> {
     }
 
     if (_attachments.length >= 4) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Solo se pueden subir 4 Adjuntos'), backgroundColor: Colors.orange));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Solo se pueden subir hasta 4 adjuntos.'), backgroundColor: Colors.orange));
       return;
     }
 
-    FilePickerResult? result = await FilePicker.platform.pickFiles(withData: true);
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.any,
+      withData: true,
+    );
+
     if (result == null || result.files.isEmpty) return;
+
+    final file = result.files.first;
+    if (file.bytes == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No se pudieron leer los datos del archivo.'), backgroundColor: Colors.red));
+      return;
+    }
 
     setState(() => _isUploading = true);
 
     const tableName = 'R_Request';
-    final file = result.files.first;
-
+    final String fullTableUrl = '${Endpoint.baseUrl}/api/v1/models/$tableName';
+    
     final convertedFile = {'title': file.name, 'base64': base64Encode(file.bytes!)};
-    final success = await postAttachments(recordID: widget.requestId, tableName: tableName, convertedFile: convertedFile);
+    
+    final success = await postAttachments(
+      recordID: widget.requestId, 
+      tableName: fullTableUrl, 
+      convertedFile: convertedFile,
+      shouldUpdateStatus: false,
+    );
 
     if (mounted) {
       setState(() => _isUploading = false);
       if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Archivo subido correctamente')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Archivo subido correctamente'), backgroundColor: Colors.green));
         _loadAttachments();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al subir archivo'), backgroundColor: Colors.red));
@@ -296,6 +338,7 @@ class _RequestAttachmentsDialogState extends State<_RequestAttachmentsDialog> {
   @override
   Widget build(BuildContext context) {
     const tableName = 'R_Request';
+    final String fullTableUrl = '${Endpoint.baseUrl}/api/v1/models/$tableName';
 
     return CustomModal(
       title: 'Adjuntos: ${widget.documentNo}',
@@ -323,10 +366,10 @@ class _RequestAttachmentsDialogState extends State<_RequestAttachmentsDialog> {
                   leading: const Icon(Icons.insert_drive_file),
                   title: Text(att['name'] ?? 'Sin nombre'),
                   onTap: () {
-                    FilePreviewManager.showPreview(context, {'id': widget.requestId, 'Status': 'N/A', 'VersionNo': 'N/A'}, tableName, att['name'] ?? '', () async {
+                    FilePreviewManager.showPreview(context, {'id': widget.requestId, 'Status': 'N/A', 'VersionNo': 'N/A'}, fullTableUrl, att['name'] ?? '', () async {
                       try {
                         setState(() => _isLoading = true);
-                        final url = Uri.parse('${Endpoint.baseUrl}/api/v1/models/$tableName/${widget.requestId}/attachments/${Uri.encodeComponent(att['name'] ?? '')}');
+                        final url = Uri.parse('$fullTableUrl/${widget.requestId}/attachments/${Uri.encodeComponent(att['name'] ?? '')}');
                         final response = await http.delete(url, headers: {'Authorization': Token.token});
                         if (response.statusCode == 200 || response.statusCode == 204) {
                           if (mounted) {
@@ -347,7 +390,7 @@ class _RequestAttachmentsDialogState extends State<_RequestAttachmentsDialog> {
                   trailing: IconButton(
                     icon: const Icon(Icons.download, color: Color(0xFF4F47E5)),
                     tooltip: 'Descargar',
-                    onPressed: () => downloadAttachment(context: context, recordID: widget.requestId, tableName: tableName, fileName: att['name']),
+                    onPressed: () => downloadAttachment(context: context, recordID: widget.requestId, tableName: fullTableUrl, fileName: att['name']),
                   ),
                 );
               },

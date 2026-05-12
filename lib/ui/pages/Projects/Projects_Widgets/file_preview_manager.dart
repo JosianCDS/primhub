@@ -12,114 +12,229 @@ import 'package:printing/printing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class FilePreviewManager {
-  static void showPreview(BuildContext context, Map<String, dynamic> details, String tableName, String name, VoidCallback onDelete, VoidCallback onStatusChanged) {
+  static void showPreview(
+    BuildContext context,
+    Map<String, dynamic> details,
+    String tableName,
+    String name,
+    VoidCallback onDelete,
+    VoidCallback onStatusChanged,
+  ) {
     final extension = name.split('.').last.toLowerCase();
-    final isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].contains(extension);
+    final isImage = [
+      'jpg',
+      'jpeg',
+      'png',
+      'gif',
+      'webp',
+      'bmp',
+    ].contains(extension);
     final isPdf = extension == 'pdf';
     final isCsv = extension == 'csv';
     final isText = ['txt', 'json', 'xml', 'md', 'log'].contains(extension);
     bool isDownloading = false;
 
-    String currentVisualName = (details['Description'] != null && details['Description'].toString().trim().isNotEmpty) ? details['Description'].toString() : name.split('.').first;
-    final TextEditingController visualNameController = TextEditingController(text: currentVisualName);
-    bool isSavingName = false;
+    String currentVisualName =
+        (details['Description'] != null &&
+            details['Description'].toString().trim().isNotEmpty)
+        ? details['Description'].toString()
+        : name.split('.').first;
+    final TextEditingController visualNameController = TextEditingController(
+      text: currentVisualName,
+    );
 
     showDialog(
       context: context,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setStateDialog) {
+            final theme = Theme.of(context);
             return CustomModal(
               title: 'Vista Previa: $currentVisualName',
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CustomTextField(controller: visualNameController, label: 'Nombre Visual (Etiqueta)', readOnly: !AccessControl.canManageFiles),
-                    const SizedBox(height: 16),
-                    if (isImage || isPdf || isText || isCsv)
-                      FutureBuilder<Uint8List?>(
-                        future: DocumentsLogic.fetchImagePreview(tableName, details['id'], name),
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState == ConnectionState.waiting) return const SizedBox(height: 200, child: Center(child: CircularProgressIndicator()));
-                          if (snapshot.hasData && snapshot.data != null) {
-                            if (isImage)
-                              return ConstrainedBox(
-                                constraints: const BoxConstraints(maxHeight: 800), // Aumentado al doble de tamaño
-                                child: Image.memory(snapshot.data!, fit: BoxFit.contain),
+              width: 600,
+              scrollable: true,
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 4),
+                  CustomTextField(
+                    controller: visualNameController,
+                    label: 'Nombre Visual (Etiqueta)',
+                    readOnly: !AccessControl.canManageFiles,
+                  ),
+                  const SizedBox(height: 12),
+                  if (isImage || isPdf || isText || isCsv)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(0, 4, 16, 4),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: theme.brightness == Brightness.light
+                              ? Colors.grey[50]
+                              : Colors.grey[900],
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: theme.dividerColor.withOpacity(0.5),
+                          ),
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: FutureBuilder<Uint8List?>(
+                          future: DocumentsLogic.fetchImagePreview(
+                            tableName,
+                            details['id'],
+                            name,
+                          ),
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState ==
+                                ConnectionState.waiting) {
+                              return const SizedBox(
+                                height: 200,
+                                child: Center(
+                                  child: CircularProgressIndicator(),
+                                ),
                               );
-                            if (isPdf) return SizedBox(height: 500, child: PdfPreview(build: (format) async => snapshot.data!, allowPrinting: false, allowSharing: false, canChangeOrientation: false, canChangePageFormat: false, canDebug: false));
-                            if (isCsv) return _buildCsvPreview(snapshot.data!);
-                            if (isText) return _buildTextPreview(snapshot.data!);
-                          }
-                          return const Text('No se pudo cargar la previsualización');
-                        },
-                      )
-                    else
-                      _buildNoPreviewWidget(extension),
-                    const SizedBox(height: 20),
-                    _buildPropertyRow('Nombre Real', name),
-                    _buildPropertyRow('Estado', DocumentsLogic.extractStatus(details['Status'])),
-                    _buildPropertyRow('Versión', DocumentsLogic.extractIdentifier(details['VersionNo'])),
-                  ],
-                ),
+                            }
+                            if (snapshot.hasData && snapshot.data != null) {
+                              if (isImage) {
+                                return ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    maxHeight: 500,
+                                  ),
+                                  child: Center(
+                                    child: Image.memory(
+                                      snapshot.data!,
+                                      fit: BoxFit.contain,
+                                    ),
+                                  ),
+                                );
+                              }
+                              if (isPdf) {
+                                return SizedBox(
+                                  height: 500,
+                                  child: ScrollConfiguration(
+                                    behavior: ScrollConfiguration.of(
+                                      context,
+                                    ).copyWith(scrollbars: true),
+                                    child: PdfPreview(
+                                      build: (format) async => snapshot.data!,
+                                      allowPrinting: false,
+                                      allowSharing: false,
+                                      canChangeOrientation: false,
+                                      canChangePageFormat: false,
+                                      canDebug: false,
+                                      padding: const EdgeInsets.all(8),
+                                    ),
+                                  ),
+                                );
+                              }
+                              if (isCsv) {
+                                return _buildCsvPreview(snapshot.data!);
+                              }
+                              if (isText) {
+                                return _buildTextPreview(snapshot.data!);
+                              }
+                            }
+                            return const Padding(
+                              padding: EdgeInsets.all(32.0),
+                              child: Center(
+                                child: Text(
+                                  'No se pudo cargar la previsualización',
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    )
+                  else
+                    _buildNoPreviewWidget(extension),
+                  const SizedBox(height: 20),
+                  _buildPropertyRow('Nombre Real', name),
+                  _buildPropertyRow(
+                    'Estado',
+                    DocumentsLogic.extractStatus(details['Status']),
+                  ),
+                  _buildPropertyRow(
+                    'Versión',
+                    DocumentsLogic.extractIdentifier(details['VersionNo']),
+                  ),
+                ],
               ),
               actions: [
-                SizedBox(
-                  width: double.infinity,
-                  child: Wrap(
-                    alignment: WrapAlignment.end,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 8.0,
-                    runSpacing: 8.0,
-                    children: [
-                      if (AccessControl.canManageFiles)
-                        IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.red),
-                          tooltip: 'Eliminar',
-                          onPressed: () {
-                            Navigator.pop(context);
-                            onDelete();
-                          },
+                // Fila superior: Eliminar a la izquierda, Cerrar a la derecha
+                Row(
+                  children: [
+                    if (AccessControl.canManageFiles)
+                      IconButton(
+                        icon: const Icon(
+                          Icons.delete_outline,
+                          color: Colors.red,
                         ),
-                      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cerrar')),
-                      if (AccessControl.canManageFiles)
-                        CustomButton(
-                          text: 'Guardar',
-                          icon: Icons.save,
-                          onPressed: () async {
-                            setStateDialog(() {
-                              currentVisualName = visualNameController.text;
-                            });
-                            details['Description'] = currentVisualName;
-                            final prefs = await SharedPreferences.getInstance();
-                            await prefs.setString('doc_visual_${details['id']}', currentVisualName);
-                            onStatusChanged(); // Recarga la lista en la UI localmente
-                            if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nombre visual actualizado')));
-                          },
-                        ),
-                      CustomButton(
-                        text: 'Descargar',
-                        icon: Icons.download,
-                        isLoading: isDownloading,
-                        onPressed: !AccessControl.canDownloadFiles
-                            ? null
-                            : () async {
-                                setStateDialog(() => isDownloading = true);
-                                await downloadAttachment(
-                                  context: context,
-                                  recordID: details['id'],
-                                  tableName: tableName,
-                                  fileName: name,
-                                  onStatusChanged: () {
-                                    if (AccessControl.isProject) details['Status'] = 'Entregado';
-                                    onStatusChanged();
-                                  },
-                                );
-                                if (context.mounted) setStateDialog(() => isDownloading = false);
-                              },
+                        tooltip: 'Eliminar',
+                        onPressed: () {
+                          Navigator.pop(context);
+                          onDelete();
+                        },
                       ),
-                    ],
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text(
+                        'Cerrar',
+                        style: TextStyle(fontSize: 16),
+                      ),
+                    ),
+                    if (AccessControl.canManageFiles)
+                      CustomButton(
+                        text: 'Guardar',
+                        icon: Icons.save,
+                        onPressed: () async {
+                          setStateDialog(() {
+                            currentVisualName = visualNameController.text;
+                          });
+                          details['Description'] = currentVisualName;
+                          final prefs = await SharedPreferences.getInstance();
+                          await prefs.setString(
+                            'doc_visual_${details['id']}',
+                            currentVisualName,
+                          );
+                          onStatusChanged();
+                          if (context.mounted)
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Nombre visual actualizado'),
+                              ),
+                            );
+                        },
+                      ),
+                  ],
+                ),
+                // Botón de descarga prominente
+                Padding(
+                  padding: const EdgeInsets.only(top: 8.0),
+                  child: CustomButton(
+                    text: 'Descargar Documento',
+                    icon: Icons.download,
+                    width: double.infinity,
+                    isLoading: isDownloading,
+                    onPressed: !AccessControl.canDownloadFiles
+                        ? null
+                        : () async {
+                            setStateDialog(() => isDownloading = true);
+                            await downloadAttachment(
+                              context: context,
+                              recordID: details['id'],
+                              tableName: tableName,
+                              fileName: name,
+                              onStatusChanged: () {
+                                if (AccessControl.isProject)
+                                  details['Status'] = 'Entregado';
+                                onStatusChanged();
+                              },
+                            );
+                            if (context.mounted)
+                              setStateDialog(() => isDownloading = false);
+                          },
                   ),
                 ),
               ],
@@ -135,7 +250,10 @@ class FilePreviewManager {
       String content = utf8.decode(data, allowMalformed: true);
       List<String> lines = content.split('\n');
       if (lines.isEmpty) return const Text('Archivo vacío');
-      List<List<String>> rows = lines.where((l) => l.trim().isNotEmpty).map((line) => line.split(',')).toList();
+      List<List<String>> rows = lines
+          .where((l) => l.trim().isNotEmpty)
+          .map((line) => line.split(','))
+          .toList();
       if (rows.isEmpty) return const Text('Archivo vacío');
       return Container(
         height: 400,
@@ -151,11 +269,17 @@ class FilePreviewManager {
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: DataTable(
-              columns: rows.first.map((e) => DataColumn(label: Text(e.trim()))).toList(),
+              columns: rows.first
+                  .map((e) => DataColumn(label: Text(e.trim())))
+                  .toList(),
               rows: rows.skip(1).map((row) {
                 final cells = row.take(rows.first.length).toList();
                 while (cells.length < rows.first.length) cells.add('');
-                return DataRow(cells: cells.map((cell) => DataCell(Text(cell.trim()))).toList());
+                return DataRow(
+                  cells: cells
+                      .map((cell) => DataCell(Text(cell.trim())))
+                      .toList(),
+                );
               }).toList(),
             ),
           ),
@@ -189,9 +313,16 @@ class FilePreviewManager {
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
-          Icon(DocumentsLogic.getFileIcon(extension), size: 64, color: Colors.grey[400]),
+          Icon(
+            DocumentsLogic.getFileIcon(extension),
+            size: 64,
+            color: Colors.grey[400],
+          ),
           const SizedBox(height: 16),
-          Text('Previsualización no disponible para .$extension', textAlign: TextAlign.center),
+          Text(
+            'Previsualización no disponible para .$extension',
+            textAlign: TextAlign.center,
+          ),
         ],
       ),
     );

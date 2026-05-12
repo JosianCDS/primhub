@@ -85,7 +85,8 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   }
 
   void _onBackgroundSyncChanged() {
-    if (!GlobalCache.backgroundSyncNotifier.value && mounted) {
+    if (mounted) {
+      debugPrint("DEBUG: [SYNC] Refreshing MyRequests due to global sync notification.");
       _refreshRequest(fetchNetwork: false);
     }
   }
@@ -1092,13 +1093,30 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
               Stack(
                 alignment: Alignment.topRight,
                 children: [
-                  CustomTextField(
-                    controller: TextEditingController(
-                      text: req['descriptionClean'],
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Theme.of(context).colorScheme.outline.withOpacity(0.5)),
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    label: 'Descripción',
-                    maxLines: 4,
-                    readOnly: true,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Descripción', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Theme.of(context).colorScheme.primary)),
+                        const SizedBox(height: 8),
+                        Html(
+                          data: req['description'] ?? '',
+                          style: {
+                            "body": Style(
+                              margin: Margins.zero,
+                              padding: HtmlPaddings.zero,
+                              fontSize: FontSize(14),
+                            ),
+                          },
+                        ),
+                      ],
+                    ),
                   ),
                   Padding(
                     padding: const EdgeInsets.only(top: 4.0, right: 4.0),
@@ -1417,105 +1435,107 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   Widget build(BuildContext context) {
     final paginatedAlerts = _getFilteredRequests();
 
-    final listContent = Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              RequestStatsCard(
-                contractedHours: _contractedHours,
-                consumedHours: _consumedHours,
-                estimatedHours: _estimatedHours,
-              ),
-              const SizedBox(height: 12),
-              RequestFilterBar(
-                searchController: _searchController,
-                isAscending: _isAscending,
-                rowsPerPage: _rowsPerPage,
-                showHistory: _showHistory,
-                selectedYears: _selectedYears,
-                onShowYearFilter: _showYearFilterModal,
-                onShowFilters: _showFilterModal,
-                onShowCalendar: () => setState(() => _showCalendar = true),
-                activeFilterCount: _activeFilterCount,
-                isLoading: _isLoading || !GlobalCache.isDataLoaded,
-                onSortChanged: () => setState(() {
-                  _isAscending = !_isAscending;
-                  _currentPage = 0;
-                }),
-                onRowsPerPageChanged: (val) {
-                  setState(() {
-                    _rowsPerPage = val!;
-                    _currentPage = 0;
-                  });
-                },
-                onClearFilters: () {
-                  setState(() {
-                    _filters = const RequestFilterModel();
-                    _searchController.clear();
-                    _isAscending = false;
-                    _currentPage = 0;
-                    _bpId = null;
-                    _selectedYears = [DateTime.now().year];
-                    _isLoading = true;
-                  });
-                  _initData();
-                },
-                onAddRequest: () async {
-                  if (await showDialog(
-                        context: context,
-                        builder: (context) => CreateRequestDialog(
-                          bPartners: _bPartners,
-                          selectedBPartnerId: _bpId,
-                        ),
-                      ) ==
-                      true) {
-                    _refreshRequest(fetchNetwork: false);
-                  }
-                },
-                onToggleHistory: () {
-                  setState(() {
-                    _showHistory = !_showHistory;
-                    _filters = _filters.copyWith(statuses: []);
-                    _currentPage = 0;
-                    if (_showHistory) {
-                      _startHistorySkeleton();
-                    } else {
-                      _isHistorySkeletonActive = false;
-                    }
-                  });
-                  _refreshRequest(fetchNetwork: false);
-                },
-              ),
-              const SizedBox(height: 8),
-              _buildActiveFilterChips(),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: Text(
-                  '$_totalRecords solicitudes encontradas en total',
-                  style: Theme.of(context).textTheme.titleMedium,
+    final listContent = CustomScrollView(
+      slivers: [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                RequestStatsCard(
+                  contractedHours: _contractedHours,
+                  consumedHours: _consumedHours,
+                  estimatedHours: _estimatedHours,
                 ),
-              ),
-              if (_selectedYears.length == 1 &&
-                  _selectedYears.first == DateTime.now().year)
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 4.0),
+                const SizedBox(height: 12),
+                RequestFilterBar(
+                  searchController: _searchController,
+                  isAscending: _isAscending,
+                  rowsPerPage: _rowsPerPage,
+                  showHistory: _showHistory,
+                  selectedYears: _selectedYears,
+                  onShowYearFilter: _showYearFilterModal,
+                  onShowFilters: _showFilterModal,
+                  onShowCalendar: () => setState(() => _showCalendar = true),
+                  activeFilterCount: _activeFilterCount,
+                  isLoading: _isLoading || !GlobalCache.isDataLoaded,
+                  onSortChanged: () => setState(() {
+                    _isAscending = !_isAscending;
+                    _currentPage = 0;
+                  }),
+                  onRowsPerPageChanged: (val) {
+                    setState(() {
+                      _rowsPerPage = val!;
+                      _currentPage = 0;
+                    });
+                  },
+                  onClearFilters: () {
+                    setState(() {
+                      _filters = const RequestFilterModel();
+                      _searchController.clear();
+                      _isAscending = false;
+                      _currentPage = 0;
+                      _bpId = null;
+                      _selectedYears = [DateTime.now().year];
+                      _isLoading = true;
+                    });
+                    _initData();
+                  },
+                  onAddRequest: () async {
+                    if (await showDialog(
+                          context: context,
+                          builder: (context) => CreateRequestDialog(
+                            bPartners: _bPartners,
+                            selectedBPartnerId: _bpId,
+                          ),
+                        ) ==
+                        true) {
+                      _refreshRequest(fetchNetwork: false);
+                    }
+                  },
+                  onToggleHistory: () {
+                    setState(() {
+                      _showHistory = !_showHistory;
+                      _filters = _filters.copyWith(statuses: []);
+                      _currentPage = 0;
+                      if (_showHistory) {
+                        _startHistorySkeleton();
+                      } else {
+                        _isHistorySkeletonActive = false;
+                      }
+                    });
+                    _refreshRequest(fetchNetwork: false);
+                  },
+                ),
+                const SizedBox(height: 8),
+                _buildActiveFilterChips(),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8.0),
                   child: Text(
-                    "Mostrando solicitudes del año actual. Use el filtro de año para ver más años.",
-                    style: TextStyle(color: Colors.grey),
+                    '$_totalRecords solicitudes encontradas en total',
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),
-            ],
+                if (_selectedYears.length == 1 &&
+                    _selectedYears.first == DateTime.now().year)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 4.0),
+                    child: Text(
+                      "Mostrando solicitudes del año actual. Use el filtro de año para ver más años.",
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
-        Expanded(
+        SliverFillRemaining(
+          hasScrollBody: true,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 1000),
+              duration: const Duration(milliseconds: 300),
               child: (_isLoading || (_showHistory && _isHistorySkeletonActive))
                   ? const SkeletonTable()
                   : RequestsDataTableCore(
@@ -1568,21 +1588,6 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
         ),
     ];
 
-    if (!AccessControl.isAdmin) {
-      return Scaffold(
-        appBar: AppBar(
-          leadingWidth: 180,
-          leading: const UserInfoLeading(),
-          title: const Text('Mis Solicitudes De Soporte'),
-          actions: appBarActions,
-        ),
-        bottomNavigationBar: const ProjectBottomNav(
-          currentRoute: '/my-requests',
-        ),
-        body: SafeArea(child: listContent),
-      );
-    }
-
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -1599,11 +1604,130 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
             : null,
         actions: appBarActions,
       ),
-      drawer: const CustomDrawer(currentRoute: '/my-requests'),
+      drawer: !AccessControl.isAdmin ? null : const CustomDrawer(currentRoute: '/my-requests'),
+      bottomNavigationBar: AccessControl.isAdmin ? null : const ProjectBottomNav(
+        currentRoute: '/my-requests',
+      ),
       body: SafeArea(
         child: _showCalendar
             ? CalendarContent(requests: _rawRequests)
-            : listContent,
+            : NestedScrollView(
+                headerSliverBuilder: (context, innerBoxIsScrolled) {
+                  return [
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            RequestStatsCard(
+                              contractedHours: _contractedHours,
+                              consumedHours: _consumedHours,
+                              estimatedHours: _estimatedHours,
+                            ),
+                            const SizedBox(height: 12),
+                            RequestFilterBar(
+                              searchController: _searchController,
+                              isAscending: _isAscending,
+                              rowsPerPage: _rowsPerPage,
+                              showHistory: _showHistory,
+                              selectedYears: _selectedYears,
+                              onShowYearFilter: _showYearFilterModal,
+                              onShowFilters: _showFilterModal,
+                              onShowCalendar: () => setState(() => _showCalendar = true),
+                              activeFilterCount: _activeFilterCount,
+                              isLoading: _isLoading || !GlobalCache.isDataLoaded,
+                              onSortChanged: () => setState(() {
+                                _isAscending = !_isAscending;
+                                _currentPage = 0;
+                              }),
+                              onRowsPerPageChanged: (val) {
+                                setState(() {
+                                  _rowsPerPage = val!;
+                                  _currentPage = 0;
+                                });
+                              },
+                              onClearFilters: () {
+                                setState(() {
+                                  _filters = const RequestFilterModel();
+                                  _searchController.clear();
+                                  _isAscending = false;
+                                  _currentPage = 0;
+                                  _bpId = null;
+                                  _selectedYears = [DateTime.now().year];
+                                  _isLoading = true;
+                                });
+                                _initData();
+                              },
+                              onAddRequest: () async {
+                                if (await showDialog(
+                                      context: context,
+                                      builder: (context) => CreateRequestDialog(
+                                        bPartners: _bPartners,
+                                        selectedBPartnerId: _bpId,
+                                      ),
+                                    ) ==
+                                    true) {
+                                  _refreshRequest(fetchNetwork: false);
+                                }
+                              },
+                              onToggleHistory: () {
+                                setState(() {
+                                  _showHistory = !_showHistory;
+                                  _filters = _filters.copyWith(statuses: []);
+                                  _currentPage = 0;
+                                  if (_showHistory) {
+                                    _startHistorySkeleton();
+                                  } else {
+                                    _isHistorySkeletonActive = false;
+                                  }
+                                });
+                                _refreshRequest(fetchNetwork: false);
+                              },
+                            ),
+                            const SizedBox(height: 8),
+                            _buildActiveFilterChips(),
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 8.0),
+                              child: Text(
+                                '$_totalRecords solicitudes encontradas en total',
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                            ),
+                            if (_selectedYears.length == 1 &&
+                                _selectedYears.first == DateTime.now().year)
+                              const Padding(
+                                padding: EdgeInsets.only(bottom: 4.0),
+                                child: Text(
+                                  "Mostrando solicitudes del año actual. Use el filtro de año para ver más años.",
+                                  style: TextStyle(color: Colors.grey),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ];
+                },
+                body: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    child: (_isLoading || (_showHistory && _isHistorySkeletonActive))
+                        ? const SkeletonTable()
+                        : RequestsDataTableCore(
+                            requests: paginatedAlerts,
+                            onEdit: _editRequest,
+                            onRefresh: () => _refreshRequest(fetchNetwork: true),
+                            statusIdMap: _statusIdMap,
+                            priorityMap: priorityMap,
+                            serverSidePagination: true,
+                            paginationControls: _buildPaginationControls(),
+                            useSimpleStatus: false,
+                          ),
+                  ),
+                ),
+              ),
       ),
     );
   }
