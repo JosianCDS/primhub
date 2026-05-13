@@ -126,16 +126,30 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
     _descriptionController.text = p['Description'] ?? '';
     _valueController.text = p['Value'] ?? '';
     _isActive = p['IsActive'] ?? true;
-    _dateContract = p['DateContract'] != null ? DateTime.tryParse(p['DateContract']) : null;
-    _dateFinish = p['DateFinish'] != null ? DateTime.tryParse(p['DateFinish']) : null;
+    _dateContract = p['DateContract'] != null
+        ? DateTime.tryParse(p['DateContract'])
+        : null;
+    _dateFinish = p['DateFinish'] != null
+        ? DateTime.tryParse(p['DateFinish'])
+        : null;
 
     _cBPartnerId = _parseId(p['C_BPartner_ID']);
     _bPartnerController.text = p['C_BPartner_ID']?['identifier'] ?? '';
     _cBPartnerSrId = _parseId(p['SalesRep_ID'] ?? p['C_BPartnerSR_ID']);
-    _salesRepController.text = p['SalesRep_ID']?['identifier'] ?? p['C_BPartnerSR_ID']?['identifier'] ?? '';
-    _cCurrencyId = p['C_Currency_ID'] is Map ? p['C_Currency_ID']['id'] : p['C_Currency_ID'];
-    _currencyController.text = p['C_Currency_ID']?['identifier'] ?? p['C_Currency_ID']?.toString() ?? '';
-    _projInvoiceRule = p['ProjInvoiceRule'] is Map ? p['ProjInvoiceRule']['id'] : p['ProjInvoiceRule'];
+    _salesRepController.text =
+        p['SalesRep_ID']?['identifier'] ??
+        p['C_BPartnerSR_ID']?['identifier'] ??
+        '';
+    _cCurrencyId = p['C_Currency_ID'] is Map
+        ? p['C_Currency_ID']['id']
+        : p['C_Currency_ID'];
+    _currencyController.text =
+        p['C_Currency_ID']?['identifier'] ??
+        p['C_Currency_ID']?.toString() ??
+        '';
+    _projInvoiceRule = p['ProjInvoiceRule'] is Map
+        ? p['ProjInvoiceRule']['id']
+        : p['ProjInvoiceRule'];
 
     _plannedAmtController.text = (p['PlannedAmt'] ?? 0.0).toString();
     _plannedQtyController.text = (p['PlannedQty'] ?? 0).toString();
@@ -145,7 +159,15 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
   Future<void> _loadDependencies() async {
     setState(() => _isLoading = true);
     try {
-      final results = await Future.wait([_logic.fetchBPartners(), _logic.fetchUsers(), _logic.fetchCurrencies(), _logic.fetchInvoiceRules(), _logic.fetchWarehouses(), _logic.fetchPriceLists(), _logic.fetchPaymentTerms()]);
+      final results = await Future.wait([
+        _logic.fetchBPartners(),
+        _logic.fetchUsers(),
+        _logic.fetchCurrencies(),
+        _logic.fetchInvoiceRules(),
+        _logic.fetchWarehouses(),
+        _logic.fetchPriceLists(),
+        _logic.fetchPaymentTerms(),
+      ]);
 
       if (mounted) {
         setState(() {
@@ -157,8 +179,13 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
           _paymentTerms = results[6];
 
           // Auto-asignar nombre del representante comercial si ya tenemos el ID (caso nuevo proyecto)
-          if (_isNewProject && _cBPartnerSrId != null && _salesRepController.text.isEmpty) {
-            final user = _users.firstWhere((u) => (u['AD_User_ID'] ?? u['id']) == _cBPartnerSrId, orElse: () => null);
+          if (_isNewProject &&
+              _cBPartnerSrId != null &&
+              _salesRepController.text.isEmpty) {
+            final user = _users.firstWhere(
+              (u) => (u['AD_User_ID'] ?? u['id']) == _cBPartnerSrId,
+              orElse: () => null,
+            );
             if (user != null) {
               _salesRepController.text = user['Name'] ?? '';
             }
@@ -166,7 +193,14 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
 
           final fetchedRules = results[3] as List<dynamic>;
           if (fetchedRules.isNotEmpty) {
-            _invoiceRules = fetchedRules.map((r) => {'id': r['Value'].toString(), 'name': r['Name']?.toString() ?? r['Value'].toString()}).toList();
+            _invoiceRules = fetchedRules
+                .map(
+                  (r) => {
+                    'id': r['Value'].toString(),
+                    'name': r['Name']?.toString() ?? r['Value'].toString(),
+                  },
+                )
+                .toList();
           } else {
             // FALLBACK: Opciones que se ven en tu imagen de iDempiere web (image_55ccef.png)
             _invoiceRules = [
@@ -187,16 +221,26 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
 
   Future<void> _save() async {
     // Validar campos obligatorios: Nombre y Código (vía form), Tercero, Rep. Comercial, Regla Factura, Moneda
-    bool missingMandatory = _cBPartnerId == null || _cBPartnerSrId == null || _projInvoiceRule == null || _cCurrencyId == null;
+    bool missingMandatory =
+        _cBPartnerId == null ||
+        _cBPartnerSrId == null ||
+        _projInvoiceRule == null ||
+        _cCurrencyId == null;
 
     if (!_formKey.currentState!.validate() || missingMandatory) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Llene los campos obligatorios'), backgroundColor: Colors.orange));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Llene los campos obligatorios'),
+          backgroundColor: Colors.orange,
+        ),
+      );
       return; // Detiene la ejecución aquí
     }
 
     setState(() => _isLoading = true);
 
-    double _pDouble(String text) => double.tryParse(text.replaceAll(',', '.')) ?? 0.0;
+    double _pDouble(String text) =>
+        double.tryParse(text.replaceAll(',', '.')) ?? 0.0;
 
     final Map<String, dynamic> data = {
       "Name": _nameController.text.trim(),
@@ -204,8 +248,12 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
       "Value": _valueController.text.trim(),
       "IsActive": _isActive,
       "ProjectLineLevel": "T",
-      if (_dateContract != null) "DateContract": "${_dateContract!.toIso8601String().split('T')[0]} 00:00:00.0",
-      if (_dateFinish != null) "DateFinish": "${_dateFinish!.toIso8601String().split('T')[0]} 00:00:00.0",
+      if (_dateContract != null)
+        "DateContract":
+            "${_dateContract!.toIso8601String().split('T')[0]} 00:00:00.0",
+      if (_dateFinish != null)
+        "DateFinish":
+            "${_dateFinish!.toIso8601String().split('T')[0]} 00:00:00.0",
 
       // Ahora estamos seguros de que _cBPartnerId no es null
       "C_BPartner_ID": {"id": _cBPartnerId},
@@ -214,7 +262,8 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
       "ProjInvoiceRule": _projInvoiceRule,
 
       if (_mWarehouseId != null) "M_Warehouse_ID": {"id": _mWarehouseId},
-      if (_mPriceListVersionId != null) "M_PriceList_Version_ID": {"id": _mPriceListVersionId},
+      if (_mPriceListVersionId != null)
+        "M_PriceList_Version_ID": {"id": _mPriceListVersionId},
       if (_cPaymentTermId != null) "C_PaymentTerm_ID": {"id": _cPaymentTermId},
 
       "PlannedAmt": _pDouble(_plannedAmtController.text),
@@ -237,7 +286,9 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
         if (errorMsg.contains('NotUnique') || errorMsg.contains('duplicate')) {
           errorMsg = 'Ya existe este proyecto';
         }
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMsg), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorMsg), backgroundColor: Colors.red),
+        );
       }
     }
   }
@@ -245,12 +296,16 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: Text(_isNewProject ? 'Nuevo Proyecto' : 'Editar Proyecto'),
+        title: Text(
+          _isNewProject ? 'Nuevo Proyecto' : 'Editar Proyecto',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
         actions: [
           if (!_isLoading)
             Padding(
-              padding: const EdgeInsets.only(right: 15), // El botón ahora se activará más fácil
+              padding: const EdgeInsets.only(right: 16),
               child: CustomButton(text: 'Guardar', onPressed: _save),
             ),
         ],
@@ -260,164 +315,337 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
           : Form(
               key: _formKey,
               child: ListView(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
                 children: [
-                  CustomContainer(
-                    title: 'Información General',
-                    child: Column(
-                      children: [
-                        CustomTextField(controller: _nameController, label: 'Nombre del Proyecto *', validator: (v) => (v == null || v.trim().isEmpty) ? 'El nombre es obligatorio' : null),
-                        const SizedBox(height: 16),
-                        CustomTextField(controller: _valueController, label: 'Código (Opcional)'),
-                        SwitchListTile(title: const Text('Activo'), value: _isActive, onChanged: (v) => setState(() => _isActive = v)),
-                      ],
+                  Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 900),
+                      child: Column(
+                        children: [
+                          _buildGeneralInfoSection(),
+                          const SizedBox(height: 24),
+                          _buildMastersSection(),
+                          const SizedBox(height: 24),
+                          _buildDatesAndCurrencySection(),
+                          const SizedBox(height: 24),
+                          _buildFinancialDetailsSection(),
+                          const SizedBox(height: 48),
+                        ],
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 24),
-                  CustomContainer(
-                    title: 'Maestros y Responsables',
-                    child: Column(
-                      children: [
-                        _buildSearchField(
-                          label: 'Tercero (Cliente) *',
-                          controller: _bPartnerController,
-                          items: _bPartners,
-                          idKey: 'C_BPartner_ID',
-                          onSelected: (id, name) => setState(() {
-                            _cBPartnerId = _parseId(id);
-                            _bPartnerController.text = name;
-                          }),
-                        ),
-                        const SizedBox(height: 16),
-                        _buildSearchField(
-                          label: 'Representante Comercial *',
-                          controller: _salesRepController,
-                          items: _users,
-                          idKey: 'AD_User_ID',
-                          onSelected: _isReactivation
-                              ? (id, name) {}
-                              : (id, name) => setState(() {
-                                  _cBPartnerSrId = _parseId(id);
-                                  _salesRepController.text = name;
-                                  _validateForm();
-                                }),
-                        ),
-                        const SizedBox(height: 16),
-                        _buildSearchField(
-                          label: 'Regla de Factura *',
-                          controller: _invoiceRuleController,
-                          items: _invoiceRules,
-                          idKey: 'id',
-                          displayKey: 'name',
-                          onSelected: _isReactivation
-                              ? (id, name) {}
-                              : (id, name) => setState(() {
-                                  _projInvoiceRule = id.toString();
-                                  _invoiceRuleController.text = name;
-                                  _validateForm();
-                                }),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  CustomContainer(
-                    title: 'Fechas y Moneda',
-                    child: Column(
-                      children: [
-                        _buildSearchField(
-                          label: 'Moneda *',
-                          controller: _currencyController,
-                          items: _currencies,
-                          idKey: 'C_Currency_ID',
-                          displayKey: 'ISO_Code',
-                          onSelected: _isReactivation
-                              ? (id, name) {}
-                              : (id, name) => setState(() {
-                                  _cCurrencyId = id is Map ? id['id'] : int.tryParse(id.toString());
-                                  _currencyController.text = name;
-                                  _validateForm();
-                                }),
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            Expanded(child: _buildDatePicker('Fecha Contrato', _dateContract, (d) => setState(() => _dateContract = d))),
-                            const SizedBox(width: 16),
-                            Expanded(child: _buildDatePicker('Fecha Terminación', _dateFinish, (d) => setState(() => _dateFinish = d))),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  CustomContainer(
-                    title: 'Detalles Financieros',
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: CustomTextField(controller: _plannedAmtController, label: 'Importe Planeado', keyboardType: TextInputType.number, readOnly: _isReactivation),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: CustomTextField(controller: _plannedQtyController, label: 'Cantidad Planeada', keyboardType: TextInputType.number, readOnly: _isReactivation),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: CustomTextField(controller: _committedAmtController, label: 'Importe Comprometido', keyboardType: TextInputType.number, readOnly: _isReactivation),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: CustomTextField(controller: _committedQtyController, label: 'Cantidad Comprometida', keyboardType: TextInputType.number, readOnly: _isReactivation),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: CustomTextField(controller: _invoicedAmtController, label: 'Importe Facturado', keyboardType: TextInputType.number, readOnly: _isReactivation),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: CustomTextField(controller: _invoicedQtyController, label: 'Cantidad Facturada', keyboardType: TextInputType.number, readOnly: _isReactivation),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: CustomTextField(controller: _plannedMarginAmtController, label: 'Margen Planeado', keyboardType: TextInputType.number, readOnly: _isReactivation),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: CustomTextField(controller: _projectBalanceController, label: 'Balance del Proyecto', keyboardType: TextInputType.number, readOnly: true),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 32),
                 ],
               ),
             ),
     );
   }
 
-  Widget _buildSearchField({required String label, required TextEditingController controller, required List<dynamic> items, required String idKey, String displayKey = 'Name', required Function(dynamic, String) onSelected}) {
+  Widget _buildSectionHeader(String title, IconData icon) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        Icon(icon, color: colorScheme.primary, size: 24),
+        const SizedBox(width: 12),
+        Text(
+          title,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGeneralInfoSection() {
+    return CustomContainer(
+      elevation: 2,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionHeader(
+            'Información General',
+            Icons.info_outline_rounded,
+          ),
+          const SizedBox(height: 24),
+          CustomTextField(
+            controller: _nameController,
+            label: 'Nombre del Proyecto *',
+            prefixIcon: const Icon(
+              Icons.drive_file_rename_outline_rounded,
+              size: 20,
+            ),
+            validator: (v) => (v == null || v.trim().isEmpty)
+                ? 'El nombre es obligatorio'
+                : null,
+          ),
+          const SizedBox(height: 16),
+          CustomTextField(
+            controller: _descriptionController,
+            label: 'Descripción',
+            prefixIcon: const Icon(Icons.description_outlined, size: 20),
+            maxLines: 3,
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: CustomTextField(
+                  controller: _valueController,
+                  label: 'Código (Opcional)',
+                  prefixIcon: const Icon(Icons.tag_rounded, size: 20),
+                ),
+              ),
+              const SizedBox(width: 20),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Activo',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey,
+                    ),
+                  ),
+                  Switch.adaptive(
+                    value: _isActive,
+                    onChanged: (v) => setState(() => _isActive = v),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMastersSection() {
+    return CustomContainer(
+      elevation: 2,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionHeader(
+            'Maestros y Responsables',
+            Icons.people_outline_rounded,
+          ),
+          const SizedBox(height: 24),
+          _buildSearchField(
+            label: 'Tercero (Cliente) *',
+            controller: _bPartnerController,
+            items: _bPartners,
+            idKey: 'C_BPartner_ID',
+            icon: Icons.business_rounded,
+            onSelected: (id, name) => setState(() {
+              _cBPartnerId = _parseId(id);
+              _bPartnerController.text = name;
+            }),
+          ),
+          const SizedBox(height: 16),
+          _buildSearchField(
+            label: 'Representante Comercial *',
+            controller: _salesRepController,
+            items: _users,
+            idKey: 'AD_User_ID',
+            icon: Icons.person_search_rounded,
+            onSelected: _isReactivation
+                ? (id, name) {}
+                : (id, name) => setState(() {
+                    _cBPartnerSrId = _parseId(id);
+                    _salesRepController.text = name;
+                    _validateForm();
+                  }),
+          ),
+          const SizedBox(height: 16),
+          _buildSearchField(
+            label: 'Regla de Factura *',
+            controller: _invoiceRuleController,
+            items: _invoiceRules,
+            idKey: 'id',
+            displayKey: 'name',
+            icon: Icons.rule_rounded,
+            onSelected: _isReactivation
+                ? (id, name) {}
+                : (id, name) => setState(() {
+                    _projInvoiceRule = id.toString();
+                    _invoiceRuleController.text = name;
+                    _validateForm();
+                  }),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDatesAndCurrencySection() {
+    return CustomContainer(
+      elevation: 2,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionHeader('Fechas y Moneda', Icons.calendar_month_rounded),
+          const SizedBox(height: 24),
+          _buildSearchField(
+            label: 'Moneda *',
+            controller: _currencyController,
+            items: _currencies,
+            idKey: 'C_Currency_ID',
+            displayKey: 'ISO_Code',
+            icon: Icons.currency_exchange_rounded,
+            onSelected: _isReactivation
+                ? (id, name) {}
+                : (id, name) => setState(() {
+                    _cCurrencyId = id is Map
+                        ? id['id']
+                        : int.tryParse(id.toString());
+                    _currencyController.text = name;
+                    _validateForm();
+                  }),
+          ),
+          const SizedBox(height: 16),
+          _buildDatePicker(
+            'Fecha Contrato',
+            _dateContract,
+            (d) => setState(() => _dateContract = d),
+          ),
+          const SizedBox(height: 16),
+          _buildDatePicker(
+            'Fecha Terminación',
+            _dateFinish,
+            (d) => setState(() => _dateFinish = d),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFinancialDetailsSection() {
+    return CustomContainer(
+      elevation: 2,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionHeader(
+            'Detalles Financieros',
+            Icons.monetization_on_outlined,
+          ),
+          const SizedBox(height: 24),
+          _buildFinancialGrid(),
+          const SizedBox(height: 20),
+          CustomTextField(
+            controller: _projectBalanceController,
+            label: 'Balance del Proyecto',
+            prefixIcon: const Icon(
+              Icons.account_balance_wallet_rounded,
+              color: Colors.green,
+              size: 20,
+            ),
+            keyboardType: TextInputType.number,
+            readOnly: true,
+            filled: true,
+            fillColor: Colors.green.withOpacity(0.05),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFinancialGrid() {
+    final bool isWide = MediaQuery.of(context).size.width > 600;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Wrap(
+          spacing: 16,
+          runSpacing: 16,
+          children: [
+            _buildFinancialItem(
+              'Importe Planeado',
+              _plannedAmtController,
+              Icons.payments_outlined,
+              isWide,
+              constraints.maxWidth,
+            ),
+            _buildFinancialItem(
+              'Cantidad Planeada',
+              _plannedQtyController,
+              Icons.inventory_2_outlined,
+              isWide,
+              constraints.maxWidth,
+            ),
+            _buildFinancialItem(
+              'Importe Comprometido',
+              _committedAmtController,
+              Icons.handshake_outlined,
+              isWide,
+              constraints.maxWidth,
+            ),
+            _buildFinancialItem(
+              'Cantidad Comprometida',
+              _committedQtyController,
+              Icons.assignment_turned_in_outlined,
+              isWide,
+              constraints.maxWidth,
+            ),
+            _buildFinancialItem(
+              'Importe Facturado',
+              _invoicedAmtController,
+              Icons.receipt_long_outlined,
+              isWide,
+              constraints.maxWidth,
+            ),
+            _buildFinancialItem(
+              'Cantidad Facturada',
+              _invoicedQtyController,
+              Icons.fact_check_outlined,
+              isWide,
+              constraints.maxWidth,
+            ),
+            _buildFinancialItem(
+              'Margen Planeado',
+              _plannedMarginAmtController,
+              Icons.trending_up_rounded,
+              isWide,
+              constraints.maxWidth,
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildFinancialItem(
+    String label,
+    TextEditingController controller,
+    IconData icon,
+    bool isWide,
+    double maxWidth,
+  ) {
+    return SizedBox(
+      width: isWide ? (maxWidth - 16) / 2 : maxWidth,
+      child: CustomTextField(
+        controller: controller,
+        label: label,
+        prefixIcon: Icon(icon, size: 20),
+        keyboardType: TextInputType.number,
+        readOnly: _isReactivation,
+      ),
+    );
+  }
+
+  Widget _buildSearchField({
+    required String label,
+    required TextEditingController controller,
+    required List<dynamic> items,
+    required String idKey,
+    String displayKey = 'Name',
+    required Function(dynamic, String) onSelected,
+    IconData icon = Icons.search,
+  }) {
     return GestureDetector(
       onTap: () {
-        // Validación: si la lista está vacía, avisar al usuario
         if (items.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Cargando datos de $label...')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Cargando datos de $label...')),
+          );
           return;
         }
         _showSearchModal(label, items, idKey, displayKey, onSelected);
@@ -426,20 +654,33 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
         child: CustomTextField(
           controller: controller,
           label: label,
-          prefixIcon: const Icon(Icons.search, color: Colors.blue),
+          prefixIcon: Icon(icon, color: Theme.of(context).colorScheme.primary),
         ),
       ),
     );
   }
 
-  void _showSearchModal(String title, List<dynamic> items, String idKey, String displayKey, Function(dynamic, String) onSelected) {
+  void _showSearchModal(
+    String title,
+    List<dynamic> items,
+    String idKey,
+    String displayKey,
+    Function(dynamic, String) onSelected,
+  ) {
     showDialog(
       context: context,
       builder: (context) {
         String filter = "";
         return StatefulBuilder(
           builder: (context, setModalState) {
-            final filtered = items.where((i) => (i[displayKey] ?? '').toString().toLowerCase().contains(filter.toLowerCase())).toList();
+            final filtered = items
+                .where(
+                  (i) => (i[displayKey] ?? '')
+                      .toString()
+                      .toLowerCase()
+                      .contains(filter.toLowerCase()),
+                )
+                .toList();
 
             return CustomModal(
               title: 'Seleccionar $title',
@@ -449,27 +690,39 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
                 child: Column(
                   children: [
                     TextField(
-                      decoration: const InputDecoration(hintText: 'Filtrar...', prefixIcon: Icon(Icons.filter_list)),
+                      decoration: const InputDecoration(
+                        hintText: 'Filtrar...',
+                        prefixIcon: Icon(Icons.filter_list),
+                      ),
                       onChanged: (v) => setModalState(() => filter = v),
                     ),
                     const Divider(),
                     Expanded(
                       child: filtered.isEmpty
-                          ? const Center(child: Text("No se encontraron resultados"))
+                          ? const Center(
+                              child: Text("No se encontraron resultados"),
+                            )
                           : ListView.separated(
                               itemCount: filtered.length,
-                              separatorBuilder: (_, __) => const Divider(height: 1),
+                              separatorBuilder: (_, __) =>
+                                  const Divider(height: 1),
                               itemBuilder: (context, index) {
                                 final item = filtered[index];
                                 return ListTile(
-                                  title: Text(item[displayKey]?.toString() ?? 'Sin nombre'),
-                                  subtitle: Text("ID: ${item[idKey] ?? item['id'] ?? 'N/A'}"), // Auxiliar visual
+                                  title: Text(
+                                    item[displayKey]?.toString() ??
+                                        'Sin nombre',
+                                  ),
+                                  subtitle: Text(
+                                    "ID: ${item[idKey] ?? item['id'] ?? 'N/A'}",
+                                  ),
                                   onTap: () {
-                                    // LÓGICA DE RESCATE:
-                                    // Si item[idKey] es nulo, intentamos con item['id']
-                                    final selectedId = item[idKey] ?? item['id'];
-
-                                    onSelected(selectedId, item[displayKey].toString());
+                                    final selectedId =
+                                        item[idKey] ?? item['id'];
+                                    onSelected(
+                                      selectedId,
+                                      item[displayKey].toString(),
+                                    );
                                     Navigator.pop(context);
                                   },
                                 );
@@ -486,19 +739,41 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
     );
   }
 
-  Widget _buildDatePicker(String label, DateTime? selectedDate, Function(DateTime) onSelected, {bool readOnly = false}) {
-    final controller = TextEditingController(text: selectedDate != null ? "${selectedDate.day}/${selectedDate.month}/${selectedDate.year}" : '');
+  Widget _buildDatePicker(
+    String label,
+    DateTime? selectedDate,
+    Function(DateTime) onSelected, {
+    bool readOnly = false,
+  }) {
+    final controller = TextEditingController(
+      text: selectedDate != null
+          ? "${selectedDate.day}/${selectedDate.month}/${selectedDate.year}"
+          : '',
+    );
     return GestureDetector(
       onTap: () async {
         if (readOnly) return;
-        final date = await showDatePicker(context: context, initialDate: selectedDate ?? DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2100));
+        final date = await showDatePicker(
+          context: context,
+          initialDate: selectedDate ?? DateTime.now(),
+          firstDate: DateTime(2000),
+          lastDate: DateTime(2100),
+        );
         if (date != null) {
           onSelected(date);
           controller.text = "${date.day}/${date.month}/${date.year}";
         }
       },
       child: AbsorbPointer(
-        child: CustomTextField(controller: controller, label: label, prefixIcon: const Icon(Icons.calendar_today, size: 20)),
+        child: CustomTextField(
+          controller: controller,
+          label: label,
+          prefixIcon: Icon(
+            Icons.calendar_today,
+            size: 20,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+        ),
       ),
     );
   }

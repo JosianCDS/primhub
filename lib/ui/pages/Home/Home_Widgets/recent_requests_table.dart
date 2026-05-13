@@ -87,8 +87,15 @@ class _DesktopRequestTable extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               IconButton(
-                icon: const Icon(Icons.forum),
+                icon: Icon(AccessControl.canAddUpdates ? Icons.reply : Icons.forum),
                 onPressed: () => GoRouter.of(context).push('/request-updates/${Uri.encodeComponent((alert['realId'] ?? alert['original']['id']).toString())}', extra: {'docNo': alert['code']}),
+              ),
+              IconButton(
+                icon: const Icon(Icons.attach_file),
+                onPressed: () => showDialog(
+                  context: context,
+                  builder: (context) => DocumentsLogic.RequestAttachmentsDialog(requestId: alert['realId'] ?? alert['original']['id'], documentNo: alert['code'] ?? ''),
+                ),
               ),
               IconButton(
                 icon: Icon(AccessControl.canManageRequests ? Icons.edit : Icons.visibility),
@@ -231,10 +238,33 @@ class _RecentRequestCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.visibility, color: Colors.grey),
-                    tooltip: 'Ver Detalles',
-                    onPressed: () => onEdit(request),
+                  PopupMenuButton<String>(
+                    onSelected: (value) {
+                      if (value == 'updates') {
+                        GoRouter.of(context).push('/request-updates/${Uri.encodeComponent((request['realId'] ?? request['original']['id']).toString())}', extra: {'docNo': request['code']});
+                      }
+                      if (value == 'attachments') {
+                        showDialog(
+                          context: context,
+                          builder: (context) => DocumentsLogic.RequestAttachmentsDialog(requestId: request['realId'] ?? request['original']['id'], documentNo: request['code'] ?? ''),
+                        );
+                      }
+                      if (value == 'edit') onEdit(request);
+                    },
+                    itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                      PopupMenuItem<String>(
+                        value: 'updates',
+                        child: ListTile(leading: Icon(AccessControl.canAddUpdates ? Icons.reply : Icons.forum), title: Text(AccessControl.canAddUpdates ? 'Responder' : 'Ver Actualizaciones')),
+                      ),
+                      const PopupMenuItem<String>(
+                        value: 'attachments',
+                        child: ListTile(leading: Icon(Icons.attach_file), title: Text('Adjuntos')),
+                      ),
+                      PopupMenuItem<String>(
+                        value: 'edit',
+                        child: ListTile(leading: Icon(AccessControl.canManageRequests ? Icons.edit : Icons.visibility), title: Text(AccessControl.canManageRequests ? 'Editar' : 'Ver Detalles')),
+                      ),
+                    ],
                   ),
                 ],
               ),

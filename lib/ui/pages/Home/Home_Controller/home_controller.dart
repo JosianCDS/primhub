@@ -175,10 +175,12 @@ class HomeController extends ChangeNotifier {
           final validProjectIds = projects.map<int>((p) => p['id'] is int ? p['id'] as int : int.tryParse(p['id'].toString()) ?? 0).toSet();
           selectedProjectIds = selectedProjectIds.where((id) => validProjectIds.contains(id)).toList();
 
-          if (selectedProjectIds.isEmpty && projects.isNotEmpty) {
-            selectedProjectIds = projects.map<int>((p) => p['id'] is int ? p['id'] as int : int.tryParse(p['id'].toString()) ?? 0).toList();
-            savedSelectedProjectIds = List.from(selectedProjectIds);
-          }
+          // Ya no seleccionamos todos por defecto si la lista está vacía.
+          // El usuario debe elegir cuáles visualizar manualmente.
+          // if (selectedProjectIds.isEmpty && projects.isNotEmpty) {
+          //   selectedProjectIds = projects.map<int>((p) => p['id'] is int ? p['id'] as int : int.tryParse(p['id'].toString()) ?? 0).toList();
+          //   savedSelectedProjectIds = List.from(selectedProjectIds);
+          // }
         }
       } catch (e) {}
     }

@@ -17,6 +17,7 @@ import 'package:primhub/ui/widgets/project_bottom_nav.dart';
 import 'package:primhub/api/api_utils.dart';
 import 'package:primhub/ui/Shared_Custom/custom_skeleton.dart';
 import 'package:primhub/ui/Shared_Custom/user_info_leading.dart';
+import 'package:primhub/ui/Shared_Custom/help_icon.dart';
 
 // Importante: Asegúrate de que esta ruta sea la correcta para tu clase GraphicsFunctions
 import 'graphic_functions.dart';
@@ -29,7 +30,8 @@ class MetricsPage extends StatefulWidget {
 
 class _MetricsPageState extends State<MetricsPage> {
   bool _isLoading = true;
-  bool _isProjectsLoading = true;
+  bool _isProjectsLoading = false;
+  String? _projectsErrorMessage;
   int? _selectedProjectId;
   List<dynamic> _projects = [];
 
@@ -74,7 +76,15 @@ class _MetricsPageState extends State<MetricsPage> {
   }
 
   void _onBackgroundSyncChanged() {
-    if (mounted) setState(() {});
+    if (mounted) {
+      setState(() {});
+      // Si terminó la carga de fondo y no tenemos proyectos, intentamos cargar solo si no estamos ya en proceso
+      if (!GlobalCache.backgroundSyncNotifier.value &&
+          _projects.isEmpty &&
+          !_isProjectsLoading) {
+        _loadProjects();
+      }
+    }
   }
 
   @override
@@ -125,7 +135,9 @@ class _MetricsPageState extends State<MetricsPage> {
             children: [
               ListTile(
                 title: const Text('Modo Mixto'),
-                trailing: current == AdminViewMode.mixed ? Icon(Icons.check, color: colorScheme.primary) : null,
+                trailing: current == AdminViewMode.mixed
+                    ? Icon(Icons.check, color: colorScheme.primary)
+                    : null,
                 onTap: () {
                   _adminViewModeManager.saveMode(AdminViewMode.mixed);
                   Navigator.pop(dialogContext);
@@ -133,7 +145,9 @@ class _MetricsPageState extends State<MetricsPage> {
               ),
               ListTile(
                 title: const Text('Modo Soporte'),
-                trailing: current == AdminViewMode.support ? Icon(Icons.check, color: colorScheme.primary) : null,
+                trailing: current == AdminViewMode.support
+                    ? Icon(Icons.check, color: colorScheme.primary)
+                    : null,
                 onTap: () {
                   _adminViewModeManager.saveMode(AdminViewMode.support);
                   Navigator.pop(dialogContext);
@@ -141,7 +155,9 @@ class _MetricsPageState extends State<MetricsPage> {
               ),
               ListTile(
                 title: const Text('Modo Proyecto'),
-                trailing: current == AdminViewMode.project ? Icon(Icons.check, color: colorScheme.primary) : null,
+                trailing: current == AdminViewMode.project
+                    ? Icon(Icons.check, color: colorScheme.primary)
+                    : null,
                 onTap: () {
                   _adminViewModeManager.saveMode(AdminViewMode.project);
                   Navigator.pop(dialogContext);
@@ -149,7 +165,12 @@ class _MetricsPageState extends State<MetricsPage> {
               ),
             ],
           ),
-          actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cerrar'))],
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cerrar'),
+            ),
+          ],
         );
       },
     );
@@ -167,7 +188,12 @@ class _MetricsPageState extends State<MetricsPage> {
               ListTile(
                 leading: const Icon(Icons.person),
                 title: const Text('Mis Proyectos'),
-                trailing: _adminViewModeManager.isViewingMine ? Icon(Icons.check, color: Theme.of(context).colorScheme.primary) : null,
+                trailing: _adminViewModeManager.isViewingMine
+                    ? Icon(
+                        Icons.check,
+                        color: Theme.of(context).colorScheme.primary,
+                      )
+                    : null,
                 onTap: () {
                   _adminViewModeManager.setViewingMine(true);
                   Navigator.pop(dialogContext);
@@ -176,7 +202,12 @@ class _MetricsPageState extends State<MetricsPage> {
               ListTile(
                 leading: const Icon(Icons.group),
                 title: const Text('Todos los Proyectos'),
-                trailing: !_adminViewModeManager.isViewingMine ? Icon(Icons.check, color: Theme.of(context).colorScheme.primary) : null,
+                trailing: !_adminViewModeManager.isViewingMine
+                    ? Icon(
+                        Icons.check,
+                        color: Theme.of(context).colorScheme.primary,
+                      )
+                    : null,
                 onTap: () {
                   _adminViewModeManager.setViewingMine(false);
                   Navigator.pop(dialogContext);
@@ -184,7 +215,12 @@ class _MetricsPageState extends State<MetricsPage> {
               ),
             ],
           ),
-          actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cerrar'))],
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cerrar'),
+            ),
+          ],
         );
       },
     );
@@ -198,16 +234,33 @@ class _MetricsPageState extends State<MetricsPage> {
           icon: const Icon(Icons.more_vert),
           onSelected: (value) {
             if (value == 'admin_mode') _showAdminModeSelectionDialog(context);
-            if (value == 'project_filter') _showProjectFilterSelectionDialog(context);
+            if (value == 'project_filter')
+              _showProjectFilterSelectionDialog(context);
           },
           itemBuilder: (context) => [
             PopupMenuItem<String>(
               value: 'admin_mode',
-              child: ListTile(leading: const Icon(Icons.admin_panel_settings), title: Text('Modo: ${_adminViewModeManager.currentMode == AdminViewMode.support ? 'Soporte' : (_adminViewModeManager.currentMode == AdminViewMode.project ? 'Proyecto' : 'Mixto')}')),
+              child: ListTile(
+                leading: const Icon(Icons.admin_panel_settings),
+                title: Text(
+                  'Modo: ${_adminViewModeManager.currentMode == AdminViewMode.support ? 'Soporte' : (_adminViewModeManager.currentMode == AdminViewMode.project ? 'Proyecto' : 'Mixto')}',
+                ),
+              ),
             ),
             PopupMenuItem<String>(
               value: 'project_filter',
-              child: ListTile(leading: Icon(_adminViewModeManager.isViewingMine ? Icons.person : Icons.group), title: Text(_adminViewModeManager.isViewingMine ? 'Mis Proyectos' : 'Todos')),
+              child: ListTile(
+                leading: Icon(
+                  _adminViewModeManager.isViewingMine
+                      ? Icons.person
+                      : Icons.group,
+                ),
+                title: Text(
+                  _adminViewModeManager.isViewingMine
+                      ? 'Mis Proyectos'
+                      : 'Todos',
+                ),
+              ),
             ),
           ],
         ),
@@ -222,7 +275,14 @@ class _MetricsPageState extends State<MetricsPage> {
       if (GlobalCache.isDataLoaded && GlobalCache.bPartners.isNotEmpty) {
         if (mounted) {
           setState(() {
-            _supportBPartners = GlobalCache.bPartners.map<Map<String, dynamic>>((e) => {'id': e['id'] ?? e['C_BPartner_ID'], 'Name': e['Name'] ?? 'Sin Nombre'}).toList();
+            _supportBPartners = GlobalCache.bPartners
+                .map<Map<String, dynamic>>(
+                  (e) => {
+                    'id': e['id'] ?? e['C_BPartner_ID'],
+                    'Name': e['Name'] ?? 'Sin Nombre',
+                  },
+                )
+                .toList();
           });
         }
       } else {
@@ -235,7 +295,14 @@ class _MetricsPageState extends State<MetricsPage> {
             final extraBps = await ProjectsLogic().fetchBPartners();
             if (mounted) {
               setState(() {
-                _supportBPartners = extraBps.map<Map<String, dynamic>>((e) => {'id': e['id'] ?? e['C_BPartner_ID'], 'Name': e['Name'] ?? 'Sin Nombre'}).toList();
+                _supportBPartners = extraBps
+                    .map<Map<String, dynamic>>(
+                      (e) => {
+                        'id': e['id'] ?? e['C_BPartner_ID'],
+                        'Name': e['Name'] ?? 'Sin Nombre',
+                      },
+                    )
+                    .toList();
               });
             }
           } catch (_) {}
@@ -244,25 +311,52 @@ class _MetricsPageState extends State<MetricsPage> {
     }
   }
 
-   Future<void> _loadProjects() async {
-    setState(() => _isProjectsLoading = true);
+  Future<void> _loadProjects() async {
+    if (_isProjectsLoading) return; // Evitar llamadas dobles
+
+    setState(() {
+      _isProjectsLoading = true;
+      _projectsErrorMessage = null;
+    });
+
     try {
       int? bPartnerIdForQuery;
       if (AccessControl.isAdmin) {
-        bPartnerIdForQuery = _adminViewModeManager.isViewingMine ? (User.cBPartnerID ?? -1) : null;
+        bPartnerIdForQuery = _adminViewModeManager.isViewingMine
+            ? (User.cBPartnerID ?? -1)
+            : null;
       } else if (AccessControl.isProject) {
         bPartnerIdForQuery = User.cBPartnerID;
       }
 
-      final projects = await ProjectsLogic().fetchProjectsForDropdown(bPartnerId: bPartnerIdForQuery);
-      debugPrint("DEBUG METRICS: Proyectos recibidos: ${projects.length}");
-      
+      // Llamada a la API y Filtrado Null Safety
+      final rawProjects = await ProjectsLogic().fetchProjectsForDropdown(
+        bPartnerId: bPartnerIdForQuery,
+      );
+
+      // Solo incluimos proyectos con datos válidos
+      final projects = rawProjects.where((p) {
+        return p != null &&
+            p['id'] != null &&
+            p['Name'] != null &&
+            p['Name'].toString().trim().isNotEmpty;
+      }).toList();
+
+      debugPrint(
+        "DEBUG METRICS: Proyectos válidos recibidos: ${projects.length}",
+      );
+
       if (mounted) {
         setState(() {
           _projects = projects;
           _isProjectsLoading = false;
+
+          // Limpiar mensaje de error si cargó bien
+          _projectsErrorMessage = null;
+
           // Solo mantenemos la selección si el proyecto aún existe en la nueva lista.
-          if (_selectedProjectId != null && !_projects.any((p) => p['id'] == _selectedProjectId)) {
+          if (_selectedProjectId != null &&
+              !_projects.any((p) => p['id'] == _selectedProjectId)) {
             _selectedProjectId = null;
           }
         });
@@ -295,27 +389,43 @@ class _MetricsPageState extends State<MetricsPage> {
     setState(() => _isLoading = true);
 
     try {
-      // 0. Trigger hierarchical load to ensure specific project requests are in cache
+      // 0. Prioritize project Data to get UUID
       final projData = _projects.firstWhere(
-        (p) => p['id'] == _selectedProjectId, 
+        (p) => p['id'] == _selectedProjectId,
         orElse: () => <String, dynamic>{},
       );
+
       final projectUU = projData['uuid'];
       if (projectUU != null && projectUU.toString().isNotEmpty) {
-        // Cargamos las solicitudes del proyecto (siguiendo la jerarquía Fase -> Tarea)
-        // Esto garantiza que tengamos los datos exactos que el usuario ve en la pantalla de proyecto
+        // Garantizar carga de datos jerárquicos
         await GlobalCache.loadProjectRequestsInBackground(_selectedProjectId!);
       }
 
       // 1. Obtener los datos crudos
-      final requests = await GraphicsFunctions.fetchMetricsData(projectId: _selectedProjectId!);
+      final requests = await GraphicsFunctions.fetchMetricsData(
+        projectId: _selectedProjectId!,
+      );
 
-      // 2. Calcular las métricas usando la clase dedicada
+      if (requests.isEmpty) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Este proyecto no cuenta con solicitudes vinculadas para generar indicadores',
+              ),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      // 2. Calcular las métricas
       final metrics = ProjectMetricsCalculator.calculate(requests);
 
       if (mounted) {
         setState(() {
-          // 3. Actualizar el estado de la UI con los datos procesados
           _statusLabels = metrics.statusData.labels;
           _statusValues = metrics.statusData.values;
 
@@ -335,7 +445,15 @@ class _MetricsPageState extends State<MetricsPage> {
       }
     } catch (e) {
       debugPrint("DEBUG ERROR EN METRICS: $e");
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al calcular métricas: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -350,7 +468,9 @@ class _MetricsPageState extends State<MetricsPage> {
           bool isActive = req['IsActive'] == true || req['IsActive'] == 'Y';
           if (!isActive) return false;
 
-          int? bpId = req['C_BPartner_ID'] is Map ? req['C_BPartner_ID']['id'] : req['C_BPartner_ID'];
+          int? bpId = req['C_BPartner_ID'] is Map
+              ? req['C_BPartner_ID']['id']
+              : req['C_BPartner_ID'];
 
           if (!AccessControl.isAdmin && User.cBPartnerID != null) {
             if (bpId != User.cBPartnerID) return false;
@@ -366,8 +486,13 @@ class _MetricsPageState extends State<MetricsPage> {
         } else if (AccessControl.isAdmin && _supportSelectedBpId != null) {
           filter += " and C_BPartner_ID eq $_supportSelectedBpId";
         }
-        String expand = "R_Status_ID(\$select=Name,IsOpen),Priority(\$select=Name)";
-        rawRequests = await fetchRequest(filter: filter, top: 500, expand: expand);
+        String expand =
+            "R_Status_ID(\$select=Name,IsOpen),Priority(\$select=Name)";
+        rawRequests = await fetchRequest(
+          filter: filter,
+          top: 500,
+          expand: expand,
+        );
       }
 
       final Map<String, double> priorityCounts = {};
@@ -375,7 +500,8 @@ class _MetricsPageState extends State<MetricsPage> {
 
       for (var req in rawRequests) {
         // Excluir solicitudes vinculadas a proyectos (tareas)
-        if (req['Record_UU'] != null && req['Record_UU'].toString().isNotEmpty) continue;
+        if (req['Record_UU'] != null && req['Record_UU'].toString().isNotEmpty)
+          continue;
 
         // Filtro local por Año
         if (_supportSelectedYear != null) {
@@ -392,17 +518,23 @@ class _MetricsPageState extends State<MetricsPage> {
         String rawStatusName = req['R_Status_Name'] ?? '';
 
         if (statusData != null) {
-          rawStatusName = statusData['Name'] ?? statusData['identifier'] ?? rawStatusName;
+          rawStatusName =
+              statusData['Name'] ?? statusData['identifier'] ?? rawStatusName;
         }
 
         if (rawStatusName.isEmpty && statusObj is int) {
           // Buscar en caché global si solo llega el ID entero
-          rawStatusName = GlobalCache.statuses.keys.firstWhere((k) => GlobalCache.statuses[k] == statusObj, orElse: () => 'Desconocido');
+          rawStatusName = GlobalCache.statuses.keys.firstWhere(
+            (k) => GlobalCache.statuses[k] == statusObj,
+            orElse: () => 'Desconocido',
+          );
         }
 
         if (rawStatusName.isEmpty) rawStatusName = 'Desconocido';
 
-        String cleanStatus = rawStatusName.contains('_') ? rawStatusName.split('_').last.trim() : rawStatusName.trim();
+        String cleanStatus = rawStatusName.contains('_')
+            ? rawStatusName.split('_').last.trim()
+            : rawStatusName.trim();
         String lowerStatus = rawStatusName.toLowerCase();
 
         // Excluir "Anuladas" para no ensuciar las métricas de soporte
@@ -411,7 +543,11 @@ class _MetricsPageState extends State<MetricsPage> {
         }
 
         // Prioridad robusta
-        String priorityStr = req['Priority'] is Map ? (req['Priority']['identifier'] ?? req['Priority']['Name'] ?? 'Media') : (req['Priority']?.toString() ?? '5');
+        String priorityStr = req['Priority'] is Map
+            ? (req['Priority']['identifier'] ??
+                  req['Priority']['Name'] ??
+                  'Media')
+            : (req['Priority']?.toString() ?? '5');
 
         String priority = 'Media';
         final pLower = priorityStr.toLowerCase();
@@ -434,8 +570,16 @@ class _MetricsPageState extends State<MetricsPage> {
 
       if (mounted) {
         setState(() {
-          _supportPriorityLabels = ['Urgente', 'Alta', 'Media', 'Baja', 'Menor'].where((p) => priorityCounts.containsKey(p)).toList();
-          _supportPriorityValues = _supportPriorityLabels.map((p) => priorityCounts[p]!).toList();
+          _supportPriorityLabels = [
+            'Urgente',
+            'Alta',
+            'Media',
+            'Baja',
+            'Menor',
+          ].where((p) => priorityCounts.containsKey(p)).toList();
+          _supportPriorityValues = _supportPriorityLabels
+              .map((p) => priorityCounts[p]!)
+              .toList();
           _supportStatusLabels = statusCounts.keys.toList();
           _supportStatusValues = statusCounts.values.toList();
           _isLoadingSupport = false;
@@ -469,47 +613,78 @@ class _MetricsPageState extends State<MetricsPage> {
                       decoration: InputDecoration(
                         hintText: 'Buscar tercero...',
                         prefixIcon: const Icon(Icons.search),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
-                      onChanged: (val) => setModalState(() => searchQuery = val),
+                      onChanged: (val) =>
+                          setModalState(() => searchQuery = val),
                     ),
                     const SizedBox(height: 10),
                     Expanded(
-                      child: ListView.builder(
-                        itemCount: filteredBps.length + 1,
-                        itemBuilder: (context, index) {
-                          if (index == 0) {
-                            return Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                ListTile(
-                                  title: const Text('Todos los Terceros', style: TextStyle(fontWeight: FontWeight.bold)),
+                      child: filteredBps.isEmpty
+                          ? Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(24.0),
+                                child: Text(
+                                  "no se encontraron terceros validos para mostrar graficos",
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                            )
+                          : ListView.builder(
+                              itemCount: filteredBps.length + 1,
+                              itemBuilder: (context, index) {
+                                if (index == 0) {
+                                  return Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      ListTile(
+                                        title: const Text(
+                                          'Todos los Terceros',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        onTap: () {
+                                          setState(
+                                            () => _supportSelectedBpId = null,
+                                          );
+                                          _loadSupportMetrics();
+                                          Navigator.pop(context);
+                                        },
+                                      ),
+                                      const Divider(),
+                                    ],
+                                  );
+                                }
+                                final bp = filteredBps[index - 1];
+                                return ListTile(
+                                  title: Text(bp['Name'] ?? 'Sin Nombre'),
                                   onTap: () {
-                                    setState(() => _supportSelectedBpId = null);
+                                    setState(
+                                      () => _supportSelectedBpId = bp['id'],
+                                    );
                                     _loadSupportMetrics();
                                     Navigator.pop(context);
                                   },
-                                ),
-                                const Divider(),
-                              ],
-                            );
-                          }
-                          final bp = filteredBps[index - 1];
-                          return ListTile(
-                            title: Text(bp['Name'] ?? 'Sin Nombre'),
-                            onTap: () {
-                              setState(() => _supportSelectedBpId = bp['id']);
-                              _loadSupportMetrics();
-                              Navigator.pop(context);
-                            },
-                          );
-                        },
-                      ),
+                                );
+                              },
+                            ),
                     ),
                   ],
                 ),
               ),
-              actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar'))],
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancelar'),
+                ),
+              ],
             );
           },
         );
@@ -523,9 +698,13 @@ class _MetricsPageState extends State<MetricsPage> {
       builder: (context) {
         String searchQuery = "";
         return StatefulBuilder(
-          builder: (context, setModalState) {
-            final filteredProjects = _projects.where((p) {
-              final name = (p['Name'] ?? '').toString().toLowerCase();
+          builder: (modalCtx, setModalState) {
+            // Escuchamos cambios del padre si es necesario (aproximación simple)
+            final bool isLoading = _isProjectsLoading;
+            final projectsList = _projects;
+
+            final filteredProjects = projectsList.where((p) {
+              final name = (p['Name'] ?? 'Sin Nombre').toString().toLowerCase();
               return name.contains(searchQuery.toLowerCase());
             }).toList();
 
@@ -533,51 +712,101 @@ class _MetricsPageState extends State<MetricsPage> {
               title: 'Seleccionar Proyecto',
               width: 500,
               content: SizedBox(
-                height: 400,
+                height: 450,
                 child: Column(
                   children: [
                     TextField(
                       decoration: InputDecoration(
                         hintText: 'Buscar proyecto...',
                         prefixIcon: const Icon(Icons.search),
-                        suffixIcon: _isProjectsLoading ? const SizedBox(width: 20, height: 20, child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(strokeWidth: 2))) : null,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                      onChanged: (val) => setModalState(() => searchQuery = val),
-                    ),
-                    const SizedBox(height: 10),
-                    Expanded(
-                      child: _isProjectsLoading && _projects.isEmpty
-                          ? const Center(child: CircularProgressIndicator())
-                          : _projects.isEmpty
-                              ? Center(
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      const Text("No se encontraron proyectos"),
-                                      TextButton(onPressed: _loadProjects, child: const Text("Reintentar")),
-                                    ],
+                        suffixIcon: isLoading
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: Padding(
+                                  padding: EdgeInsets.all(12),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
                                   ),
-                                )
-                              : ListView.builder(
-                                  itemCount: filteredProjects.length,
-                                  itemBuilder: (context, index) {
-                                    final p = filteredProjects[index];
-                                    return ListTile(
-                                      title: Text(p['Name'] ?? 'Sin Nombre'),
-                                      onTap: () {
-                                        setState(() => _selectedProjectId = p['id']);
-                                        _loadMetrics();
-                                        Navigator.pop(context);
-                                      },
-                                    );
-                                  },
                                 ),
+                              )
+                            : null,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onChanged: (val) =>
+                          setModalState(() => searchQuery = val),
+                    ),
+                    const SizedBox(height: 16),
+                    Expanded(
+                      child: isLoading && projectsList.isEmpty
+                          ? const Center(child: CircularProgressIndicator())
+                          : projectsList.isEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.folder_off_outlined,
+                                    size: 48,
+                                    color: Colors.grey.withOpacity(0.5),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  const Padding(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: 24.0,
+                                    ),
+                                    child: Text(
+                                      "no se encontraron terceros validos para mostrar graficos",
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(color: Colors.grey),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  TextButton(
+                                    onPressed: () async {
+                                      await _loadProjects();
+                                      setModalState(
+                                        () {},
+                                      ); // Forzar rebuild del modal
+                                    },
+                                    child: const Text("Reintentar"),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : ListView.separated(
+                              itemCount: filteredProjects.length,
+                              separatorBuilder: (_, __) =>
+                                  const Divider(height: 1),
+                              itemBuilder: (context, index) {
+                                final p = filteredProjects[index];
+                                return ListTile(
+                                  title: Text(p['Name'] ?? 'Sin Nombre'),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  onTap: () {
+                                    setState(
+                                      () => _selectedProjectId = p['id'],
+                                    );
+                                    _loadMetrics();
+                                    Navigator.pop(context);
+                                  },
+                                );
+                              },
+                            ),
                     ),
                   ],
                 ),
               ),
-              actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar'))],
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancelar'),
+                ),
+              ],
             );
           },
         );
@@ -598,7 +827,14 @@ class _MetricsPageState extends State<MetricsPage> {
           children: [
             const Icon(Icons.admin_panel_settings),
             const SizedBox(width: 8),
-            Text(_adminViewModeManager.currentMode == AdminViewMode.support ? 'Modo Soporte' : (_adminViewModeManager.currentMode == AdminViewMode.project ? 'Modo Proyecto' : 'Mixto'), style: const TextStyle(fontWeight: FontWeight.bold)),
+            Text(
+              _adminViewModeManager.currentMode == AdminViewMode.support
+                  ? 'Modo Soporte'
+                  : (_adminViewModeManager.currentMode == AdminViewMode.project
+                        ? 'Modo Proyecto'
+                        : 'Mixto'),
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
             const Icon(Icons.arrow_drop_down),
           ],
         ),
@@ -606,29 +842,49 @@ class _MetricsPageState extends State<MetricsPage> {
       itemBuilder: (BuildContext context) {
         final current = _adminViewModeManager.currentMode;
         final colorScheme = Theme.of(context).colorScheme;
-        PopupMenuItem<AdminViewMode> buildItem(AdminViewMode mode, String text) {
+        PopupMenuItem<AdminViewMode> buildItem(
+          AdminViewMode mode,
+          String text,
+        ) {
           final isSelected = current == mode;
           return PopupMenuItem<AdminViewMode>(
             value: mode,
             child: Container(
               width: double.infinity,
-              decoration: BoxDecoration(color: isSelected ? colorScheme.primary.withOpacity(0.1) : Colors.transparent, borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? colorScheme.primary.withOpacity(0.1)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+              ),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               child: Row(
                 children: [
                   Text(
                     text,
-                    style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? colorScheme.primary : colorScheme.onSurface),
+                    style: TextStyle(
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                      color: isSelected
+                          ? colorScheme.primary
+                          : colorScheme.onSurface,
+                    ),
                   ),
                   if (isSelected) const Spacer(),
-                  if (isSelected) Icon(Icons.check, size: 18, color: colorScheme.primary),
+                  if (isSelected)
+                    Icon(Icons.check, size: 18, color: colorScheme.primary),
                 ],
               ),
             ),
           );
         }
 
-        return [buildItem(AdminViewMode.mixed, 'Modo Mixto'), buildItem(AdminViewMode.support, 'Modo Soporte'), buildItem(AdminViewMode.project, 'Modo Proyecto')];
+        return [
+          buildItem(AdminViewMode.mixed, 'Modo Mixto'),
+          buildItem(AdminViewMode.support, 'Modo Soporte'),
+          buildItem(AdminViewMode.project, 'Modo Proyecto'),
+        ];
       },
     );
   }
@@ -646,9 +902,16 @@ class _MetricsPageState extends State<MetricsPage> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(_adminViewModeManager.isViewingMine ? Icons.person : Icons.group),
+            Icon(
+              _adminViewModeManager.isViewingMine ? Icons.person : Icons.group,
+            ),
             const SizedBox(width: 8),
-            Text(_adminViewModeManager.isViewingMine ? 'Mis Proyectos' : 'Todos los Proyectos', style: const TextStyle(fontWeight: FontWeight.bold)),
+            Text(
+              _adminViewModeManager.isViewingMine
+                  ? 'Mis Proyectos'
+                  : 'Todos los Proyectos',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
             const Icon(Icons.arrow_drop_down),
           ],
         ),
@@ -656,31 +919,57 @@ class _MetricsPageState extends State<MetricsPage> {
       itemBuilder: (BuildContext context) {
         final colorScheme = Theme.of(context).colorScheme;
         final isViewingMine = _adminViewModeManager.isViewingMine;
-        PopupMenuItem<bool> buildItem(bool isMineOption, String text, IconData icon) {
+        PopupMenuItem<bool> buildItem(
+          bool isMineOption,
+          String text,
+          IconData icon,
+        ) {
           final isSelected = isViewingMine == isMineOption;
           return PopupMenuItem<bool>(
             value: isMineOption,
             child: Container(
               width: double.infinity,
-              decoration: BoxDecoration(color: isSelected ? colorScheme.primary.withOpacity(0.1) : Colors.transparent, borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? colorScheme.primary.withOpacity(0.1)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+              ),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               child: Row(
                 children: [
-                  Icon(icon, size: 20, color: isSelected ? colorScheme.primary : colorScheme.onSurface),
+                  Icon(
+                    icon,
+                    size: 20,
+                    color: isSelected
+                        ? colorScheme.primary
+                        : colorScheme.onSurface,
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     text,
-                    style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? colorScheme.primary : colorScheme.onSurface),
+                    style: TextStyle(
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                      color: isSelected
+                          ? colorScheme.primary
+                          : colorScheme.onSurface,
+                    ),
                   ),
                   if (isSelected) const Spacer(),
-                  if (isSelected) Icon(Icons.check, size: 18, color: colorScheme.primary),
+                  if (isSelected)
+                    Icon(Icons.check, size: 18, color: colorScheme.primary),
                 ],
               ),
             ),
           );
         }
 
-        return [buildItem(true, 'Mis Proyectos', Icons.person), buildItem(false, 'Todos los Proyectos', Icons.group)];
+        return [
+          buildItem(true, 'Mis Proyectos', Icons.person),
+          buildItem(false, 'Todos los Proyectos', Icons.group),
+        ];
       },
     );
   }
@@ -696,7 +985,11 @@ class _MetricsPageState extends State<MetricsPage> {
         leading: !AccessControl.isAdmin
             ? const UserInfoLeading()
             : Builder(
-                builder: (ctx) => IconButton(icon: const Icon(Icons.menu_rounded), tooltip: 'Menú Principal', onPressed: () => Scaffold.of(ctx).openDrawer()),
+                builder: (ctx) => IconButton(
+                  icon: const Icon(Icons.menu_rounded),
+                  tooltip: 'Menú Principal',
+                  onPressed: () => Scaffold.of(ctx).openDrawer(),
+                ),
               ),
         title: const Text('Indicadores (BI)'),
         actions: [
@@ -705,14 +998,23 @@ class _MetricsPageState extends State<MetricsPage> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: Center(
-                child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Theme.of(context).colorScheme.onPrimary)),
+                child: SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Theme.of(context).colorScheme.onPrimary,
+                  ),
+                ),
               ),
             ),
+          const HelpIcon(),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () => GlobalCache.performSmartSync(context, () async {
               if (AccessControl.canViewProjectCharts) await _loadMetrics();
-              if (AccessControl.canViewSupportCharts) await _loadSupportMetrics();
+              if (AccessControl.canViewSupportCharts)
+                await _loadSupportMetrics();
             }),
           ),
           if (!AccessControl.isAdmin)
@@ -723,20 +1025,34 @@ class _MetricsPageState extends State<MetricsPage> {
             ),
         ],
       ),
-      drawer: AccessControl.isAdmin ? const CustomDrawer(currentRoute: '/metrics') : null,
-      bottomNavigationBar: !AccessControl.isAdmin ? const ProjectBottomNav(currentRoute: '/metrics') : null,
+      drawer: AccessControl.isAdmin
+          ? const CustomDrawer(currentRoute: '/metrics')
+          : null,
+      bottomNavigationBar: !AccessControl.isAdmin
+          ? const ProjectBottomNav(currentRoute: '/metrics')
+          : null,
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
             // --- SECCIÓN PROYECTOS ---
             if (AccessControl.canViewProjectCharts) ...[
-              _buildSectionHeader(context, 'Métricas de Proyecto', Icons.insights_rounded),
-              _buildControlCenterContainer(context, child: _buildProjectFilters()),
+              _buildSectionHeader(
+                context,
+                'Métricas de Proyecto',
+                Icons.insights_rounded,
+              ),
+              _buildControlCenterContainer(
+                context,
+                child: _buildProjectFilters(),
+              ),
               const SizedBox(height: 24),
-              
+
               if (_selectedProjectId == null)
-                _buildWaitingForSelection(context, 'Seleccione un proyecto para visualizar sus indicadores')
+                _buildWaitingForSelection(
+                  context,
+                  'Seleccione un proyecto para visualizar sus indicadores',
+                )
               else if (_isLoading)
                 _buildSkeletonGrid()
               else ...[
@@ -746,13 +1062,24 @@ class _MetricsPageState extends State<MetricsPage> {
               ],
             ],
 
-            if (AccessControl.canViewProjectCharts && AccessControl.canViewSupportCharts) 
-              const Padding(padding: EdgeInsets.symmetric(vertical: 32), child: Divider(thickness: 1.5, color: Colors.black12)),
+            if (AccessControl.canViewProjectCharts &&
+                AccessControl.canViewSupportCharts)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 32),
+                child: Divider(thickness: 1.5, color: Colors.black12),
+              ),
 
             // --- SECCIÓN SOPORTE ---
             if (AccessControl.canViewSupportCharts) ...[
-              _buildSectionHeader(context, 'Métricas de Soporte', Icons.support_agent_rounded),
-              _buildControlCenterContainer(context, child: _buildSupportFilters()),
+              _buildSectionHeader(
+                context,
+                'Métricas de Soporte',
+                Icons.support_agent_rounded,
+              ),
+              _buildControlCenterContainer(
+                context,
+                child: _buildSupportFilters(),
+              ),
               const SizedBox(height: 24),
 
               if (!_isLoadingSupport) _buildSupportKPIRow(context),
@@ -763,7 +1090,8 @@ class _MetricsPageState extends State<MetricsPage> {
                   : _buildSupportDashboardGrid(isLargeScreen),
             ],
 
-            if (!AccessControl.canViewProjectCharts && !AccessControl.canViewSupportCharts)
+            if (!AccessControl.canViewProjectCharts &&
+                !AccessControl.canViewSupportCharts)
               _buildNoDataView(context),
           ],
         ),
@@ -771,7 +1099,11 @@ class _MetricsPageState extends State<MetricsPage> {
     );
   }
 
-  Widget _buildSectionHeader(BuildContext context, String title, IconData icon) {
+  Widget _buildSectionHeader(
+    BuildContext context,
+    String title,
+    IconData icon,
+  ) {
     final colorScheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
@@ -781,14 +1113,20 @@ class _MetricsPageState extends State<MetricsPage> {
           const SizedBox(width: 12),
           Text(
             title,
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: colorScheme.onSurface,
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildControlCenterContainer(BuildContext context, {required Widget child}) {
+  Widget _buildControlCenterContainer(
+    BuildContext context, {
+    required Widget child,
+  }) {
     final colorScheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(16),
@@ -797,7 +1135,11 @@ class _MetricsPageState extends State<MetricsPage> {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.5)),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4)),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       child: child,
@@ -806,14 +1148,16 @@ class _MetricsPageState extends State<MetricsPage> {
 
   Widget _buildProjectKPIRow(BuildContext context) {
     // Calculamos el total basado en los datos de cumplimiento (mismo que el gráfico de dona)
-    final totalComp = _complianceValues.isEmpty ? 0 : _complianceValues.reduce((a, b) => a + b).toInt();
-    
+    final totalComp = _complianceValues.isEmpty
+        ? 0
+        : _complianceValues.reduce((a, b) => a + b).toInt();
+
     double completedPct = 0;
     int completedIdx = _complianceLabels.indexOf('TERMINADA');
     if (completedIdx != -1 && totalComp > 0) {
       completedPct = (_complianceValues[completedIdx] / totalComp) * 100;
     }
-    
+
     int pendingCount = 0;
     int pendingIdx = _complianceLabels.indexOf('PENDIENTE');
     if (pendingIdx != -1) pendingCount = _complianceValues[pendingIdx].toInt();
@@ -830,21 +1174,27 @@ class _MetricsPageState extends State<MetricsPage> {
               value: totalComp.toString(),
               icon: Icons.assignment_rounded,
               color: Colors.blue,
-              width: isNarrow ? (constraints.maxWidth - 16) / 2 : (constraints.maxWidth - 32) / 3,
+              width: isNarrow
+                  ? (constraints.maxWidth - 16) / 2
+                  : (constraints.maxWidth - 32) / 3,
             ),
             _KPICard(
               title: 'Cumplimiento',
               value: '${completedPct.toStringAsFixed(1)}%',
               icon: Icons.check_circle_outline_rounded,
               color: ColorTheme.success,
-              width: isNarrow ? (constraints.maxWidth - 16) / 2 : (constraints.maxWidth - 32) / 3,
+              width: isNarrow
+                  ? (constraints.maxWidth - 16) / 2
+                  : (constraints.maxWidth - 32) / 3,
             ),
             _KPICard(
               title: 'Pendientes',
               value: pendingCount.toString(),
               icon: Icons.pending_actions_rounded,
               color: ColorTheme.atention,
-              width: isNarrow ? (constraints.maxWidth - 16) / 2 : (constraints.maxWidth - 32) / 3,
+              width: isNarrow
+                  ? (constraints.maxWidth - 16) / 2
+                  : (constraints.maxWidth - 32) / 3,
             ),
           ],
         );
@@ -853,11 +1203,14 @@ class _MetricsPageState extends State<MetricsPage> {
   }
 
   Widget _buildSupportKPIRow(BuildContext context) {
-    final total = _supportStatusValues.isEmpty ? 0 : _supportStatusValues.reduce((a, b) => a + b).toInt();
-    
+    final total = _supportStatusValues.isEmpty
+        ? 0
+        : _supportStatusValues.reduce((a, b) => a + b).toInt();
+
     int urgentCount = 0;
     int urgentIdx = _supportPriorityLabels.indexOf('Urgente');
-    if (urgentIdx != -1) urgentCount = _supportPriorityValues[urgentIdx].toInt();
+    if (urgentIdx != -1)
+      urgentCount = _supportPriorityValues[urgentIdx].toInt();
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -871,14 +1224,18 @@ class _MetricsPageState extends State<MetricsPage> {
               value: total.toString(),
               icon: Icons.confirmation_number_rounded,
               color: Colors.indigo,
-              width: isNarrow ? (constraints.maxWidth - 16) / 2 : (constraints.maxWidth - 16) / 2,
+              width: isNarrow
+                  ? (constraints.maxWidth - 16) / 2
+                  : (constraints.maxWidth - 16) / 2,
             ),
             _KPICard(
               title: 'Tickets Críticos',
               value: urgentCount.toString(),
               icon: Icons.warning_amber_rounded,
               color: Colors.red,
-              width: isNarrow ? (constraints.maxWidth - 16) / 2 : (constraints.maxWidth - 16) / 2,
+              width: isNarrow
+                  ? (constraints.maxWidth - 16) / 2
+                  : (constraints.maxWidth - 16) / 2,
             ),
           ],
         );
@@ -911,43 +1268,70 @@ class _MetricsPageState extends State<MetricsPage> {
       padding: const EdgeInsets.all(64.0),
       child: Column(
         children: [
-          Icon(Icons.bar_chart_rounded, size: 64, color: Colors.grey.withOpacity(0.3)),
+          Icon(
+            Icons.bar_chart_rounded,
+            size: 64,
+            color: Colors.grey.withOpacity(0.3),
+          ),
           const SizedBox(height: 16),
           Text(
             "No hay métricas disponibles para la vista actual.",
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.grey),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyLarge?.copyWith(color: Colors.grey),
           ),
         ],
       ),
     ),
   );
 
-  Widget _buildWaitingForSelection(BuildContext context, String message) => Center(
-    child: Padding(
-      padding: const EdgeInsets.all(48.0),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withOpacity(0.05),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(Icons.ads_click_rounded, size: 48, color: Theme.of(context).colorScheme.primary.withOpacity(0.5)),
+  Widget _buildWaitingForSelection(BuildContext context, String message) =>
+      Center(
+        child: Padding(
+          padding: const EdgeInsets.all(48.0),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withOpacity(0.05),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.ads_click_rounded,
+                  size: 48,
+                  color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: Colors.grey,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.grey, fontWeight: FontWeight.w500),
-          ),
-        ],
-      ),
-    ),
-  );
+        ),
+      );
 
   Widget _buildDashboardGrid(bool isLargeScreen) {
-    final List<Color> pieColors = [const Color(0xFF42A5F5), const Color(0xFF66BB6A), const Color(0xFFFFA726), const Color(0xFFAB47BC), const Color(0xFFEF5350), const Color(0xFF26A69A), const Color(0xFFEC407A), const Color(0xFFFFCA28), const Color(0xFF5C6BC0), const Color(0xFF8D6E63)];
+    final List<Color> pieColors = [
+      const Color(0xFF42A5F5),
+      const Color(0xFF66BB6A),
+      const Color(0xFFFFA726),
+      const Color(0xFFAB47BC),
+      const Color(0xFFEF5350),
+      const Color(0xFF26A69A),
+      const Color(0xFFEC407A),
+      const Color(0xFFFFCA28),
+      const Color(0xFF5C6BC0),
+      const Color(0xFF8D6E63),
+    ];
 
     int? hoveredStackedSeriesIndex;
 
@@ -967,7 +1351,13 @@ class _MetricsPageState extends State<MetricsPage> {
               _complianceLabels,
               mappedComplianceColors,
               onSliceTapped: (label) {
-                context.push('/metric-requests', extra: {'projectId': _selectedProjectId, 'filterCompliance': label});
+                context.push(
+                  '/metric-requests',
+                  extra: {
+                    'projectId': _selectedProjectId,
+                    'filterCompliance': label,
+                  },
+                );
               },
             ),
     );
@@ -982,7 +1372,13 @@ class _MetricsPageState extends State<MetricsPage> {
               _statusLabels,
               pieColors,
               onSliceTapped: (label) {
-                context.push('/metric-requests', extra: {'projectId': _selectedProjectId, 'filterStatus': label});
+                context.push(
+                  '/metric-requests',
+                  extra: {
+                    'projectId': _selectedProjectId,
+                    'filterStatus': label,
+                  },
+                );
               },
             ),
     );
@@ -999,9 +1395,47 @@ class _MetricsPageState extends State<MetricsPage> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        _buildInteractiveLegendDot(context, 'Terminada', ColorTheme.success, hoveredStackedSeriesIndex == 0, hoveredStackedSeriesIndex != null, () => setStateLegend(() => hoveredStackedSeriesIndex = 0), () => setStateLegend(() => hoveredStackedSeriesIndex = null), () => context.push('/metric-requests', extra: {'projectId': _selectedProjectId, 'filterCompliance': 'TERMINADA'})),
+                        _buildInteractiveLegendDot(
+                          context,
+                          'Terminada',
+                          ColorTheme.success,
+                          hoveredStackedSeriesIndex == 0,
+                          hoveredStackedSeriesIndex != null,
+                          () => setStateLegend(
+                            () => hoveredStackedSeriesIndex = 0,
+                          ),
+                          () => setStateLegend(
+                            () => hoveredStackedSeriesIndex = null,
+                          ),
+                          () => context.push(
+                            '/metric-requests',
+                            extra: {
+                              'projectId': _selectedProjectId,
+                              'filterCompliance': 'TERMINADA',
+                            },
+                          ),
+                        ),
                         const SizedBox(width: 8),
-                        _buildInteractiveLegendDot(context, 'Pendiente', ColorTheme.atention, hoveredStackedSeriesIndex == 1, hoveredStackedSeriesIndex != null, () => setStateLegend(() => hoveredStackedSeriesIndex = 1), () => setStateLegend(() => hoveredStackedSeriesIndex = null), () => context.push('/metric-requests', extra: {'projectId': _selectedProjectId, 'filterCompliance': 'PENDIENTE'})),
+                        _buildInteractiveLegendDot(
+                          context,
+                          'Pendiente',
+                          ColorTheme.atention,
+                          hoveredStackedSeriesIndex == 1,
+                          hoveredStackedSeriesIndex != null,
+                          () => setStateLegend(
+                            () => hoveredStackedSeriesIndex = 1,
+                          ),
+                          () => setStateLegend(
+                            () => hoveredStackedSeriesIndex = null,
+                          ),
+                          () => context.push(
+                            '/metric-requests',
+                            extra: {
+                              'projectId': _selectedProjectId,
+                              'filterCompliance': 'PENDIENTE',
+                            },
+                          ),
+                        ),
                         const SizedBox(width: 8),
                         _buildInteractiveLegendDot(
                           context,
@@ -1009,9 +1443,19 @@ class _MetricsPageState extends State<MetricsPage> {
                           Colors.blue,
                           hoveredStackedSeriesIndex == 2,
                           hoveredStackedSeriesIndex != null,
-                          () => setStateLegend(() => hoveredStackedSeriesIndex = 2),
-                          () => setStateLegend(() => hoveredStackedSeriesIndex = null),
-                          () => context.push('/metric-requests', extra: {'projectId': _selectedProjectId, 'filterCompliance': 'ESPERA DE CLIENTE'}),
+                          () => setStateLegend(
+                            () => hoveredStackedSeriesIndex = 2,
+                          ),
+                          () => setStateLegend(
+                            () => hoveredStackedSeriesIndex = null,
+                          ),
+                          () => context.push(
+                            '/metric-requests',
+                            extra: {
+                              'projectId': _selectedProjectId,
+                              'filterCompliance': 'ESPERA DE CLIENTE',
+                            },
+                          ),
                         ),
                       ],
                     ),
@@ -1020,12 +1464,31 @@ class _MetricsPageState extends State<MetricsPage> {
                       child: CustomStackedBarChart(
                         labels: _moduleLabels,
                         fullLabels: _moduleFullLabels,
-                        seriesValues: [_moduleTerminadaValues, _modulePendienteValues, _moduleEsperaValues],
-                        seriesNames: const ['Terminada', 'Pendiente', 'Espera de Cliente'],
-                        colors: const [ColorTheme.success, ColorTheme.atention, Colors.blue],
+                        seriesValues: [
+                          _moduleTerminadaValues,
+                          _modulePendienteValues,
+                          _moduleEsperaValues,
+                        ],
+                        seriesNames: const [
+                          'Terminada',
+                          'Pendiente',
+                          'Espera de Cliente',
+                        ],
+                        colors: const [
+                          ColorTheme.success,
+                          ColorTheme.atention,
+                          Colors.blue,
+                        ],
                         hoveredSeriesIndex: hoveredStackedSeriesIndex,
                         onBarTapped: (category, series) {
-                          context.push('/metric-requests', extra: {'projectId': _selectedProjectId, 'filterType': category, 'filterCompliance': series.toUpperCase()});
+                          context.push(
+                            '/metric-requests',
+                            extra: {
+                              'projectId': _selectedProjectId,
+                              'filterType': category,
+                              'filterCompliance': series.toUpperCase(),
+                            },
+                          );
                         },
                       ),
                     ),
@@ -1048,7 +1511,10 @@ class _MetricsPageState extends State<MetricsPage> {
               leftAxisSuffix: '%',
               tooltipSuffix: '%',
               onBarTapped: (label) {
-                context.push('/metric-requests', extra: {'projectId': _selectedProjectId, 'filterType': label});
+                context.push(
+                  '/metric-requests',
+                  extra: {'projectId': _selectedProjectId, 'filterType': label},
+                );
               },
             ),
     );
@@ -1090,9 +1556,26 @@ class _MetricsPageState extends State<MetricsPage> {
   }
 
   Widget _buildSupportDashboardGrid(bool isLargeScreen) {
-    final List<Color> donutColors2 = [const Color(0xFF5C6BC0), const Color(0xFF8D6E63), const Color(0xFFEC407A), const Color(0xFFFFCA28), const Color(0xFF29B6F6), const Color(0xFF9CCC65)];
+    final List<Color> donutColors2 = [
+      const Color(0xFF5C6BC0),
+      const Color(0xFF8D6E63),
+      const Color(0xFFEC407A),
+      const Color(0xFFFFCA28),
+      const Color(0xFF29B6F6),
+      const Color(0xFF9CCC65),
+    ];
 
-    Widget statusChart = _buildChartCard('Estado de Solicitudes', 300, _supportStatusValues.isEmpty ? _buildEmptyView() : _buildDonutWithLegend(_supportStatusValues, _supportStatusLabels, donutColors2));
+    Widget statusChart = _buildChartCard(
+      'Estado de Solicitudes',
+      300,
+      _supportStatusValues.isEmpty
+          ? _buildEmptyView()
+          : _buildDonutWithLegend(
+              _supportStatusValues,
+              _supportStatusLabels,
+              donutColors2,
+            ),
+    );
 
     final List<Color> priorityColors = _supportPriorityLabels.map((p) {
       if (p == 'Urgente') return ColorTheme.error;
@@ -1102,7 +1585,18 @@ class _MetricsPageState extends State<MetricsPage> {
       return Colors.grey;
     }).toList();
 
-    Widget priorityChart = _buildChartCard('Solicitudes por Prioridad', 300, _supportPriorityValues.isEmpty ? _buildEmptyView() : CustomBarChart(labels: _supportPriorityLabels, values: _supportPriorityValues, colors: priorityColors, tooltipSuffix: 'sol.'));
+    Widget priorityChart = _buildChartCard(
+      'Solicitudes por Prioridad',
+      300,
+      _supportPriorityValues.isEmpty
+          ? _buildEmptyView()
+          : CustomBarChart(
+              labels: _supportPriorityLabels,
+              values: _supportPriorityValues,
+              colors: priorityColors,
+              tooltipSuffix: 'sol.',
+            ),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1125,20 +1619,45 @@ class _MetricsPageState extends State<MetricsPage> {
     );
   }
 
-  Widget _buildDonutWithLegend(List<double> values, List<String> labels, List<Color> colors, {String suffix = 'sol.', Function(String label)? onSliceTapped}) {
-    return _DonutWithLegendWidget(values: values, labels: labels, colors: colors, suffix: suffix, onSliceTapped: onSliceTapped);
+  Widget _buildDonutWithLegend(
+    List<double> values,
+    List<String> labels,
+    List<Color> colors, {
+    String suffix = 'sol.',
+    Function(String label)? onSliceTapped,
+  }) {
+    return _DonutWithLegendWidget(
+      values: values,
+      labels: labels,
+      colors: colors,
+      suffix: suffix,
+      onSliceTapped: onSliceTapped,
+    );
   }
 
-  Widget _buildChartCard(String title, double height, Widget child) => CustomContainer(
-    title: title,
-    child: SizedBox(height: height, child: child),
-  );
+  Widget _buildChartCard(String title, double height, Widget child) =>
+      CustomContainer(
+        title: title,
+        child: SizedBox(height: height, child: child),
+      );
 
   Widget _buildEmptyView() => const Center(
-    child: Text("Sin datos relevantes para este proyecto", style: TextStyle(color: Colors.grey)),
+    child: Text(
+      "Sin datos relevantes para este proyecto",
+      style: TextStyle(color: Colors.grey),
+    ),
   );
 
-  Widget _buildInteractiveLegendDot(BuildContext context, String text, Color color, bool isHovered, bool isAnyHovered, VoidCallback onEnter, VoidCallback onExit, VoidCallback onTap) {
+  Widget _buildInteractiveLegendDot(
+    BuildContext context,
+    String text,
+    Color color,
+    bool isHovered,
+    bool isAnyHovered,
+    VoidCallback onEnter,
+    VoidCallback onExit,
+    VoidCallback onTap,
+  ) {
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => onEnter(),
@@ -1148,7 +1667,10 @@ class _MetricsPageState extends State<MetricsPage> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
-          decoration: BoxDecoration(color: isHovered ? color.withOpacity(0.1) : Colors.transparent, borderRadius: BorderRadius.circular(8)),
+          decoration: BoxDecoration(
+            color: isHovered ? color.withOpacity(0.1) : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -1156,12 +1678,23 @@ class _MetricsPageState extends State<MetricsPage> {
                 duration: const Duration(milliseconds: 200),
                 width: isHovered ? 14 : 10,
                 height: isHovered ? 14 : 10,
-                decoration: BoxDecoration(color: isAnyHovered && !isHovered ? Colors.grey.withOpacity(0.3) : color, shape: BoxShape.circle),
+                decoration: BoxDecoration(
+                  color: isAnyHovered && !isHovered
+                      ? Colors.grey.withOpacity(0.3)
+                      : color,
+                  shape: BoxShape.circle,
+                ),
               ),
               const SizedBox(width: 6),
               AnimatedDefaultTextStyle(
                 duration: const Duration(milliseconds: 200),
-                style: TextStyle(fontSize: 11, fontWeight: isHovered ? FontWeight.bold : FontWeight.normal, color: isAnyHovered && !isHovered ? Theme.of(context).colorScheme.onSurface.withOpacity(0.4) : Theme.of(context).colorScheme.onSurface),
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: isHovered ? FontWeight.bold : FontWeight.normal,
+                  color: isAnyHovered && !isHovered
+                      ? Theme.of(context).colorScheme.onSurface.withOpacity(0.4)
+                      : Theme.of(context).colorScheme.onSurface,
+                ),
                 child: Text(text),
               ),
             ],
@@ -1181,15 +1714,38 @@ class _MetricsPageState extends State<MetricsPage> {
             onTap: _showProjectSearchModal,
             child: InputDecorator(
               decoration: InputDecoration(
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-                suffixIcon: _isProjectsLoading ? const SizedBox(width: 20, height: 20, child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(strokeWidth: 2))) : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8.0),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 16,
+                ),
+                suffixIcon: _isProjectsLoading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: Padding(
+                          padding: EdgeInsets.all(12),
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                    : null,
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Expanded(
-                    child: Text(_selectedProjectId == null ? 'Seleccione un Proyecto' : (_projects.firstWhere((p) => p['id'] == _selectedProjectId, orElse: () => {'Name': 'Desconocido'})['Name'] ?? 'Sin Nombre'), overflow: TextOverflow.ellipsis),
+                    child: Text(
+                      _selectedProjectId == null
+                          ? 'Seleccione un Proyecto'
+                          : (_projects.firstWhere(
+                                  (p) => p['id'] == _selectedProjectId,
+                                  orElse: () => {'Name': 'Desconocido'},
+                                )['Name'] ??
+                                'Sin Nombre'),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                   const Icon(Icons.search, color: Colors.grey),
                 ],
@@ -1209,8 +1765,16 @@ class _MetricsPageState extends State<MetricsPage> {
             label: 'Año',
             value: _supportSelectedYear,
             items: [
-              const DropdownMenuItem<int?>(value: null, child: Text('Todos los Años')),
-              ...List.generate(5, (index) => DateTime.now().year - index).map((year) => DropdownMenuItem<int?>(value: year, child: Text(year.toString()))),
+              const DropdownMenuItem<int?>(
+                value: null,
+                child: Text('Todos los Años'),
+              ),
+              ...List.generate(5, (index) => DateTime.now().year - index).map(
+                (year) => DropdownMenuItem<int?>(
+                  value: year,
+                  child: Text(year.toString()),
+                ),
+              ),
             ],
             onChanged: (val) {
               setState(() => _supportSelectedYear = val);
@@ -1222,18 +1786,34 @@ class _MetricsPageState extends State<MetricsPage> {
           const SizedBox(width: 16),
           Expanded(
             child: InkWell(
-              onTap: _supportBPartners.isEmpty ? null : _showBPartnerSearchModal,
+              onTap: _supportBPartners.isEmpty
+                  ? null
+                  : _showBPartnerSearchModal,
               child: InputDecorator(
                 decoration: InputDecoration(
                   labelText: 'Tercero',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8.0),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 16,
+                  ),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Expanded(
-                      child: Text(_supportSelectedBpId == null ? 'Todos los Terceros' : (_supportBPartners.firstWhere((bp) => bp['id'] == _supportSelectedBpId, orElse: () => {'Name': 'Desconocido'})['Name'] ?? 'Sin Nombre'), overflow: TextOverflow.ellipsis),
+                      child: Text(
+                        _supportSelectedBpId == null
+                            ? 'Todos los Terceros'
+                            : (_supportBPartners.firstWhere(
+                                    (bp) => bp['id'] == _supportSelectedBpId,
+                                    orElse: () => {'Name': 'Desconocido'},
+                                  )['Name'] ??
+                                  'Sin Nombre'),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                     const Icon(Icons.search, color: Colors.grey),
                   ],
@@ -1254,7 +1834,13 @@ class _DonutWithLegendWidget extends StatefulWidget {
   final String suffix;
   final Function(String label)? onSliceTapped;
 
-  const _DonutWithLegendWidget({required this.values, required this.labels, required this.colors, this.suffix = 'sol.', this.onSliceTapped});
+  const _DonutWithLegendWidget({
+    required this.values,
+    required this.labels,
+    required this.colors,
+    this.suffix = 'sol.',
+    this.onSliceTapped,
+  });
 
   @override
   State<_DonutWithLegendWidget> createState() => _DonutWithLegendWidgetState();
@@ -1308,7 +1894,13 @@ class _DonutWithLegendWidgetState extends State<_DonutWithLegendWidget> {
       children: [
         Expanded(
           flex: 5,
-          child: CustomDonutChart(values: widget.values, labels: widget.labels, colors: widget.colors, onSliceTapped: widget.onSliceTapped, hoveredIndex: _hoveredIndex),
+          child: CustomDonutChart(
+            values: widget.values,
+            labels: widget.labels,
+            colors: widget.colors,
+            onSliceTapped: widget.onSliceTapped,
+            hoveredIndex: _hoveredIndex,
+          ),
         ),
         Expanded(
           flex: 6,
@@ -1333,7 +1925,8 @@ class _DonutWithLegendWidgetState extends State<_DonutWithLegendWidget> {
 
                         final isHovered = _hoveredIndex == i;
                         final isAnyHovered = _hoveredIndex != null;
-                        final textLabel = '${widget.labels[i]}\n${val.toInt()} ${widget.suffix} (${pct.toStringAsFixed(1)}%)';
+                        final textLabel =
+                            '${widget.labels[i]}\n${val.toInt()} ${widget.suffix} (${pct.toStringAsFixed(1)}%)';
 
                         return MouseRegion(
                           cursor: SystemMouseCursors.click,
@@ -1341,26 +1934,58 @@ class _DonutWithLegendWidgetState extends State<_DonutWithLegendWidget> {
                           onExit: (_) => setState(() => _hoveredIndex = null),
                           child: GestureDetector(
                             onTap: () {
-                              if (widget.onSliceTapped != null) widget.onSliceTapped!(widget.labels[i]);
+                              if (widget.onSliceTapped != null)
+                                widget.onSliceTapped!(widget.labels[i]);
                             },
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 200),
-                              padding: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 8.0),
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 6.0,
+                                horizontal: 8.0,
+                              ),
                               margin: const EdgeInsets.only(bottom: 4.0),
-                              decoration: BoxDecoration(color: isHovered ? widget.colors[i % widget.colors.length].withOpacity(0.1) : Colors.transparent, borderRadius: BorderRadius.circular(8)),
+                              decoration: BoxDecoration(
+                                color: isHovered
+                                    ? widget.colors[i % widget.colors.length]
+                                          .withOpacity(0.1)
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
                               child: Row(
                                 children: [
                                   AnimatedContainer(
                                     duration: const Duration(milliseconds: 200),
                                     width: isHovered ? 16 : 12,
                                     height: isHovered ? 16 : 12,
-                                    decoration: BoxDecoration(color: isAnyHovered && !isHovered ? Colors.grey.withOpacity(0.3) : widget.colors[i % widget.colors.length], shape: BoxShape.circle),
+                                    decoration: BoxDecoration(
+                                      color: isAnyHovered && !isHovered
+                                          ? Colors.grey.withOpacity(0.3)
+                                          : widget.colors[i %
+                                                widget.colors.length],
+                                      shape: BoxShape.circle,
+                                    ),
                                   ),
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: AnimatedDefaultTextStyle(
-                                      duration: const Duration(milliseconds: 200),
-                                      style: TextStyle(fontSize: 11, height: 1.2, fontWeight: isHovered ? FontWeight.bold : FontWeight.normal, color: isAnyHovered && !isHovered ? Theme.of(context).colorScheme.onSurface.withOpacity(0.4) : Theme.of(context).colorScheme.onSurface),
+                                      duration: const Duration(
+                                        milliseconds: 200,
+                                      ),
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        height: 1.2,
+                                        fontWeight: isHovered
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
+                                        color: isAnyHovered && !isHovered
+                                            ? Theme.of(context)
+                                                  .colorScheme
+                                                  .onSurface
+                                                  .withOpacity(0.4)
+                                            : Theme.of(
+                                                context,
+                                              ).colorScheme.onSurface,
+                                      ),
                                       child: Text(textLabel),
                                     ),
                                   ),
@@ -1374,8 +1999,18 @@ class _DonutWithLegendWidgetState extends State<_DonutWithLegendWidget> {
                   ),
                 ),
               ),
-              if (_showTopArrow) Positioned(top: 0, right: 10, child: _buildScrollArrow(Icons.keyboard_arrow_up_rounded)),
-              if (_showBottomArrow) Positioned(bottom: 0, right: 10, child: _buildScrollArrow(Icons.keyboard_arrow_down_rounded)),
+              if (_showTopArrow)
+                Positioned(
+                  top: 0,
+                  right: 10,
+                  child: _buildScrollArrow(Icons.keyboard_arrow_up_rounded),
+                ),
+              if (_showBottomArrow)
+                Positioned(
+                  bottom: 0,
+                  right: 10,
+                  child: _buildScrollArrow(Icons.keyboard_arrow_down_rounded),
+                ),
             ],
           ),
         ),
@@ -1390,9 +2025,19 @@ class _DonutWithLegendWidgetState extends State<_DonutWithLegendWidget> {
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface.withOpacity(0.85),
           shape: BoxShape.circle,
-          boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2))],
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 4,
+              offset: Offset(0, 2),
+            ),
+          ],
         ),
-        child: Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
+        child: Icon(
+          icon,
+          size: 20,
+          color: Theme.of(context).colorScheme.primary,
+        ),
       ),
     );
   }
@@ -1416,7 +2061,7 @@ class _KPICard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    
+
     return Container(
       width: width,
       padding: const EdgeInsets.all(20),

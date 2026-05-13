@@ -8,6 +8,12 @@ import 'package:primhub/ImagesManagment/postAttachments.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/api/global_cache.dart';
+import 'package:primhub/api/access_control.dart';
+import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
+import 'package:primhub/ui/Shared_Custom/custom_button.dart';
+import 'package:primhub/ImagesManagment/fecthAttachments.dart';
+import 'package:primhub/ImagesManagment/downloadAttachments.dart';
+import 'package:primhub/ui/pages/Projects/Projects_Widgets/file_preview_manager.dart';
 
 // --- MAPAS DE REFERENCIA ---
 
@@ -815,5 +821,161 @@ Future<bool> deleteRequestApi(dynamic id) async {
     return false;
   } catch (e) {
     return false;
+  }
+}
+
+/// Diálogo para ver y gestionar adjuntos de una solicitud. Compartido entre tablas.
+class RequestAttachmentsDialog extends StatefulWidget {
+  final int requestId;
+  final String documentNo;
+
+  const RequestAttachmentsDialog({super.key, required this.requestId, required this.documentNo});
+
+  @override
+  State<RequestAttachmentsDialog> createState() => _RequestAttachmentsDialogState();
+}
+
+class _RequestAttachmentsDialogState extends State<RequestAttachmentsDialog> {
+  List<Map<String, dynamic>> _attachments = [];
+  bool _isLoading = true;
+  bool _isUploading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAttachments();
+  }
+
+  /// Carga los adjuntos de la solicitud desde la API.
+  Future<void> _loadAttachments() async {
+    setState(() => _isLoading = true);
+    const tableName = 'R_Request';
+    final String fullTableUrl = '${Endpoint.baseUrl}/api/v1/models/$tableName';
+    final attachments = await fetchAttachments(recordID: widget.requestId, tableName: fullTableUrl);
+    if (mounted) {
+      setState(() {
+        _attachments = attachments;
+        _isLoading = false;
+      });
+    }
+  }
+
+  /// Permite al usuario seleccionar y subir un nuevo adjunto.
+  Future<void> _uploadAttachment() async {
+    if (!AccessControl.isAdmin && !AccessControl.isSupport) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No tienes permisos para subir archivos.')));
+      return;
+    }
+
+    if (_attachments.length >= 4) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Solo se pueden subir hasta 4 adjuntos.'), backgroundColor: Colors.orange));
+      return;
+    }
+
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.any,
+      withData: true,
+    );
+
+    if (result == null || result.files.isEmpty) return;
+
+    final file = result.files.first;
+    if (file.bytes == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No se pudieron leer los datos del archivo.'), backgroundColor: Colors.red));
+      return;
+    }
+
+    setState(() => _isUploading = true);
+
+    const tableName = 'R_Request';
+    final String fullTableUrl = '${Endpoint.baseUrl}/api/v1/models/$tableName';
+    
+    final convertedFile = {'title': file.name, 'base64': base64Encode(file.bytes!)};
+    
+    final success = await postAttachments(
+      recordID: widget.requestId, 
+      tableName: fullTableUrl, 
+      convertedFile: convertedFile,
+      shouldUpdateStatus: false,
+    );
+
+    if (mounted) {
+      setState(() => _isUploading = false);
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Archivo subido correctamente'), backgroundColor: Colors.green));
+        _loadAttachments();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al subir archivo'), backgroundColor: Colors.red));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const tableName = 'R_Request';
+    final String fullTableUrl = '${Endpoint.baseUrl}/api/v1/models/$tableName';
+
+    return CustomModal(
+      title: 'Adjuntos: ${widget.documentNo}',
+      width: 500,
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_isLoading)
+            const Padding(
+              padding: EdgeInsets.all(20.0),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (_attachments.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(20.0),
+              child: Center(child: Text('No hay archivos adjuntos en esta solicitud.')),
+            )
+          else
+            ListView.builder(
+              shrinkWrap: true,
+              itemCount: _attachments.length,
+              itemBuilder: (context, index) {
+                final att = _attachments[index];
+                return ListTile(
+                  leading: const Icon(Icons.insert_drive_file),
+                  title: Text(att['name'] ?? 'Sin nombre'),
+                  onTap: () {
+                    FilePreviewManager.showPreview(context, {'id': widget.requestId, 'Status': 'N/A', 'VersionNo': 'N/A'}, fullTableUrl, att['name'] ?? '', () async {
+                      try {
+                        setState(() => _isLoading = true);
+                        final url = Uri.parse('$fullTableUrl/${widget.requestId}/attachments/${Uri.encodeComponent(att['name'] ?? '')}');
+                        final response = await http.delete(url, headers: {'Authorization': Token.token});
+                        if (response.statusCode == 200 || response.statusCode == 204) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Adjunto eliminado')));
+                            _loadAttachments();
+                          }
+                        } else {
+                          if (mounted) {
+                            setState(() => _isLoading = false);
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al eliminar adjunto'), backgroundColor: Colors.red));
+                          }
+                        }
+                      } catch (e) {
+                        if (mounted) setState(() => _isLoading = false);
+                      }
+                    }, () {});
+                  },
+                  trailing: IconButton(
+                    icon: const Icon(Icons.download, color: Color(0xFF4F47E5)),
+                    tooltip: 'Descargar',
+                    onPressed: () => downloadAttachment(context: context, recordID: widget.requestId, tableName: fullTableUrl, fileName: att['name']),
+                  ),
+                );
+              },
+            ),
+        ],
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cerrar')),
+        if (AccessControl.isAdmin || AccessControl.isSupport) CustomButton(text: 'Subir Archivo', icon: Icons.upload_file, isLoading: _isUploading, onPressed: _uploadAttachment),
+      ],
+    );
   }
 }

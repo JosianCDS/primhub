@@ -73,9 +73,10 @@ class BreadcrumbNavigator extends StatelessWidget {
 
       // Permitir soltar en cualquier nivel previo (Padres o Raíz)
       if (!isLast && i >= 2 && onDropToRoot != null) {
-        bool isDragOver = false;
+        final Widget baseCrumb = crumb;
         crumb = StatefulBuilder(
           builder: (context, setStateSB) {
+            bool isDragOver = false;
             return DropRegion(
               formats: Formats.standardFormats,
               onDropEnter: (event) => setStateSB(() => isDragOver = true),
@@ -98,7 +99,7 @@ class BreadcrumbNavigator extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                   border: isDragOver ? Border.all(color: Colors.blue.shade300) : null,
                 ),
-                child: crumb,
+                child: baseCrumb,
               ),
             );
           },

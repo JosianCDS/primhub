@@ -14,6 +14,7 @@ import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/global_cache.dart';
 import 'package:primhub/ImagesManagment/fecthAttachments.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
+import 'package:primhub/ui/Shared_Custom/help_icon.dart';
 
 class RequestUpdatesPage extends StatefulWidget {
   final int requestId;
@@ -162,7 +163,10 @@ class _RequestUpdatesPageState extends State<RequestUpdatesPage> {
     final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
-      appBar: AppBar(title: Text('Actualizaciones: ${widget.docNo}')),
+      appBar: AppBar(
+        title: Text('Actualizaciones: ${widget.docNo}'),
+        actions: const [HelpIcon()],
+      ),
       floatingActionButton: AccessControl.canAddUpdates
           ? FloatingActionButton.extended(
               onPressed: _addUpdate,

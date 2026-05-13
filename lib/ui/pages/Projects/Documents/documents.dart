@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/ui/pages/Projects/Documents/project_file_manager.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
+import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 import 'package:primhub/ui/pages/Projects/Projects_Widgets/project_item.dart';
 import 'package:primhub/ui/pages/Projects/Documents/project_form_page.dart';
@@ -14,6 +15,7 @@ import 'package:primhub/ui/widgets/project_bottom_nav.dart';
 import 'package:primhub/api/api_utils.dart';
 import 'package:primhub/ui/Shared_Custom/custom_skeleton.dart';
 import 'package:primhub/ui/Shared_Custom/user_info_leading.dart';
+import 'package:primhub/ui/Shared_Custom/help_icon.dart';
 
 class DeliverablesPage extends StatefulWidget {
   const DeliverablesPage({super.key});
@@ -99,6 +101,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
         );
       } else {
         projects = GlobalCache.projects;
+        
         if (_adminViewModeManager.isViewingMine && AccessControl.isAdmin) {
           int? partnerID = User.cBPartnerID;
           int? userID = User.userID;
@@ -446,6 +449,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
             ),
           ),
         ),
+      const HelpIcon(),
       IconButton(
         icon: const Icon(Icons.refresh),
         tooltip: 'Refrescar',
@@ -637,7 +641,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
   }
 
   Widget _buildProjectsView() {
-    if (_isLoadingProjects) return const Expanded(child: SkeletonList());
+    if (_isLoadingProjects) return const SkeletonList();
 
     final filteredProjects = _projects.where((project) {
       final projectName = (project['Name'] as String? ?? '').toLowerCase();

@@ -734,14 +734,29 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
 
     double qty = double.tryParse(_qtyUsedController.text) ?? 0.0;
 
-    // Validación obligatoria de Ficha de Producto para Soporte Puro (sin Record_UU)
+    // Notificación de Ficha de Producto preferible (ya no es obligatorio)
     if (widget.linkedRecordUU == null && _selectedProductChipId == null) {
-      ToastMessage.show(
+      final bool? continueWithoutChip = await showDialog<bool>(
         context: context,
-        message: 'Es obligatorio seleccionar una Ficha de Producto para solicitudes de soporte.',
-        type: ToastType.failure,
+        builder: (context) => CustomModal(
+          title: 'Ficha de Producto no seleccionada',
+          content: const Text(
+            'Es preferible seleccionar una Ficha de Producto para solicitudes de soporte para asegurar una correcta vinculación y seguimiento de horas.\n\n¿Desea continuar sin seleccionar una ficha?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Volver y seleccionar'),
+            ),
+            CustomButton(
+              text: 'Continuar de todos modos',
+              onPressed: () => Navigator.pop(context, true),
+            ),
+          ],
+        ),
       );
-      return;
+
+      if (continueWithoutChip != true) return;
     }
 
     int? bpId = _selectedBpId ?? User.cBPartnerID;

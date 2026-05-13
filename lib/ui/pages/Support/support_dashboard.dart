@@ -23,6 +23,7 @@ import 'package:primhub/api/api_utils.dart';
 import 'package:primhub/ui/Shared_Custom/custom_skeleton.dart';
 import 'package:primhub/ui/Shared_Custom/user_info_leading.dart';
 import 'package:primhub/ui/pages/Support/Request_Widgets/support_summary_premium.dart';
+import 'package:primhub/ui/Shared_Custom/help_icon.dart';
 
 class SupportDashboardPage extends StatefulWidget {
   const SupportDashboardPage({super.key});
@@ -865,6 +866,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                 ),
               ),
             ),
+          const HelpIcon(),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Refrescar',
@@ -897,12 +899,12 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 24.0),
                   child: InkWell(
-                    onTap: _bPartners.isEmpty ? null : _showBPartnerFilterModal,
+                    onTap: (_bPartners.isEmpty || !GlobalCache.isDataLoaded) ? null : _showBPartnerFilterModal,
                     borderRadius: BorderRadius.circular(12),
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                       decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(_bPartners.isEmpty ? 0.1 : 0.3),
+                        color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity((_bPartners.isEmpty || !GlobalCache.isDataLoaded) ? 0.1 : 0.3),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
@@ -912,7 +914,9 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                         children: [
                           Icon(
                             Icons.business_outlined,
-                            color: Theme.of(context).colorScheme.primary,
+                            color: (_bPartners.isEmpty || !GlobalCache.isDataLoaded)
+                                ? Colors.grey
+                                : Theme.of(context).colorScheme.primary,
                           ),
                           const SizedBox(width: 12),
                           Expanded(
@@ -930,8 +934,8 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                                   children: [
                                     Expanded(
                                       child: Text(
-                                        GlobalCache.bPartners.isEmpty && !GlobalCache.isDataLoaded
-                                          ? 'Cargando terceros...'
+                                        !GlobalCache.isDataLoaded
+                                          ? 'Sincronizando información...'
                                           : (_selectedBpId == null 
                                             ? 'Selecciona un tercero para ver sus fichas'
                                             : (_bPartners.firstWhere(
@@ -940,25 +944,27 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                                               )['Name'] ?? 'Tercero ${_selectedBpId}')),
                                         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                                           fontWeight: FontWeight.w500,
+                                          color: !GlobalCache.isDataLoaded ? Colors.grey : null,
                                         ),
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
-                                    if (GlobalCache.bPartners.isEmpty && !GlobalCache.isDataLoaded)
-                                      const SizedBox(
-                                        width: 12,
-                                        height: 12,
-                                        child: CircularProgressIndicator(strokeWidth: 2),
-                                      ),
                                   ],
                                 ),
                               ],
                             ),
                           ),
-                          Icon(
-                            Icons.search,
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
+                          if (GlobalCache.isDataLoaded)
+                            Icon(
+                              Icons.search,
+                              color: (_bPartners.isEmpty) ? Colors.grey : Theme.of(context).colorScheme.onSurfaceVariant,
+                            )
+                          else
+                            const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
                         ],
                       ),
                     ),

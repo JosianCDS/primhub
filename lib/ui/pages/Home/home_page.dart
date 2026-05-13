@@ -19,6 +19,7 @@ import 'package:primhub/ui/widgets/project_bottom_nav.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:primhub/ui/Shared_Custom/custom_skeleton.dart';
 import 'package:primhub/ui/Shared_Custom/user_info_leading.dart';
+import 'package:primhub/ui/Shared_Custom/help_icon.dart';
 import 'package:flutter/services.dart'; // Para Clipboard
 import 'package:primhub/api/global_cache.dart';
 import 'package:primhub/ui/pages/Projects/dialogs/project_calendar_dialog.dart';
@@ -381,6 +382,7 @@ class _HomePageState extends State<HomePage> {
                   child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Theme.of(context).colorScheme.onPrimary)),
                 ),
               ),
+            const HelpIcon(),
             IconButton(
               icon: const Icon(Icons.refresh),
               tooltip: 'Refrescar',

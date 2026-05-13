@@ -1,0 +1,670 @@
+{
+  "/home/alexander/Descargas/Primhub/primhub/linux/runner/my_application.h": {
+    "mtime": 1776974052.3649156,
+    "hash": "326a85d68857137fdfe8698a0c071baf"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/linux/runner/my_application.cc": {
+    "mtime": 1776974052.3649156,
+    "hash": "c1d018c48171f8aab25083d91c102339"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/linux/runner/main.cc": {
+    "mtime": 1776974052.3649156,
+    "hash": "0643b8609698e96b3abd63c210361a87"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/linux/flutter/generated_plugin_registrant.cc": {
+    "mtime": 1776974052.36478,
+    "hash": "fde68c5eb1cc87a45976d3bb5c2f535b"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/linux/flutter/generated_plugin_registrant.h": {
+    "mtime": 1776974052.36478,
+    "hash": "d295462c9da9f7fef22dc86c34492318"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/app.dart": {
+    "mtime": 1776974052.3586056,
+    "hash": "4d65091ff282776dc4dd5e1f710a9ba9"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/main.dart": {
+    "mtime": 1776974052.3586056,
+    "hash": "b84911ffe792bc0b2b3cec7cbc210846"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/endpoint/endpoint.dart": {
+    "mtime": 1778605206.525279,
+    "hash": "161575b61bba7b6bf0cffcc77ae60491"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/theme/theme_material.dart": {
+    "mtime": 1776974052.3591366,
+    "hash": "5f7564cf8440448ce827a0bfcd55a5f7"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/theme/formatter.dart": {
+    "mtime": 1776974052.3591366,
+    "hash": "5b6131423415b85dcd8c7272298dacf4"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/theme/theme.dart": {
+    "mtime": 1776974052.3591366,
+    "hash": "9438bd79f8b725d90f38bc5841881929"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/theme/colors.dart": {
+    "mtime": 1776974052.3586056,
+    "hash": "0b65db3c05a33e83c6ce5ed1e6193f7f"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/api/access_control.dart": {
+    "mtime": 1776974052.3584385,
+    "hash": "081eb0f201d25cdf913e38519fc4901b"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/api/contract_api.dart": {
+    "mtime": 1778532679.87884,
+    "hash": "0c0a8130062ea3adfc2d0c719453583a"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/api/session_manager.dart": {
+    "mtime": 1776976461.571534,
+    "hash": "0d86f69eb70a683750460c0a4a954c9d"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/api/admin_view_mode.dart": {
+    "mtime": 1776974052.3586056,
+    "hash": "a377eade807afd05c0ec38d301c1c7e0"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/api/auth_api.dart": {
+    "mtime": 1778252179.1439118,
+    "hash": "6852554c507d8ab3db79784f31c08300"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/api/api_utils.dart": {
+    "mtime": 1777405265.2094414,
+    "hash": "3e3c9f2426a42996d9d906b5a924a11d"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/api/validation_manager.dart": {
+    "mtime": 1776974052.3586056,
+    "hash": "0e34bb8dfc38c426e8120f842e9af90a"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/api/global_cache.dart": {
+    "mtime": 1778612318.9681647,
+    "hash": "e15b74fe99c924299a176316d6d7a774"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/api/splash_loading_page.dart": {
+    "mtime": 1778097473.324511,
+    "hash": "f36797b72d65214e4856256bd5571223"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ImagesManagment/postAttachments.dart": {
+    "mtime": 1778605233.9675255,
+    "hash": "63e23587834d1b11e02d566b8f272d7b"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ImagesManagment/fecthAttachments.dart": {
+    "mtime": 1776974052.3584385,
+    "hash": "8f50c88f16ea3e69d9a01a6c6fc4b117"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ImagesManagment/downloadAttachments.dart": {
+    "mtime": 1776974052.3584385,
+    "hash": "6b7bff676c25974e53a884705f6c7391"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ImagesManagment/convertFilesToBase64.dart": {
+    "mtime": 1776974052.3583932,
+    "hash": "c321eb7e00fffdb82983d945e0a88e68"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/widgets/project_bottom_nav.dart": {
+    "mtime": 1776974052.364459,
+    "hash": "a4036c9e4fd3b369a83bf9fcc7959b98"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/widgets/custom_drawer.dart": {
+    "mtime": 1777401943.3868847,
+    "hash": "8d123d5f5a2c46ebb67da28022925e6f"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/widgets/hover_widgets.dart": {
+    "mtime": 1776974052.364459,
+    "hash": "26be7ae3919a320ea4e46da7b7c26b06"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/widgets/duration_formatter.dart": {
+    "mtime": 1776974052.364459,
+    "hash": "317b7935e970ff0a93d883e050bcdd67"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/widgets/project_list.dart": {
+    "mtime": 1777906472.6243114,
+    "hash": "ec8f2e01315e5af4e8aaabee7aa97418"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/Shared_Custom/custom_button.dart": {
+    "mtime": 1776974052.3593416,
+    "hash": "b998b3242a04afd16bdadbf174036aa9"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/Shared_Custom/customToast.dart": {
+    "mtime": 1776974052.3593416,
+    "hash": "094acdd631643c9ac564465e6f67f122"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/Shared_Custom/responsive_data_table.dart": {
+    "mtime": 1778248618.6246345,
+    "hash": "1ff206a5ec44b41d2bd1fb35821f1076"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/Shared_Custom/custom_inputs.dart": {
+    "mtime": 1778253779.2185335,
+    "hash": "5ca41ae2185ec0fa91f7177b536522d8"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/Shared_Custom/help_icon.dart": {
+    "mtime": 1778688214.1111581,
+    "hash": "a9e2c39cb331e3cf796f8a2ae6bd2934"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/Shared_Custom/requests_data_table_core.dart": {
+    "mtime": 1778697827.989873,
+    "hash": "ca845c69e2d9f9c6540d529983e2ee79"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/Shared_Custom/user_info_leading.dart": {
+    "mtime": 1776974052.3593416,
+    "hash": "98d6b9ada04492b104a521cb50d16325"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/Shared_Custom/custom_modal.dart": {
+    "mtime": 1778547093.6487715,
+    "hash": "a7de5d1339476742eeeda305dc4c6aae"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/Shared_Custom/custom_container.dart": {
+    "mtime": 1776974052.3593416,
+    "hash": "81877e2bc44e0dc34f3a930d5fb55f26"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/Shared_Custom/cardcustom.dart": {
+    "mtime": 1777322621.3613348,
+    "hash": "d0bb5357c7946c4eef3f49e8f70fb9b0"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/Shared_Custom/custom_table.dart": {
+    "mtime": 1776974052.3593416,
+    "hash": "2bdd132ed90dff684096ed9fe1dea5ca"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/Shared_Custom/custom_skeleton.dart": {
+    "mtime": 1778596074.2083151,
+    "hash": "7fe40e2523b330817661d6cc20934611"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Login/login_selection_page.dart": {
+    "mtime": 1776974052.3604455,
+    "hash": "8801de2e17d059a914ea3fe52dce4a2a"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Login/login.dart": {
+    "mtime": 1778617815.5922525,
+    "hash": "5a6ead4edf8b27911ae44b2fea753502"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Projects/Projects_Widgets/file_card.dart": {
+    "mtime": 1778612160.42273,
+    "hash": "32544c2d69917abb7e46fdbe4598cfd1"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Projects/Projects_Widgets/task_item.dart": {
+    "mtime": 1778177809.2933993,
+    "hash": "4fd60585f2199d00f32f8a15ff27bd65"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Projects/Projects_Widgets/project_request_filter_modal.dart": {
+    "mtime": 1778606348.082519,
+    "hash": "8eac15cc8d1146b47c9372511e45dbc5"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Projects/Projects_Widgets/project_item.dart": {
+    "mtime": 1778597698.1917367,
+    "hash": "0f268f90745a0ad70d264885d968c575"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Projects/Projects_Widgets/project_requests_view.dart": {
+    "mtime": 1778606366.0026798,
+    "hash": "a87886e23960ef14b7764d44c3282b96"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Projects/Projects_Widgets/breadcrumb_navigator.dart": {
+    "mtime": 1778690794.9663363,
+    "hash": "5cbe33c7e9735a596f5cb76bce25ca97"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Projects/Projects_Widgets/file_preview_manager.dart": {
+    "mtime": 1778534912.5015385,
+    "hash": "9939370f0531f46434a3ceef5780de91"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Projects/Projects_Widgets/requests_data_table.dart": {
+    "mtime": 1778513191.072502,
+    "hash": "f71908ae5e513664c12a2b662283449f"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Projects/Projects_Widgets/uu_requests_data_table.dart": {
+    "mtime": 1778513176.2651112,
+    "hash": "d13c1dd13303f101c1c516980fd64304"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Projects/Projects_Widgets/phase_item.dart": {
+    "mtime": 1778177463.5112665,
+    "hash": "b9a53e5e1e2b23817891dbfdfd215cf2"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Projects/dialogs/item_edit_dialog.dart": {
+    "mtime": 1776974052.3620555,
+    "hash": "8152db62aca2e7582e7cfc760d17a111"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Projects/dialogs/task_create_dialog.dart": {
+    "mtime": 1776974052.3627117,
+    "hash": "53566de799c358d89058c6128dfbc710"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Projects/dialogs/project_calendar_dialog.dart": {
+    "mtime": 1778608506.8993642,
+    "hash": "811ac77c9b2b7d70124d7051e236f784"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Projects/dialogs/request_details_dialog.dart": {
+    "mtime": 1776974052.3627117,
+    "hash": "69c76619850283636b48bbef0e3318cd"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Projects/dialogs/project_info_dialog.dart": {
+    "mtime": 1778608781.1005838,
+    "hash": "c554c06fbe2a6a53dd81f2ff8d9df386"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Projects/dialogs/phase_create_dialog.dart": {
+    "mtime": 1776974052.3627117,
+    "hash": "afc1d606c92b21b42d4207b3ac00cb48"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Projects/dialogs/project_create_dialog.dart": {
+    "mtime": 1776974052.3627117,
+    "hash": "e662258cbc81d0d804720594c0fdcc78"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Projects/Documents/project_file_manager.dart": {
+    "mtime": 1778611686.951109,
+    "hash": "e5c0709284a6851e134b45de94bf59b2"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Projects/Documents/project_form_page.dart": {
+    "mtime": 1778691714.1534617,
+    "hash": "df5b6a3894cbc4d1c79c90610d42fe73"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Projects/Documents/documents.dart": {
+    "mtime": 1778696835.2205694,
+    "hash": "cd51fd8df147cdb848937b8943623337"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Projects/Documents/documents_logic.dart": {
+    "mtime": 1778610427.2176995,
+    "hash": "4965607fe0dc8dc168a8753b3bafc5ee"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Home/home_page.dart": {
+    "mtime": 1778695848.5057986,
+    "hash": "5d87ca767407b54a4bdf6aced6d3e263"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Home/Home_Widgets/support_cards.dart": {
+    "mtime": 1778269361.7156663,
+    "hash": "5316b5802de448bf44a05c8b929bc608"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Home/Home_Widgets/recent_requests_table.dart": {
+    "mtime": 1778697746.357327,
+    "hash": "f382085edeee142590600dceb4ed12fb"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Home/Home_Widgets/project_dashboard_cards.dart": {
+    "mtime": 1778695848.4816155,
+    "hash": "29a4560c15f6bc68b33034622b6d942a"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Home/Home_Controller/home_controller.dart": {
+    "mtime": 1778696982.5526223,
+    "hash": "916998889cb2cb0ca4f5cffe3002fd4b"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/OnDevelop/marketplace.dart": {
+    "mtime": 1776974052.3611782,
+    "hash": "8a26bf11564f14aa91e17cf8647272b8"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/OnDevelop/project_info_test.dart": {
+    "mtime": 1776974052.3611782,
+    "hash": "52088f311e1cb531bdb6cbeb6c852305"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/OnDevelop/knowledge_base.dart": {
+    "mtime": 1776974052.3605852,
+    "hash": "d912ecbaa06c684de25b52e786dd862c"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/OnDevelop/profile_page.dart": {
+    "mtime": 1776974052.3611782,
+    "hash": "b42363afcb55c1c7a966ee2f7b2194ce"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Support/calendar.dart": {
+    "mtime": 1778527971.6425009,
+    "hash": "50ce11f292d9619196ae030459931f29"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Support/support_dashboard.dart": {
+    "mtime": 1778697343.6500585,
+    "hash": "ecac9b691ea984b648892000004a54eb"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Support/Request_Widgets/request_stats_card.dart": {
+    "mtime": 1778511603.1092606,
+    "hash": "e2a8208f1d48f1770d62842b4d85a19b"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Support/Request_Widgets/request_filter_modal.dart": {
+    "mtime": 1778510510.3954825,
+    "hash": "13c8eabbf1c8b2f81bcbbad99b69b64b"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Support/Request_Widgets/requests_data_table.dart": {
+    "mtime": 1777906410.7827275,
+    "hash": "b2cbe1573addc2d1e3148e3906813d62"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Support/Request_Widgets/support_summary_premium.dart": {
+    "mtime": 1778275499.1725643,
+    "hash": "6b1d37f8eef816ba1a5d251643d71ae7"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Support/Request_Widgets/request_filter_bar.dart": {
+    "mtime": 1778511365.5820131,
+    "hash": "ec8dea22b316022c9276dd4b018d1305"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Support/Requests/my_requests.dart": {
+    "mtime": 1778688466.1559098,
+    "hash": "bf8717c0c8e457bc0fabb4f1ab40ab78"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Support/Requests/request_functions.dart": {
+    "mtime": 1778697846.8742194,
+    "hash": "8a31196698bc773d16432600db68191b"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Support/Requests/bulk_edit_request_dialog.dart": {
+    "mtime": 1778079608.4239306,
+    "hash": "0e954818403487d57b357612079fb5c5"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Support/Requests/create_request_dialog.dart": {
+    "mtime": 1778697193.471542,
+    "hash": "9a13859763ee3908dfdc20f17d32efb0"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Support/Requests/request_updates_page.dart": {
+    "mtime": 1778688272.916159,
+    "hash": "998397754b881954ce9cfe5ceb40f598"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Support/Requests/edit_request_dialog.dart": {
+    "mtime": 1778526255.137801,
+    "hash": "715fbc9f29d94044c51000d011fc3c1b"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Metrics/custom_chart.dart": {
+    "mtime": 1777328256.7367785,
+    "hash": "f1e3c98f939dd65f86c089cf770d90c4"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Metrics/metrics_requests_page.dart": {
+    "mtime": 1778077960.565919,
+    "hash": "6b6e40a180688a73b99832edc85bcb6f"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Metrics/metrics.dart": {
+    "mtime": 1778697036.5092034,
+    "hash": "da9a29ba24c23746c2807592e631596f"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Metrics/graphic_functions.dart": {
+    "mtime": 1778612925.2872303,
+    "hash": "fce2baf68aaef347651a3e7d896bf5a6"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Metrics/charts.dart": {
+    "mtime": 1776974052.3604455,
+    "hash": "bc677e4e4b973e82a4fde18cb40df425"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/macos/RunnerTests/RunnerTests.swift": {
+    "mtime": 1777403162.5219295,
+    "hash": "97d3a20fd20a063c192e886d1822b4a8"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/macos/Runner/MainFlutterWindow.swift": {
+    "mtime": 1777403162.5219295,
+    "hash": "4a747b1f256d62a2bbb79bd976891eb5"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/macos/Runner/AppDelegate.swift": {
+    "mtime": 1777403162.5219295,
+    "hash": "2a7411ae3e7c6715525b94b6f8d2e80b"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/macos/Flutter/GeneratedPluginRegistrant.swift": {
+    "mtime": 1777403162.5227215,
+    "hash": "533275fd17f7d29da2f63a529b4987e2"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/windows/runner/utils.h": {
+    "mtime": 1776974052.3679206,
+    "hash": "c741fb9cddbf3a62f4688b6cca39ddcc"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/windows/runner/flutter_window.cpp": {
+    "mtime": 1776974052.3679206,
+    "hash": "9b92b95a9eecce25e3e9d356688d0cb6"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/windows/runner/utils.cpp": {
+    "mtime": 1776974052.3679206,
+    "hash": "9b5697b276c8ad67a02ec12ad2c09851"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/windows/runner/win32_window.cpp": {
+    "mtime": 1776974052.3679206,
+    "hash": "928e86a2be27eca688669dce6c9177d9"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/windows/runner/flutter_window.h": {
+    "mtime": 1776974052.3679206,
+    "hash": "79bea736711adda00c49419a39a4a0b4"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/windows/runner/main.cpp": {
+    "mtime": 1776974052.3679206,
+    "hash": "f4616cd47f5c97644eded901f2dd003c"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/windows/runner/win32_window.h": {
+    "mtime": 1776974052.3679206,
+    "hash": "5a4cf051798d7e6931ee0405a4523c8f"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/windows/runner/resource.h": {
+    "mtime": 1776974052.3679206,
+    "hash": "c8f809a4f8d3f2f625e358fd90f72fee"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/windows/flutter/generated_plugin_registrant.cc": {
+    "mtime": 1776974052.3677974,
+    "hash": "3834abc4c156ac855d77a7f69dacfce0"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/windows/flutter/generated_plugin_registrant.h": {
+    "mtime": 1776974052.3677974,
+    "hash": "0ea33875f9f8e118f9c2ded03e2e2835"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/android/gradlew": {
+    "mtime": 1777478514.701457,
+    "hash": "7f1cd7eb3f75a1dc85cd37753972a6e2"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/android/settings.gradle.kts": {
+    "mtime": 1776974052.336644,
+    "hash": "094e3cafe85d4dbf756dfe0bd754c6cb"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/android/build.gradle.kts": {
+    "mtime": 1776974052.3352036,
+    "hash": "f11f360aed44d4f6871b398346af14f0"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/android/app/build.gradle.kts": {
+    "mtime": 1776974052.3340538,
+    "hash": "52323f6d1dc93fc0abbed6fbef4648bf"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java": {
+    "mtime": 1776974390.3086553,
+    "hash": "2b44b5cafcae3be0cea3b38b6f28f92b"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/android/app/src/main/kotlin/com/example/primhub/MainActivity.kt": {
+    "mtime": 1776974052.334305,
+    "hash": "e6a6fb3eae7f413772bc01e0d98b78a0"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/ios/RunnerTests/RunnerTests.swift": {
+    "mtime": 1776974052.358217,
+    "hash": "a225a382d14d7b16b6f602a5c1d49331"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/ios/Runner/GeneratedPluginRegistrant.m": {
+    "mtime": 1776974390.3193393,
+    "hash": "63483966e0a32bc71bcd07de648f2f0e"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/ios/Runner/GeneratedPluginRegistrant.h": {
+    "mtime": 1776974390.318254,
+    "hash": "decb9041b5e91a07e66f4664e5dac408"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/ios/Runner/Runner-Bridging-Header.h": {
+    "mtime": 1776974052.358217,
+    "hash": "e07862ac930ed4d8479185d52c6cc66d"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/ios/Runner/AppDelegate.swift": {
+    "mtime": 1776974052.357469,
+    "hash": "303ca46dbd58544be7b816861d70a27c"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/ios/Flutter/ephemeral/flutter_lldb_helper.py": {
+    "mtime": 1778697977.5271168,
+    "hash": "98fc75412162af387e2e3461e4e58094"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/pubspec.yaml": {
+    "mtime": 1778608746.7767448,
+    "hash": "a992fb72df7cca9150407816c32c383b"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/README.md": {
+    "mtime": 1776974052.3332477,
+    "hash": "c4dbc1cf595ab678c0cfedbb17260531"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/devtools_options.yaml": {
+    "mtime": 1776974052.336644,
+    "hash": "d1ff5187b1b67653e7357395895e8449"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/analysis_options.yaml": {
+    "mtime": 1776974052.3332477,
+    "hash": "0b45d187a63793f7f68b5fe64930e776"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/linux/CMakeLists.txt": {
+    "mtime": 1776974052.364658,
+    "hash": "ad4410816ce077c278efeaca70b1507e"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/linux/runner/CMakeLists.txt": {
+    "mtime": 1776974052.36478,
+    "hash": "6d75431dc21756981b53a7494c836311"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/linux/flutter/CMakeLists.txt": {
+    "mtime": 1776974052.364658,
+    "hash": "46690fb8ffaf7d227d8bc4713f31140d"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/web/index.html": {
+    "mtime": 1776974052.367026,
+    "hash": "45fe94e33deccffadadf3a5fc2ef3c20"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/windows/CMakeLists.txt": {
+    "mtime": 1776974052.3676805,
+    "hash": "c4e4eb94da655137e6da4dbbc71175a7"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/windows/runner/CMakeLists.txt": {
+    "mtime": 1776974052.3677974,
+    "hash": "e99a99b5cc82a168fc557eb23b8d5a96"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/windows/flutter/CMakeLists.txt": {
+    "mtime": 1776974052.3676805,
+    "hash": "0c500410e3259a9a053797dc1c28070e"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/ios/Runner/Assets.xcassets/LaunchImage.imageset/README.md": {
+    "mtime": 1776974052.3580718,
+    "hash": "e175e436acacf76c814d83532d0b662c"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_512.png": {
+    "mtime": 1777403162.5247214,
+    "hash": "0ad44039155424738917502c69667699"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_16.png": {
+    "mtime": 1777403162.5257213,
+    "hash": "8bf511604bc6ed0a6aeb380c5113fdcf"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_64.png": {
+    "mtime": 1777403162.5257213,
+    "hash": "04e7b6ef05346c70b663ca1d97de3ad5"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_1024.png": {
+    "mtime": 1777403162.5257213,
+    "hash": "c9becc9105f8cabce934d20c7bfb6aac"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_256.png": {
+    "mtime": 1777403162.5257213,
+    "hash": "dfe2c93d1536ae02f085cc63faa3430e"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_128.png": {
+    "mtime": 1777403162.5257213,
+    "hash": "3ded30823804caaa5ccc944067c54a36"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_32.png": {
+    "mtime": 1777403162.5267212,
+    "hash": "8e0ae58e362a6636bdfccbc04da2c58c"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/web/favicon.png": {
+    "mtime": 1776974052.3665564,
+    "hash": "5dcef449791fa27946b3d35ad8803796"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/web/icons/Icon-192.png": {
+    "mtime": 1776974052.3669677,
+    "hash": "ac9a721a12bbc803b44f645561ecb1e1"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/web/icons/Icon-maskable-512.png": {
+    "mtime": 1776974052.367026,
+    "hash": "301a7604d45b3e739efc881eb04896ea"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/web/icons/Icon-maskable-192.png": {
+    "mtime": 1776974052.367026,
+    "hash": "c457ef57daa1d16f64b27b786ec2ea3c"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/web/icons/LogoPrimHub.png": {
+    "mtime": 1776974052.367026,
+    "hash": "de6732beb83855ccd09cc4102577c7c9"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/web/icons/Icon-512.png": {
+    "mtime": 1776974052.367026,
+    "hash": "96e752610906ba2a93c65f8abe1645f1"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/assets/LogoPrimHub.png": {
+    "mtime": 1776974052.336644,
+    "hash": "de6732beb83855ccd09cc4102577c7c9"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/android/app/src/main/res/mipmap-mdpi/ic_launcher.png": {
+    "mtime": 1776974052.334418,
+    "hash": "de6732beb83855ccd09cc4102577c7c9"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png": {
+    "mtime": 1776974052.3352036,
+    "hash": "de6732beb83855ccd09cc4102577c7c9"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/android/app/src/main/res/mipmap-xhdpi/ic_launcher.png": {
+    "mtime": 1776974052.334418,
+    "hash": "de6732beb83855ccd09cc4102577c7c9"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/android/app/src/main/res/mipmap-hdpi/ic_launcher.png": {
+    "mtime": 1776974052.334418,
+    "hash": "de6732beb83855ccd09cc4102577c7c9"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png": {
+    "mtime": 1776974052.3352036,
+    "hash": "de6732beb83855ccd09cc4102577c7c9"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/ios/Runner/Assets.xcassets/LaunchImage.imageset/LaunchImage@2x.png": {
+    "mtime": 1776974052.3580718,
+    "hash": "978c1bee49d7ad5fc1a4d81099b13e18"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/ios/Runner/Assets.xcassets/LaunchImage.imageset/LaunchImage.png": {
+    "mtime": 1776974052.3580718,
+    "hash": "978c1bee49d7ad5fc1a4d81099b13e18"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/ios/Runner/Assets.xcassets/LaunchImage.imageset/LaunchImage@3x.png": {
+    "mtime": 1776974052.3580718,
+    "hash": "978c1bee49d7ad5fc1a4d81099b13e18"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-40x40@3x.png": {
+    "mtime": 1776974052.3576317,
+    "hash": "5b3c0902200ce596e9848f22e1f0fe0e"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-40x40@2x.png": {
+    "mtime": 1776974052.3576317,
+    "hash": "8245359312aea1b0d2412f79a07b0ca5"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-76x76@1x.png": {
+    "mtime": 1776974052.3576317,
+    "hash": "36c0d7a7132bdde18898ffdfcfcdc4d2"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-29x29@1x.png": {
+    "mtime": 1776974052.3576317,
+    "hash": "be8887071dd7ec39cb754d236aa9584f"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-20x20@3x.png": {
+    "mtime": 1776974052.3576317,
+    "hash": "1b3b1538136316263c7092951e923e9d"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-20x20@2x.png": {
+    "mtime": 1776974052.3576317,
+    "hash": "2247a840b6ee72b8a069208af170e5b1"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-83.5x83.5@2x.png": {
+    "mtime": 1776974052.3576317,
+    "hash": "665cb5e3c5729da6d639d26eff47a503"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-1024x1024@1x.png": {
+    "mtime": 1776974052.3576317,
+    "hash": "c785f8932297af4acd5f5ccb7630f01c"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-60x60@3x.png": {
+    "mtime": 1776974052.3576317,
+    "hash": "e419d22a37bc40ba185aca1acb6d4ac6"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-76x76@2x.png": {
+    "mtime": 1776974052.3576317,
+    "hash": "643842917530acf4c5159ae851b0baf2"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-29x29@2x.png": {
+    "mtime": 1776974052.3576317,
+    "hash": "043119ef4faa026ff82bd03f241e5338"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-60x60@2x.png": {
+    "mtime": 1776974052.3576317,
+    "hash": "5b3c0902200ce596e9848f22e1f0fe0e"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-40x40@1x.png": {
+    "mtime": 1776974052.3576317,
+    "hash": "2247a840b6ee72b8a069208af170e5b1"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-20x20@1x.png": {
+    "mtime": 1776974052.3576317,
+    "hash": "a2f8558fb1d42514111fbbb19fb67314"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-29x29@3x.png": {
+    "mtime": 1776974052.3576317,
+    "hash": "2b1452c4c1bda6177b4fbbb832df217f"
+  }
+}
