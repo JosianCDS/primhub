@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:primhub/ui/pages/Metrics/custom_chart.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/ui/Shared_Custom/custom_container.dart';
+import 'package:primhub/ui/widgets/project_sidebar.dart';
 import '../../../theme/colors.dart';
 import '../../widgets/custom_drawer.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
@@ -1019,7 +1020,7 @@ class _MetricsPageState extends State<MetricsPage> {
           ),
           if (!AccessControl.isAdmin)
             IconButton(
-              icon: const Icon(Icons.logout, color: Colors.red),
+              icon: const Icon(Icons.logout_rounded, color: Colors.red),
               tooltip: 'Cerrar Sesión',
               onPressed: () => showLogoutConfirmation(context),
             ),
@@ -1028,73 +1029,84 @@ class _MetricsPageState extends State<MetricsPage> {
       drawer: AccessControl.isAdmin
           ? const CustomDrawer(currentRoute: '/metrics')
           : null,
-      bottomNavigationBar: !AccessControl.isAdmin
+      bottomNavigationBar:
+          (MediaQuery.of(context).size.width < 900 && !AccessControl.isAdmin)
           ? const ProjectBottomNav(currentRoute: '/metrics')
           : null,
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            // --- SECCIÓN PROYECTOS ---
-            if (AccessControl.canViewProjectCharts) ...[
-              _buildSectionHeader(
-                context,
-                'Métricas de Proyecto',
-                Icons.insights_rounded,
+      body: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (MediaQuery.of(context).size.width >= 900 &&
+              !AccessControl.isAdmin)
+            const ProjectSideBar(currentRoute: '/metrics'),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                children: [
+                  // --- SECCIÓN PROYECTOS ---
+                  if (AccessControl.canViewProjectCharts) ...[
+                    _buildSectionHeader(
+                      context,
+                      'Métricas de Proyecto',
+                      Icons.insights_rounded,
+                    ),
+                    _buildControlCenterContainer(
+                      context,
+                      child: _buildProjectFilters(),
+                    ),
+                    const SizedBox(height: 24),
+
+                    if (_selectedProjectId == null)
+                      _buildWaitingForSelection(
+                        context,
+                        'Seleccione un proyecto para visualizar sus indicadores',
+                      )
+                    else if (_isLoading)
+                      _buildSkeletonGrid()
+                    else ...[
+                      _buildProjectKPIRow(context),
+                      const SizedBox(height: 24),
+                      _buildDashboardGrid(isLargeScreen),
+                    ],
+                  ],
+
+                  if (AccessControl.canViewProjectCharts &&
+                      AccessControl.canViewSupportCharts)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 32),
+                      child: Divider(thickness: 1.5, color: Colors.black12),
+                    ),
+
+                  // --- SECCIÓN SOPORTE ---
+                  if (AccessControl.canViewSupportCharts) ...[
+                    _buildSectionHeader(
+                      context,
+                      'Métricas de Soporte',
+                      Icons.support_agent_rounded,
+                    ),
+                    _buildControlCenterContainer(
+                      context,
+                      child: _buildSupportFilters(),
+                    ),
+                    const SizedBox(height: 24),
+
+                    if (!_isLoadingSupport) _buildSupportKPIRow(context),
+                    const SizedBox(height: 24),
+
+                    _isLoadingSupport
+                        ? _buildSkeletonGrid()
+                        : _buildSupportDashboardGrid(isLargeScreen),
+                  ],
+
+                  if (!AccessControl.canViewProjectCharts &&
+                      !AccessControl.canViewSupportCharts)
+                    _buildNoDataView(context),
+                ],
               ),
-              _buildControlCenterContainer(
-                context,
-                child: _buildProjectFilters(),
-              ),
-              const SizedBox(height: 24),
-
-              if (_selectedProjectId == null)
-                _buildWaitingForSelection(
-                  context,
-                  'Seleccione un proyecto para visualizar sus indicadores',
-                )
-              else if (_isLoading)
-                _buildSkeletonGrid()
-              else ...[
-                _buildProjectKPIRow(context),
-                const SizedBox(height: 24),
-                _buildDashboardGrid(isLargeScreen),
-              ],
-            ],
-
-            if (AccessControl.canViewProjectCharts &&
-                AccessControl.canViewSupportCharts)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 32),
-                child: Divider(thickness: 1.5, color: Colors.black12),
-              ),
-
-            // --- SECCIÓN SOPORTE ---
-            if (AccessControl.canViewSupportCharts) ...[
-              _buildSectionHeader(
-                context,
-                'Métricas de Soporte',
-                Icons.support_agent_rounded,
-              ),
-              _buildControlCenterContainer(
-                context,
-                child: _buildSupportFilters(),
-              ),
-              const SizedBox(height: 24),
-
-              if (!_isLoadingSupport) _buildSupportKPIRow(context),
-              const SizedBox(height: 24),
-
-              _isLoadingSupport
-                  ? _buildSkeletonGrid()
-                  : _buildSupportDashboardGrid(isLargeScreen),
-            ],
-
-            if (!AccessControl.canViewProjectCharts &&
-                !AccessControl.canViewSupportCharts)
-              _buildNoDataView(context),
-          ],
-        ),
+            ),
+          ),
+        ],
       ),
     );
   }

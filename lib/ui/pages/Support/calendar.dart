@@ -300,7 +300,7 @@ class _CalendarContentState extends State<CalendarContent> {
               _buildLegendItem(Colors.red.shade700, 'Alta'),
               _buildLegendItem(Colors.orange.shade800, 'Media'),
               _buildLegendItem(Colors.blue.shade700, 'Baja'),
-              _buildLegendItem(Colors.teal.shade600, 'Menor'),
+              _buildLegendItem(Colors.teal.shade600, 'Muy baja'),
             ],
           ),
         ),
@@ -416,7 +416,7 @@ class _CalendarContentState extends State<CalendarContent> {
       case 'Alta': return Colors.red.shade700;
       case 'Media': return Colors.orange.shade800;
       case 'Baja': return Colors.blue.shade700;
-      case 'Menor': return Colors.teal.shade600;
+      case 'Muy baja': return Colors.teal.shade600;
       default: return Colors.blueGrey;
     }
   }

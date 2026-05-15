@@ -98,6 +98,7 @@ class _ProjectRequestsViewState extends State<ProjectRequestsView> {
           project['C_ProjectTask'] as List? ?? [],
         );
 
+        // 1.1 Procesar tareas de las fases
         for (var phase in phases) {
           final phaseName = phase['Name'] ?? 'Fase';
           final phaseIdStr = phase['id']?.toString();
@@ -132,13 +133,15 @@ class _ProjectRequestsViewState extends State<ProjectRequestsView> {
             }
           }
         }
+
+        // 1.2 Procesar tareas directas del proyecto
         for (var task in directTasks) {
           final taskName = task['Name'] ?? 'Tarea';
           final taskIdStr = task['id']?.toString();
           if (taskIdStr != null) {
             taskUUIDs.add(taskIdStr.toLowerCase());
             taskIdToTaskName[taskIdStr] = taskName;
-            taskIdToPhaseName[taskIdStr] = '-';
+            taskIdToPhaseName[taskIdStr] = 'General / Proyecto';
           }
           final uuidList = [
             task['C_ProjectTask_UU'],
@@ -152,7 +155,7 @@ class _ProjectRequestsViewState extends State<ProjectRequestsView> {
               final uStr = uu.toString().toLowerCase();
               taskUUIDs.add(uStr);
               uuidToTaskName[uStr] = taskName;
-              uuidToPhaseName[uStr] = '-';
+              uuidToPhaseName[uStr] = 'General / Proyecto';
             }
           }
         }
@@ -273,33 +276,62 @@ class _ProjectRequestsViewState extends State<ProjectRequestsView> {
     if (resetPage) _currentSkip = 0;
     
     final filtered = _allProjectRequests.where((req) {
-      if (_filters.types.isNotEmpty && !_filters.types.contains(req['type']))
-        return false;
-      if (_filters.statuses.isNotEmpty && !_filters.statuses.contains(req['status']))
-        return false;
-      if (_filters.levels.isNotEmpty && !_filters.levels.contains(req['level']))
-        return false;
-      if (_filters.phases.isNotEmpty && !_filters.phases.contains(req['phaseName']))
-        return false;
-      if (_filters.tasks.isNotEmpty && !_filters.tasks.contains(req['taskName']))
-        return false;
-      if (_filters.categories.isNotEmpty && !_filters.categories.contains(req['category']))
-        return false;
-      if (_filters.salesRepIds.isNotEmpty &&
-          !_filters.salesRepIds.contains(req['salesRepId']))
-        return false;
-      if (_filters.userIds.isNotEmpty &&
-          !_filters.userIds.contains(req['userId']))
-        return false;
+      bool match = true;
 
-      if (_searchController.text.isNotEmpty) {
-        final search = _searchController.text.toLowerCase();
-        return req['id'].toString().toLowerCase().contains(search) ||
-            (req['descriptionClean'] ?? '').toString().toLowerCase().contains(
-              search,
-            );
+      if (_filters.types.isNotEmpty) {
+        bool m = _filters.types.contains(req['type']);
+        if (!m) match = false;
+        debugPrint("DEBUG FILTER [Tipo]: Filter: ${_filters.types}, Value: ${req['type']} -> Match: $m");
       }
-      return true;
+      if (match && _filters.statuses.isNotEmpty) {
+        bool m = _filters.statuses.contains(req['status']);
+        if (!m) match = false;
+        debugPrint("DEBUG FILTER [Estado]: Filter: ${_filters.statuses}, Value: ${req['status']} -> Match: $m");
+      }
+      if (match && _filters.levels.isNotEmpty) {
+        String val = (req['level']?.toString().trim() ?? 'N/A').toLowerCase();
+        bool m = _filters.levels.any((f) => f.toLowerCase().trim() == val);
+        if (!m) match = false;
+        debugPrint("DEBUG FILTER [Prioridad]: Filter: ${_filters.levels}, Value: '$val' -> Match: $m");
+      }
+      if (match && _filters.phases.isNotEmpty) {
+        String val = (req['phaseName']?.toString().trim() ?? '-').toLowerCase();
+        bool m = _filters.phases.any((f) => f.toLowerCase().trim() == val);
+        if (!m) match = false;
+        debugPrint("DEBUG FILTER [Fase]: Filter: ${_filters.phases}, Value: '$val' -> Match: $m");
+      }
+      if (match && _filters.tasks.isNotEmpty) {
+        String val = (req['taskName']?.toString().trim() ?? '').toLowerCase();
+        bool m = _filters.tasks.any((f) => f.toLowerCase().trim() == val);
+        if (!m) match = false;
+        debugPrint("DEBUG FILTER [Tarea]: Filter: ${_filters.tasks}, Value: '$val' -> Match: $m");
+      }
+      if (match && _filters.categories.isNotEmpty) {
+        String val = (req['category']?.toString().trim() ?? 'Sin categoría').toLowerCase();
+        bool m = _filters.categories.any((f) => f.toLowerCase().trim() == val);
+        if (!m) match = false;
+        debugPrint("DEBUG FILTER [Categoría]: Filter: ${_filters.categories}, Value: '$val' -> Match: $m");
+      }
+      if (match && _filters.salesRepIds.isNotEmpty) {
+        bool m = _filters.salesRepIds.contains(req['salesRepId']);
+        if (!m) match = false;
+        debugPrint("DEBUG FILTER [RepCom]: Filter: ${_filters.salesRepIds}, Value: ${req['salesRepId']} -> Match: $m");
+      }
+      if (match && _filters.userIds.isNotEmpty) {
+        bool m = _filters.userIds.contains(req['userId']);
+        if (!m) match = false;
+        debugPrint("DEBUG FILTER [Usuario]: Filter: ${_filters.userIds}, Value: ${req['userId']} -> Match: $m");
+      }
+
+      if (match && _searchController.text.isNotEmpty) {
+        final search = _searchController.text.toLowerCase();
+        bool m = req['id'].toString().toLowerCase().contains(search) ||
+            (req['descriptionClean'] ?? '').toString().toLowerCase().contains(search);
+        if (!m) match = false;
+        debugPrint("DEBUG FILTER [Búsqueda]: Query: '$search' -> Match: $m");
+      }
+
+      return match;
     }).toList();
 
     _totalRecords = filtered.length;
@@ -435,12 +467,33 @@ class _ProjectRequestsViewState extends State<ProjectRequestsView> {
   int get _activeFilterCount => _filters.activeFilterCount;
 
   Future<void> _showFilterModal() async {
+    debugPrint("MODAL ALL REQUESTS LENGTH: ${_allProjectRequests.length}");
     final phases = _allProjectRequests
-        .map((e) => e['phaseName'].toString())
+        .map((e) => e['phaseName']?.toString().trim() ?? '-')
         .where((e) => e != '-' && e != 'null' && e.isNotEmpty)
         .toSet()
         .toList()
       ..sort();
+
+    // Obtener el Tercero del proyecto para filtrar usuarios
+    final project = GlobalCache.projects.firstWhere(
+      (p) => p['id']?.toString() == widget.projectId?.toString(),
+      orElse: () => <String, dynamic>{},
+    );
+    
+    final int? projectBpId = project['C_BPartner_ID'] is Map 
+        ? (project['C_BPartner_ID']['id'] as num?)?.toInt()
+        : (project['C_BPartner_ID'] is num ? (project['C_BPartner_ID'] as num).toInt() : null);
+
+    final filteredUsers = projectBpId != null 
+        ? _users.where((u) {
+            final userBpData = u['C_BPartner_ID'];
+            final userBpId = (userBpData is Map)
+                ? (userBpData['id'] as num?)?.toInt()
+                : (userBpData is num ? (userBpData as num).toInt() : null);
+            return userBpId == projectBpId;
+          }).toList()
+        : _users;
 
     final result = await showDialog<ProjectRequestFilterModel>(
       context: context,
@@ -449,7 +502,7 @@ class _ProjectRequestsViewState extends State<ProjectRequestsView> {
           initialFilter: _filters,
           availablePhases: phases,
           allProjectRequests: _allProjectRequests,
-          users: _users,
+          users: filteredUsers,
           statusIdMap: _statusIdMap,
         );
       },

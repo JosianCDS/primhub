@@ -108,16 +108,26 @@ class HomeController extends ChangeNotifier {
       }
 
       await loadValidationData();
-      if (AccessControl.isAdmin) {
+      
+      final bool isAdmin = AccessControl.isAdmin;
+      final bool isSupport = AccessControl.isSupport;
+      final bool isProject = AccessControl.isProject;
+
+      if (isAdmin) {
         await loadSupportBPartners();
       }
-      await loadDocumentStats();
+
+      if (isAdmin || isProject) {
+        await loadDocumentStats();
+      }
 
       validationLoading = false;
       notifyListeners();
       
-      await loadRecentRequests();
-      await loadSupportProductChips();
+      if (isAdmin || isSupport) {
+        await loadRecentRequests();
+        await loadSupportProductChips();
+      }
       notifyListeners();
 
     } catch (e) {

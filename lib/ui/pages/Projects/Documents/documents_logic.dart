@@ -570,7 +570,7 @@ class ProjectsLogic {
   ) async {
     if (taskUU == null || taskUU.isEmpty) return [];
     try {
-      final url = '${Endpoint.request}?\$filter=Record_UU eq \'$taskUU\'';
+      final url = '${Endpoint.request}?\$filter=Record_UU eq \'$taskUU\'&\$expand=R_Status_ID,R_RequestType_ID,R_Category_ID,Priority';
       var response = await http.get(
         Uri.parse(url),
         headers: {

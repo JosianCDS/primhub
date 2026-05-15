@@ -24,6 +24,7 @@ class GlobalCache {
   static List<Map<String, dynamic>> salesReps = [];
   static Map<String, int> requestTypes = {};
   static Map<String, int> categories = {};
+  static List<Map<String, dynamic>> rawCategories = [];
   static Map<String, int> groups = {};
   
   // Caché de solicitudes por proyecto para carga "mixta"
@@ -44,20 +45,50 @@ class GlobalCache {
   static Future<void> _loadPhase1_EssentialData() async {
     debugPrint("CACHE: Iniciando Fase 1 - Datos esenciales para el Home.");
 
+    final bool isAdmin = AccessControl.isAdmin;
+    final bool isSupport = AccessControl.isRealSupport;
+    final bool isProject = AccessControl.isRealProject;
+
+    final List<Future<dynamic>> fetchFutures = [
+      fetchStatusesWithMetadata(), // 0
+      fetchRequestTypes(), // 1
+      fetchCategories(), // 2
+      fetchGroups(), // 3
+      ProjectsLogic().fetchUsers(), // 4
+      ProjectsLogic().fetchSalesReps(), // 5
+    ];
+
+    // Índices para referenciar después
+    int projectsIdx = -1;
+    int supportPartnersIdx = -1;
+    int supportChipsIdx = -1;
+    int bpWithChipsIdx = -1;
+    int adminCompanyIdx = -1;
+
+    if (isAdmin || isProject) {
+      projectsIdx = fetchFutures.length;
+      fetchFutures.add(ProjectsLogic().fetchProjects(isViewingMine: false, showInactive: true));
+    }
+
+    if (isAdmin || isSupport) {
+      supportPartnersIdx = fetchFutures.length;
+      fetchFutures.add(ProjectsLogic().fetchSupportPartners());
+      
+      supportChipsIdx = fetchFutures.length;
+      fetchFutures.add(ContractApi.getSupportProductChips());
+      
+      bpWithChipsIdx = fetchFutures.length;
+      fetchFutures.add(ContractApi.getBPartnersWithProductChips());
+    }
+
+    if (isAdmin) {
+      adminCompanyIdx = fetchFutures.length;
+      fetchFutures.add(_fetchAdminCompany());
+    }
+
     final List<dynamic> futures;
     try {
-      futures = await Future.wait([
-        fetchStatusesWithMetadata(),
-        ProjectsLogic().fetchSupportPartners(),
-        ProjectsLogic().fetchUsers(),
-        ProjectsLogic().fetchProjects(isViewingMine: false, showInactive: true),
-        ContractApi.getSupportProductChips(),
-        fetchRequestTypes(),
-        fetchCategories(),
-        fetchGroups(),
-        ProjectsLogic().fetchSalesReps(),
-        ContractApi.getBPartnersWithProductChips(),
-      ]);
+      futures = await Future.wait(fetchFutures);
     } catch (e, stack) {
       debugPrint("DEBUG CACHE ERROR: Error en Future.wait de Fase 1: $e");
       debugPrint(stack.toString());
@@ -65,16 +96,24 @@ class GlobalCache {
     }
 
     final statusData = futures[0] as Map<String, dynamic>;
-    debugPrint("DEBUG CACHE: Future.wait terminó. Iniciando procesamiento de ${futures.length} respuestas.");
     statuses = statusData['nameToId'] as Map<String, int>;
     statusIsClosedMap = statusData['idToIsClosed'] as Map<int, bool>;
-    final List<Map<String, dynamic>> supportPartners = (futures[1] as List<dynamic>)
-        .map((e) => Map<String, dynamic>.from(e))
-        .toList();
+    
+    requestTypes = futures[1] as Map<String, int>;
+    
+    final catList = futures[2] as List<Map<String, dynamic>>;
+    rawCategories = catList;
+    categories = {for (var c in catList) c['Name'].toString().trim(): c['id'] as int};
+
+    groups = futures[3] as Map<String, int>;
+
+    final List<Map<String, dynamic>> supportPartners = supportPartnersIdx != -1 
+        ? (futures[supportPartnersIdx] as List<dynamic>).map((e) => Map<String, dynamic>.from(e)).toList()
+        : [];
         
-    final List<Map<String, dynamic>> partnersWithChips = (futures[9] as List<dynamic>)
-        .map((e) => Map<String, dynamic>.from(e))
-        .toList();
+    final List<Map<String, dynamic>> partnersWithChips = bpWithChipsIdx != -1 
+        ? (futures[bpWithChipsIdx] as List<dynamic>).map((e) => Map<String, dynamic>.from(e)).toList()
+        : [];
 
     // Unimos ambas listas sin duplicados
     final Map<int, Map<String, dynamic>> mergedMap = {};
@@ -89,12 +128,22 @@ class GlobalCache {
       }
     }
 
+    if (adminCompanyIdx != -1) {
+      final adminCompany = futures[adminCompanyIdx] as Map<String, dynamic>?;
+      if (adminCompany != null) {
+        final id = (adminCompany['id'] as num?)?.toInt();
+        if (id != null && !mergedMap.containsKey(id)) {
+          mergedMap[id] = adminCompany;
+        }
+      }
+    }
+
     bPartners = mergedMap.values.toList()..sort((a, b) => (a['Name'] ?? '').compareTo(b['Name'] ?? ''));
     _rawBPartners = bPartners;
     
     debugPrint("CACHE: Phase 1 BPartners Loaded (Support + With Chips): ${bPartners.length}");
 
-    final rawUsers = futures[2] as List<dynamic>;
+    final rawUsers = futures[4] as List<dynamic>;
     debugPrint("CACHE: Recibidos ${rawUsers.length} Usuarios raw.");
     
     final allProcessedUsers = rawUsers.map((u) {
@@ -110,13 +159,19 @@ class GlobalCache {
       final uBpId = (uBpData is Map)
           ? (uBpData['id'] as num?)?.toInt()
           : (uBpData is num ? uBpData.toInt() : null);
+      
+      // Si no es admin, filtramos solo los usuarios de su propio BPartner
+      if (!isAdmin && User.cBPartnerID != null) {
+        return uBpId == User.cBPartnerID;
+      }
+      
       return uBpId != null && customerBpIds.contains(uBpId);
     }).toList();
     
     debugPrint("CACHE: Phase 1 Users Filtered (Customers Only): ${users.length}");
 
     // Mapeo de Representantes Comerciales (desde la nueva consulta dedicada)
-    final rawSalesReps = (futures[8] as List<dynamic>)
+    final rawSalesReps = (futures[5] as List<dynamic>)
         .map((e) {
           if (e is! Map) return <String, dynamic>{};
           final bp = Map<String, dynamic>.from(e);
@@ -135,10 +190,8 @@ class GlobalCache {
           ? (userBpData['id'] as num?)?.toInt()
           : (userBpData is num ? userBpData.toInt() : null);
       
-      // 1. Coincidencia estricta por ID de BPartner (El más fiable ahora que la consulta es precisa)
       final isRepById = userBpId != null && repBpIds.contains(userBpId);
       
-      // 2. Flag de Representante en el propio Usuario (Como refuerzo)
       final rawIsRep = user['IsSalesRep'] ?? user['isSalesRep'];
       final isRepStr = rawIsRep?.toString().trim().toLowerCase();
       bool userIsRep = isRepStr == 'true' || isRepStr == 'y';
@@ -146,21 +199,22 @@ class GlobalCache {
       return isRepById || userIsRep;
     }).toList();
 
-    // Si aún así la lista de representantes está vacía por falta de datos, usamos todos los usuarios como fallback temporal
     if (salesReps.isEmpty && users.isNotEmpty) {
       salesReps = List.from(users);
     }
 
-    projects = futures[3] as List<dynamic>;
-    productChips = futures[4] as List<Map<String, dynamic>>;
-    requestTypes = futures[5] as Map<String, int>;
-    categories = futures[6] as Map<String, int>;
-    groups = futures[7] as Map<String, int>;
+    projects = projectsIdx != -1 ? futures[projectsIdx] as List<dynamic> : [];
+    productChips = supportChipsIdx != -1 ? futures[supportChipsIdx] as List<Map<String, dynamic>> : [];
 
-    // 5 Solicitudes más recientes para el Home
+    // Solicitudes iniciales filtradas por rol
     String? initialFilter;
-    if (!AccessControl.isAdmin && User.cBPartnerID != null) {
+    if (!isAdmin && User.cBPartnerID != null) {
       initialFilter = "C_BPartner_ID eq ${User.cBPartnerID}";
+      if (isProject) {
+        initialFilter += " and C_Project_ID ne null";
+      } else if (isSupport) {
+        initialFilter += " and C_Project_ID eq null";
+      }
     }
 
     final initialRequests = await fetchRequest(
@@ -219,10 +273,25 @@ class GlobalCache {
   static Future<void> _loadPhase2_HistoricalData() async {
     try {
       final currentYear = DateTime.now().year;
-      // Cargar los últimos 5 años de forma gradual
+      final bool isAdmin = AccessControl.isAdmin;
+      final bool isProject = AccessControl.isRealProject;
+      final bool isSupport = AccessControl.isRealSupport;
+
       for (var year = currentYear; year >= currentYear - 5; year--) {
         String filter = "Created ge '$year-01-01T00:00:00Z' and Created le '$year-12-31T23:59:59Z'";
         
+        // Optimización por Rol: Solo traer lo que le compete al usuario
+        if (!isAdmin) {
+          if (User.cBPartnerID != null) {
+            filter += " and C_BPartner_ID eq ${User.cBPartnerID}";
+          }
+          if (isProject) {
+            filter += " and C_Project_ID ne null";
+          } else if (isSupport) {
+            filter += " and C_Project_ID eq null";
+          }
+        }
+
         final yearReqs = await fetchRequest(
           filter: filter,
           expand: 'C_Order_ID(\$select=DocumentNo)',
@@ -302,6 +371,11 @@ class GlobalCache {
       String? reqFilter;
       if (!AccessControl.isAdmin && User.cBPartnerID != null) {
         reqFilter = "C_BPartner_ID eq ${User.cBPartnerID}";
+        if (AccessControl.isRealProject) {
+          reqFilter += " and C_Project_ID ne null";
+        } else if (AccessControl.isRealSupport) {
+          reqFilter += " and C_Project_ID eq null";
+        }
       }
       final reqUri = Uri.parse(
         '${Endpoint.request}?\$top=1&\$orderby=Updated desc${reqFilter != null ? '&\$filter=$reqFilter' : ''}',
@@ -437,5 +511,26 @@ class GlobalCache {
     }
     
     projectRequestsCache[projectId] = map.values.toList();
+  }
+
+  static Future<Map<String, dynamic>?> _fetchAdminCompany() async {
+    try {
+      final url = "${Endpoint.cBPartner}?\$filter=C_BPartner_UU eq 'e4e48cad-f8f8-4f61-954c-60f431bd5d95'";
+      final response = await http.get(Uri.parse(url), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+      if (response.statusCode == 200) {
+        final decoded = json.decode(utf8.decode(response.bodyBytes));
+        final records = decoded['records'] as List;
+        if (records.isNotEmpty) {
+          final bp = records.first;
+          return {
+            'id': bp['id'],
+            'Name': bp['identifier'] ?? bp['Name'] ?? 'Empresa Administradora'
+          };
+        }
+      }
+    } catch (e) {
+      debugPrint("Error fetching admin company: $e");
+    }
+    return null;
   }
 }

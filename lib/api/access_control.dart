@@ -7,30 +7,51 @@ class AccessControl {
   static int? get cBPartnerID => User.cBPartnerID;
   static int? get userID => User.userID;
 
-  static const List<int> supportRoles = [1000046];
-  static const List<int> projectRoles = [1000047];
-  static const List<int> adminRoles = [1000034, 1000032, 1000044, 1000033, 1000045, 1000048];
+  // Listas de UUIDs oficiales para cada rol
+  static const List<String> adminUUIDs = [
+    '7540bc88-7f9c-4a42-b755-28a6129f00b3',
+    'cb3e6b57-0114-4e35-a147-71c51140823b'
+  ];
+  static const List<String> projectUUIDs = [
+    '03d91fb2-5427-4788-b2ca-1beeb16f7b09',
+    '1ccc4784-8228-40f4-80ba-0dd6f0e65bc9'
+  ];
+  static const List<String> supportUUIDs = [
+    '2d24dcaf-d652-4acf-8e61-87e4294b266f',
+    '068df55c-f80b-4d88-88c8-ad9a80af19c8'
+  ];
 
-  static const List<int> adminConfigIds = [1000004, 1000011];
-  static const List<int> supportConfigIds = [1000003, 1000013];
-  static const List<int> projectConfigIds = [1000005, 1000012];
-
-  // Verifica si el rol está configurado en el código fuente (útil para el login)
+  // Verifica si el rol tiene configuración válida (usado en Login)
   static bool hasHardcodedRole(int? roleId) {
-    if (roleId == null) return false;
-    return adminRoles.contains(roleId) || supportRoles.contains(roleId) || projectRoles.contains(roleId);
+    // Verificación estricta por UUID
+    if (Token.roleUU != null) {
+      if (adminUUIDs.contains(Token.roleUU)) return true;
+      if (supportUUIDs.contains(Token.roleUU)) return true;
+      if (projectUUIDs.contains(Token.roleUU)) return true;
+    }
+    return false;
   }
 
-  static bool get hasAnyConfig => Token.primConfig != null || Token.primConfigId != null;
+  static bool get hasAnyConfig => Token.primConfig != null;
 
-  static bool get _hasAdminConfig => Token.primConfig?.toLowerCase() == 'ad' || (Token.primConfigId != null && adminConfigIds.contains(Token.primConfigId));
-  static bool get _hasSupportConfig => Token.primConfig?.toLowerCase() == 'sp' || (Token.primConfigId != null && supportConfigIds.contains(Token.primConfigId));
-  static bool get _hasProjectConfig => Token.primConfig?.toLowerCase() == 'py' || (Token.primConfigId != null && projectConfigIds.contains(Token.primConfigId));
+  static bool get _hasAdminConfig => Token.primConfig?.toLowerCase() == 'ad';
+  static bool get _hasSupportConfig => Token.primConfig?.toLowerCase() == 'sp';
+  static bool get _hasProjectConfig => Token.primConfig?.toLowerCase() == 'py';
 
-  // Roles reales basados en la configuración del Token
-  static bool get isRealAdmin => _hasAdminConfig || (Token.rol != null && adminRoles.contains(Token.rol));
-  static bool get isRealSupport => (!isRealAdmin && _hasSupportConfig) || (Token.rol != null && supportRoles.contains(Token.rol));
-  static bool get isRealProject => (!isRealAdmin && _hasProjectConfig) || (Token.rol != null && projectRoles.contains(Token.rol));
+  // Roles reales basados PRINCIPALMENTE en UUID y nivel de configuración
+  static bool get isRealAdmin => 
+    (Token.roleUU != null && adminUUIDs.contains(Token.roleUU)) ||
+    _hasAdminConfig;
+
+  static bool get isRealSupport => !isRealAdmin && (
+    (Token.roleUU != null && supportUUIDs.contains(Token.roleUU)) ||
+    _hasSupportConfig
+  );
+
+  static bool get isRealProject => !isRealAdmin && (
+    (Token.roleUU != null && projectUUIDs.contains(Token.roleUU)) ||
+    _hasProjectConfig
+  );
 
   static bool get isAdmin => isRealAdmin;
 

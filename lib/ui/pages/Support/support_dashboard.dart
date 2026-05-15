@@ -50,7 +50,8 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
   Map<String, int> _statusIdMap = {};
   int? _selectedBpId;
   List<Map<String, dynamic>> _productChips = []; // Fichas crudas del API
-  List<Map<String, dynamic>> _allRequests = []; // Todas las solicitudes procesadas
+  List<Map<String, dynamic>> _allRequests =
+      []; // Todas las solicitudes procesadas
   int? _selectedSummaryChipId; // Chip seleccionado para el resumen superior
   final _adminViewModeManager = AdminViewModeManager();
 
@@ -193,12 +194,14 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
       if (mounted) setState(() => _productChips = []);
       return;
     }
-    
+
     // Usamos GlobalCache para ser consistentes con el Home
     final fetchedChips = GlobalCache.productChips.where((chip) {
       final rawBp = chip['C_BPartner_ID'];
-      final chipBpId = rawBp is Map ? (rawBp['id'] as num?)?.toInt() : (rawBp as num?)?.toInt();
-      
+      final chipBpId = rawBp is Map
+          ? (rawBp['id'] as num?)?.toInt()
+          : (rawBp as num?)?.toInt();
+
       final isActive = chip['IsActive'] == 'Y' || chip['IsActive'] == true;
       return chipBpId == _selectedBpId && isActive;
     }).toList();
@@ -229,9 +232,9 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
 
     filter = conditions.join(" and ");
 
-    // Filtramos solo solicitudes que no sean de proyecto (Record_UU null)
-    // Eliminamos el filtro por R_RequestType_ID 1000006 para incluir todos los tipos de soporte (ej. RFQ)
-    final String supportFilter = "(Record_UU eq null)";
+    // Filtramos solo solicitudes que no sean de proyecto
+    // Priorizamos C_Project_ID eq null y mantenemos Record_UU eq null como refuerzo
+    final String supportFilter = "(C_Project_ID eq null and Record_UU eq null)";
     filter = filter.isNotEmpty ? "$filter and $supportFilter" : supportFilter;
 
     final rawRequests = await fetchRequest(
@@ -243,20 +246,26 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
     final allRequests = processedData['requests'] as List<Map<String, dynamic>>;
 
     final archivedId = _statusIdMap.entries
-        .firstWhere((e) => e.key.toLowerCase().contains('archivada'), orElse: () => const MapEntry('', 0))
+        .firstWhere(
+          (e) => e.key.toLowerCase().contains('archivada'),
+          orElse: () => const MapEntry('', 0),
+        )
         .value;
 
-    final List<Map<String, dynamic>> closedRequests = allRequests.where((req) => req['isClosed'] == true).toList();
-    final List<Map<String, dynamic>> inProgressRequests = allRequests.where((req) => req['isClosed'] != true).toList();
+    final List<Map<String, dynamic>> closedRequests = allRequests
+        .where((req) => req['isClosed'] == true)
+        .toList();
+    final List<Map<String, dynamic>> inProgressRequests = allRequests
+        .where((req) => req['isClosed'] != true)
+        .toList();
 
     final searchedRequests = closedRequests.where((req) {
       if (_searchController.text.isNotEmpty) {
         final search = _searchController.text.toLowerCase();
         return req['id'].toString().toLowerCase().contains(search) ||
-            (req['descriptionClean'] ?? '')
-                .toString()
-                .toLowerCase()
-                .contains(search);
+            (req['descriptionClean'] ?? '').toString().toLowerCase().contains(
+              search,
+            );
       }
       return true;
     }).toList();
@@ -265,8 +274,10 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
       setState(() {
         _supportRecords = searchedRequests;
         _allRequests = allRequests;
-        _totalConsumedHours = (processedData['consumedHours'] as num?)?.toDouble() ?? 0.0;
-        _inProgressHours = (processedData['inProgressHours'] as num?)?.toDouble() ?? 0.0;
+        _totalConsumedHours =
+            (processedData['consumedHours'] as num?)?.toDouble() ?? 0.0;
+        _inProgressHours =
+            (processedData['inProgressHours'] as num?)?.toDouble() ?? 0.0;
         _inProgressRequestsCount = inProgressRequests.length;
         _completedRequestsCount = closedRequests.length;
       });
@@ -311,8 +322,14 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
       }
 
       // El total consumido global ahora es la suma de los consumos vinculados
-      double totalConsumedLinked = chipConsumedMap.values.fold(0.0, (a, b) => a + b);
-      double totalEstimatedLinked = chipEstimatedMap.values.fold(0.0, (a, b) => a + b);
+      double totalConsumedLinked = chipConsumedMap.values.fold(
+        0.0,
+        (a, b) => a + b,
+      );
+      double totalEstimatedLinked = chipEstimatedMap.values.fold(
+        0.0,
+        (a, b) => a + b,
+      );
 
       double remainingToDeduct = 0.0; // Ya no hay consumo global FIFO
       double remainingEstimatedToDeduct = 0.0;
@@ -321,16 +338,16 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
       for (var chip in sortedChips) {
         final int chipId = chip['id'];
         double totalQty = (chip['Qty'] as num?)?.toDouble() ?? 0.0;
-        
+
         // Consumo directo vinculado
         double consumedFromThis = chipConsumedMap[chipId] ?? 0.0;
         double estimatedFromThis = chipEstimatedMap[chipId] ?? 0.0;
-        
+
         // Si hay saldo después del consumo directo, deducir consumo global FIFO
         double remainingCapacity = totalQty - consumedFromThis;
         double additionalConsumption = 0.0;
         double additionalEstimation = 0.0;
-        
+
         if (remainingToDeduct > 0 && remainingCapacity > 0) {
           if (remainingToDeduct >= remainingCapacity) {
             additionalConsumption = remainingCapacity;
@@ -674,10 +691,16 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
     }
   }
 
-  Widget _buildSmallStat(BuildContext context, String label, String value, IconData icon, Color color) {
+  Widget _buildSmallStat(
+    BuildContext context,
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -718,8 +741,6 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
       ),
     );
   }
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -877,7 +898,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
           ),
           if (!AccessControl.isAdmin)
             IconButton(
-              icon: const Icon(Icons.logout, color: Colors.red),
+              icon: const Icon(Icons.logout_rounded, color: Colors.red),
               tooltip: 'Cerrar Sesión',
               onPressed: () => showLogoutConfirmation(context),
             ),
@@ -886,242 +907,309 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
       drawer: AccessControl.isAdmin
           ? const CustomDrawer(currentRoute: '/support')
           : null,
-      bottomNavigationBar: !AccessControl.isAdmin
+      bottomNavigationBar:
+          (MediaQuery.of(context).size.width < 900 && !AccessControl.isAdmin)
           ? const ProjectBottomNav(currentRoute: '/support')
           : null,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 20),
-              if (AccessControl.isAdmin)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 24.0),
-                  child: InkWell(
-                    onTap: (_bPartners.isEmpty || !GlobalCache.isDataLoaded) ? null : _showBPartnerFilterModal,
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity((_bPartners.isEmpty || !GlobalCache.isDataLoaded) ? 0.1 : 0.3),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.business_outlined,
-                            color: (_bPartners.isEmpty || !GlobalCache.isDataLoaded)
-                                ? Colors.grey
-                                : Theme.of(context).colorScheme.primary,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+      body: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (MediaQuery.of(context).size.width >= 900 &&
+              !AccessControl.isAdmin)
+            const ProjectSideBar(currentRoute: '/support'),
+          Expanded(
+            child: SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 20),
+                    if (AccessControl.isAdmin)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 24.0),
+                        child: InkWell(
+                          onTap:
+                              (_bPartners.isEmpty || !GlobalCache.isDataLoaded)
+                              ? null
+                              : _showBPartnerFilterModal,
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 16,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .surfaceContainerHighest
+                                  .withOpacity(
+                                    (_bPartners.isEmpty ||
+                                            !GlobalCache.isDataLoaded)
+                                        ? 0.1
+                                        : 0.3,
+                                  ),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.outline.withOpacity(0.5),
+                              ),
+                            ),
+                            child: Row(
                               children: [
-                                Text(
-                                  'Tercero a Consultar',
-                                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                Icon(
+                                  Icons.business_outlined,
+                                  color:
+                                      (_bPartners.isEmpty ||
+                                          !GlobalCache.isDataLoaded)
+                                      ? Colors.grey
+                                      : Theme.of(context).colorScheme.primary,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Tercero a Consultar',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .labelSmall
+                                            ?.copyWith(
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.onSurfaceVariant,
+                                            ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              !GlobalCache.isDataLoaded
+                                                  ? 'Sincronizando información...'
+                                                  : (_selectedBpId == null
+                                                        ? 'Selecciona un tercero para ver sus fichas'
+                                                        : (_bPartners.firstWhere(
+                                                                (bp) =>
+                                                                    bp['id'] ==
+                                                                    _selectedBpId,
+                                                                orElse: () => {
+                                                                  'Name':
+                                                                      'Tercero Seleccionado',
+                                                                },
+                                                              )['Name'] ??
+                                                              'Tercero ${_selectedBpId}')),
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodyLarge
+                                                  ?.copyWith(
+                                                    fontWeight: FontWeight.w500,
+                                                    color:
+                                                        !GlobalCache
+                                                            .isDataLoaded
+                                                        ? Colors.grey
+                                                        : null,
+                                                  ),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
                                   ),
                                 ),
-                                const SizedBox(height: 2),
+                                if (GlobalCache.isDataLoaded)
+                                  Icon(
+                                    Icons.search,
+                                    color: (_bPartners.isEmpty)
+                                        ? Colors.grey
+                                        : Theme.of(
+                                            context,
+                                          ).colorScheme.onSurfaceVariant,
+                                  )
+                                else
+                                  const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    // --- NUEVA TARJETA DE RESUMEN PREMIUM ---
+                    Builder(
+                      builder: (context) {
+                        double contracted = _contractedHours ?? 0.0;
+                        double consumed = _totalConsumedHours;
+                        double inProgress = _inProgressHours;
+                        double available = contracted - consumed;
+
+                        if (_selectedSummaryChipId != null) {
+                          final chip = _processedChips.firstWhere(
+                            (c) => c['id'] == _selectedSummaryChipId,
+                            orElse: () => {},
+                          );
+                          if (chip.isNotEmpty) {
+                            contracted =
+                                (chip['Qty'] as num?)?.toDouble() ?? 0.0;
+                            consumed =
+                                (chip['consumed'] as num?)?.toDouble() ?? 0.0;
+                            inProgress =
+                                (chip['estimated'] as num?)?.toDouble() ?? 0.0;
+                            available =
+                                (chip['available'] as num?)?.toDouble() ?? 0.0;
+                          }
+                        } else {
+                          available = contracted - consumed;
+                        }
+
+                        return SupportSummaryPremium(
+                          contractedHours: contracted,
+                          consumedHours: consumed,
+                          inProgressHours: inProgress,
+                          availableHours: available,
+                          processedChips: _processedChips,
+                          selectedChipId: _selectedSummaryChipId,
+                          onChipTap: (id) {
+                            setState(() {
+                              if (_selectedSummaryChipId == id) {
+                                _selectedSummaryChipId = null;
+                              } else {
+                                _selectedSummaryChipId = id;
+                              }
+                            });
+                          },
+                          onRefresh: () => _initData(),
+                          allowRename: true,
+                          emptyMessage:
+                              AccessControl.isAdmin && _selectedBpId == null
+                              ? '(Como administrador) seleccione un tercero para ver sus fichas de producto'
+                              : null,
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 30),
+                    CustomContainer(
+                      title: 'Registro de Horas Consumidas',
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _SupportDashboardFilterBar(
+                            searchController: _searchController,
+                            isAscending: _isAscending,
+                            rowsPerPage: _rowsPerPage,
+                            selectedYears: _selectedYears,
+                            onShowYearFilter: _showYearFilterModal,
+                            onSortChanged: () => setState(() {
+                              _isAscending = !_isAscending;
+                              _currentPage = 0;
+                            }),
+                            onRowsPerPageChanged: (val) => setState(() {
+                              _rowsPerPage = val!;
+                              _currentPage = 0;
+                            }),
+                            onClearFilters: () => setState(() {
+                              _searchController.clear();
+                              _isAscending = false;
+                              _currentPage = 0;
+                              _selectedYears = [DateTime.now().year];
+                              if (AccessControl.isAdmin) _selectedBpId = null;
+                              _refreshData();
+                            }),
+                            onShowBPartnerFilter: _showBPartnerFilterModal,
+                            activeFilterCount: _activeFilterCount,
+                            selectedBpId: _selectedBpId,
+                          ),
+                          // CONTROLES DE PAGINACIÓN (ARRIBA)
+                          Container(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  '${totalItems == 0 ? 0 : (_currentPage * _rowsPerPage) + 1} - ${((_currentPage + 1) * _rowsPerPage < totalItems) ? (_currentPage + 1) * _rowsPerPage : totalItems} de $totalItems',
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                                 Row(
                                   children: [
-                                    Expanded(
-                                      child: Text(
-                                        !GlobalCache.isDataLoaded
-                                          ? 'Sincronizando información...'
-                                          : (_selectedBpId == null 
-                                            ? 'Selecciona un tercero para ver sus fichas'
-                                            : (_bPartners.firstWhere(
-                                                (bp) => bp['id'] == _selectedBpId,
-                                                orElse: () => {'Name': 'Tercero Seleccionado'},
-                                              )['Name'] ?? 'Tercero ${_selectedBpId}')),
-                                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                          fontWeight: FontWeight.w500,
-                                          color: !GlobalCache.isDataLoaded ? Colors.grey : null,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
+                                    IconButton(
+                                      icon: const Icon(Icons.chevron_left),
+                                      onPressed: _currentPage > 0
+                                          ? () => setState(() => _currentPage--)
+                                          : null,
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.chevron_right),
+                                      onPressed: _currentPage < totalPages - 1
+                                          ? () => setState(() => _currentPage++)
+                                          : null,
                                     ),
                                   ],
                                 ),
                               ],
                             ),
                           ),
-                          if (GlobalCache.isDataLoaded)
-                            Icon(
-                              Icons.search,
-                              color: (_bPartners.isEmpty) ? Colors.grey : Theme.of(context).colorScheme.onSurfaceVariant,
-                            )
-                          else
-                            const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              // --- NUEVA TARJETA DE RESUMEN PREMIUM ---
-              Builder(
-                builder: (context) {
-                  double contracted = _contractedHours ?? 0.0;
-                  double consumed = _totalConsumedHours;
-                  double inProgress = _inProgressHours;
-                  double available = contracted - consumed;
-
-                  if (_selectedSummaryChipId != null) {
-                    final chip = _processedChips.firstWhere(
-                      (c) => c['id'] == _selectedSummaryChipId,
-                      orElse: () => {},
-                    );
-                    if (chip.isNotEmpty) {
-                      contracted = (chip['Qty'] as num?)?.toDouble() ?? 0.0;
-                      consumed = (chip['consumed'] as num?)?.toDouble() ?? 0.0;
-                      inProgress = (chip['estimated'] as num?)?.toDouble() ?? 0.0;
-                      available = (chip['available'] as num?)?.toDouble() ?? 0.0;
-                    }
-                  } else {
-                    available = contracted - consumed;
-                  }
-
-                  return SupportSummaryPremium(
-                    contractedHours: contracted,
-                    consumedHours: consumed,
-                    inProgressHours: inProgress,
-                    availableHours: available,
-                    processedChips: _processedChips,
-                    selectedChipId: _selectedSummaryChipId,
-                    onChipTap: (id) {
-                      setState(() {
-                        if (_selectedSummaryChipId == id) {
-                          _selectedSummaryChipId = null;
-                        } else {
-                          _selectedSummaryChipId = id;
-                        }
-                      });
-                    },
-                    onRefresh: () => _initData(),
-                    allowRename: true,
-                    emptyMessage: AccessControl.isAdmin && _selectedBpId == null
-                        ? '(Como administrador) seleccione un tercero para ver sus fichas de producto'
-                        : null,
-                  );
-                }
-              ),
-              const SizedBox(height: 30),
-              CustomContainer(
-                title: 'Registro de Horas Consumidas',
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _SupportDashboardFilterBar(
-                      searchController: _searchController,
-                      isAscending: _isAscending,
-                      rowsPerPage: _rowsPerPage,
-                      selectedYears: _selectedYears,
-                      onShowYearFilter: _showYearFilterModal,
-                      onSortChanged: () => setState(() {
-                        _isAscending = !_isAscending;
-                        _currentPage = 0;
-                      }),
-                      onRowsPerPageChanged: (val) => setState(() {
-                        _rowsPerPage = val!;
-                        _currentPage = 0;
-                      }),
-                      onClearFilters: () => setState(() {
-                        _searchController.clear();
-                        _isAscending = false;
-                        _currentPage = 0;
-                        _selectedYears = [DateTime.now().year];
-                        if (AccessControl.isAdmin) _selectedBpId = null;
-                        _refreshData();
-                      }),
-                      onShowBPartnerFilter: _showBPartnerFilterModal,
-                      activeFilterCount: _activeFilterCount,
-                      selectedBpId: _selectedBpId,
-                    ),
-                    // CONTROLES DE PAGINACIÓN (ARRIBA)
-                    Container(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            '${totalItems == 0 ? 0 : (_currentPage * _rowsPerPage) + 1} - ${((_currentPage + 1) * _rowsPerPage < totalItems) ? (_currentPage + 1) * _rowsPerPage : totalItems} de $totalItems',
-                            style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
-                          ),
-                          Row(
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.chevron_left),
-                                onPressed: _currentPage > 0
-                                    ? () => setState(() => _currentPage--)
-                                    : null,
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.chevron_right),
-                                onPressed: _currentPage < totalPages - 1
-                                    ? () => setState(() => _currentPage++)
-                                    : null,
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Divider(),
-                    const SizedBox(height: 16),
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 300),
-                      child: _isLoading
-                          ? const SkeletonTable()
-                          : _supportRecords.isEmpty
-                          ? const Padding(
-                              padding: EdgeInsets.all(32.0),
-                              child: Center(
-                                child: Text(
-                                  'No hay registros de horas consumidas para este filtro.',
-                                  style: TextStyle(
-                                    color: Colors.grey,
-                                    fontSize: 16,
+                          const Divider(),
+                          const SizedBox(height: 16),
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 300),
+                            child: _isLoading
+                                ? const SkeletonTable()
+                                : _supportRecords.isEmpty
+                                ? const Padding(
+                                    padding: EdgeInsets.all(32.0),
+                                    child: Center(
+                                      child: Text(
+                                        'No hay registros de horas consumidas para este filtro.',
+                                        style: TextStyle(
+                                          color: Colors.grey,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                : LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      if (constraints.maxWidth < 800) {
+                                        return _MobileRecordList(
+                                          records: paginatedRecords,
+                                          onRecordTap: (record) =>
+                                              _showRequestDetails(
+                                                context,
+                                                record,
+                                              ),
+                                        );
+                                      } else {
+                                        return _DesktopRecordTable(
+                                          records: paginatedRecords,
+                                          onRecordTap: (record) =>
+                                              _showRequestDetails(
+                                                context,
+                                                record,
+                                              ),
+                                        );
+                                      }
+                                    },
                                   ),
-                                ),
-                              ),
-                            )
-                          : LayoutBuilder(
-                              builder: (context, constraints) {
-                                if (constraints.maxWidth < 800) {
-                                  return _MobileRecordList(
-                                    records: paginatedRecords,
-                                    onRecordTap: (record) =>
-                                        _showRequestDetails(context, record),
-                                  );
-                                } else {
-                                  return _DesktopRecordTable(
-                                    records: paginatedRecords,
-                                    onRecordTap: (record) =>
-                                        _showRequestDetails(context, record),
-                                  );
-                                }
-                              },
-                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -1321,8 +1409,13 @@ class _DesktopRecordTable extends StatelessWidget {
             DataCell(
               Tooltip(
                 message: () {
-                  final text = record['emailSubject'] ?? record['descriptionClean'] ?? '';
-                  return text.length > 2000 ? '${text.substring(0, 2000)}...' : text;
+                  final text =
+                      record['emailSubject'] ??
+                      record['descriptionClean'] ??
+                      '';
+                  return text.length > 2000
+                      ? '${text.substring(0, 2000)}...'
+                      : text;
                 }(),
                 waitDuration: const Duration(milliseconds: 500),
                 child: SizedBox(
@@ -1336,17 +1429,21 @@ class _DesktopRecordTable extends StatelessWidget {
               ),
             ),
             DataCell(Text(record['status'] ?? '')),
-            DataCell(Text(hours, style: const TextStyle(fontWeight: FontWeight.bold))),
-            DataCell(Text(() {
-              final chipId = record['productChipId'];
-              if (chipId == null) return 'N/A';
-              final found = GlobalCache.productChips.firstWhere(
-                (c) => c['id'] == chipId,
-                orElse: () => {},
-              );
-              if (found.isEmpty) return '#$chipId';
-              return found['Description'] ?? found['Name'] ?? '#$chipId';
-            }())),
+            DataCell(
+              Text(hours, style: const TextStyle(fontWeight: FontWeight.bold)),
+            ),
+            DataCell(
+              Text(() {
+                final chipId = record['productChipId'];
+                if (chipId == null) return 'N/A';
+                final found = GlobalCache.productChips.firstWhere(
+                  (c) => c['id'] == chipId,
+                  orElse: () => {},
+                );
+                if (found.isEmpty) return '#$chipId';
+                return found['Description'] ?? found['Name'] ?? '#$chipId';
+              }()),
+            ),
           ],
         );
       }).toList(),

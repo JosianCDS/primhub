@@ -3,6 +3,7 @@ import 'package:primhub/api/access_control.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/api/global_cache.dart';
+import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
 
 class ProjectRequestFilterModel {
   final List<String> phases;
@@ -164,17 +165,17 @@ class _ProjectRequestFilterModalState extends State<ProjectRequestFilterModal> {
     final List<String> availableTasks = widget.allProjectRequests
         .where((e) {
           if (_tempFilter.phases.isEmpty) return true;
-          return _tempFilter.phases.contains(e['phaseName'].toString());
+          return _tempFilter.phases.contains((e['phaseName']?.toString().trim() ?? '-').toLowerCase());
         })
-        .map((e) => e['taskName'].toString())
+        .map((e) => e['taskName']?.toString().trim() ?? '')
         .where((e) => e != 'General / Proyecto' && e != 'null' && e.isNotEmpty)
         .toSet()
         .toList()
       ..sort();
 
     final List<String> availableCategories = widget.allProjectRequests
-        .map((e) => e['category'].toString())
-        .where((e) => e.isNotEmpty && e != 'null' && e != 'Sin Categoría')
+        .map((e) => e['category']?.toString().trim() ?? 'Sin categoría')
+        .where((e) => e.isNotEmpty && e != 'null' && e != 'Sin categoría' && e != 'Sin Categoría')
         .toSet()
         .toList()
       ..sort();
@@ -271,49 +272,27 @@ class _ProjectRequestFilterModalState extends State<ProjectRequestFilterModal> {
               ],
             ),
             const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildMultiSearchableField(
-                    label: 'Tipo de solicitud',
-                    hintText: 'Todos',
-                    values: _tempFilter.types,
-                    onTap: () => _openMultiSelectSearchModal(
-                      title: 'Tipo de solicitud',
-                      items: availableTypes,
-                      currentValues: _tempFilter.types,
-                      getTitle: (item) => item.toString(),
-                      getValue: (item) => item.toString(),
-                      onSelected: (vals) => setState(() => _tempFilter = _tempFilter.copyWith(types: vals)),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildMultiSearchableField(
-                    label: 'Categoría',
-                    hintText: 'Todos',
-                    values: _tempFilter.categories,
-                    onTap: () => _openMultiSelectSearchModal(
-                      title: 'Categoría',
-                      items: availableCategories,
-                      currentValues: _tempFilter.categories,
-                      getTitle: (item) => item.toString(),
-                      getValue: (item) => item.toString(),
-                      onSelected: (vals) => setState(() => _tempFilter = _tempFilter.copyWith(categories: vals)),
-                    ),
-                  ),
-                ),
-              ],
+            _buildMultiSearchableField(
+              label: 'Categoría',
+              hintText: 'Todas las Categorías',
+              values: _tempFilter.categories,
+              onTap: () => _openMultiSelectSearchModal(
+                title: 'Categoría',
+                items: availableCategories,
+                currentValues: _tempFilter.categories,
+                getTitle: (item) => item.toString(),
+                getValue: (item) => item.toString(),
+                onSelected: (vals) => setState(() => _tempFilter = _tempFilter.copyWith(categories: vals)),
+              ),
             ),
             const SizedBox(height: 16),
             _buildMultiSearchableField(
               label: 'Estado',
-              hintText: 'Todos',
+              hintText: 'Todos los Estados',
               values: _tempFilter.statuses,
               onTap: () => _openMultiSelectSearchModal(
                 title: 'Estado',
-                items: widget.statusIdMap.keys.toList()..sort(),
+                items: widget.statusIdMap.keys.map((s) => cleanStatusName(s)).toSet().toList()..sort(),
                 currentValues: _tempFilter.statuses,
                 getTitle: (item) => item.toString(),
                 getValue: (item) => item.toString(),
@@ -322,12 +301,12 @@ class _ProjectRequestFilterModalState extends State<ProjectRequestFilterModal> {
             ),
             const SizedBox(height: 16),
             _buildMultiSearchableField(
-              label: 'Nivel',
-              hintText: 'Todos',
+              label: 'Prioridad',
+              hintText: 'Todas las Prioridades',
               values: _tempFilter.levels,
               onTap: () => _openMultiSelectSearchModal(
-                title: 'Nivel',
-                items: ['Urgente', 'Alta', 'Media', 'Baja', 'Menor'],
+                title: 'Prioridad',
+                items: ['Urgente', 'Alta', 'Media', 'Baja', 'Muy baja'],
                 currentValues: _tempFilter.levels,
                 getTitle: (item) => item.toString(),
                 getValue: (item) => item.toString(),
@@ -407,9 +386,11 @@ class __MultiSelectSearchDialogState extends State<_MultiSelectSearchDialog> {
             ),
             const SizedBox(height: 16),
             Expanded(
-              child: ListView.separated(
-                itemCount: filteredItems.length,
-                separatorBuilder: (_, __) => const Divider(height: 1, color: Colors.grey, thickness: 0.3),
+              child: filteredItems.isEmpty
+                  ? Center(child: Text("No hay opciones disponibles (${widget.items.length} total)"))
+                  : ListView.separated(
+                      itemCount: filteredItems.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1, color: Colors.grey, thickness: 0.3),
                 itemBuilder: (context, index) {
                   final item = filteredItems[index];
                   final itemValue = widget.getValue(item).toLowerCase().trim();

@@ -49,6 +49,8 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
 
   Map<String, int> _requestTypeMap = {};
   Map<String, int> _categoryMap = {};
+  Map<String, String> _categoryPriorityMap = {};
+  List<Map<String, dynamic>> _categoryRecords = [];
   Map<String, int> _groupMap = {};
   List<dynamic> _users = [];
   List<Map<String, dynamic>> _salesReps = [];
@@ -83,7 +85,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
     _currentPriority = widget.request['level'];
     _currentStatus = widget.request['status'];
     _statusId = widget.request['statusId'];
-    _isReadOnly = _currentStatus == '9_Final Close' || _statusId == 103;
+    _isReadOnly = widget.request['isClosed'] == true || _currentStatus == '9_Final Close' || _statusId == 103;
 
     _resultController = TextEditingController(text: widget.request['result']);
     _newUpdateController = TextEditingController();
@@ -151,7 +153,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
       if (mounted) setState(() => _isLoadingProducts = false);
       return;
     }
-    setState(() => _isLoadingProducts = true);
+    if (mounted) setState(() => _isLoadingProducts = true);
     try {
       final fetchedChips = await ContractApi.getSupportProductChips(bPartnerId: _selectedBpId);
       if (mounted) {
@@ -197,9 +199,28 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
       if (response.statusCode == 200) {
         final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
         final records = jsonResponse['records'] as List;
+        final bool isProject = (widget.request['recordUU'] != null && widget.request['recordUU'].toString().trim().isNotEmpty) ||
+                               (widget.request['Record_UU'] != null && widget.request['Record_UU'].toString().trim().isNotEmpty);
+
         if (mounted) {
           setState(() {
             _requestTypeMap = {for (var r in records) r['Name']: r['id']};
+            
+            // Establecer tipo por defecto si no tiene uno válido asignado
+            if ((_selectedType == null || _selectedType == 'Solicitud' || _selectedType!.isEmpty) && _requestTypeMap.isNotEmpty) {
+              if (isProject) {
+                _selectedType = _requestTypeMap.keys.firstWhere(
+                  (k) => k.toLowerCase().contains('implantacion lirion'),
+                  orElse: () => _requestTypeMap.keys.first
+                );
+              } else {
+                _selectedType = _requestTypeMap.keys.firstWhere(
+                  (k) => k.toLowerCase().contains('soporte lirion'),
+                  orElse: () => _requestTypeMap.keys.first
+                );
+              }
+            }
+            
             _isLoadingTypes = false;
           });
         }
@@ -211,20 +232,93 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
 
   Future<void> _fetchCategories() async {
     try {
-      final response = await http.get(Uri.parse('${Endpoint.baseUrl}/api/v1/models/R_Category'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
-      if (response.statusCode == 200) {
-        final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
-        final records = jsonResponse['records'] as List;
-        if (mounted) {
-          setState(() {
-            _categoryMap = {for (var r in records) r['Name']: r['id']};
-            _isLoadingCategories = false;
-          });
-        }
+      final allRecords = await fetchCategories();
+      final bool isProject = (widget.request['recordUU'] != null && widget.request['recordUU'].toString().trim().isNotEmpty) ||
+                             (widget.request['Record_UU'] != null && widget.request['Record_UU'].toString().trim().isNotEmpty);
+      
+      // Filtrar categorías según el contexto:
+      // Si es Proyecto: mostrar las que tienen showinprimhub = false
+      // Si es Soporte: mostrar las que tienen showinprimhub = true
+      final records = allRecords.where((c) {
+        final bool isPrimhub = c['showinprimhub'] == true;
+        return isProject ? !isPrimhub : isPrimhub;
+      }).toList();
+
+      if (mounted) {
+        setState(() {
+          _categoryRecords = records;
+          _categoryMap = {for (var r in records) r['Name']: r['id']};
+          _categoryPriorityMap = {
+            for (var r in records)
+              r['Name']: r['Priority']?.toString() ?? '5'
+          };
+          _isLoadingCategories = false;
+        });
       }
     } catch (e) {
       if (mounted) setState(() => _isLoadingCategories = false);
     }
+  }
+
+
+  void _showCategoryHelpModal() {
+    showDialog(
+      context: context,
+      builder: (context) => CustomModal(
+        title: 'Guía de Categorías / Síntomas',
+        width: 800,
+        content: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.7,
+          ),
+          child: SingleChildScrollView(
+            child: Table(
+              border: TableBorder.all(color: Colors.grey.withOpacity(0.3)),
+              columnWidths: const {
+                0: FlexColumnWidth(1),
+                1: FlexColumnWidth(2),
+              },
+              children: [
+                const TableRow(
+                  decoration: BoxDecoration(color: Colors.deepPurple),
+                  children: [
+                    Padding(
+                      padding: EdgeInsets.all(8.0),
+                      child: Text('Categoría / Síntoma',
+                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.all(8.0),
+                      child: Text('Justificación Técnica',
+                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                    ),
+                  ],
+                ),
+                ..._categoryRecords.map((cat) => TableRow(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Text(cat['Name'] ?? '',
+                              style: const TextStyle(fontWeight: FontWeight.w500)),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Text(cat['Description'] ?? 'Sin descripción técnica disponible.'),
+                        ),
+                      ],
+                    )),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          CustomButton(
+            text: 'Cerrar',
+            onPressed: () => Navigator.pop(context),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _fetchGroups() async {
@@ -587,9 +681,8 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
       await GlobalCache.syncSingleRequest(widget.request['realId']);
     }
 
-    setState(() => _isSaving = false);
-
     if (mounted) {
+      setState(() => _isSaving = false);
       if (result['success'] == true) {
         if (Navigator.of(context).canPop()) {
           Navigator.of(context).pop(true);
@@ -609,6 +702,9 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
       statusItems.add(_currentStatus);
     }
     final bool isFullAccess = AccessControl.isAdmin || AccessControl.isRealSupport;
+    final bool isProject = (widget.request['recordUU'] != null && widget.request['recordUU'].toString().trim().isNotEmpty) ||
+                           (widget.request['Record_UU'] != null && widget.request['Record_UU'].toString().trim().isNotEmpty) ||
+                           (widget.request['C_Project_ID'] != null && widget.request['C_Project_ID'].toString().isNotEmpty);
 
     return CustomModal(
       title: 'Editar Solicitud ${widget.request['id']}',
@@ -667,7 +763,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                             items: _bPartnersList.where((bp) => bp['id'] != null).toList(),
                             currentValue: _selectedBpId,
                             getTitle: (item) => item['Name'] ?? 'Sin Nombre',
-                            getSubtitle: (item) => 'ID: ${item['id']}',
+                            
                             getValue: (item) {
                               var id = item['id'];
                               return id is int ? id : int.tryParse(id.toString());
@@ -700,7 +796,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                             items: _users.where((u) => (u['AD_User_ID'] ?? u['id']) != null).toList(),
                             currentValue: _selectedUserId,
                             getTitle: (item) => item['Name'] ?? 'Sin Nombre',
-                            getSubtitle: (item) => 'ID: ${item['AD_User_ID'] ?? item['id']}',
+                            
                             getValue: (item) {
                               var id = item['AD_User_ID'] ?? item['id'];
                               return id is int ? id : int.tryParse(id.toString());
@@ -712,39 +808,40 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: _buildSearchableField<int>(
-                          label: 'Ficha de Producto',
-                          hintText: _selectedBpId == null ? 'Seleccione un tercero' : 'Seleccione Ficha',
-                          value: _selectedProductChipId,
-                          isLoading: _isLoadingProducts,
-                          isDisabled: (() {
-                            final bool d = _isReadOnly || _isLoadingProducts || _selectedBpId == null;
-                            debugPrint("DEBUG EDIT CHIP: disabled=$d (ReadOnly=$_isReadOnly, Loading=$_isLoadingProducts, BP=$_selectedBpId)");
-                            return d;
-                          })(),
-                          displayText: _selectedProductChipId != null && _productChips.any((c) => c['id'] == _selectedProductChipId) 
-                              ? _productChips.firstWhere((c) => c['id'] == _selectedProductChipId)['Description'] ?? 'Ficha #${_selectedProductChipId}' 
-                              : '',
-                          onTap: () => _openSearchModal<int>(
-                            title: 'Ficha de Producto',
-                            items: _productChips,
-                            currentValue: _selectedProductChipId,
-                            getTitle: (item) => item['Description'] ?? 'Sin Descripción',
-                            getSubtitle: (item) => 'ID: ${item['id']}',
-                            getValue: (item) => item['id'] as int,
-                            onSelected: (val) => setState(() => _selectedProductChipId = val),
+                  if (!isProject) ...[
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: _buildSearchableField<int>(
+                            label: 'Ficha de Producto',
+                            hintText: _selectedBpId == null ? 'Seleccione un tercero' : 'Seleccione Ficha',
+                            value: _selectedProductChipId,
+                            isLoading: _isLoadingProducts,
+                            isDisabled: (() {
+                              final bool d = _isReadOnly || _isLoadingProducts || _selectedBpId == null;
+                              debugPrint("DEBUG EDIT CHIP: disabled=$d (ReadOnly=$_isReadOnly, Loading=$_isLoadingProducts, BP=$_selectedBpId)");
+                              return d;
+                            })(),
+                            displayText: _selectedProductChipId != null && _productChips.any((c) => c['id'] == _selectedProductChipId) 
+                                ? _productChips.firstWhere((c) => c['id'] == _selectedProductChipId)['Description'] ?? 'Ficha #${_selectedProductChipId}' 
+                                : '',
+                            onTap: () => _openSearchModal<int>(
+                              title: 'Ficha de Producto',
+                              items: _productChips,
+                              currentValue: _selectedProductChipId,
+                              getTitle: (item) => item['Description'] ?? 'Sin Descripción',
+                              
+                              getValue: (item) => item['id'] as int,
+                              onSelected: (val) => setState(() => _selectedProductChipId = val),
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                 ],
-
                 const SizedBox(height: 16),
 
 
@@ -759,11 +856,27 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                         isLoading: _isLoadingTypes,
                         isDisabled: _isReadOnly || _isLoadingTypes,
                         displayText: _selectedType ?? '',
-                        onTap: () => _openSearchModal<String>(title: 'Tipo de Solicitud', items: _requestTypeMap.keys.toList(), currentValue: _selectedType, getTitle: (item) => item.toString(), getValue: (item) => item.toString(), onSelected: (val) => setState(() => _selectedType = val)),
+                        onTap: () => _openSearchModal<String>(
+                          title: 'Tipo de Solicitud',
+                          items: _requestTypeMap.keys.toList(),
+                          currentValue: _selectedType,
+                          getTitle: (item) => item.toString(),
+                          getValue: (item) => item.toString(),
+                          onSelected: (val) =>
+                              setState(() => _selectedType = val),
+                        ),
                       ),
                     ),
-                    const SizedBox(width: 16),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                CustomTextField(controller: _emailSubjectController, label: 'Asunto', readOnly: _isReadOnly),
+                const SizedBox(height: 16),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
                     Expanded(
+                      flex: 10,
                       child: _buildSearchableField<String>(
                         label: 'Categoría',
                         hintText: 'Seleccione Categoría',
@@ -771,13 +884,67 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                         isLoading: _isLoadingCategories,
                         isDisabled: _isReadOnly || _isLoadingCategories,
                         displayText: _selectedCategory ?? '',
-                        onTap: () => _openSearchModal<String>(title: 'Categoría', items: _categoryMap.keys.toList(), currentValue: _selectedCategory, getTitle: (item) => item.toString(), getValue: (item) => item.toString(), onSelected: (val) => setState(() => _selectedCategory = val)),
+                        onTap: () => _openSearchModal<String>(
+                          title: 'Categoría',
+                          items: _categoryMap.keys.toList(),
+                          currentValue: _selectedCategory,
+                          getTitle: (item) => item.toString(),
+                          getValue: (item) => item.toString(),
+                          onSelected: (val) {
+                            setState(() {
+                              _selectedCategory = val;
+                              final bool isProject = (widget.request['recordUU'] != null && widget.request['recordUU'].toString().trim().isNotEmpty) ||
+                                                     (widget.request['Record_UU'] != null && widget.request['Record_UU'].toString().trim().isNotEmpty);
+
+                              // La automatización de prioridad solo aplica a SOPORTE (no proyectos)
+                              if (!isProject && val != null &&
+                                  _categoryPriorityMap.containsKey(val)) {
+                                final pValue = _categoryPriorityMap[val]!;
+                                final label = widget.priorityMap.entries
+                                    .firstWhere(
+                                      (e) => e.value == pValue,
+                                      orElse: () => widget.priorityMap.entries
+                                          .firstWhere((e) => e.key == 'Media'),
+                                    )
+                                    .key;
+                                _currentPriority = label;
+                              }
+                            });
+                          },
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                      child: IconButton(
+                        icon: const Icon(Icons.info_outline, color: Colors.blue),
+                        tooltip: 'Ver guía de categorías',
+                        onPressed: _showCategoryHelpModal,
+                      ),
+                    ),
+                    Expanded(
+                      flex: 10,
+                      child: _buildSearchableField<String>(
+                        label: 'Prioridad',
+                        hintText: 'Seleccione Prioridad',
+                        value: _currentPriority,
+                        isLoading: false,
+                        isDisabled: !((widget.request['recordUU'] != null && widget.request['recordUU'].toString().trim().isNotEmpty) ||
+                                       (widget.request['Record_UU'] != null && widget.request['Record_UU'].toString().trim().isNotEmpty)),
+                        displayText: _currentPriority,
+                        onTap: () => _openSearchModal<String>(
+                          title: 'Prioridad',
+                          items: widget.priorityMap.keys.toList(),
+                          currentValue: _currentPriority,
+                          getTitle: (item) => item.toString(),
+                          getValue: (item) => item.toString(),
+                          onSelected: (val) =>
+                              setState(() => _currentPriority = val ?? _currentPriority),
+                        ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                CustomTextField(controller: _emailSubjectController, label: 'Asunto', readOnly: _isReadOnly),
                 const SizedBox(height: 16),
 
                 if (isFullAccess) ...[
@@ -804,7 +971,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                           isLoading: _isLoadingSalesReps,
                           isDisabled: _isReadOnly || _isLoadingSalesReps,
                           displayText: _selectedSalesRepId != null && _salesReps.any((u) => (u['AD_User_ID'] ?? u['id']) == _selectedSalesRepId) ? _salesReps.firstWhere((u) => (u['AD_User_ID'] ?? u['id']) == _selectedSalesRepId)['Name'] ?? '' : '',
-                          onTap: () => _openSearchModal<int>(title: 'Representante Comercial', items: _salesReps, currentValue: _selectedSalesRepId, getTitle: (item) => item['Name'] ?? 'Sin Nombre', getSubtitle: (item) => 'ID: ${item['AD_User_ID'] ?? item['id']}', getValue: (item) => (item['AD_User_ID'] ?? item['id']) as int, onSelected: (val) => setState(() => _selectedSalesRepId = val)),
+                          onTap: () => _openSearchModal<int>(title: 'Representante Comercial', items: _salesReps, currentValue: _selectedSalesRepId, getTitle: (item) => item['Name'] ?? 'Sin Nombre',  getValue: (item) => (item['AD_User_ID'] ?? item['id']) as int, onSelected: (val) => setState(() => _selectedSalesRepId = val)),
                         ),
                       ),
                     ],
@@ -820,20 +987,15 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                           value: _currentStatus,
                           isLoading: false,
                           isDisabled: _isReadOnly,
-                          displayText: _currentStatus,
-                          onTap: () => _openSearchModal<String>(title: 'Estado', items: statusItems, currentValue: _currentStatus, getTitle: (item) => item.toString(), getValue: (item) => item.toString(), onSelected: (val) => setState(() => _currentStatus = val ?? _currentStatus)),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _buildSearchableField<String>(
-                          label: 'Prioridad',
-                          hintText: 'Seleccione Prioridad',
-                          value: _currentPriority,
-                          isLoading: false,
-                          isDisabled: _isReadOnly,
-                          displayText: _currentPriority,
-                          onTap: () => _openSearchModal<String>(title: 'Prioridad', items: widget.priorityMap.keys.toList(), currentValue: _currentPriority, getTitle: (item) => item.toString(), getValue: (item) => item.toString(), onSelected: (val) => setState(() => _currentPriority = val ?? _currentPriority)),
+                          displayText: cleanStatusName(_currentStatus),
+                          onTap: () => _openSearchModal<String>(
+                            title: 'Estado',
+                            items: statusItems,
+                            currentValue: _currentStatus,
+                            getTitle: (item) => cleanStatusName(item.toString()),
+                            getValue: (item) => item.toString(),
+                            onSelected: (val) => setState(() => _currentStatus = val ?? _currentStatus),
+                          ),
                         ),
                       ),
                     ],

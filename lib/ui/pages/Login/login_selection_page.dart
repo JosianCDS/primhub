@@ -138,6 +138,22 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
     Token.organitation = _selectedOrgId;
     Token.warehouseID = _selectedWarehouseId;
 
+    // Capturar el AD_Role_UU del rol seleccionado
+    try {
+      final selectedRole = _roles.firstWhere(
+        (r) => r['id'] == _selectedRoleId,
+        orElse: () => null,
+      );
+      if (selectedRole != null) {
+        Token.roleUU = selectedRole['role-uu'] ?? 
+                      selectedRole['uuid'] ?? 
+                      selectedRole['AD_Role_UU'];
+        CurrentLogMessage.add("Rol seleccionado UUID: ${Token.roleUU}");
+      }
+    } catch (e) {
+      CurrentLogMessage.add("Error capturando UUID del rol: $e");
+    }
+
     Map<String, dynamic> params = {"clientId": _selectedClientId, "roleId": _selectedRoleId, "organizationId": _selectedOrgId, "language": "es_CO"};
     if (_selectedWarehouseId != null) {
       params["warehouseId"] = _selectedWarehouseId;

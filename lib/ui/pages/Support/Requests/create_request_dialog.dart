@@ -64,6 +64,8 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
   Map<String, int> _statusIdMap = {};
   Map<String, int> _requestTypeMap = {};
   Map<String, int> _categoryMap = {};
+  Map<String, String> _categoryPriorityMap = {};
+  List<Map<String, dynamic>> _categoryRecords = [];
   Map<String, int> _groupMap = {};
   List<dynamic> _users = [];
   List<Map<String, dynamic>> _salesReps = [];
@@ -72,7 +74,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
   bool _isLoadingStatuses = true;
   bool _isLoadingTypes = true;
   bool _isLoadingCategories = true;
-  bool _isLoadingGroups = true;
+  bool _loadingGroupsState = true;
   bool _isLoadingUsers = true;
   bool _isLoadingSalesReps = true;
   bool _isLoadingBPartners = true;
@@ -93,9 +95,13 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     _dateStartController.text = todayStr;
     _dateCompleteController.text = todayStr;
 
-    // Pre-llenar datos si es posible (ej. usuario actual como sales rep)
     final payload = Token.decodePayload(Token.token);
     final currentUserId = payload['AD_User_ID'];
+    
+    // Si viene vinculado a una tarea, pre-llenar el asunto
+    if (widget.linkedRecordUU != null) {
+      _emailSubjectController.text = 'Solicitud de Tarea';
+    }
     if (currentUserId != null) {
       _selectedUserId = payload['AD_User_ID'];
       // Solo pre-seleccionar si el usuario actual es un representante de ventas válido
@@ -119,7 +125,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
       if (mounted) setState(() => _isLoadingProducts = false);
       return;
     }
-    setState(() => _isLoadingProducts = true);
+    if (mounted) setState(() => _isLoadingProducts = true);
     try {
       final fetchedChips =
           await ContractApi.getSupportProductChips(bPartnerId: _selectedBpId);
@@ -268,29 +274,31 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
 
   Future<void> _fetchRequestTypes() async {
     try {
-      final response = await http.get(
-        Uri.parse('${Endpoint.baseUrl}/api/v1/models/R_RequestType'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': Token.token,
-        },
-      );
+      final response = await http.get(Uri.parse('${Endpoint.baseUrl}/api/v1/models/R_RequestType'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
       if (response.statusCode == 200) {
         final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
         final records = jsonResponse['records'] as List;
+        final bool isProject = widget.linkedRecordUU != null && widget.linkedRecordUU!.isNotEmpty;
+
         if (mounted) {
           setState(() {
             _requestTypeMap = {for (var r in records) r['Name']: r['id']};
-            if (_selectedType == null && _requestTypeMap.isNotEmpty) {
-              // Predefinir 'Soporte Lirion', fallback a 'Service Request' u otro
-              if (_requestTypeMap.containsKey('Soporte Lirion')) {
-                _selectedType = 'Soporte Lirion';
-              } else if (_requestTypeMap.containsKey('Service Request')) {
-                _selectedType = 'Service Request';
+            
+            // Establecer tipo por defecto según el contexto
+            if (_requestTypeMap.isNotEmpty) {
+              if (isProject) {
+                _selectedType = _requestTypeMap.keys.firstWhere(
+                  (k) => k.toLowerCase().contains('implantacion lirion'),
+                  orElse: () => _requestTypeMap.keys.first,
+                );
               } else {
-                _selectedType = _requestTypeMap.keys.first;
+                _selectedType = _requestTypeMap.keys.firstWhere(
+                  (k) => k.toLowerCase().contains('soporte lirion'),
+                  orElse: () => _requestTypeMap.keys.first,
+                );
               }
             }
+            
             _isLoadingTypes = false;
           });
         }
@@ -300,22 +308,87 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     }
   }
 
+  void _showCategoryHelpModal() {
+    showDialog(
+      context: context,
+      builder: (context) => CustomModal(
+        title: 'Guía de Categorías / Síntomas',
+        width: 800,
+        content: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.7,
+          ),
+          child: SingleChildScrollView(
+            child: Table(
+              border: TableBorder.all(color: Colors.grey.withOpacity(0.3)),
+              columnWidths: const {
+                0: FlexColumnWidth(1),
+                1: FlexColumnWidth(2),
+              },
+              children: [
+                const TableRow(
+                  decoration: BoxDecoration(color: Colors.deepPurple),
+                  children: [
+                    Padding(
+                      padding: EdgeInsets.all(8.0),
+                      child: Text('Categoría / Síntoma',
+                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.all(8.0),
+                      child: Text('Justificación Técnica',
+                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                    ),
+                  ],
+                ),
+                ..._categoryRecords.map((cat) => TableRow(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Text(cat['Name'] ?? '',
+                              style: const TextStyle(fontWeight: FontWeight.w500)),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Text(cat['Description'] ?? 'Sin descripción técnica disponible.'),
+                        ),
+                      ],
+                    )),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          CustomButton(
+            text: 'Cerrar',
+            onPressed: () => Navigator.pop(context),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _fetchCategories() async {
     try {
-      final response = await http.get(
-        Uri.parse('${Endpoint.baseUrl}/api/v1/models/R_Category'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': Token.token,
-        },
-      );
-      if (response.statusCode == 200) {
-        final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
-        final records = jsonResponse['records'] as List;
-        if (mounted) {
-          setState(() {
-            _categoryMap = {for (var r in records) r['Name']: r['id']};
-            // Solo autoseleccionar categoría si es administrador
+      final allRecords = await fetchCategories();
+      final bool isProject = widget.linkedRecordUU != null && widget.linkedRecordUU!.isNotEmpty;
+      
+      // Filtrar categorías según el contexto:
+      // Si es Proyecto: mostrar las que tienen showinprimhub = false
+      // Si es Soporte: mostrar las que tienen showinprimhub = true
+      final records = allRecords.where((c) {
+        final bool isPrimhub = c['showinprimhub'] == true;
+        return isProject ? !isPrimhub : isPrimhub;
+      }).toList();
+
+      if (mounted) {
+        setState(() {
+          _categoryRecords = records;
+          _categoryMap = {for (var r in records) r['Name']: r['id']};
+          _categoryPriorityMap = {
+            for (var r in records)
+              r['Name']: r['Priority']?.toString() ?? '5'
+          };
             if (_selectedCategory == null &&
                 _categoryMap.isNotEmpty &&
                 AccessControl.isAdmin) {
@@ -324,8 +397,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
             _isLoadingCategories = false;
           });
         }
-      }
-    } catch (e) {
+      } catch (e) {
       if (mounted) setState(() => _isLoadingCategories = false);
     }
   }
@@ -348,12 +420,12 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
             if (_selectedGroup == null && _groupMap.isNotEmpty) {
               _selectedGroup = _groupMap.keys.first;
             }
-            _isLoadingGroups = false;
+            _loadingGroupsState = false;
           });
         }
       }
     } catch (e) {
-      if (mounted) setState(() => _isLoadingGroups = false);
+      if (mounted) setState(() => _loadingGroupsState = false);
     }
   }
 
@@ -406,7 +478,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     'Alta': '3',
     'Media': '5',
     'Baja': '7',
-    'Menor': '9',
+    'Muy baja': '9',
   };
 
   Future<void> _selectDate(
@@ -727,7 +799,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     if (_isLoadingStatuses ||
         _isLoadingTypes ||
         _isLoadingCategories ||
-        _isLoadingGroups ||
+        _loadingGroupsState ||
         _isLoadingUsers ||
         _isLoadingBPartners)
       return;
@@ -1127,7 +1199,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                               .toList(),
                           currentValue: _selectedBpId,
                           getTitle: (item) => item['Name'] ?? 'Sin Nombre',
-                          getSubtitle: (item) => 'ID: ${item['id']}',
+                          
                           getValue: (item) => item['id'] as int,
                           onSelected: (val) {
                             setState(() {
@@ -1176,8 +1248,6 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                               .toList(),
                           currentValue: _selectedUserId,
                           getTitle: (item) => item['Name'] ?? 'Sin Nombre',
-                          getSubtitle: (item) =>
-                              'ID: ${item['AD_User_ID'] ?? item['id']}',
                           getValue: (item) =>
                               (item['AD_User_ID'] ?? item['id']) as int,
                           onSelected: (val) =>
@@ -1188,9 +1258,11 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+              ],
+              const SizedBox(height: 16),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                     Expanded(
                       child: _buildSearchableField<String>(
                         label: 'Tipo de Solicitud',
@@ -1210,8 +1282,20 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 16),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // ASUNTO (Campo común para todos)
+                CustomTextField(
+                  controller: _emailSubjectController,
+                  label: 'Asunto',
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
                     Expanded(
+                      flex: 10,
                       child: _buildSearchableField<String>(
                         label: 'Categoría',
                         hintText: 'Seleccione Categoría',
@@ -1225,67 +1309,98 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                           currentValue: _selectedCategory,
                           getTitle: (item) => item.toString(),
                           getValue: (item) => item.toString(),
-                          onSelected: (val) =>
-                              setState(() => _selectedCategory = val),
+                          onSelected: (val) {
+                            setState(() {
+                              _selectedCategory = val;
+                              final bool isProject = widget.linkedRecordUU != null && widget.linkedRecordUU!.isNotEmpty;
+                              
+                              // La automatización de prioridad solo aplica a SOPORTE (no proyectos)
+                              if (!isProject && val != null &&
+                                  _categoryPriorityMap.containsKey(val)) {
+                                final pValue = _categoryPriorityMap[val]!;
+                                final label = _priorityMap.entries
+                                    .firstWhere(
+                                      (e) => e.value == pValue,
+                                      orElse: () => _priorityMap.entries
+                                          .firstWhere((e) => e.key == 'Media'),
+                                    )
+                                    .key;
+                                _selectedPriority = label;
+                              }
+                            });
+                          },
                         ),
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // SECCIÓN: Ficha de Producto
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                      child: IconButton(
+                        icon: const Icon(Icons.info_outline, color: Colors.blue),
+                        tooltip: 'Ver guía de categorías',
+                        onPressed: _showCategoryHelpModal,
+                      ),
+                    ),
                     Expanded(
-                      child: _buildSearchableField<int>(
-                        label: 'Ficha de Producto',
-                        hintText: _selectedBpId == null
-                            ? 'Seleccione un tercero'
-                            : 'Seleccione Ficha',
-                        value: _selectedProductChipId,
-                        isLoading: _isLoadingProducts,
-                        isDisabled: (() {
-                          final bool d = _selectedBpId == null || 
-                                     _isLoadingProducts || 
-                                     (!AccessControl.isAdmin && _productChips.length == 1);
-                          debugPrint("DEBUG CREATE CHIP: disabled=$d (BP=$_selectedBpId, Loading=$_isLoadingProducts, Chips=${_productChips.length}, Admin=${AccessControl.isAdmin})");
-                          return d;
-                        })(),
-                        displayText: _selectedProductChipId != null &&
-                                _productChips.any(
-                                  (c) => c['id'] == _selectedProductChipId,
-                                )
-                            ? _productChips.firstWhere(
-                                (c) => c['id'] == _selectedProductChipId,
-                              )['Description'] ??
-                              'Ficha #${_selectedProductChipId}'
-                            : '',
-                        onTap: () => _openSearchModal<int>(
-                          title: 'Ficha de Producto',
-                          items: _productChips,
-                          currentValue: _selectedProductChipId,
-                          getTitle: (item) =>
-                              item['Description'] ?? 'Sin Descripción',
-                          getSubtitle: (item) => 'ID: ${item['id']}',
-                          getValue: (item) => item['id'] as int,
+                      flex: 10,
+                      child: _buildSearchableField<String>(
+                        label: 'Prioridad',
+                        hintText: 'Seleccione Prioridad',
+                        value: _selectedPriority,
+                        isLoading: false,
+                        isDisabled: !(widget.linkedRecordUU != null && widget.linkedRecordUU!.isNotEmpty), 
+                        displayText: _selectedPriority,
+                        onTap: () => _openSearchModal<String>(
+                          title: 'Prioridad',
+                          items: _priorityMap.keys.toList(),
+                          currentValue: _selectedPriority,
+                          getTitle: (item) => item.toString(),
+                          getValue: (item) => item.toString(),
                           onSelected: (val) =>
-                              setState(() => _selectedProductChipId = val),
+                              setState(() => _selectedPriority = val),
                         ),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 16),
-              ],
-
-              // ASUNTO (Campo común para todos)
-              CustomTextField(
-                controller: _emailSubjectController,
-                label: 'Asunto',
-              ),
-              const SizedBox(height: 16),
+                // SECCIÓN: Ficha de Producto (Solo para Soporte)
+                if (!(widget.linkedRecordUU != null && widget.linkedRecordUU!.isNotEmpty)) ...[
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: _buildSearchableField<int>(
+                          label: 'Ficha de Producto',
+                          hintText: _selectedBpId == null
+                              ? 'Seleccione un tercero primero'
+                              : 'Seleccione Ficha',
+                          value: _selectedProductChipId,
+                          isLoading: _isLoadingProducts,
+                          isDisabled: _selectedBpId == null || _isLoadingProducts,
+                          displayText: _selectedProductChipId != null &&
+                                  _productChips.any(
+                                    (c) => c['id'] == _selectedProductChipId,
+                                  )
+                              ? _productChips.firstWhere(
+                                  (c) => c['id'] == _selectedProductChipId,
+                                )['identifier'] ??
+                                  ''
+                              : '',
+                          onTap: () => _openSearchModal<int>(
+                            title: 'Ficha de Producto',
+                            items: _productChips,
+                            currentValue: _selectedProductChipId,
+                            getTitle: (item) => item['identifier'] ?? 'Sin ID',
+                            getValue: (item) => item['id'] as int,
+                            onSelected: (val) =>
+                                setState(() => _selectedProductChipId = val),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                ],
 
               // SECCIÓN: Gestión Interna (Solo Admin)
               if (isFullAccess) ...[
@@ -1297,7 +1412,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                         label: 'Grupo',
                         hintText: 'Seleccione Grupo',
                         value: _selectedGroup,
-                        isLoading: _isLoadingGroups,
+                        isLoading: _loadingGroupsState,
                         isDisabled: false,
                         displayText: _selectedGroup ?? '',
                         onTap: () => _openSearchModal<String>(
@@ -1338,8 +1453,6 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                           items: _salesReps,
                           currentValue: _selectedSalesRepId,
                           getTitle: (item) => item['Name'] ?? 'Sin Nombre',
-                          getSubtitle: (item) =>
-                              'ID: ${item['AD_User_ID'] ?? item['id']}',
                           getValue: (item) =>
                               (item['AD_User_ID'] ?? item['id']) as int,
                           onSelected: (val) =>
@@ -1359,35 +1472,15 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                         value: _selectedStatus,
                         isLoading: _isLoadingStatuses,
                         isDisabled: false,
-                        displayText: _selectedStatus,
+                        displayText: cleanStatusName(_selectedStatus),
                         onTap: () => _openSearchModal<String>(
                           title: 'Estado',
                           items: _statusIdMap.keys.toList(),
                           currentValue: _selectedStatus,
-                          getTitle: (item) => item.toString(),
+                          getTitle: (item) => cleanStatusName(item.toString()),
                           getValue: (item) => item.toString(),
                           onSelected: (val) =>
                               setState(() => _selectedStatus = val),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: _buildSearchableField<String>(
-                        label: 'Prioridad',
-                        hintText: 'Seleccione Prioridad',
-                        value: _selectedPriority,
-                        isLoading: false,
-                        isDisabled: false,
-                        displayText: _selectedPriority,
-                        onTap: () => _openSearchModal<String>(
-                          title: 'Prioridad',
-                          items: _priorityMap.keys.toList(),
-                          currentValue: _selectedPriority,
-                          getTitle: (item) => item.toString(),
-                          getValue: (item) => item.toString(),
-                          onSelected: (val) =>
-                              setState(() => _selectedPriority = val),
                         ),
                       ),
                     ),

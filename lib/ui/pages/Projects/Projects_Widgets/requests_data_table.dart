@@ -216,7 +216,7 @@ class _RequestsDataTableState extends State<RequestsDataTable> {
                     if (AccessControl.isAdmin) DataCell(Text(DocumentsLogic.extractValue(req['AD_User_ID']))),
                     if (AccessControl.isAdmin) DataCell(Text(DocumentsLogic.extractValue(req['SalesRep_ID']))),
                     DataCell(Text(DocumentsLogic.extractValue(req['R_Group_ID']))),
-                    DataCell(Text(DocumentsLogic.extractValue(req['R_Status_ID']))),
+                    DataCell(Text(cleanStatusName(DocumentsLogic.extractValue(req['R_Status_ID'])))),
                     DataCell(Text(DocumentsLogic.extractValue(req['Priority']))),
                     DataCell(Text(req['DateCompletePlan']?.toString().split('T')[0] ?? '')),
                   ],

@@ -318,21 +318,7 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
           ),
         ],
       ),
-      floatingActionButton: AccessControl.canCreateRequests
-          ? FloatingActionButton(
-              onPressed: () async {
-                if (await showDialog(
-                      context: context,
-                      builder: (context) => CreateRequestDialog(linkedProjectId: _projectId),
-                    ) ==
-                    true) {
-                  _initData(showLoading: false);
-                }
-              },
-              tooltip: 'Crear Solicitud',
-              child: const Icon(Icons.add),
-            )
-          : null,
+
       body: _isLoading
           ? const SkeletonTable()
           : _allRequests.isEmpty
@@ -340,7 +326,7 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
               : Column(
                   children: [
                     Expanded(
-                      child: SingleChildScrollView(
+                      child: Padding(
                         padding: const EdgeInsets.all(16),
                         child: RequestsDataTableCore(
                           requests: _paginatedRequests,

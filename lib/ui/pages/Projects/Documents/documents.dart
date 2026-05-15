@@ -7,6 +7,7 @@ import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 import 'package:primhub/ui/pages/Projects/Projects_Widgets/project_item.dart';
 import 'package:primhub/ui/pages/Projects/Documents/project_form_page.dart';
+import 'package:primhub/ui/widgets/project_sidebar.dart';
 import '../../../widgets/custom_drawer.dart';
 import 'package:primhub/api/admin_view_mode.dart';
 import 'package:primhub/api/token.dart';
@@ -462,7 +463,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
       ),
       if (!AccessControl.isAdmin)
         IconButton(
-          icon: const Icon(Icons.logout, color: Colors.red),
+          icon: const Icon(Icons.logout_rounded, color: Colors.red),
           tooltip: 'Cerrar Sesión',
           onPressed: () => showLogoutConfirmation(context),
         ),
@@ -612,7 +613,9 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
       drawer: (_showingFiles || !AccessControl.isAdmin)
           ? null
           : const CustomDrawer(currentRoute: '/deliverables'),
-      bottomNavigationBar: (!AccessControl.isAdmin && !_showingFiles)
+      bottomNavigationBar: (MediaQuery.of(context).size.width < 900 &&
+              !AccessControl.isAdmin &&
+              !_showingFiles)
           ? const ProjectBottomNav(currentRoute: '/deliverables')
           : null,
       floatingActionButton:
@@ -625,17 +628,28 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
               tooltip: 'Nuevo Proyecto',
             )
           : null,
-      body: SafeArea(
-        child: _showingFiles
-            ? ProjectFileManager(
-                key: _fileManagerKey,
-                project: _selectedProject!,
-                viewType: _currentViewType,
-                onExit: _exitFileManager,
-                onRootChanged: (isRoot) =>
-                    setState(() => _isFileManagerRoot = isRoot),
-              )
-            : _buildProjectsView(),
+      body: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (MediaQuery.of(context).size.width >= 900 &&
+              !AccessControl.isAdmin &&
+              !_showingFiles)
+            const ProjectSideBar(currentRoute: '/deliverables'),
+          Expanded(
+            child: SafeArea(
+              child: _showingFiles
+                  ? ProjectFileManager(
+                      key: _fileManagerKey,
+                      project: _selectedProject!,
+                      viewType: _currentViewType,
+                      onExit: _exitFileManager,
+                      onRootChanged: (isRoot) =>
+                          setState(() => _isFileManagerRoot = isRoot),
+                    )
+                  : _buildProjectsView(),
+            ),
+          ),
+        ],
       ),
     );
   }

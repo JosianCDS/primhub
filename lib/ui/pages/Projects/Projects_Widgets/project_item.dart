@@ -118,6 +118,14 @@ class ProjectItem extends StatelessWidget {
                 Text('${phases.length}', style: const TextStyle(fontSize: 14, color: Colors.grey)),
                 const SizedBox(width: 8)
               ],
+              if (AccessControl.canEditProject)
+                IconButton(
+                  icon: const Icon(Icons.edit, size: 20, color: Colors.blueGrey),
+                  tooltip: isArchived ? 'Reactivar Proyecto' : 'Editar Proyecto',
+                  onPressed: () {
+                    onEdit('project', projId, project['Name'] ?? '', project['Description'] ?? '');
+                  },
+                ),
             ],
           ),
           subtitle: Column(
@@ -193,14 +201,6 @@ class ProjectItem extends StatelessWidget {
                                     context: context,
                                     builder: (context) => PhaseCreateDialog(onSave: (name, desc) => onCreatePhase(projId, name, desc)),
                                   );
-                                },
-                              ),
-                            if (AccessControl.canEditProject)
-                              IconButton(
-                                icon: const Icon(Icons.edit, size: 18, color: Colors.blueGrey),
-                                tooltip: isArchived ? 'Reactivar Proyecto' : 'Editar Proyecto',
-                                onPressed: () {
-                                  onEdit('project', projId, project['Name'] ?? '', project['Description'] ?? '');
                                 },
                               ),
                           ],

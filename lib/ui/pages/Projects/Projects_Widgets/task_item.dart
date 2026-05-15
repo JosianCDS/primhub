@@ -211,9 +211,15 @@ class _TaskItemState extends State<TaskItem> {
                       final int? currentStatusId = req['R_Status_ID'] is Map
                           ? req['R_Status_ID']['id']
                           : (req['R_Status_ID'] is int ? req['R_Status_ID'] : null);
-                      String currentStatusName = '1_Open';
+                      
+                      // Intentar obtener el nombre del estado directamente del registro para mayor precisión
+                      String currentStatusName = req['R_Status_ID'] is Map 
+                          ? (req['R_Status_ID']['identifier'] ?? req['R_Status_ID']['Name'] ?? '1_Open') 
+                          : '1_Open';
 
-                      if (currentStatusId != null) {
+                      // Si no está en el mapa de IDs, pero tenemos el nombre del registro, lo usamos.
+                      // Solo buscamos en el mapa si el nombre del registro es genérico.
+                      if (currentStatusId != null && (currentStatusName == '1_Open' || currentStatusName == 'Solicitud')) {
                         for (var entry in widget.statusIdMap.entries) {
                           if (entry.value == currentStatusId) {
                             currentStatusName = entry.key;
@@ -248,6 +254,7 @@ class _TaskItemState extends State<TaskItem> {
                         'userId': req['AD_User_ID'] is Map
                             ? req['AD_User_ID']['id']
                             : (req['AD_User_ID'] is int ? req['AD_User_ID'] : null),
+                        'recordUU': req['Record_UU'], // Crucial para el diálogo de edición
                       };
 
                       showDialog(

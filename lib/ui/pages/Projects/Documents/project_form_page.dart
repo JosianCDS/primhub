@@ -713,9 +713,6 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
                                     item[displayKey]?.toString() ??
                                         'Sin nombre',
                                   ),
-                                  subtitle: Text(
-                                    "ID: ${item[idKey] ?? item['id'] ?? 'N/A'}",
-                                  ),
                                   onTap: () {
                                     final selectedId =
                                         item[idKey] ?? item['id'];

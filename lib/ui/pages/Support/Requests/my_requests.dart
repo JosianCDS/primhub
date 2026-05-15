@@ -23,6 +23,7 @@ import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/Shared_Custom/customToast.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
+import 'package:primhub/ui/widgets/project_sidebar.dart';
 import '../../../widgets/custom_drawer.dart';
 import 'package:primhub/ui/pages/Home/Home_Controller/home_controller.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
@@ -89,7 +90,9 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
 
   void _onBackgroundSyncChanged() {
     if (mounted) {
-      debugPrint("DEBUG: [SYNC] Refreshing MyRequests due to global sync notification.");
+      debugPrint(
+        "DEBUG: [SYNC] Refreshing MyRequests due to global sync notification.",
+      );
       _refreshRequest(fetchNetwork: false);
     }
   }
@@ -499,7 +502,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
           "DEBUG MY_REQUESTS: Cambiaron los Terceros. Reiniciando datos...",
         );
         _bpNameCache.clear();
-    setState(() => _isLoading = true);
+        setState(() => _isLoading = true);
         if (_filters.bpIds.isNotEmpty) {
           _bpId = _filters.bpIds.first;
         } else {
@@ -791,7 +794,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
           else if (priority == '7')
             priorityName = 'Baja';
           else if (priority == '9')
-            priorityName = 'Menor';
+            priorityName = 'Muy baja';
 
           if (!_filters.levels.any(
             (l) => l.toLowerCase() == priorityName.toLowerCase(),
@@ -888,11 +891,14 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
           _rawRequests = filteredRaw;
           _requests = pageProcessed;
           // Cacheamos el ordenamiento aquí para evitar hacerlo en el build
-          _sortedRequests = _requests.toList()..sort((a, b) {
-            final timeA = a['time'] ?? '';
-            final timeB = b['time'] ?? '';
-            return _isAscending ? timeA.compareTo(timeB) : timeB.compareTo(timeA);
-          });
+          _sortedRequests = _requests.toList()
+            ..sort((a, b) {
+              final timeA = a['time'] ?? '';
+              final timeB = b['time'] ?? '';
+              return _isAscending
+                  ? timeA.compareTo(timeB)
+                  : timeB.compareTo(timeA);
+            });
           _isLoading = false;
         });
         _updateStatsLocally();
@@ -1093,7 +1099,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
               const SizedBox(height: 16),
               CustomTextField(
                 controller: TextEditingController(text: req['level']),
-                label: 'Nivel',
+                label: 'Prioridad',
                 readOnly: true,
               ),
               const SizedBox(height: 16),
@@ -1110,13 +1116,23 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      border: Border.all(color: Theme.of(context).colorScheme.outline.withOpacity(0.5)),
+                      border: Border.all(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.outline.withOpacity(0.5),
+                      ),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Descripción', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Theme.of(context).colorScheme.primary)),
+                        Text(
+                          'Descripción',
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                        ),
                         const SizedBox(height: 8),
                         Html(
                           data: req['description'] ?? '',
@@ -1343,11 +1359,12 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
 
   void _updateSortedRequests() {
     setState(() {
-      _sortedRequests = _requests.toList()..sort((a, b) {
-        final timeA = a['time'] ?? '';
-        final timeB = b['time'] ?? '';
-        return _isAscending ? timeA.compareTo(timeB) : timeB.compareTo(timeA);
-      });
+      _sortedRequests = _requests.toList()
+        ..sort((a, b) {
+          final timeA = a['time'] ?? '';
+          final timeB = b['time'] ?? '';
+          return _isAscending ? timeA.compareTo(timeB) : timeB.compareTo(timeA);
+        });
     });
   }
 
@@ -1448,7 +1465,6 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
 
   @override
   Widget build(BuildContext context) {
-
     final appBarActions = [
       if (AccessControl.isAdmin) ..._buildAdminAppBarActions(context),
       if (GlobalCache.backgroundSyncNotifier.value)
@@ -1478,7 +1494,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       ),
       if (!AccessControl.isAdmin)
         IconButton(
-          icon: Icon(Icons.logout, color: Theme.of(context).colorScheme.error),
+          icon: const Icon(Icons.logout_rounded, color: Colors.red),
           tooltip: 'Cerrar Sesión',
           onPressed: () => showLogoutConfirmation(context),
         ),
@@ -1500,147 +1516,185 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
             : null,
         actions: appBarActions,
       ),
-      drawer: !AccessControl.isAdmin ? null : const CustomDrawer(currentRoute: '/my-requests'),
-      bottomNavigationBar: AccessControl.isAdmin ? null : const ProjectBottomNav(
-        currentRoute: '/my-requests',
-      ),
-      body: SafeArea(
-        child: _showCalendar
-            ? CalendarContent(requests: _rawRequests)
-            : NestedScrollView(
-                headerSliverBuilder: (context, innerBoxIsScrolled) {
-                  return [
-                    SliverToBoxAdapter(
-                      child: RepaintBoundary(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-                          child: RequestStatsCard(
-                            contractedHours: _contractedHours,
-                            consumedHours: _consumedHours,
-                            estimatedHours: _estimatedHours,
-                          ),
-                        ),
-                      ),
-                    ),
-                    SliverToBoxAdapter(
-                      child: RepaintBoundary(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                          child: RequestFilterBar(
-                            searchController: _searchController,
-                            isAscending: _isAscending,
-                            rowsPerPage: _rowsPerPage,
-                            showHistory: _showHistory,
-                            selectedYears: _selectedYears,
-                            onShowYearFilter: _showYearFilterModal,
-                            onShowFilters: _showFilterModal,
-                            onShowCalendar: () => setState(() => _showCalendar = true),
-                            activeFilterCount: _activeFilterCount,
-                            isLoading: _isLoading || !GlobalCache.isDataLoaded,
-                            onSortChanged: () {
-                              _isAscending = !_isAscending;
-                              _currentPage = 0;
-                              _updateSortedRequests();
-                            },
-                            onRowsPerPageChanged: (val) {
-                              setState(() {
-                                _rowsPerPage = val!;
-                                _currentPage = 0;
-                              });
-                            },
-                            onClearFilters: () {
-                              setState(() {
-                                _filters = const RequestFilterModel();
-                                _searchController.clear();
-                                _isAscending = false;
-                                _currentPage = 0;
-                                _bpId = null;
-                                _selectedYears = [DateTime.now().year];
-                                _isLoading = true;
-                              });
-                              _initData();
-                            },
-                            onAddRequest: () async {
-                              if (await showDialog(
-                                    context: context,
-                                    builder: (context) => CreateRequestDialog(
-                                      bPartners: _bPartners,
-                                      selectedBPartnerId: _bpId,
-                                    ),
-                                  ) ==
-                                  true) {
-                                _refreshRequest(fetchNetwork: false);
-                              }
-                            },
-                            onToggleHistory: () {
-                              setState(() {
-                                _showHistory = !_showHistory;
-                                _filters = _filters.copyWith(statuses: []);
-                                _currentPage = 0;
-                                if (_showHistory) {
-                                  _startHistorySkeleton();
-                                } else {
-                                  _isHistorySkeletonActive = false;
-                                }
-                              });
-                              _refreshRequest(fetchNetwork: false);
-                            },
-                          ),
-                        ),
-                      ),
-                    ),
-                    SliverToBoxAdapter(
-                      child: RepaintBoundary(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              _buildActiveFilterChips(),
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 8.0),
-                                child: Text(
-                                  '$_totalRecords solicitudes encontradas en total',
-                                  style: Theme.of(context).textTheme.titleMedium,
+      drawer: !AccessControl.isAdmin
+          ? null
+          : const CustomDrawer(currentRoute: '/my-requests'),
+      bottomNavigationBar:
+          (MediaQuery.of(context).size.width < 900 && !AccessControl.isAdmin)
+          ? const ProjectBottomNav(currentRoute: '/my-requests')
+          : null,
+      body: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (MediaQuery.of(context).size.width >= 900 &&
+              !AccessControl.isAdmin)
+            const ProjectSideBar(currentRoute: '/my-requests'),
+          Expanded(
+            child: SafeArea(
+              child: _showCalendar
+                  ? CalendarContent(requests: _rawRequests)
+                  : NestedScrollView(
+                      headerSliverBuilder: (context, innerBoxIsScrolled) {
+                        return [
+                          SliverToBoxAdapter(
+                            child: RepaintBoundary(
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  8,
+                                  16,
+                                  4,
+                                ),
+                                child: RequestStatsCard(
+                                  contractedHours: _contractedHours,
+                                  consumedHours: _consumedHours,
+                                  estimatedHours: _estimatedHours,
                                 ),
                               ),
-                              if (_selectedYears.length == 1 &&
-                                  _selectedYears.first == DateTime.now().year)
-                                const Padding(
-                                  padding: EdgeInsets.only(bottom: 4.0),
-                                  child: Text(
-                                    "Mostrando solicitudes del año actual. Use el filtro de año para ver más años.",
-                                    style: TextStyle(color: Colors.grey),
-                                  ),
+                            ),
+                          ),
+                          SliverToBoxAdapter(
+                            child: RepaintBoundary(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16.0,
                                 ),
-                            ],
+                                child: RequestFilterBar(
+                                  searchController: _searchController,
+                                  isAscending: _isAscending,
+                                  rowsPerPage: _rowsPerPage,
+                                  showHistory: _showHistory,
+                                  selectedYears: _selectedYears,
+                                  onShowYearFilter: _showYearFilterModal,
+                                  onShowFilters: _showFilterModal,
+                                  onShowCalendar: () =>
+                                      setState(() => _showCalendar = true),
+                                  activeFilterCount: _activeFilterCount,
+                                  isLoading:
+                                      _isLoading || !GlobalCache.isDataLoaded,
+                                  onSortChanged: () {
+                                    _isAscending = !_isAscending;
+                                    _currentPage = 0;
+                                    _updateSortedRequests();
+                                  },
+                                  onRowsPerPageChanged: (val) {
+                                    setState(() {
+                                      _rowsPerPage = val!;
+                                      _currentPage = 0;
+                                    });
+                                  },
+                                  onClearFilters: () {
+                                    setState(() {
+                                      _filters = const RequestFilterModel();
+                                      _searchController.clear();
+                                      _isAscending = false;
+                                      _currentPage = 0;
+                                      _bpId = null;
+                                      _selectedYears = [DateTime.now().year];
+                                      _isLoading = true;
+                                    });
+                                    _initData();
+                                  },
+                                  onAddRequest: () async {
+                                    if (await showDialog(
+                                          context: context,
+                                          builder: (context) =>
+                                              CreateRequestDialog(
+                                                bPartners: _bPartners,
+                                                selectedBPartnerId: _bpId,
+                                              ),
+                                        ) ==
+                                        true) {
+                                      _refreshRequest(fetchNetwork: false);
+                                    }
+                                  },
+                                  onToggleHistory: () {
+                                    setState(() {
+                                      _showHistory = !_showHistory;
+                                      _filters = _filters.copyWith(
+                                        statuses: [],
+                                      );
+                                      _currentPage = 0;
+                                      if (_showHistory) {
+                                        _startHistorySkeleton();
+                                      } else {
+                                        _isHistorySkeletonActive = false;
+                                      }
+                                    });
+                                    _refreshRequest(fetchNetwork: false);
+                                  },
+                                ),
+                              ),
+                            ),
+                          ),
+                          SliverToBoxAdapter(
+                            child: RepaintBoundary(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16.0,
+                                  vertical: 4.0,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    _buildActiveFilterChips(),
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 8.0,
+                                      ),
+                                      child: Text(
+                                        '$_totalRecords solicitudes encontradas en total',
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.titleMedium,
+                                      ),
+                                    ),
+                                    if (_selectedYears.length == 1 &&
+                                        _selectedYears.first ==
+                                            DateTime.now().year)
+                                      const Padding(
+                                        padding: EdgeInsets.only(bottom: 4.0),
+                                        child: Text(
+                                          "Mostrando solicitudes del año actual. Use el filtro de año para ver más años.",
+                                          style: TextStyle(color: Colors.grey),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ];
+                      },
+                      body: RepaintBoundary(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 300),
+                            child:
+                                (_isLoading ||
+                                    (_showHistory && _isHistorySkeletonActive))
+                                ? const SkeletonTable()
+                                : RequestsDataTableCore(
+                                    requests: _sortedRequests,
+                                    onEdit: _editRequest,
+                                    onRefresh: () =>
+                                        _refreshRequest(fetchNetwork: true),
+                                    statusIdMap: _statusIdMap,
+                                    priorityMap: priorityMap,
+                                    serverSidePagination: true,
+                                    paginationControls:
+                                        _buildPaginationControls(),
+                                    useSimpleStatus: false,
+                                  ),
                           ),
                         ),
                       ),
                     ),
-                  ];
-                },
-                body: RepaintBoundary(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 300),
-                      child: (_isLoading || (_showHistory && _isHistorySkeletonActive))
-                          ? const SkeletonTable()
-                          : RequestsDataTableCore(
-                              requests: _sortedRequests,
-                              onEdit: _editRequest,
-                              onRefresh: () => _refreshRequest(fetchNetwork: true),
-                              statusIdMap: _statusIdMap,
-                              priorityMap: priorityMap,
-                              serverSidePagination: true,
-                              paginationControls: _buildPaginationControls(),
-                              useSimpleStatus: false,
-                            ),
-                    ),
-                  ),
-                ),
-              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -31,7 +31,7 @@ const Map<int, String> SUPPORT_STATUS_MAPPING = {
   1000015: 'Anulada',
 };
 
-const Map<String, String> priorityMap = {'Urgente': '1', 'Alta': '3', 'Media': '5', 'Baja': '7', 'Menor': '9'};
+const Map<String, String> priorityMap = {'Urgente': '1', 'Alta': '3', 'Media': '5', 'Baja': '7', 'Muy baja': '9'};
 
 // --- UTILIDADES DE FORMATO ---
 
@@ -437,24 +437,40 @@ Future<Map<String, int>> fetchRequestTypes() async {
   return {};
 }
 
-Future<Map<String, int>> fetchCategories() async {
+Future<List<Map<String, dynamic>>> fetchCategories() async {
   try {
+    final url = Uri.parse('${Endpoint.baseUrl}/api/v1/models/R_Category');
+    debugPrint("Fetching ALL Categories from: $url");
+    
     final response = await http.get(
-      Uri.parse('${Endpoint.baseUrl}/api/v1/models/R_Category'),
+      url,
       headers: {
         'Content-Type': 'application/json',
         'Authorization': Token.token,
       },
     );
+    
     if (response.statusCode == 200) {
       final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
-      final records = jsonResponse['records'] as List;
-      return {for (var r in records) r['Name'].toString().trim(): r['id'] as int};
+      final List records = jsonResponse['records'] ?? [];
+      
+      return records.map((r) {
+        final map = Map<String, dynamic>.from(r);
+        // Extraer ID de prioridad si viene como objeto
+        if (map['Priority'] is Map) {
+          map['Priority'] = map['Priority']['id'];
+        }
+        // Asegurar que showinprimhub sea booleano
+        map['showinprimhub'] = map['showinprimhub'] == true || map['showinprimhub']?.toString().toLowerCase() == 'true';
+        return map;
+      }).toList();
+    } else {
+      debugPrint("Categories Error: ${response.statusCode} - ${response.body}");
     }
   } catch (e) {
-    debugPrint("Error fetching categories: $e");
+    debugPrint("Exception in fetchCategories: $e");
   }
-  return {};
+  return [];
 }
 
 Future<Map<String, int>> fetchGroups() async {
@@ -529,9 +545,21 @@ Future<Map<String, dynamic>> processRequests(List<dynamic> requests, Map<String,
       inProgress += qtySpent;
     }
 
-    // Formateo de UI
+    // Lógica de Prioridad (Nivel -> Prioridad)
     String level = 'Media';
-    final rawPriority = req['Priority'];
+    var rawPriority = req['Priority'];
+
+    // Si la prioridad del request es nula, intentamos obtenerla de la categoría
+    if (rawPriority == null || (rawPriority is String && rawPriority.isEmpty)) {
+      final categoryId = req['R_Category_ID'] is Map ? req['R_Category_ID']['id'] : req['R_Category_ID'];
+      if (categoryId != null) {
+        final cat = GlobalCache.rawCategories.firstWhere((c) => c['id'] == categoryId, orElse: () => {});
+        if (cat.isNotEmpty) {
+          rawPriority = cat['Priority'];
+        }
+      }
+    }
+
     if (rawPriority is Map) {
       level = (rawPriority['identifier'] ?? rawPriority['Name'] ?? 'Media').toString();
     } else if (rawPriority != null) {
@@ -540,8 +568,8 @@ Future<Map<String, dynamic>> processRequests(List<dynamic> requests, Map<String,
       else if (pStr == '3') level = 'Alta';
       else if (pStr == '5') level = 'Media';
       else if (pStr == '7') level = 'Baja';
-      else if (pStr == '9') level = 'Menor';
-      else level = pStr; // Fallback al valor crudo si no coincide
+      else if (pStr == '9') level = 'Muy baja';
+      else level = pStr; 
     }
     String status = statusName;
     int? statusId = statusIdFromReq;
@@ -566,7 +594,7 @@ Future<Map<String, dynamic>> processRequests(List<dynamic> requests, Map<String,
       baseColor = Colors.red;
     } else if (level == 'Media') {
       baseColor = Colors.amber.shade800;
-    } else if (level == 'Menor') {
+    } else if (level == 'Muy baja') {
       baseColor = Colors.grey;
     }
     String formattedTime = req['Created'] ?? '';
@@ -599,6 +627,62 @@ Future<Map<String, dynamic>> processRequests(List<dynamic> requests, Map<String,
       if (found.isNotEmpty) salesRepName = (found['Name'] ?? '').toString().trim();
     }
 
+    final categoryId = req['R_Category_ID'] is Map ? (req['R_Category_ID']['id'] as num?)?.toInt() : (req['R_Category_ID'] as num?)?.toInt();
+    String? categoryName = getDropdownValue(req['R_Category_ID']);
+    
+    // Identificar si es una solicitud de Proyecto (tiene Record_UU) o de Soporte
+    final recordUU = req['Record_UU']?.toString().trim();
+    final bool isProjectRequest = recordUU != null && recordUU.isNotEmpty;
+
+    // Obtener metadatos de la categoría desde el caché global (ahora contiene todas)
+    final catInCache = GlobalCache.rawCategories.firstWhere(
+      (c) => (c['id'] as num?)?.toInt() == categoryId, 
+      orElse: () => {}
+    );
+
+    if (isProjectRequest) {
+      // --- LÓGICA PARA PROYECTOS ---
+      // Se muestran categorías que tienen showinprimhub = false
+      bool isValidProjectCategory = false;
+      if (catInCache.isNotEmpty) {
+        isValidProjectCategory = catInCache['showinprimhub'] == false;
+      }
+
+      if (!isValidProjectCategory) {
+        categoryName = 'Sin categoría';
+        // En proyectos la prioridad se mantiene tal cual viene del ERP (no hay automatización forzada)
+      }
+    } else {
+      // --- LÓGICA PARA SOPORTE (PRIMHUB) ---
+      // Se muestran categorías que tienen showinprimhub = true
+      bool isPrimhubCategory = false;
+      if (catInCache.isNotEmpty) {
+        isPrimhubCategory = catInCache['showinprimhub'] == true;
+      }
+      
+      if (!isPrimhubCategory) {
+        categoryName = 'Sin categoría';
+        level = 'N/A';
+        baseColor = Colors.grey;
+      } else {
+        // Validar si la prioridad de la solicitud coincide con la prioridad oficial de la categoría en el ERP
+        if (catInCache.isNotEmpty) {
+          final String standardPriority = (catInCache['Priority'] is Map 
+              ? catInCache['Priority']['id'] 
+              : catInCache['Priority'])?.toString() ?? '';
+          
+          final String currentPriority = (req['Priority'] is Map 
+              ? req['Priority']['id'] 
+              : req['Priority'])?.toString() ?? '';
+              
+          if (standardPriority.isNotEmpty && currentPriority != standardPriority) {
+            level = 'N/A';
+            baseColor = Colors.grey;
+          }
+        }
+      }
+    }
+
     processedRequests.add({
       'descriptionClean': stripHtmlTags(req['Description'] ?? req['Summary'] ?? ''),
       'id': req['DocumentNo'] ?? req['id'].toString(),
@@ -623,7 +707,7 @@ Future<Map<String, dynamic>> processRequests(List<dynamic> requests, Map<String,
       'bpName': bpName,
       'result': req['Result'] ?? '',
       'type': getDropdownValue(req['R_RequestType_ID']),
-      'category': getDropdownValue(req['R_Category_ID']),
+      'category': categoryName,
       'group': getDropdownValue(req['R_Group_ID']),
       'bpId': bpId,
       'userId': userId,

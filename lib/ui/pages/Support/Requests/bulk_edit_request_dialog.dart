@@ -10,6 +10,7 @@ import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/api/global_cache.dart';
+import 'package:primhub/api/contract_api.dart'; // Para Product Chips
 
 class BulkEditRequestDialog extends StatefulWidget {
   final Set<int> selectedIds;
@@ -32,10 +33,15 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
   String? _selectedType;
   String? _selectedCategory;
   String? _selectedGroup;
-  String? _selectedPriority;
   String? _selectedStatus;
   int? _selectedBpId;
   int? _selectedUserId;
+  int? _selectedProductChipId;
+
+  bool _isProductChipBlocked = false;
+  List<Map<String, dynamic>> _productChips = [];
+  bool _isLoadingChips = false;
+  Set<int> _originalBpIds = {};
 
   Map<String, int> _statusIdMap = {};
   Map<String, int> _requestTypeMap = {};
@@ -47,7 +53,41 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
   @override
   void initState() {
     super.initState();
+    _checkOriginalBps();
     _loadDictionaries();
+  }
+
+  void _checkOriginalBps() {
+    for (var id in widget.selectedIds) {
+      final req = GlobalCache.requests.firstWhere((r) => r['id'] == id, orElse: () => <String,dynamic>{});
+      if (req.isNotEmpty) {
+        final bpRaw = req['C_BPartner_ID'];
+        if (bpRaw is Map && bpRaw['id'] != null) {
+          _originalBpIds.add(bpRaw['id'] as int);
+        } else if (bpRaw is int) {
+          _originalBpIds.add(bpRaw);
+        }
+      }
+    }
+    if (_originalBpIds.length > 1) {
+      _isProductChipBlocked = true;
+    } else if (_originalBpIds.length == 1) {
+      _fetchProductChips(_originalBpIds.first);
+    }
+  }
+
+  Future<void> _fetchProductChips(int bpId) async {
+    setState(() {
+      _isLoadingChips = true;
+      _selectedProductChipId = null;
+    });
+    final chips = await ContractApi.getSupportProductChips(bPartnerId: bpId);
+    if (mounted) {
+      setState(() {
+        _productChips = chips;
+        _isLoadingChips = false;
+      });
+    }
   }
 
   Future<void> _loadDictionaries() async {
@@ -55,7 +95,9 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
       final futures = await Future.wait([
         fetchStatuses(),
         _fetchMap('${Endpoint.baseUrl}/api/v1/models/R_RequestType'),
-        _fetchMap('${Endpoint.baseUrl}/api/v1/models/R_Category'),
+        _fetchMap(
+          '${Endpoint.baseUrl}/api/v1/models/R_Category?\$filter=showinprimhub eq true',
+        ),
         _fetchMap('${Endpoint.baseUrl}/api/v1/models/R_Group'),
         ProjectsLogic().fetchUsers(),
         ProjectsLogic().fetchBPartners(),
@@ -121,7 +163,10 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
     if (_selectedType != null) changes['Tipo de Solicitud'] = _selectedType!;
     if (_selectedCategory != null) changes['Categoría'] = _selectedCategory!;
     if (_selectedGroup != null) changes['Grupo'] = _selectedGroup!;
-    if (_selectedPriority != null) changes['Prioridad'] = _selectedPriority!;
+    if (_selectedProductChipId != null) {
+      final chipName = _productChips.firstWhere((c) => c['id'] == _selectedProductChipId, orElse: () => <String,dynamic>{})['Name']?.toString() ?? 'Ficha $_selectedProductChipId';
+      changes['Ficha de Producto'] = chipName;
+    }
     if (_selectedStatus != null) changes['Estado'] = _selectedStatus!;
     if (_selectedBpId != null) {
       final bpName =
@@ -208,7 +253,7 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
     for (final id in widget.selectedIds) {
       final result = await updateRemoteRequest(
         id: id,
-        priority: _selectedPriority,
+        productChipId: _selectedProductChipId,
         statusId: _selectedStatus != null
             ? _statusIdMap[_selectedStatus]
             : null,
@@ -328,19 +373,49 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
                 ),
                 const SizedBox(width: 16),
                 Expanded(
-                  child: CustomDropdown<String?>(
-                    label: 'Prioridad',
-                    value: _selectedPriority,
-                    items: [
-                      const DropdownMenuItem(
-                        value: null,
-                        child: Text('-- No modificar --'),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: CustomDropdown<int?>(
+                          label: 'Ficha de Producto',
+                          value: _selectedProductChipId,
+                          items: [
+                            const DropdownMenuItem<int?>(
+                              value: null,
+                              child: Text('-- No modificar --'),
+                            ),
+                            if (!_isProductChipBlocked)
+                              ..._productChips.map(
+                                (c) {
+                                  final name = c['identifier'] ?? c['Name'] ?? 'Ficha ${c['id']}';
+                                  final desc = c['Description'] ?? '';
+                                  final displayText = desc.isNotEmpty ? '$name - $desc' : name;
+                                  return DropdownMenuItem<int?>(
+                                    value: c['id'],
+                                    child: Text(
+                                      displayText,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  );
+                                },
+                              ),
+                          ],
+                          onChanged: _isProductChipBlocked
+                              ? null
+                              : (val) => setState(() => _selectedProductChipId = val),
+                        ),
                       ),
-                      ...priorityMap.keys.map(
-                        (k) => DropdownMenuItem(value: k, child: Text(k)),
-                      ),
+                      if (_isProductChipBlocked) ...[
+                        const SizedBox(width: 8),
+                        Tooltip(
+                          message: 'Todas las solicitudes deben pertenecer al mismo tercero para editar masivamente una ficha de producto.',
+                          child: const Icon(Icons.info_outline, color: Colors.orange),
+                        ),
+                      ] else if (_isLoadingChips) ...[
+                        const SizedBox(width: 8),
+                        const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                      ]
                     ],
-                    onChanged: (val) => setState(() => _selectedPriority = val),
                   ),
                 ),
               ],
@@ -382,7 +457,21 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
                         ),
                       ),
                     ],
-                    onChanged: (val) => setState(() => _selectedBpId = val),
+                    onChanged: (val) {
+                      setState(() => _selectedBpId = val);
+                      if (val != null) {
+                        if (!_isProductChipBlocked) _fetchProductChips(val);
+                      } else {
+                        if (!_isProductChipBlocked && _originalBpIds.length == 1) {
+                           _fetchProductChips(_originalBpIds.first);
+                        } else {
+                          setState(() {
+                            _productChips = [];
+                            _selectedProductChipId = null;
+                          });
+                        }
+                      }
+                    },
                   ),
                 ),
                 const SizedBox(width: 16),

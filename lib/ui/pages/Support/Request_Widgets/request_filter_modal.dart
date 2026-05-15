@@ -150,7 +150,10 @@ class _RequestFilterModalState extends State<RequestFilterModal> {
           if (needsTypes)
             fetchRequestTypes().then((val) => GlobalCache.requestTypes = val),
           if (needsCats)
-            fetchCategories().then((val) => GlobalCache.categories = val),
+            fetchCategories().then((val) {
+              GlobalCache.rawCategories = val;
+              GlobalCache.categories = {for (var c in val) c['Name'].toString().trim(): c['id'] as int};
+            }),
           if (needsGroups)
             fetchGroups().then((val) => GlobalCache.groups = val),
         ]);
@@ -468,14 +471,14 @@ class _RequestFilterModalState extends State<RequestFilterModal> {
             ),
             const SizedBox(height: 16),
             _buildMultiSearchableField(
-              label: 'Nivel',
+              label: 'Prioridad',
               hintText: 'Todos',
               values: _tempFilter.levels,
               isLoading: false,
               isDisabled: false,
               onTap: () => _openMultiSelectSearchModal(
-                title: 'Nivel',
-                items: ['Urgente', 'Alta', 'Media', 'Baja', 'Menor'],
+                title: 'Prioridad',
+                items: ['Urgente', 'Alta', 'Media', 'Baja', 'Muy baja'],
                 currentValues: _tempFilter.levels,
                 getTitle: (item) => item.toString(),
                 getValue: (item) => item.toString(),

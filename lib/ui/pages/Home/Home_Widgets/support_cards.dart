@@ -54,13 +54,7 @@ class UnifiedSupportCard extends StatelessWidget {
     const Color headerIconBgColor = Color(0xFFEEF2FF);
     const Color statColor = Color(0xFFD97708);
 
-    String dateRange = 'Vigencia: ';
-    if (serviceStartDate != null && serviceFinishDate != null) {
-      dateRange +=
-          '${serviceStartDate!.split('T')[0]} - ${serviceFinishDate!.split('T')[0]}';
-    } else {
-      dateRange += 'No definida';
-    }
+
 
     return CardCustom(
       hover: false,
@@ -124,13 +118,7 @@ class UnifiedSupportCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            Text(
-              dateRange,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: Colors.grey.shade600,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
+
             const Divider(height: 24),
             // Hours Section
             Row(
