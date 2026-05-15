@@ -13,6 +13,7 @@ import 'package:primhub/ui/Shared_Custom/custom_table.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
+import 'package:primhub/ui/widgets/project_sidebar.dart';
 import '../../widgets/custom_drawer.dart';
 import 'package:primhub/ui/widgets/duration_formatter.dart';
 import 'Requests/request_functions.dart';
