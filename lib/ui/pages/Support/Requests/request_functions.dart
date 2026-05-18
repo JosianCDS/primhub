@@ -348,10 +348,7 @@ Future<List<Map<String, dynamic>>> fetchProjectAndTaskRequests(int projectId, {L
     taskUUIDs = await ProjectsLogic().fetchProjectTaskUUIDs(projectId);
   }
 
-  String baseFilter = "C_Project_ID eq $projectId and Record_UU ne null";
-  if (additionalFilter != null && additionalFilter.isNotEmpty) {
-    baseFilter = "($baseFilter) and $additionalFilter";
-  }
+  String baseFilter = "C_Project_ID eq $projectId";
 
   // 1. Solicitudes vinculadas a nivel de proyecto (Cabecera)
   final pReqs = await fetchRequest(filter: baseFilter, select: select, expand: expand ?? 'C_Order_ID(\$select=DocumentNo),R_Status_ID,R_RequestType_ID,R_Category_ID,Priority');

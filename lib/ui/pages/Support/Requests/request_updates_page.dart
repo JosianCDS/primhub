@@ -45,11 +45,18 @@ class _RequestUpdatesPageState extends State<RequestUpdatesPage> {
 
       // 1. INTENTO EN CACHÉ (Instantáneo si no se fuerza red)
       if (!forceNetwork) {
-        final cached = GlobalCache.requests.where((r) {
-          final rId = r['id']?.toString();
-          final rDocNo = r['DocumentNo']?.toString();
-          return rId == widget.requestId.toString() || rDocNo == widget.docNo;
-        }).toList();
+        var cached = GlobalCache.requests.where((r) => r['id']?.toString() == widget.requestId.toString()).toList();
+
+        // Buscar también en la caché de proyectos
+        if (cached.isEmpty) {
+          for (var projList in GlobalCache.projectRequestsCache.values) {
+            final foundInProj = projList.where((r) => r['id']?.toString() == widget.requestId.toString()).toList();
+            if (foundInProj.isNotEmpty) {
+              cached = foundInProj;
+              break;
+            }
+          }
+        }
 
         if (cached.isNotEmpty) {
           debugPrint("DEBUG: [CACHE] Found request in GlobalCache.");
@@ -58,31 +65,31 @@ class _RequestUpdatesPageState extends State<RequestUpdatesPage> {
         }
       }
 
-      // 2. INTENTO API POR DOCUMENT NO (Máxima precisión para lo que ve el usuario)
-      if (widget.docNo.isNotEmpty) {
-        debugPrint("DEBUG: [STAGE 1] Searching by DocumentNo: ${widget.docNo}");
-        final reqsDoc = await fetchRequest(
-          filter: "DocumentNo eq '${widget.docNo}'",
-          select: "id,DocumentNo,Summary,Description,Help,Result,CDS_EmailSubject,Created,Priority,R_Status_ID,R_Category_ID,R_RequestType_ID,C_BPartner_ID,AD_User_ID,SalesRep_ID,QtySpent,ConfidentialTypeEntry",
-        );
-        if (reqsDoc.isNotEmpty) {
-          debugPrint("DEBUG: [STAGE 1 SUCCESS] Found via DocumentNo.");
-          _handleFoundRequest(reqsDoc.first);
-          return;
-        }
-      }
-
-      // 3. INTENTO API POR ID (Respaldo técnico)
-      debugPrint("DEBUG: [STAGE 2] DocumentNo search failed. Searching by ID: ${widget.requestId}");
+      // 2. INTENTO API POR ID (Búsqueda principal y más precisa)
+      debugPrint("DEBUG: [STAGE 1] Searching by ID: ${widget.requestId}");
       final reqsId = await fetchRequest(
         filter: "id eq ${widget.requestId} or R_Request_ID eq ${widget.requestId}",
         select: "id,DocumentNo,Summary,Description,Help,Result,CDS_EmailSubject,Created,Priority,R_Status_ID,R_Category_ID,R_RequestType_ID,C_BPartner_ID,AD_User_ID,SalesRep_ID,QtySpent,ConfidentialTypeEntry",
       );
 
       if (reqsId.isNotEmpty) {
-        debugPrint("DEBUG: [STAGE 2 SUCCESS] Found via internal ID.");
+        debugPrint("DEBUG: [STAGE 1 SUCCESS] Found via internal ID.");
         _handleFoundRequest(reqsId.first);
         return;
+      }
+
+      // 3. INTENTO API POR DOCUMENT NO (Respaldo si el ID no funcionó)
+      if (widget.docNo.isNotEmpty && widget.docNo != widget.requestId.toString()) {
+        debugPrint("DEBUG: [STAGE 2] ID search failed. Searching by DocumentNo: ${widget.docNo}");
+        final reqsDoc = await fetchRequest(
+          filter: "DocumentNo eq '${widget.docNo}'",
+          select: "id,DocumentNo,Summary,Description,Help,Result,CDS_EmailSubject,Created,Priority,R_Status_ID,R_Category_ID,R_RequestType_ID,C_BPartner_ID,AD_User_ID,SalesRep_ID,QtySpent,ConfidentialTypeEntry",
+        );
+        if (reqsDoc.isNotEmpty) {
+          debugPrint("DEBUG: [STAGE 2 SUCCESS] Found via DocumentNo.");
+          _handleFoundRequest(reqsDoc.first);
+          return;
+        }
       }
 
       debugPrint("DEBUG: [FAILED] No request found after all stages for identifier: ${widget.requestId} / ${widget.docNo}");

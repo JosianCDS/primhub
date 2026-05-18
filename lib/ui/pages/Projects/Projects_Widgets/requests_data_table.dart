@@ -134,8 +134,9 @@ class _RequestsDataTableState extends State<RequestsDataTable> {
                             icon: Icon(AccessControl.canAddUpdates ? Icons.reply : Icons.forum),
                             tooltip: AccessControl.canAddUpdates ? 'Responder Solicitud' : 'Ver Actualizaciones',
                             onPressed: () {
-                              final id = Uri.encodeComponent(req['id'].toString());
-                              GoRouter.of(context).push('/request-updates/$id', extra: {'docNo': req['DocumentNo'] ?? req['id'].toString()});
+                              final realId = _getRealId(req);
+                              final encodedId = Uri.encodeComponent(realId.toString());
+                              GoRouter.of(context).push('/request-updates/$encodedId', extra: {'docNo': req['id'].toString()});
                             },
                           ),
                           IconButton(

@@ -409,7 +409,19 @@ class _MetricsPageState extends State<MetricsPage> {
 
       if (requests.isEmpty) {
         if (mounted) {
-          setState(() => _isLoading = false);
+          setState(() {
+            _isLoading = false;
+            _statusLabels = [];
+            _statusValues = [];
+            _complianceLabels = [];
+            _complianceValues = [];
+            _moduleLabels = [];
+            _moduleFullLabels = [];
+            _moduleTerminadaValues = [];
+            _modulePendienteValues = [];
+            _moduleEsperaValues = [];
+            _modulePercentageValues = [];
+          });
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text(
@@ -721,11 +733,11 @@ class _MetricsPageState extends State<MetricsPage> {
                         hintText: 'Buscar proyecto...',
                         prefixIcon: const Icon(Icons.search),
                         suffixIcon: isLoading
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: Padding(
-                                  padding: EdgeInsets.all(12),
+                            ? const Padding(
+                                padding: EdgeInsets.all(12),
+                                child: SizedBox(
+                                  width: 20,
+                                  height: 20,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
                                   ),
@@ -759,7 +771,7 @@ class _MetricsPageState extends State<MetricsPage> {
                                       horizontal: 24.0,
                                     ),
                                     child: Text(
-                                      "no se encontraron terceros validos para mostrar graficos",
+                                      "no se encontro ningun proyecto relacionado a tu tercero actual",
                                       textAlign: TextAlign.center,
                                       style: TextStyle(color: Colors.grey),
                                     ),
@@ -1653,10 +1665,12 @@ class _MetricsPageState extends State<MetricsPage> {
         child: SizedBox(height: height, child: child),
       );
 
-  Widget _buildEmptyView() => const Center(
+  Widget _buildEmptyView() => Center(
     child: Text(
-      "Sin datos relevantes para este proyecto",
-      style: TextStyle(color: Colors.grey),
+      AccessControl.isProject
+          ? "no se encontro ningun proyecto relacionado a tu tercero actual"
+          : "Sin datos relevantes para este proyecto",
+      style: const TextStyle(color: Colors.grey),
     ),
   );
 
