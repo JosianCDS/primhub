@@ -1077,6 +1077,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                           availableHours: available,
                           processedChips: _processedChips,
                           selectedChipId: _selectedSummaryChipId,
+                          isLoading: _isLoading,
                           onChipTap: (id) {
                             setState(() {
                               if (_selectedSummaryChipId == id) {

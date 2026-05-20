@@ -108,8 +108,8 @@ class _RequestFilterModalState extends State<RequestFilterModal> {
     _bPartners = widget.bPartners;
     _users = widget.users;
     
-    debugPrint("DEBUG MODAL: Abriendo modal con ${_bPartners.length} Terceros y ${_users.length} Usuarios.");
-    debugPrint("DEBUG MODAL: Filtros iniciales -> BPs: ${_tempFilter.bpIds}, Chips: ${_tempFilter.productChipIds}");
+// [Mantenimiento] Log removido:     debugPrint("DEBUG MODAL: Abriendo modal con ${_bPartners.length} Terceros y ${_users.length} Usuarios.");
+// [Mantenimiento] Log removido:     debugPrint("DEBUG MODAL: Filtros iniciales -> BPs: ${_tempFilter.bpIds}, Chips: ${_tempFilter.productChipIds}");
     _loadMissingMetadata();
   }
 
@@ -158,7 +158,7 @@ class _RequestFilterModalState extends State<RequestFilterModal> {
             fetchGroups().then((val) => GlobalCache.groups = val),
         ]);
       } catch (e) {
-        debugPrint("Error loading filter metadata: $e");
+// [Mantenimiento] Log removido:         debugPrint("Error loading filter metadata: $e");
       }
       if (mounted) setState(() => _isLoadingMetadata = false);
     }
@@ -512,7 +512,7 @@ class _RequestFilterModalState extends State<RequestFilterModal> {
                   return _tempFilter.bpIds.contains(chipBpId);
                 }).toList();
 
-                debugPrint("DEBUG MODAL: Abriendo selección de chips. Fichas filtradas por BP: ${filteredChips.length}");
+// [Mantenimiento] Log removido:                 debugPrint("DEBUG MODAL: Abriendo selección de chips. Fichas filtradas por BP: ${filteredChips.length}");
 
                 _openMultiSelectSearchModal(
                   title: 'Ficha de Producto',
@@ -534,7 +534,7 @@ class _RequestFilterModalState extends State<RequestFilterModal> {
                   getValue: (item) => (item['id'] as num).toInt().toString(),
                   onSelected: (vals) {
                     final newIds = vals.map((v) => int.parse(v)).toList();
-                    debugPrint("DEBUG MODAL: Chips seleccionados: $newIds");
+// [Mantenimiento] Log removido:                     debugPrint("DEBUG MODAL: Chips seleccionados: $newIds");
                     setState(() => _tempFilter = _tempFilter.copyWith(
                       productChipIds: newIds
                     ));
@@ -548,7 +548,7 @@ class _RequestFilterModalState extends State<RequestFilterModal> {
       actions: [
         TextButton(onPressed: () => Navigator.pop(context, null), child: const Text('Cancelar')),
         CustomButton(text: 'Aplicar Filtros', onPressed: () {
-          debugPrint("DEBUG MODAL: Aplicando filtros finales. BPs: ${_tempFilter.bpIds}, Chips: ${_tempFilter.productChipIds}");
+// [Mantenimiento] Log removido:           debugPrint("DEBUG MODAL: Aplicando filtros finales. BPs: ${_tempFilter.bpIds}, Chips: ${_tempFilter.productChipIds}");
           Navigator.pop(context, _tempFilter);
         }),
       ],
@@ -643,3 +643,4 @@ class __MultiSelectSearchDialogState extends State<_MultiSelectSearchDialog> {
     );
   }
 }
+

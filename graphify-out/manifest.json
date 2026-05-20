@@ -1,4 +1,8 @@
 {
+  "/home/alexander/Descargas/Primhub/primhub/scratch.dart": {
+    "mtime": 1778875388.0063784,
+    "hash": "78b40073e42f6b5c1fc03657a67f8066"
+  },
   "/home/alexander/Descargas/Primhub/primhub/linux/runner/my_application.h": {
     "mtime": 1776974052.3649156,
     "hash": "326a85d68857137fdfe8698a0c071baf"
@@ -18,6 +22,114 @@
   "/home/alexander/Descargas/Primhub/primhub/linux/flutter/generated_plugin_registrant.h": {
     "mtime": 1776974052.36478,
     "hash": "d295462c9da9f7fef22dc86c34492318"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/linux/flutter/ephemeral/flutter_linux/fl_binary_messenger.h": {
+    "mtime": 1779131772.3804178,
+    "hash": "5b259053180f6c3a637a3760f5e78921"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/linux/flutter/ephemeral/flutter_linux/fl_texture_registrar.h": {
+    "mtime": 1779131772.3809347,
+    "hash": "455c45888f33294a5054d8adacac5a2e"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/linux/flutter/ephemeral/flutter_linux/fl_json_message_codec.h": {
+    "mtime": 1779131772.3813019,
+    "hash": "4f7385406239c0eb8b31855e75b9addc"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/linux/flutter/ephemeral/flutter_linux/fl_value.h": {
+    "mtime": 1779131772.3816957,
+    "hash": "0fad916a7405474cce0f6d85509a12ac"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/linux/flutter/ephemeral/flutter_linux/fl_method_response.h": {
+    "mtime": 1779131772.38215,
+    "hash": "3373ee1d610372294796ae24f7b10b59"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/linux/flutter/ephemeral/flutter_linux/fl_binary_codec.h": {
+    "mtime": 1779131772.382221,
+    "hash": "5997440e26e079541337c498925226f1"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/linux/flutter/ephemeral/flutter_linux/fl_pixel_buffer_texture.h": {
+    "mtime": 1779131772.3828325,
+    "hash": "613a2389f2fda4d844e82e63b690a975"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/linux/flutter/ephemeral/flutter_linux/fl_texture_gl.h": {
+    "mtime": 1779131772.3830843,
+    "hash": "3a535810e25ecd4fd017a2eb197dab30"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/linux/flutter/ephemeral/flutter_linux/fl_plugin_registrar.h": {
+    "mtime": 1779131772.3832943,
+    "hash": "3d850b5432140f7e565baa806ee1f716"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/linux/flutter/ephemeral/flutter_linux/fl_method_codec.h": {
+    "mtime": 1779131772.3834858,
+    "hash": "1593085ded6e4a14d8129a5d9a95edb8"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/linux/flutter/ephemeral/flutter_linux/fl_method_call.h": {
+    "mtime": 1779131772.3837357,
+    "hash": "1187bb4f46363e874137ce4f71356e8b"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/linux/flutter/ephemeral/flutter_linux/fl_message_codec.h": {
+    "mtime": 1779131772.383977,
+    "hash": "4e0c2c7002baf140a95f0067b781d498"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/linux/flutter/ephemeral/flutter_linux/flutter_linux.h": {
+    "mtime": 1779131772.3841796,
+    "hash": "1dcce1af8eb3052e29d06a756f0535db"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/linux/flutter/ephemeral/flutter_linux/fl_engine.h": {
+    "mtime": 1779131772.3843708,
+    "hash": "1b028c1fa72fa880b3f8ceb15c1c69df"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/linux/flutter/ephemeral/flutter_linux/fl_standard_message_codec.h": {
+    "mtime": 1779131772.3845754,
+    "hash": "cde1b5d81be59769b872be4d62b4bae8"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/linux/flutter/ephemeral/flutter_linux/fl_standard_method_codec.h": {
+    "mtime": 1779131772.3847659,
+    "hash": "09d4ac26822e07f1c2f16d89380b40dc"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/linux/flutter/ephemeral/flutter_linux/fl_basic_message_channel.h": {
+    "mtime": 1779131772.384949,
+    "hash": "8730d7034562b44bcab7c48c894ba862"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/linux/flutter/ephemeral/flutter_linux/fl_method_channel.h": {
+    "mtime": 1779131772.3852148,
+    "hash": "de7b99c808de5c710ade00638cf7e484"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/linux/flutter/ephemeral/flutter_linux/fl_dart_project.h": {
+    "mtime": 1779131772.385393,
+    "hash": "1ddbe3c8a2821804ced450e37fa9701a"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/linux/flutter/ephemeral/flutter_linux/fl_application.h": {
+    "mtime": 1779131772.3855994,
+    "hash": "5774eb642609ea54649f5a74272b973f"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/linux/flutter/ephemeral/flutter_linux/fl_view.h": {
+    "mtime": 1779131772.385777,
+    "hash": "e27fc7ec7888b59ffac04a45e4461699"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/linux/flutter/ephemeral/flutter_linux/fl_texture.h": {
+    "mtime": 1779131772.3859444,
+    "hash": "d1894650bbfe9ba65c6f0b195645a9a5"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/linux/flutter/ephemeral/flutter_linux/fl_json_method_codec.h": {
+    "mtime": 1779131772.386113,
+    "hash": "c31254629784a8fd48a5ec671df85e64"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/linux/flutter/ephemeral/flutter_linux/fl_event_channel.h": {
+    "mtime": 1779131772.386279,
+    "hash": "f3234aba146e57eced1b9febac78a1ec"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/linux/flutter/ephemeral/flutter_linux/fl_plugin_registry.h": {
+    "mtime": 1779131772.3864536,
+    "hash": "9093dc992b7f0c62c899bb5ee75437bb"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/linux/flutter/ephemeral/flutter_linux/fl_string_codec.h": {
+    "mtime": 1779131772.3866577,
+    "hash": "5edcd4ae8b7d3acb2e56bf8bfad75d4d"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/scratch/debug_categories.dart": {
+    "mtime": 1778858658.664074,
+    "hash": "eae7cfe106c810ea178572338bb0d389"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/app.dart": {
     "mtime": 1776974052.3586056,
@@ -48,16 +160,16 @@
     "hash": "0b65db3c05a33e83c6ce5ed1e6193f7f"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/api/access_control.dart": {
-    "mtime": 1776974052.3584385,
-    "hash": "081eb0f201d25cdf913e38519fc4901b"
+    "mtime": 1778855235.0809247,
+    "hash": "bb53a124c239efe7efe50df161424b12"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/api/contract_api.dart": {
-    "mtime": 1778532679.87884,
-    "hash": "0c0a8130062ea3adfc2d0c719453583a"
+    "mtime": 1779292307.8787742,
+    "hash": "2aaec5205191429b428b0524a2fc66eb"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/api/session_manager.dart": {
-    "mtime": 1776976461.571534,
-    "hash": "0d86f69eb70a683750460c0a4a954c9d"
+    "mtime": 1779292820.9694552,
+    "hash": "faf87a8b977f60d8664714aa9ae1d8f1"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/api/admin_view_mode.dart": {
     "mtime": 1776974052.3586056,
@@ -76,12 +188,12 @@
     "hash": "0e34bb8dfc38c426e8120f842e9af90a"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/api/global_cache.dart": {
-    "mtime": 1778612318.9681647,
-    "hash": "e15b74fe99c924299a176316d6d7a774"
+    "mtime": 1779292307.8801703,
+    "hash": "80e32fa38b69c068c86b5fc2eaf83927"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/api/splash_loading_page.dart": {
-    "mtime": 1778097473.324511,
-    "hash": "f36797b72d65214e4856256bd5571223"
+    "mtime": 1779122071.1916726,
+    "hash": "229291de5ab726ddf3819bd0eed1ef5d"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ImagesManagment/postAttachments.dart": {
     "mtime": 1778605233.9675255,
@@ -108,8 +220,8 @@
     "hash": "8d123d5f5a2c46ebb67da28022925e6f"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/widgets/hover_widgets.dart": {
-    "mtime": 1776974052.364459,
-    "hash": "26be7ae3919a320ea4e46da7b7c26b06"
+    "mtime": 1779129470.483745,
+    "hash": "ec7300a89b845bc82f5d93838e02235b"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/widgets/duration_formatter.dart": {
     "mtime": 1776974052.364459,
@@ -118,6 +230,10 @@
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/widgets/project_list.dart": {
     "mtime": 1777906472.6243114,
     "hash": "ec8f2e01315e5af4e8aaabee7aa97418"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/lib/ui/widgets/project_sidebar.dart": {
+    "mtime": 1778700662.369662,
+    "hash": "df9c9549cecdd50056d0237dd3d61569"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/Shared_Custom/custom_button.dart": {
     "mtime": 1776974052.3593416,
@@ -128,8 +244,8 @@
     "hash": "094acdd631643c9ac564465e6f67f122"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/Shared_Custom/responsive_data_table.dart": {
-    "mtime": 1778248618.6246345,
-    "hash": "1ff206a5ec44b41d2bd1fb35821f1076"
+    "mtime": 1779128947.6362774,
+    "hash": "9246383c6300489b2dc18093114a44ba"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/Shared_Custom/custom_inputs.dart": {
     "mtime": 1778253779.2185335,
@@ -140,8 +256,8 @@
     "hash": "a9e2c39cb331e3cf796f8a2ae6bd2934"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/Shared_Custom/requests_data_table_core.dart": {
-    "mtime": 1778697827.989873,
-    "hash": "ca845c69e2d9f9c6540d529983e2ee79"
+    "mtime": 1779293817.1178482,
+    "hash": "cc6f4f61bfbf4cdc721d75b8b43cc859"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/Shared_Custom/user_info_leading.dart": {
     "mtime": 1776974052.3593416,
@@ -156,8 +272,8 @@
     "hash": "81877e2bc44e0dc34f3a930d5fb55f26"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/Shared_Custom/cardcustom.dart": {
-    "mtime": 1777322621.3613348,
-    "hash": "d0bb5357c7946c4eef3f49e8f70fb9b0"
+    "mtime": 1779129470.483745,
+    "hash": "19e06d4d98edb1f99c66cd90f59cea74"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/Shared_Custom/custom_table.dart": {
     "mtime": 1776974052.3593416,
@@ -168,32 +284,32 @@
     "hash": "7fe40e2523b330817661d6cc20934611"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Login/login_selection_page.dart": {
-    "mtime": 1776974052.3604455,
-    "hash": "8801de2e17d059a914ea3fe52dce4a2a"
+    "mtime": 1778855102.4690447,
+    "hash": "70e46693af47cc4950ff49c9aa9823b9"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Login/login.dart": {
-    "mtime": 1778617815.5922525,
-    "hash": "5a6ead4edf8b27911ae44b2fea753502"
+    "mtime": 1779292588.0994916,
+    "hash": "6adab93e0fcbe030886bebb39ee6e4c2"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Projects/Projects_Widgets/file_card.dart": {
     "mtime": 1778612160.42273,
     "hash": "32544c2d69917abb7e46fdbe4598cfd1"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Projects/Projects_Widgets/task_item.dart": {
-    "mtime": 1778177809.2933993,
-    "hash": "4fd60585f2199d00f32f8a15ff27bd65"
+    "mtime": 1778866444.069591,
+    "hash": "25a3cf77eef8d1de897d2f067aba935c"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Projects/Projects_Widgets/project_request_filter_modal.dart": {
-    "mtime": 1778606348.082519,
-    "hash": "8eac15cc8d1146b47c9372511e45dbc5"
+    "mtime": 1778872700.2415404,
+    "hash": "53f699be64af1fb3ed4dd9dc9fa4077c"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Projects/Projects_Widgets/project_item.dart": {
-    "mtime": 1778597698.1917367,
-    "hash": "0f268f90745a0ad70d264885d968c575"
+    "mtime": 1779289933.2596033,
+    "hash": "c6604c342f96bda6e373e37691387d83"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Projects/Projects_Widgets/project_requests_view.dart": {
-    "mtime": 1778606366.0026798,
-    "hash": "a87886e23960ef14b7764d44c3282b96"
+    "mtime": 1779292307.886495,
+    "hash": "0b4c6f42e48556d7816ccd04261c7a5f"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Projects/Projects_Widgets/breadcrumb_navigator.dart": {
     "mtime": 1778690794.9663363,
@@ -204,12 +320,12 @@
     "hash": "9939370f0531f46434a3ceef5780de91"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Projects/Projects_Widgets/requests_data_table.dart": {
-    "mtime": 1778513191.072502,
-    "hash": "f71908ae5e513664c12a2b662283449f"
+    "mtime": 1779115573.1026287,
+    "hash": "10c0d1e9afe8db1ee25bbc6c82b48a35"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Projects/Projects_Widgets/uu_requests_data_table.dart": {
-    "mtime": 1778513176.2651112,
-    "hash": "d13c1dd13303f101c1c516980fd64304"
+    "mtime": 1779115557.0823781,
+    "hash": "11138ebbecefb3e37416297fa437f2f4"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Projects/Projects_Widgets/phase_item.dart": {
     "mtime": 1778177463.5112665,
@@ -244,28 +360,28 @@
     "hash": "e662258cbc81d0d804720594c0fdcc78"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Projects/Documents/project_file_manager.dart": {
-    "mtime": 1778611686.951109,
-    "hash": "e5c0709284a6851e134b45de94bf59b2"
+    "mtime": 1779292307.891495,
+    "hash": "2e39794519f2a3bfe48bb10b00c936f9"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Projects/Documents/project_form_page.dart": {
-    "mtime": 1778691714.1534617,
-    "hash": "df5b6a3894cbc4d1c79c90610d42fe73"
+    "mtime": 1778873611.2140563,
+    "hash": "6936f9bc7f8e177833623b9a8ab97c2c"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Projects/Documents/documents.dart": {
-    "mtime": 1778696835.2205694,
-    "hash": "cd51fd8df147cdb848937b8943623337"
+    "mtime": 1779289939.5369802,
+    "hash": "737d7ed960919e7c51dae617e1cc48c0"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Projects/Documents/documents_logic.dart": {
-    "mtime": 1778610427.2176995,
-    "hash": "4965607fe0dc8dc168a8753b3bafc5ee"
+    "mtime": 1779292307.895517,
+    "hash": "ad3147e5092ef700525fba89bf344b0b"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Home/home_page.dart": {
-    "mtime": 1778695848.5057986,
-    "hash": "5d87ca767407b54a4bdf6aced6d3e263"
+    "mtime": 1778853210.572918,
+    "hash": "74405589034aa2de309cf15d08a5bc66"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Home/Home_Widgets/support_cards.dart": {
-    "mtime": 1778269361.7156663,
-    "hash": "5316b5802de448bf44a05c8b929bc608"
+    "mtime": 1778875638.3864245,
+    "hash": "ba8f7ed77f3a4c87f4ac706d3fe21a0d"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Home/Home_Widgets/recent_requests_table.dart": {
     "mtime": 1778697746.357327,
@@ -276,8 +392,8 @@
     "hash": "29a4560c15f6bc68b33034622b6d942a"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Home/Home_Controller/home_controller.dart": {
-    "mtime": 1778696982.5526223,
-    "hash": "916998889cb2cb0ca4f5cffe3002fd4b"
+    "mtime": 1779292307.9002404,
+    "hash": "34b3a43625288d27f11e268751b79de0"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/OnDevelop/marketplace.dart": {
     "mtime": 1776974052.3611782,
@@ -296,75 +412,75 @@
     "hash": "b42363afcb55c1c7a966ee2f7b2194ce"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Support/calendar.dart": {
-    "mtime": 1778527971.6425009,
-    "hash": "50ce11f292d9619196ae030459931f29"
+    "mtime": 1778856053.2293463,
+    "hash": "603861f4f02de229c3642ced33ae65ce"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Support/support_dashboard.dart": {
-    "mtime": 1778697343.6500585,
-    "hash": "ecac9b691ea984b648892000004a54eb"
+    "mtime": 1779293477.8139064,
+    "hash": "2f23cf15722d8a0cbf4135352d61f9b9"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Support/Request_Widgets/request_stats_card.dart": {
     "mtime": 1778511603.1092606,
     "hash": "e2a8208f1d48f1770d62842b4d85a19b"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Support/Request_Widgets/request_filter_modal.dart": {
-    "mtime": 1778510510.3954825,
-    "hash": "13c8eabbf1c8b2f81bcbbad99b69b64b"
+    "mtime": 1779292307.9052656,
+    "hash": "d6645e4473c66c1170c44755c11247eb"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Support/Request_Widgets/requests_data_table.dart": {
     "mtime": 1777906410.7827275,
     "hash": "b2cbe1573addc2d1e3148e3906813d62"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Support/Request_Widgets/support_summary_premium.dart": {
-    "mtime": 1778275499.1725643,
-    "hash": "6b1d37f8eef816ba1a5d251643d71ae7"
+    "mtime": 1779293472.3177738,
+    "hash": "0a5c8a5935dc3bfe7de964a673557532"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Support/Request_Widgets/request_filter_bar.dart": {
     "mtime": 1778511365.5820131,
     "hash": "ec8dea22b316022c9276dd4b018d1305"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Support/Requests/my_requests.dart": {
-    "mtime": 1778688466.1559098,
-    "hash": "bf8717c0c8e457bc0fabb4f1ab40ab78"
+    "mtime": 1779292307.9090648,
+    "hash": "99773789289dc6ffcb8cd9e3025046e6"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Support/Requests/request_functions.dart": {
-    "mtime": 1778697846.8742194,
-    "hash": "8a31196698bc773d16432600db68191b"
+    "mtime": 1779292307.910716,
+    "hash": "790f7963248025cfbdff9df0aede5eb2"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Support/Requests/bulk_edit_request_dialog.dart": {
-    "mtime": 1778079608.4239306,
-    "hash": "0e954818403487d57b357612079fb5c5"
+    "mtime": 1779129587.7929595,
+    "hash": "f2ef0b3f34fac3e8a9737fd6a5a74591"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Support/Requests/create_request_dialog.dart": {
-    "mtime": 1778697193.471542,
-    "hash": "9a13859763ee3908dfdc20f17d32efb0"
+    "mtime": 1779295560.3530672,
+    "hash": "49f84e161c4043c9509e0b726c623f80"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Support/Requests/request_updates_page.dart": {
-    "mtime": 1778688272.916159,
-    "hash": "998397754b881954ce9cfe5ceb40f598"
+    "mtime": 1779292307.9151633,
+    "hash": "348983f40f914cfe5fa2db7c77925e62"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Support/Requests/edit_request_dialog.dart": {
-    "mtime": 1778526255.137801,
-    "hash": "715fbc9f29d94044c51000d011fc3c1b"
+    "mtime": 1779293407.0942364,
+    "hash": "606d04012f28a0a748afbd268babb4c2"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Metrics/custom_chart.dart": {
-    "mtime": 1777328256.7367785,
-    "hash": "f1e3c98f939dd65f86c089cf770d90c4"
+    "mtime": 1779129470.4809487,
+    "hash": "adba20806030394acdc69d7423f59ffc"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Metrics/metrics_requests_page.dart": {
-    "mtime": 1778077960.565919,
-    "hash": "6b6e40a180688a73b99832edc85bcb6f"
+    "mtime": 1778876833.9435453,
+    "hash": "0cc121f7beb25ffe17c2824d941b2ebc"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Metrics/metrics.dart": {
-    "mtime": 1778697036.5092034,
-    "hash": "da9a29ba24c23746c2807592e631596f"
+    "mtime": 1779293491.8912487,
+    "hash": "30c7b7df7a8ea7b727b16bd7589ee205"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Metrics/graphic_functions.dart": {
-    "mtime": 1778612925.2872303,
-    "hash": "fce2baf68aaef347651a3e7d896bf5a6"
+    "mtime": 1779292307.9210281,
+    "hash": "06111a5c11dcd2b8399135879d8f024d"
   },
   "/home/alexander/Descargas/Primhub/primhub/lib/ui/pages/Metrics/charts.dart": {
-    "mtime": 1776974052.3604455,
+    "mtime": 1779125482.5017524,
     "hash": "bc677e4e4b973e82a4fde18cb40df425"
   },
   "/home/alexander/Descargas/Primhub/primhub/macos/RunnerTests/RunnerTests.swift": {
@@ -468,7 +584,7 @@
     "hash": "303ca46dbd58544be7b816861d70a27c"
   },
   "/home/alexander/Descargas/Primhub/primhub/ios/Flutter/ephemeral/flutter_lldb_helper.py": {
-    "mtime": 1778697977.5271168,
+    "mtime": 1779131503.225277,
     "hash": "98fc75412162af387e2e3461e4e58094"
   },
   "/home/alexander/Descargas/Primhub/primhub/pubspec.yaml": {
@@ -514,6 +630,10 @@
   "/home/alexander/Descargas/Primhub/primhub/windows/flutter/CMakeLists.txt": {
     "mtime": 1776974052.3676805,
     "hash": "0c500410e3259a9a053797dc1c28070e"
+  },
+  "/home/alexander/Descargas/Primhub/primhub/docs/manual_administrador.md": {
+    "mtime": 1779138990.4521513,
+    "hash": "ad1785552fb788c66b77c95b9a85ec2b"
   },
   "/home/alexander/Descargas/Primhub/primhub/ios/Runner/Assets.xcassets/LaunchImage.imageset/README.md": {
     "mtime": 1776974052.3580718,

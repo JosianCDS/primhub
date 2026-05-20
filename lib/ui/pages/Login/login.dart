@@ -146,7 +146,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
         return;
       }
 
-      // Lógica de auto-ingreso directo si solo tiene 1 rol disponible (con datos por defecto para el resto)
+      // Lógica de auto-ingreso directo si solo tiene 1 cliente y 1 rol disponible
       if (clients.length == 1) {
         final client = clients[0];
         final roles = await getRoles(client['id'], tempToken);
@@ -155,8 +155,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
           final role = roles[0];
           final orgs = await getOrgs(client['id'], role['id'], tempToken);
 
-          // Solo si el camino es completamente único (1 cliente, 1 rol, 1 org) se hace el auto-login.
-          if (orgs.length == 1) {
+          if (orgs.isNotEmpty) {
             final org = orgs[0];
             final warehouses = await getWarehouses(
               client['id'],
@@ -173,6 +172,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
             Token.rol = role['id'];
             Token.organitation = org['id'];
             Token.warehouseID = warehouseId;
+            Token.roleUU = role['role-uu'] ?? role['uuid'] ?? role['AD_Role_UU'];
 
             Map<String, dynamic> params = {
               "clientId": client['id'],

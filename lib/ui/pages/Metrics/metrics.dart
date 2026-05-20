@@ -35,6 +35,7 @@ class _MetricsPageState extends State<MetricsPage> {
   String? _projectsErrorMessage;
   int? _selectedProjectId;
   List<dynamic> _projects = [];
+  final ValueNotifier<int> _projectsLoadNotifier = ValueNotifier<int>(0);
 
   final _adminViewModeManager = AdminViewModeManager();
 
@@ -46,7 +47,7 @@ class _MetricsPageState extends State<MetricsPage> {
   List<double> _supportStatusValues = [];
   List<String> _supportStatusLabels = [];
 
-  int? _supportSelectedYear;
+  int? _supportSelectedYear = DateTime.now().year;
   int? _supportSelectedBpId;
   List<Map<String, dynamic>> _supportBPartners = [];
 
@@ -319,6 +320,7 @@ class _MetricsPageState extends State<MetricsPage> {
       _isProjectsLoading = true;
       _projectsErrorMessage = null;
     });
+    _projectsLoadNotifier.value++;
 
     try {
       int? bPartnerIdForQuery;
@@ -343,9 +345,9 @@ class _MetricsPageState extends State<MetricsPage> {
             p['Name'].toString().trim().isNotEmpty;
       }).toList();
 
-      debugPrint(
-        "DEBUG METRICS: Proyectos válidos recibidos: ${projects.length}",
-      );
+// [Mantenimiento] Log removido:       debugPrint(
+// [Mantenimiento] Log removido:         "DEBUG METRICS: Proyectos válidos recibidos: ${projects.length}",
+// [Mantenimiento] Log removido:       );
 
       if (mounted) {
         setState(() {
@@ -361,6 +363,7 @@ class _MetricsPageState extends State<MetricsPage> {
             _selectedProjectId = null;
           }
         });
+        _projectsLoadNotifier.value++;
 
         if (_selectedProjectId != null) {
           _loadMetrics();
@@ -371,7 +374,7 @@ class _MetricsPageState extends State<MetricsPage> {
         }
       }
     } catch (e) {
-      debugPrint("Error cargando proyectos: $e");
+// [Mantenimiento] Log removido:       debugPrint("Error cargando proyectos: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error cargando lista de proyectos: $e')),
@@ -381,6 +384,7 @@ class _MetricsPageState extends State<MetricsPage> {
           _isProjectsLoading = false;
           _projects = [];
         });
+        _projectsLoadNotifier.value++;
       }
     }
   }
@@ -425,7 +429,7 @@ class _MetricsPageState extends State<MetricsPage> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text(
-                'Este proyecto no cuenta con solicitudes vinculadas para generar indicadores',
+                'No hay datos suficientes para generar las métricas de este proyecto.',
               ),
               backgroundColor: Colors.orange,
             ),
@@ -457,7 +461,7 @@ class _MetricsPageState extends State<MetricsPage> {
         });
       }
     } catch (e) {
-      debugPrint("DEBUG ERROR EN METRICS: $e");
+// [Mantenimiento] Log removido:       debugPrint("DEBUG ERROR EN METRICS: $e");
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -712,114 +716,121 @@ class _MetricsPageState extends State<MetricsPage> {
         String searchQuery = "";
         return StatefulBuilder(
           builder: (modalCtx, setModalState) {
-            // Escuchamos cambios del padre si es necesario (aproximación simple)
-            final bool isLoading = _isProjectsLoading;
-            final projectsList = _projects;
+            return AnimatedBuilder(
+              animation: _projectsLoadNotifier,
+              builder: (context, child) {
+                // Escuchamos cambios del padre si es necesario (aproximación simple)
+                final bool isLoading = _isProjectsLoading;
+                final projectsList = _projects;
 
-            final filteredProjects = projectsList.where((p) {
-              final name = (p['Name'] ?? 'Sin Nombre').toString().toLowerCase();
-              return name.contains(searchQuery.toLowerCase());
-            }).toList();
+                final filteredProjects = projectsList.where((p) {
+                  final name = (p['Name'] ?? 'Sin Nombre')
+                      .toString()
+                      .toLowerCase();
+                  return name.contains(searchQuery.toLowerCase());
+                }).toList();
 
-            return CustomModal(
-              title: 'Seleccionar Proyecto',
-              width: 500,
-              content: SizedBox(
-                height: 450,
-                child: Column(
-                  children: [
-                    TextField(
-                      decoration: InputDecoration(
-                        hintText: 'Buscar proyecto...',
-                        prefixIcon: const Icon(Icons.search),
-                        suffixIcon: isLoading
-                            ? const Padding(
-                                padding: EdgeInsets.all(12),
-                                child: SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                ),
-                              )
-                            : null,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      onChanged: (val) =>
-                          setModalState(() => searchQuery = val),
-                    ),
-                    const SizedBox(height: 16),
-                    Expanded(
-                      child: isLoading && projectsList.isEmpty
-                          ? const Center(child: CircularProgressIndicator())
-                          : projectsList.isEmpty
-                          ? Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.folder_off_outlined,
-                                    size: 48,
-                                    color: Colors.grey.withOpacity(0.5),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  const Padding(
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: 24.0,
+                return CustomModal(
+                  title: 'Seleccionar Proyecto',
+                  width: 500,
+                  content: SizedBox(
+                    height: 450,
+                    child: Column(
+                      children: [
+                        TextField(
+                          decoration: InputDecoration(
+                            hintText: 'Buscar proyecto...',
+                            prefixIcon: const Icon(Icons.search),
+                            suffixIcon: isLoading
+                                ? const Padding(
+                                    padding: EdgeInsets.all(12),
+                                    child: SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
                                     ),
-                                    child: Text(
-                                      "no se encontro ningun proyecto relacionado a tu tercero actual",
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(color: Colors.grey),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  TextButton(
-                                    onPressed: () async {
-                                      await _loadProjects();
-                                      setModalState(
-                                        () {},
-                                      ); // Forzar rebuild del modal
-                                    },
-                                    child: const Text("Reintentar"),
-                                  ),
-                                ],
-                              ),
-                            )
-                          : ListView.separated(
-                              itemCount: filteredProjects.length,
-                              separatorBuilder: (_, __) =>
-                                  const Divider(height: 1),
-                              itemBuilder: (context, index) {
-                                final p = filteredProjects[index];
-                                return ListTile(
-                                  title: Text(p['Name'] ?? 'Sin Nombre'),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  onTap: () {
-                                    setState(
-                                      () => _selectedProjectId = p['id'],
-                                    );
-                                    _loadMetrics();
-                                    Navigator.pop(context);
-                                  },
-                                );
-                              },
+                                  )
+                                : null,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
                             ),
+                          ),
+                          onChanged: (val) =>
+                              setModalState(() => searchQuery = val),
+                        ),
+                        const SizedBox(height: 16),
+                        Expanded(
+                          child: isLoading && projectsList.isEmpty
+                              ? const Center(child: CircularProgressIndicator())
+                              : projectsList.isEmpty
+                              ? Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.folder_off_outlined,
+                                        size: 48,
+                                        color: Colors.grey.withOpacity(0.5),
+                                      ),
+                                      const SizedBox(height: 16),
+                                      const Padding(
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: 24.0,
+                                        ),
+                                        child: Text(
+                                          "no se encontro ningun proyecto relacionado a tu tercero actual",
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(color: Colors.grey),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      TextButton(
+                                        onPressed: () async {
+                                          await _loadProjects();
+                                          setModalState(
+                                            () {},
+                                          ); // Forzar rebuild del modal
+                                        },
+                                        child: const Text("Reintentar"),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : ListView.separated(
+                                  itemCount: filteredProjects.length,
+                                  separatorBuilder: (_, __) =>
+                                      const Divider(height: 1),
+                                  itemBuilder: (context, index) {
+                                    final p = filteredProjects[index];
+                                    return ListTile(
+                                      title: Text(p['Name'] ?? 'Sin Nombre'),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      onTap: () {
+                                        setState(
+                                          () => _selectedProjectId = p['id'],
+                                        );
+                                        _loadMetrics();
+                                        Navigator.pop(context);
+                                      },
+                                    );
+                                  },
+                                ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancelar'),
                     ),
                   ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancelar'),
-                ),
-              ],
+                );
+              },
             );
           },
         );
@@ -2145,3 +2156,4 @@ class _KPICard extends StatelessWidget {
     );
   }
 }
+

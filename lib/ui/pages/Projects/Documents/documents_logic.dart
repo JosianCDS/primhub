@@ -66,7 +66,7 @@ class ProjectsLogic {
       while (hasMore) {
         String url =
             '$baseUrl${baseUrl.contains('?') ? '&' : '?'}\$skip=$skip&\$top=$pageSize';
-        debugPrint("DEBUG API REQ [$errorLabel]: $url");
+// [Mantenimiento] Log removido:         debugPrint("DEBUG API REQ [$errorLabel]: $url");
 
         var response = await http.get(
           Uri.parse(url),
@@ -101,14 +101,14 @@ class ProjectsLogic {
             skip += pageSize; // Siguiente página
           }
         } else {
-          debugPrint(
-            "DEBUG API ERROR [$errorLabel] ${response.statusCode}: ${response.body}",
-          );
+// [Mantenimiento] Log removido:           debugPrint(
+// [Mantenimiento] Log removido:             "DEBUG API ERROR [$errorLabel] ${response.statusCode}: ${response.body}",
+// [Mantenimiento] Log removido:           );
           hasMore = false;
         }
       }
     } catch (e) {
-      debugPrint("DEBUG API EXCEPTION [$errorLabel]: $e");
+// [Mantenimiento] Log removido:       debugPrint("DEBUG API EXCEPTION [$errorLabel]: $e");
     }
     return allRecords;
   }
@@ -160,15 +160,15 @@ class ProjectsLogic {
         '${Endpoint.project}?\$filter=$filter&\$expand=C_BPartner_ID&\$orderby=Name';
     final records = await _safeFetchPaginated(url, 'lista de proyectos');
 
-    debugPrint(
-      "DEBUG Total de proyectos devueltos por iDempiere: ${records.length}",
-    );
+// [Mantenimiento] Log removido:     debugPrint(
+// [Mantenimiento] Log removido:       "DEBUG Total de proyectos devueltos por iDempiere: ${records.length}",
+// [Mantenimiento] Log removido:     );
 
     return records.map((e) {
       try {
         final bpData = e['C_BPartner_ID'];
 
-        debugPrint("DEBUG C_BPartner_ID para proyecto '${e['Name']}': $bpData");
+// [Mantenimiento] Log removido:         debugPrint("DEBUG C_BPartner_ID para proyecto '${e['Name']}': $bpData");
 
         String bpName = '';
         if (bpData is Map)
@@ -979,9 +979,9 @@ class DocumentsLogic {
 
       // Verificación de seguridad: Evitar pérdida de datos si falla la descarga
       if (fileBytes == null) {
-        debugPrint(
-          "Error: No se pudo descargar el archivo original. Se aborta movimiento.",
-        );
+// [Mantenimiento] Log removido:         debugPrint(
+// [Mantenimiento] Log removido:           "Error: No se pudo descargar el archivo original. Se aborta movimiento.",
+// [Mantenimiento] Log removido:         );
         return {
           'success': false,
           'error': 'No se pudo descargar el archivo adjunto original.',
@@ -1075,9 +1075,9 @@ class DocumentsLogic {
         );
 
         if (!uploadSuccess) {
-          debugPrint(
-            "Error: No se pudo adjuntar el archivo al nuevo registro. Se aborta eliminación original.",
-          );
+// [Mantenimiento] Log removido:           debugPrint(
+// [Mantenimiento] Log removido:             "Error: No se pudo adjuntar el archivo al nuevo registro. Se aborta eliminación original.",
+// [Mantenimiento] Log removido:           );
           // Rollback: Eliminar el registro nuevo huérfano
           await deleteFile(newRecordId, createUrl.toString());
           return {
@@ -1385,3 +1385,4 @@ class DocumentsLogic {
     }
   }
 }
+

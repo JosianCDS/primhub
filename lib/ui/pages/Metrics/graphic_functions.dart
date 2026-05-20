@@ -252,7 +252,7 @@ class GraphicsFunctions {
   }) async {
     // 1. Priorizar la Caché de Proyecto específica (donde se cargan datos históricos completos)
     if (!forceRefresh && GlobalCache.projectRequestsCache.containsKey(projectId)) {
-      print("DEBUG API: Obteniendo métricas desde Caché de Proyecto específica...");
+// [Mantenimiento] Log removido:       print("DEBUG API: Obteniendo métricas desde Caché de Proyecto específica...");
       final projReqs = GlobalCache.projectRequestsCache[projectId]!;
       return projReqs.where((req) {
         bool isActive = req['IsActive'] == true || req['IsActive'] == 'Y';
@@ -263,9 +263,9 @@ class GraphicsFunctions {
 
     // 2. Usar Caché Global General como segunda opción
     if (!forceRefresh && GlobalCache.isDataLoaded) {
-      print(
-        "DEBUG API: Obteniendo métricas del proyecto $projectId desde GlobalCache...",
-      );
+// [Mantenimiento] Log removido:       print(
+// [Mantenimiento] Log removido:         "DEBUG API: Obteniendo métricas del proyecto $projectId desde GlobalCache...",
+// [Mantenimiento] Log removido:       );
       return GlobalCache.requests.where((req) {
         bool isActive = req['IsActive'] == true || req['IsActive'] == 'Y';
         int? reqProjectId = req['C_Project_ID'] is Map
@@ -306,7 +306,7 @@ class GraphicsFunctions {
           '${Endpoint.baseUrl}/api/v1/models/R_Request',
         ).replace(queryParameters: queryParams);
 
-        print("DEBUG API: Consultando página con skip $skip...");
+// [Mantenimiento] Log removido:         print("DEBUG API: Consultando página con skip $skip...");
 
         final response = await http.get(
           uri,
@@ -332,14 +332,15 @@ class GraphicsFunctions {
           }
         } else {
           hasMore = false;
-          print(
-            "DEBUG API ERROR: Status ${response.statusCode} - ${response.body}",
-          );
+// [Mantenimiento] Log removido:           print(
+// [Mantenimiento] Log removido:             "DEBUG API ERROR: Status ${response.statusCode} - ${response.body}",
+// [Mantenimiento] Log removido:           );
         }
       }
     } catch (e) {
-      print("DEBUG API EXCEPTION: $e");
+// [Mantenimiento] Log removido:       print("DEBUG API EXCEPTION: $e");
     }
     return allRecords;
   }
 }
+

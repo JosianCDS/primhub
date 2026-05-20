@@ -471,14 +471,16 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
 
     if (_showingFiles) {
       final List<Widget> fileManagerActions = [];
-      if (_isFileManagerRoot && AccessControl.canManageFiles) {
-        fileManagerActions.add(
-          IconButton(
-            icon: const Icon(Icons.create_new_folder_outlined),
-            tooltip: 'Nueva Carpeta',
-            onPressed: () => _fileManagerKey.currentState?.createFolderDialog(),
-          ),
-        );
+      if (AccessControl.canManageFiles) {
+        if (_isFileManagerRoot) {
+          fileManagerActions.add(
+            IconButton(
+              icon: const Icon(Icons.create_new_folder_outlined),
+              tooltip: 'Nueva Carpeta',
+              onPressed: () => _fileManagerKey.currentState?.createFolderDialog(),
+            ),
+          );
+        }
         fileManagerActions.add(
           IconButton(
             icon: const Icon(Icons.upload_file),

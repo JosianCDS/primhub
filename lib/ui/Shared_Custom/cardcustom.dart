@@ -1,7 +1,15 @@
 import 'package:flutter/material.dart';
 
 class CardCustom extends StatefulWidget {
-  const CardCustom({super.key, required this.child, this.height = 350, this.width = 280, this.elevation = 4, this.color, this.hover = false});
+  const CardCustom({
+    super.key,
+    required this.child,
+    this.height = 350,
+    this.width = 280,
+    this.elevation = 4,
+    this.color,
+    this.hover = false,
+  });
   final Widget child;
   final double? height;
   final double? width;
@@ -22,21 +30,29 @@ class _CardCustomState extends State<CardCustom> {
       width: widget.width,
       height: widget.height,
       child: MouseRegion(
-        onEnter: widget.hover ? (_) {
-          Future.microtask(() {
-            if (mounted) setState(() => _isHovered = true);
-          });
-        } : null,
-        onExit: widget.hover ? (_) {
-          Future.microtask(() {
-            if (mounted) setState(() => _isHovered = false);
-          });
-        } : null,
+        onEnter: widget.hover
+            ? (_) {
+                Future.microtask(() {
+                  if (mounted) setState(() => _isHovered = true);
+                });
+              }
+            : null,
+        onExit: widget.hover
+            ? (_) {
+                Future.microtask(() {
+                  if (mounted) setState(() => _isHovered = false);
+                });
+              }
+            : null,
         child: AnimatedScale(
           scale: _isHovered ? 1.05 : 1.0,
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeInOut,
-          child: Card(elevation: widget.elevation, color: widget.color, child: widget.child),
+          child: Card(
+            elevation: widget.elevation,
+            color: widget.color,
+            child: widget.child,
+          ),
         ),
       ),
     );

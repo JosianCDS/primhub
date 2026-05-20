@@ -1,16 +1,16 @@
-# Graph Report - primhub  (2026-05-13)
+# Graph Report - primhub  (2026-05-20)
 
 ## Corpus Check
-- 120 files · ~152,390 words
+- 150 files · ~171,937 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1344 nodes · 1783 edges · 129 communities (111 shown, 18 thin omitted)
+- 1418 nodes · 1877 edges · 140 communities (123 shown, 17 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 24 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `f36d60a7`
+- Built from commit: `03449a92`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -99,26 +99,37 @@
 - [[_COMMUNITY_Duration Formatting|Duration Formatting]]
 - [[_COMMUNITY_Android Generated Plugins|Android Generated Plugins]]
 - [[_COMMUNITY_iOS Generated Plugins|iOS Generated Plugins]]
-- [[_COMMUNITY_Community 94|Community 94]]
-- [[_COMMUNITY_Community 122|Community 122]]
-- [[_COMMUNITY_Community 123|Community 123]]
-- [[_COMMUNITY_Community 124|Community 124]]
-- [[_COMMUNITY_Community 125|Community 125]]
-- [[_COMMUNITY_Community 126|Community 126]]
-- [[_COMMUNITY_Community 127|Community 127]]
-- [[_COMMUNITY_Community 128|Community 128]]
+- [[_COMMUNITY_Flutter Linux C Bindings|Flutter Linux C Bindings]]
+- [[_COMMUNITY_Community 85|Community 85]]
+- [[_COMMUNITY_Community 86|Community 86]]
+- [[_COMMUNITY_Community 87|Community 87]]
+- [[_COMMUNITY_Community 88|Community 88]]
+- [[_COMMUNITY_Community 89|Community 89]]
+- [[_COMMUNITY_Community 90|Community 90]]
+- [[_COMMUNITY_Community 91|Community 91]]
+- [[_COMMUNITY_Community 102|Community 102]]
+- [[_COMMUNITY_Community 103|Community 103]]
+- [[_COMMUNITY_Community 104|Community 104]]
+- [[_COMMUNITY_Community 105|Community 105]]
+- [[_COMMUNITY_Community 133|Community 133]]
+- [[_COMMUNITY_Community 134|Community 134]]
+- [[_COMMUNITY_Community 135|Community 135]]
+- [[_COMMUNITY_Community 136|Community 136]]
+- [[_COMMUNITY_Community 137|Community 137]]
+- [[_COMMUNITY_Community 138|Community 138]]
+- [[_COMMUNITY_Community 139|Community 139]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `package:flutter/material.dart` - 79 edges
-2. `package:primhub/api/token.dart` - 35 edges
-3. `package:primhub/api/access_control.dart` - 35 edges
-4. `package:primhub/ui/Shared_Custom/custom_modal.dart` - 33 edges
+1. `package:flutter/material.dart` - 80 edges
+2. `package:primhub/api/access_control.dart` - 37 edges
+3. `package:primhub/api/token.dart` - 36 edges
+4. `package:primhub/ui/Shared_Custom/custom_modal.dart` - 34 edges
 5. `package:primhub/ui/Shared_Custom/custom_button.dart` - 30 edges
-6. `package:go_router/go_router.dart` - 26 edges
-7. `package:primhub/ui/Shared_Custom/custom_inputs.dart` - 25 edges
-8. `package:primhub/endpoint/endpoint.dart` - 24 edges
-9. `dart:convert` - 24 edges
-10. `package:primhub/api/global_cache.dart` - 24 edges
+6. `package:go_router/go_router.dart` - 27 edges
+7. `dart:convert` - 26 edges
+8. `package:primhub/ui/Shared_Custom/custom_inputs.dart` - 25 edges
+9. `package:http/http.dart` - 24 edges
+10. `package:primhub/endpoint/endpoint.dart` - 24 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `ic_launcher (hdpi)` --references--> `Primhub`  [INFERRED]
@@ -132,320 +143,368 @@
 - `Linux Runner Target` --references--> `MyApplication Class`  [EXTRACTED]
   linux/runner/CMakeLists.txt → linux/runner/my_application.cc
 
-## Communities (129 total, 18 thin omitted)
+## Communities (140 total, 17 thin omitted)
 
 ### Community 0 - "Projects Dashboard & Widgets"
 Cohesion: 0.03
-Nodes (60): graphic_functions.dart, build, _buildAdminModePopupMenu, _buildChartCard, _buildControlCenterContainer, _buildDashboardGrid, _buildDonutWithLegend, _buildEmptyView (+52 more)
+Nodes (62): graphic_functions.dart, AnimatedBuilder, build, _buildAdminModePopupMenu, _buildChartCard, _buildControlCenterContainer, _buildDashboardGrid, _buildDonutWithLegend (+54 more)
 
 ### Community 1 - "Support Requests UI"
 Cohesion: 0.05
-Nodes (38): ../../../../api/contract_api.dart, ../../../../api/validation_manager.dart, _applyPhoneMask, formatEditUpdate, PhoneInputFormatter, build, CustomModal, RequestDetailsDialog (+30 more)
+Nodes (41): addChip, build, _buildActiveFilterChips, _buildAdminModePopupMenu, _buildExceptionHoursInkWell, _buildODataFilter, _buildPaginationControls, _buildTableWidget (+33 more)
 
 ### Community 2 - "Flutter Material Widgets"
 Cohesion: 0.05
-Nodes (39): build, _buildMultiSearchableField, CheckboxListTile, Column, copyWith, CustomModal, Dialog, Function (+31 more)
+Nodes (38): build, Container, Function, Icon, PhaseItem, SizedBox, build, _buildActionButton (+30 more)
 
 ### Community 3 - "Dart Core Async"
 Cohesion: 0.05
-Nodes (39): addChip, build, _buildActiveFilterChips, _buildAdminModePopupMenu, _buildExceptionHoursInkWell, _buildODataFilter, _buildPaginationControls, CheckboxListTile (+31 more)
+Nodes (40): build, _buildSmallStat, Card, CheckboxListTile, Column, Container, CustomModal, CustomTable (+32 more)
 
 ### Community 4 - "Base64 Conversion & File Management"
 Cohesion: 0.05
-Nodes (35): build, Container, Function, Icon, PhaseItem, SizedBox, build, _buildActionButton (+27 more)
+Nodes (35): build, _buildStat, CheckboxListTile, Container, CustomModal, Divider, Expanded, _HoverStatCard (+27 more)
 
 ### Community 5 - "Support Dashboard Metrics"
-Cohesion: 0.05
-Nodes (39): build, _buildSmallStat, Card, CheckboxListTile, Column, Container, CustomModal, CustomTable (+31 more)
+Cohesion: 0.06
+Nodes (35): build, buildContractList, Center, CheckboxListTile, Column, CustomModal, CustomSkeleton, dispose (+27 more)
 
 ### Community 6 - "Request Filtering & Modals"
-Cohesion: 0.05
-Nodes (36): charts.dart, dart:math, build, Card, Chip, CustomContainer, _DesktopRequestTable, Divider (+28 more)
-
-### Community 7 - "Project Requests Table"
-Cohesion: 0.06
-Nodes (33): build, buildContractList, Center, CheckboxListTile, Column, CustomModal, CustomSkeleton, dispose (+25 more)
-
-### Community 8 - "Project Item Widget"
 Cohesion: 0.06
 Nodes (32): build, _buildDatePicker, _buildDatesAndCurrencySection, _buildFinancialDetailsSection, _buildFinancialGrid, _buildFinancialItem, _buildGeneralInfoSection, _buildMastersSection (+24 more)
 
-### Community 9 - "Project Management Dialogs"
+### Community 7 - "Project Requests Table"
+Cohesion: 0.06
+Nodes (30): _AddUpdateDialog, _AddUpdateDialogState, _AttachmentItem, AttachmentPreviewList, base64Decode, build, _buildBadge, _buildBox (+22 more)
+
+### Community 8 - "Project Item Widget"
 Cohesion: 0.07
 Nodes (29): applyOrder, build, _buildContentGrid, _buildPropertyRow, _buildSearchResults, Card, Center, _compareItems (+21 more)
 
-### Community 10 - "Home Controller & State"
-Cohesion: 0.07
-Nodes (29): _AddUpdateDialog, _AddUpdateDialogState, _AttachmentItem, AttachmentPreviewList, base64Decode, build, _buildBadge, _buildBox (+21 more)
-
-### Community 11 - "Home Page UI (Assets)"
-Cohesion: 0.07
-Nodes (28): build, CardCustom, Column, _CompactRequestStat, Container, Divider, _InteractiveStatItem, _InteractiveStatItemState (+20 more)
-
-### Community 12 - "Product UI & Marketplace"
+### Community 9 - "Project Management Dialogs"
 Cohesion: 0.11
 Nodes (19): RegisterPlugins(), FlutterWindow(), OnCreate(), Create(), Destroy(), EnableFullDpiSupportIfAvailable(), GetClientArea(), GetThisFromHandle() (+11 more)
 
-### Community 13 - "File Preview & Preview Manager"
+### Community 10 - "Home Controller & State"
 Cohesion: 0.07
-Nodes (26): _applyPendingArgs, build, _buildAdminModePopupMenu, _buildProjectFilterPopupMenu, _buildProjectsView, Column, DeliverablesPage, _DeliverablesPageState (+18 more)
+Nodes (27): _applyPendingArgs, build, _buildAdminModePopupMenu, _buildProjectFilterPopupMenu, _buildProjectsView, Column, DeliverablesPage, _DeliverablesPageState (+19 more)
 
-### Community 14 - "Breadcrumb Navigation"
+### Community 11 - "Home Page UI (Assets)"
+Cohesion: 0.07
+Nodes (27): ../../../../api/contract_api.dart, ../../../../api/validation_manager.dart, build, _buildEvidenceField, Column, _combineDateAndTime, _createManualRequest, CreateRequestDialog (+19 more)
+
+### Community 12 - "Product UI & Marketplace"
 Cohesion: 0.08
 Nodes (25): build, _buildDebugList, _buildJsonViewer, _buildPhaseItem, _buildProjectList, _buildProjectPhasesTab, _buildRequestsTab, _buildRow (+17 more)
 
-### Community 15 - "Phase Creation UI"
+### Community 13 - "File Preview & Preview Manager"
+Cohesion: 0.08
+Nodes (23): _applyPhoneMask, formatEditUpdate, PhoneInputFormatter, build, Container, dispose, _handleKeyEvent, initState (+15 more)
+
+### Community 14 - "Breadcrumb Navigation"
 Cohesion: 0.08
 Nodes (25): build, _buildCalendarGrid, _buildDetailCard, _buildDot, _buildLegendItem, _buildPill, CalendarContent, _CalendarContentState (+17 more)
 
-### Community 16 - "Phase Item Widget"
+### Community 15 - "Phase Creation UI"
 Cohesion: 0.08
 Nodes (23): build, _buildCalendarGrid, _buildGanttView, _buildLegendItem, Center, Container, CustomModal, dispose (+15 more)
 
-### Community 17 - "Breadcrumb Navigation (alt)"
+### Community 16 - "Phase Item Widget"
 Cohesion: 0.08
-Nodes (22): BreadcrumbNavigator, build, DropRegion, Function, _getCrumbColor, _getIconForCrumb, Padding, SingleChildScrollView (+14 more)
+Nodes (22): build, MainApp, NoTransitionPage, AdminViewModeManager, main, package:primhub/api/session_manager.dart, package:primhub/api/splash_loading_page.dart, package:primhub/app.dart (+14 more)
+
+### Community 17 - "Breadcrumb Navigation (alt)"
+Cohesion: 0.09
+Nodes (21): build, CustomModal, DataColumn, DataRow, dispose, Function, _getRealId, _handleRowClick (+13 more)
 
 ### Community 18 - "Project List Widget"
 Cohesion: 0.09
 Nodes (21): build, Card, Column, CustomModal, Divider, Function, _getRealId, _handleRowSelection (+13 more)
 
 ### Community 19 - "Recent Requests Table"
-Cohesion: 0.09
-Nodes (21): build, CustomModal, DataColumn, DataRow, dispose, Function, _getRealId, _handleRowClick (+13 more)
-
-### Community 20 - "Profile Page"
 Cohesion: 0.1
 Nodes (20): _buildCsvPreview, _buildNoPreviewWidget, _buildPropertyRow, _buildTextPreview, ConstrainedBox, Container, CustomModal, DataRow (+12 more)
 
-### Community 21 - "Calendar Widget"
+### Community 20 - "Profile Page"
 Cohesion: 0.1
 Nodes (20): build, CustomModal, DataColumn, DataRow, Function, _getRealId, _handleRowClick, _handleRowSelection (+12 more)
 
-### Community 22 - "Project Request Filters"
+### Community 21 - "Calendar Widget"
 Cohesion: 0.11
-Nodes (18): build, MainApp, NoTransitionPage, package:primhub/api/session_manager.dart, package:primhub/api/splash_loading_page.dart, package:primhub/ui/pages/Home/home_page.dart, package:primhub/ui/pages/Login/login.dart, package:primhub/ui/pages/Login/login_selection_page.dart (+10 more)
+Nodes (18): build, Column, createRequestUpdate, CustomModal, Dialog, dispose, EditRequestDialog, _EditRequestDialogState (+10 more)
+
+### Community 22 - "Project Request Filters"
+Cohesion: 0.15
+Nodes (13): dart:convert, dart:typed_data, Exception, put, _triggerWebDownloadFromBytes, _updateStatus, Exception, put (+5 more)
 
 ### Community 23 - "Knowledge Base UI"
 Cohesion: 0.11
-Nodes (18): _applyFilters, build, _buildPaginationControls, _buildSearchAndFilters, Container, _editRequest, initState, _loadRequests (+10 more)
+Nodes (18): build, _buildMultiSearchableField, CheckboxListTile, Column, copyWith, CustomModal, Dialog, Function (+10 more)
 
 ### Community 24 - "Task Item Widget"
 Cohesion: 0.11
-Nodes (17): ColorFamily, ColorScheme, dark, darkHighContrast, darkHighContrastScheme, darkMediumContrast, darkMediumContrastScheme, darkScheme (+9 more)
+Nodes (18): _applyFilters, build, _buildPaginationControls, _buildSearchAndFilters, Container, _editRequest, initState, _loadRequests (+10 more)
 
 ### Community 25 - "Support Cards UI"
-Cohesion: 0.13
-Nodes (15): PopScope, SessionManager, showSessionExpiredDialog, build, dispose, initState, LinearProgressIndicator, Scaffold (+7 more)
+Cohesion: 0.11
+Nodes (17): ColorFamily, ColorScheme, dark, darkHighContrast, darkHighContrastScheme, darkMediumContrast, darkMediumContrastScheme, darkScheme (+9 more)
 
 ### Community 26 - "Custom Drawer & Navigation"
 Cohesion: 0.11
-Nodes (17): build, _buildStat, CheckboxListTile, Container, CustomModal, Divider, Expanded, _HoverStatCard (+9 more)
-
-### Community 27 - "User Profile UI"
-Cohesion: 0.11
 Nodes (17): addUUIDs, deleteFile, DocumentsLogic, extractIdentifier, extractStatus, extractValue, formatDate, getFileIcon (+9 more)
 
-### Community 28 - "File Management UI"
-Cohesion: 0.12
-Nodes (16): build, Column, createRequestUpdate, CustomModal, Dialog, dispose, EditRequestDialog, _EditRequestDialogState (+8 more)
-
-### Community 29 - "Session Management API"
+### Community 27 - "User Profile UI"
 Cohesion: 0.12
 Nodes (16): _applyFilters, countRecursive, dispose, HomeController, _loadCurrentUser, loadDocumentStats, loadRecentRequests, loadSupportBPartners (+8 more)
 
-### Community 30 - "Admin View Mode API"
+### Community 28 - "File Management UI"
 Cohesion: 0.12
 Nodes (16): build, cleanStatusName, CustomModal, ensureIsoDate, ensureIsoTime, extractTime, fetchRequest, initState (+8 more)
 
-### Community 31 - "Form Widgets"
+### Community 29 - "Session Management API"
+Cohesion: 0.12
+Nodes (16): build, Card, Chip, CustomContainer, _DesktopRequestTable, Divider, Function, Icon (+8 more)
+
+### Community 30 - "Admin View Mode API"
 Cohesion: 0.12
 Nodes (16): _applyPagination, build, didChangeDependencies, dispose, _editRequest, _fetchStatusesMap, _initData, initState (+8 more)
 
-### Community 32 - "Metrics View"
+### Community 31 - "Form Widgets"
 Cohesion: 0.12
 Nodes (17): Analysis Options, ic_launcher (hdpi), card_stack_swiper, desktop_drop, file_picker, flutter_html, go_router, google_fonts (+9 more)
 
-### Community 33 - "UI Theming (Colors)"
-Cohesion: 0.12
-Nodes (15): build, Container, dispose, _handleKeyEvent, initState, _login, LoginPage, _LoginPageState (+7 more)
+### Community 32 - "Metrics View"
+Cohesion: 0.14
+Nodes (13): dart:async, ContractApi, _ensureValidProductIds, clear, GlobalCache, _loadPhase1_EssentialData, onSyncAction, removeRequest (+5 more)
 
-### Community 34 - "Project Calendar UI"
+### Community 33 - "UI Theming (Colors)"
 Cohesion: 0.12
 Nodes (15): build, _buildMultiSearchableField, CheckboxListTile, copyWith, CustomModal, Dialog, Function, initState (+7 more)
 
+### Community 34 - "Project Calendar UI"
+Cohesion: 0.13
+Nodes (14): build, _buildInfoRow, _buildMetricTile, Container, CustomModal, DateFormat, Divider, _formatCurrency (+6 more)
+
 ### Community 35 - "Support Summary UI"
-Cohesion: 0.12
-Nodes (15): build, Card, Center, Column, dispose, ExpansionTile, Function, initState (+7 more)
+Cohesion: 0.13
+Nodes (14): build, _buildSmallStat, Color, Container, Function, InkWell, _showEditChipNameDialog, SizedBox (+6 more)
 
 ### Community 36 - "Support Dashboard Logic"
 Cohesion: 0.13
-Nodes (14): build, _buildInfoRow, _buildMetricTile, Container, CustomModal, DateFormat, Divider, _formatCurrency (+6 more)
+Nodes (14): build, CardCustom, Column, _CompactRequestStat, Container, Divider, _InteractiveStatItem, _InteractiveStatItemState (+6 more)
 
 ### Community 37 - "Request Stats Cards"
 Cohesion: 0.14
 Nodes (4): fl_register_plugins(), main(), my_application_activate(), my_application_new()
 
 ### Community 38 - "Metrics Logic"
-Cohesion: 0.15
-Nodes (12): build, CustomModal, Function, ItemEditDialog, SizedBox, build, CustomModal, Function (+4 more)
-
-### Community 39 - "User Profile Logic"
 Cohesion: 0.14
 Nodes (13): ../../../../api/token.dart, build, _buildInfoTile, initState, _loadUserInfo, Padding, ProfilePage, _ProfilePageState (+5 more)
 
-### Community 40 - "Project Page Logic"
-Cohesion: 0.15
-Nodes (12): AnimatedBuilder, build, Container, CustomSkeleton, _CustomSkeletonState, dispose, Expanded, initState (+4 more)
+### Community 39 - "User Profile Logic"
+Cohesion: 0.14
+Nodes (13): build, _buildCard, CardCustom, Column, CustomTextField, _HoverableListItem, _HoverableListItemState, KnowledgeBasePage (+5 more)
 
-### Community 41 - "Custom Charts (Painting)"
+### Community 40 - "Project Page Logic"
 Cohesion: 0.15
 Nodes (12): ../../api/access_control.dart, ../../api/api_utils.dart, build, Container, CustomDrawer, _CustomDrawerState, Divider, Drawer (+4 more)
 
+### Community 41 - "Custom Charts (Painting)"
+Cohesion: 0.15
+Nodes (12): AnimatedBuilder, build, Container, CustomSkeleton, _CustomSkeletonState, dispose, Expanded, initState (+4 more)
+
 ### Community 42 - "Graphic Functions"
-Cohesion: 0.17
-Nodes (11): build, Container, Function, Icon, Padding, SizedBox, TaskItem, _TaskItemState (+3 more)
+Cohesion: 0.15
+Nodes (12): AnimatedOpacity, build, _buildStatusChip, Center, Container, DragItemWidget, FileCard, _FileCardState (+4 more)
 
 ### Community 43 - "Text Formatters"
-Cohesion: 0.27
-Nodes (8): dart:convert, ContractApi, Exception, put, package:flutter/foundation.dart, package:http/http.dart, package:primhub/api/api_utils.dart, package:primhub/endpoint/endpoint.dart
+Cohesion: 0.15
+Nodes (12): charts.dart, build, CustomBarChart, _CustomBarChartState, CustomDonutChart, _CustomDonutChartState, CustomStackedBarChart, _CustomStackedBarChartState (+4 more)
 
 ### Community 44 - "App Icons (iOS)"
 Cohesion: 0.18
-Nodes (3): ic_launcher.png (xxhdpi), ic_launcher.png (xxxhdpi), PrimHub Branding
+Nodes (10): PopScope, SessionManager, showSessionExpiredDialog, build, CustomModal, Function, SizedBox, TaskCreateDialog (+2 more)
 
 ### Community 45 - "Metrics Requests Page"
-Cohesion: 0.2
-Nodes (9): build, _buildDesktopTable, Card, dispose, Function, LayoutBuilder, ResponsiveDataColumn, ResponsiveDataTable (+1 more)
+Cohesion: 0.17
+Nodes (11): build, Container, Function, Icon, Padding, SizedBox, TaskItem, _TaskItemState (+3 more)
 
 ### Community 46 - "Project Metrics Calculator"
 Cohesion: 0.2
-Nodes (9): calculate, _calculateComplianceData, _calculateStatusData, getComplianceCategory, GraphicsFunctions, ProjectMetrics, ProjectMetricsCalculator, SimpleChartData (+1 more)
+Nodes (12): 🖥️ 1. Herramienta Exclusiva: Simulación de Vista (Modo de Vista), 2. Inicio (Dashboard), 2. Inicio (Dashboard Principal), 4. Horas de Soporte (Auditoría y Saldos), ⚡ Accesos Directos y Atajos Visuales, 💡 Elementos Clave en Pantalla, 🛡️ Excepción de Horas (Omitir Bloqueo de Consumo), 💡 Funciones Destacadas en el Dashboard (+4 more)
 
 ### Community 47 - "API Utils (Download)"
-Cohesion: 0.2
-Nodes (9): build, BulkEditRequestDialog, _BulkEditRequestDialogState, CustomModal, DropdownMenuItem, initState, SizedBox, SnackBar (+1 more)
+Cohesion: 0.18
+Nodes (10): build, BulkEditRequestDialog, _BulkEditRequestDialogState, _checkOriginalBps, CustomModal, DropdownMenuItem, initState, SizedBox (+2 more)
 
 ### Community 48 - "UI Components (Icons/Phase)"
+Cohesion: 0.18
+Nodes (10): BreadcrumbNavigator, build, DropRegion, Function, _getCrumbColor, _getIconForCrumb, Padding, SingleChildScrollView (+2 more)
+
+### Community 49 - "Bulk Edit Dialog"
+Cohesion: 0.18
+Nodes (3): ic_launcher.png (xxhdpi), ic_launcher.png (xxxhdpi), PrimHub Branding
+
+### Community 50 - "Login Selection Page"
+Cohesion: 0.2
+Nodes (9): build, _buildDesktopTable, Card, dispose, Function, LayoutBuilder, ResponsiveDataColumn, ResponsiveDataTable (+1 more)
+
+### Community 51 - "Session Management Logic"
+Cohesion: 0.2
+Nodes (9): calculate, _calculateComplianceData, _calculateStatusData, getComplianceCategory, GraphicsFunctions, ProjectMetrics, ProjectMetricsCalculator, SimpleChartData (+1 more)
+
+### Community 52 - "Splash Loading Page"
+Cohesion: 0.2
+Nodes (8): AdminViewModeManager, getModeName, getProductChip, jsonDecode, package:flutter/widgets.dart, package:primhub/api/contract_api.dart, package:shared_preferences/shared_preferences.dart, ../ui/pages/Login/login.dart
+
+### Community 53 - "Chart Painting"
 Cohesion: 0.2
 Nodes (9): build, CustomTextField, MarketplacePage, Scaffold, SizedBox, Text, package:primhub/ui/Shared_Custom/custom_container.dart, ../../../Shared_Custom/custom_button.dart (+1 more)
 
-### Community 49 - "Bulk Edit Dialog"
-Cohesion: 0.22
-Nodes (8): dart:async, clear, GlobalCache, _loadPhase1_EssentialData, onSyncAction, removeRequest, SnackBar, _updateProjectCache
+### Community 54 - "Request Functions"
+Cohesion: 0.2
+Nodes (9): build, dispose, initState, LinearProgressIndicator, Scaffold, SizedBox, SplashLoadingPage, _SplashLoadingPageState (+1 more)
 
-### Community 50 - "Login Selection Page"
+### Community 55 - "User Info & Navigation"
+Cohesion: 0.22
+Nodes (8): dart:math, BarChartPainter, DonutChartPainter, _drawTooltip, paint, shouldRepaint, StackedBarChartPainter, StackedTapDetails
+
+### Community 56 - "Login Selection UI"
+Cohesion: 0.22
+Nodes (8): build, _buildCompactStat, Column, Container, RequestStatsCard, SizedBox, Spacer, package:primhub/ui/widgets/duration_formatter.dart
+
+### Community 57 - "Hover Interaction Widgets"
 Cohesion: 0.25
 Nodes (7): build, Function, HoverListTile, _HoverListTileState, HoverScaleCard, _HoverScaleCardState, MouseRegion
 
-### Community 51 - "Session Management Logic"
-Cohesion: 0.25
-Nodes (7): build, CustomModal, Function, initState, ProjectCreateDialog, _ProjectCreateDialogState, SizedBox
-
-### Community 52 - "Splash Loading Page"
+### Community 58 - "Support Request Filter Bar"
 Cohesion: 0.25
 Nodes (7): build, didChangeDependencies, _getName, LoginSelectionPage, _LoginSelectionPageState, Scaffold, SizedBox
 
-### Community 53 - "Chart Painting"
+### Community 59 - "Project Creation UI"
+Cohesion: 0.25
+Nodes (7): build, CustomModal, Function, initState, ProjectCreateDialog, _ProjectCreateDialogState, SizedBox
+
+### Community 60 - "Custom Data Table"
 Cohesion: 0.25
 Nodes (7): build, Column, Function, LayoutBuilder, RequestFilterBar, SizedBox, package:primhub/ui/pages/Support/Requests/request_functions.dart
 
-### Community 54 - "Request Functions"
-Cohesion: 0.29
-Nodes (5): ColorTheme, build, CustomButton, SizedBox, package:flutter/material.dart
+### Community 61 - "UI Colors & Buttons"
+Cohesion: 0.25
+Nodes (6): 4. Gestor de Archivos (Drag-and-Drop & Visual Magnifier), 5. Clipboard Integration (Copiado Rápido), code:dart (// documents_logic.dart), 📘 Manual de Administrador y Especificación de Funciones - Primhub, 🎯 Perfil del Administrador del Sistema, 🛠️ SECCIÓN 2: Especificación Técnica y Arquitectura del Código
 
-### Community 55 - "User Info & Navigation"
+### Community 62 - "Phase Creation Dialog"
+Cohesion: 0.29
+Nodes (5): ColorTheme, build, CustomModal, Dialog, package:flutter/material.dart
+
+### Community 63 - "Item Edit Dialog"
 Cohesion: 0.29
 Nodes (6): build, CustomTable, _CustomTableState, dispose, Scrollbar, SizedBox
 
-### Community 56 - "Login Selection UI"
+### Community 64 - "Task Creation UI"
 Cohesion: 0.29
-Nodes (6): build, CustomModal, Function, PhaseCreateDialog, SizedBox, package:primhub/ui/Shared_Custom/custom_button.dart
+Nodes (6): build, CustomModal, Function, ItemEditDialog, SizedBox, package:primhub/ui/Shared_Custom/custom_inputs.dart
 
-### Community 57 - "Hover Interaction Widgets"
+### Community 65 - "Requests Data Table Core"
 Cohesion: 0.29
 Nodes (6): build, Function, RequestsDataTable, RequestsDataTableCore, _RequestsDataTableState, package:primhub/ui/Shared_Custom/requests_data_table_core.dart
 
-### Community 59 - "Project Creation UI"
+### Community 67 - "Linux Build Rules"
 Cohesion: 0.33
 Nodes (7): Flutter Engine, Linux CMake Configuration, Linux Flutter Build Rules, Linux Runner Target, Main Entry Point (Linux), MyApplication Class, Primhub Executable
 
-### Community 60 - "Custom Data Table"
+### Community 68 - "macOS App Delegate"
 Cohesion: 0.33
-Nodes (5): Exception, put, _triggerWebDownloadFromBytes, _updateStatus, package:primhub/ui/Shared_Custom/customToast.dart
+Nodes (5): build, CustomModal, RequestDetailsDialog, SizedBox, package:primhub/ui/pages/Projects/Documents/documents_logic.dart
 
-### Community 61 - "UI Colors & Buttons"
+### Community 69 - "Windows Main & Utils"
 Cohesion: 0.33
-Nodes (5): getProductChip, jsonDecode, package:flutter/widgets.dart, package:primhub/api/contract_api.dart, ../ui/pages/Login/login.dart
+Nodes (5): build, CustomModal, Function, PhaseCreateDialog, SizedBox
 
-### Community 62 - "Phase Creation Dialog"
+### Community 70 - "Web Index & Assets"
 Cohesion: 0.33
 Nodes (3): RegisterGeneratedPlugins(), NSWindow, MainFlutterWindow
 
-### Community 63 - "Item Edit Dialog"
+### Community 71 - "Theme Configuration"
 Cohesion: 0.47
 Nodes (4): wWinMain(), CreateAndAttachConsole(), GetCommandLineArguments(), Utf8FromUtf16()
 
-### Community 64 - "Task Creation UI"
+### Community 72 - "Custom Card Widgets"
+Cohesion: 0.33
+Nodes (6): 3. Navegación Interactiva BI (Drill-Down Router Mapping), code:mermaid (graph LR), code:dart (void _handleBarClick(String statusName, int? projectId) {), code:dart (// Construcción del OData Query en fetch), 📐 Flujo de Redirección y Parámetros, 📄 Implementación Técnica
+
+### Community 73 - "Custom Toast Messages"
+Cohesion: 0.33
+Nodes (6): 1. Arquitectura del State Management y "Modo de Vista", code:mermaid (graph TD), code:dart (enum AdminViewMode { mixed, support, project }), code:dart (Future<void> saveMode(AdminViewMode mode) async {), 📄 Código de Referencia: `AdminViewModeManager`, 📐 Diagrama de Componentes: AdminViewModeManager
+
+### Community 74 - "Form Input Widgets"
 Cohesion: 0.33
 Nodes (6): Favicon, Flutter Bootstrap JS, Web Icon 192x192, Web Index HTML, PrimHub Logo, Web Manifest
 
-### Community 65 - "Requests Data Table Core"
+### Community 75 - "Container UI Elements"
 Cohesion: 0.4
 Nodes (4): build, CardCustom, _CardCustomState, SizedBox
 
-### Community 66 - "iOS App Delegate"
+### Community 76 - "iOS/macOS Runner Tests"
 Cohesion: 0.4
 Nodes (4): ColorTheme, show, ToastMessage, package:toastification/toastification.dart
 
-### Community 67 - "Linux Build Rules"
+### Community 77 - "Endpoint Configuration"
 Cohesion: 0.4
 Nodes (4): build, Card, CustomContainer, Divider
 
-### Community 68 - "macOS App Delegate"
+### Community 78 - "Custom Modal System"
 Cohesion: 0.4
 Nodes (4): AppThemes, _buildTextTheme, package:google_fonts/google_fonts.dart, theme_material.dart
 
-### Community 69 - "Windows Main & Utils"
-Cohesion: 0.4
-Nodes (4): AdminViewModeManager, main, package:primhub/app.dart, package:primhub/theme/theme.dart
-
-### Community 70 - "Web Index & Assets"
+### Community 79 - "Validation Logic"
 Cohesion: 0.4
 Nodes (4): AccessControl, AdminViewModeManager, hasHardcodedRole, package:primhub/api/admin_view_mode.dart
 
-### Community 72 - "Custom Card Widgets"
+### Community 81 - "Duration Formatting"
+Cohesion: 0.4
+Nodes (5): 5. Mis Solicitudes (Centro de Atención - Tickets), 📋 Atajo: Copiado Rápido al Portapapeles, ⚙️ Funciones Clave, ⚙️ Funciones de la Mesa de Soporte, 📋 Utilidad de Portapapeles Rápido
+
+### Community 82 - "Android Generated Plugins"
+Cohesion: 0.4
+Nodes (5): 2. Mecanismo de Excepciones de Horas (BPartner Exemptions), code:mermaid (sequenceDiagram), code:dart (class ValidationManager {), 📄 Código de Referencia: `ValidationManager`, 📐 Diagrama de Secuencia: Flujo de Validación de Horas
+
+### Community 83 - "iOS Generated Plugins"
 Cohesion: 0.5
 Nodes (3): Endpoint, Envirioment, PostMedia
 
-### Community 73 - "Custom Toast Messages"
+### Community 84 - "Flutter Linux C Bindings"
 Cohesion: 0.5
-Nodes (3): build, CustomModal, Dialog
+Nodes (3): build, CustomButton, SizedBox
 
-### Community 74 - "Form Input Widgets"
+### Community 85 - "Community 85"
 Cohesion: 0.5
 Nodes (3): isExempt, setExceptions, ValidationManager
 
-### Community 75 - "Container UI Elements"
+### Community 87 - "Community 87"
 Cohesion: 0.5
-Nodes (3): AdminViewModeManager, getModeName, package:shared_preferences/shared_preferences.dart
+Nodes (4): 6. Indicadores (BI y Analítica), 🔍 Interactividad Inteligente (Drill-Down Completo), 📈 Reportes Incluidos, 📈 Reportes Integrados
+
+### Community 88 - "Community 88"
+Cohesion: 0.5
+Nodes (4): 3. Mis Proyectos (Entregables e Hitos), ⚙️ Funciones Clave, ⚙️ Funciones Principales, 📂 Secretos del Gestor de Archivos
 
 ## Knowledge Gaps
-- **1059 isolated node(s):** `MainApp`, `NoTransitionPage`, `build`, `package:primhub/ui/pages/Projects/Documents/documents.dart`, `package:primhub/ui/pages/Home/home_page.dart` (+1054 more)
+- **1104 isolated node(s):** `main`, `MainApp`, `NoTransitionPage`, `build`, `package:primhub/ui/pages/Projects/Documents/documents.dart` (+1099 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **18 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **17 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `package:flutter/material.dart` connect `Request Functions` to `Projects Dashboard & Widgets`, `Support Requests UI`, `Flutter Material Widgets`, `Dart Core Async`, `Base64 Conversion & File Management`, `Support Dashboard Metrics`, `Request Filtering & Modals`, `Project Requests Table`, `Project Item Widget`, `Project Management Dialogs`, `Home Controller & State`, `Home Page UI (Assets)`, `File Preview & Preview Manager`, `Breadcrumb Navigation`, `Phase Creation UI`, `Phase Item Widget`, `Breadcrumb Navigation (alt)`, `Project List Widget`, `Recent Requests Table`, `Profile Page`, `Calendar Widget`, `Project Request Filters`, `Knowledge Base UI`, `Task Item Widget`, `Support Cards UI`, `Custom Drawer & Navigation`, `User Profile UI`, `File Management UI`, `Session Management API`, `Admin View Mode API`, `Form Widgets`, `UI Theming (Colors)`, `Project Calendar UI`, `Support Summary UI`, `Support Dashboard Logic`, `Metrics Logic`, `User Profile Logic`, `Project Page Logic`, `Custom Charts (Painting)`, `Graphic Functions`, `Text Formatters`, `Metrics Requests Page`, `API Utils (Download)`, `UI Components (Icons/Phase)`, `Bulk Edit Dialog`, `Login Selection Page`, `Session Management Logic`, `Splash Loading Page`, `Chart Painting`, `User Info & Navigation`, `Login Selection UI`, `Hover Interaction Widgets`, `Custom Data Table`, `UI Colors & Buttons`, `Requests Data Table Core`, `iOS App Delegate`, `Linux Build Rules`, `macOS App Delegate`, `Windows Main & Utils`, `Custom Toast Messages`, `Container UI Elements`?**
-  _High betweenness centrality (0.315) - this node is a cross-community bridge._
-- **Why does `package:primhub/api/access_control.dart` connect `Base64 Conversion & File Management` to `Projects Dashboard & Widgets`, `Support Requests UI`, `Flutter Material Widgets`, `Dart Core Async`, `Support Dashboard Metrics`, `Request Filtering & Modals`, `Project Requests Table`, `Project Management Dialogs`, `Home Controller & State`, `File Preview & Preview Manager`, `Breadcrumb Navigation (alt)`, `Project List Widget`, `Recent Requests Table`, `Profile Page`, `Calendar Widget`, `Knowledge Base UI`, `User Profile UI`, `File Management UI`, `Session Management API`, `Admin View Mode API`, `Form Widgets`, `Project Calendar UI`, `User Profile Logic`, `Graphic Functions`, `Text Formatters`, `Bulk Edit Dialog`, `Chart Painting`, `Custom Data Table`, `UI Colors & Buttons`?**
-  _High betweenness centrality (0.049) - this node is a cross-community bridge._
-- **Why does `package:primhub/ui/Shared_Custom/custom_modal.dart` connect `Metrics Logic` to `Projects Dashboard & Widgets`, `Support Requests UI`, `Flutter Material Widgets`, `Dart Core Async`, `Support Dashboard Metrics`, `Project Requests Table`, `Project Item Widget`, `Project Management Dialogs`, `Home Controller & State`, `File Preview & Preview Manager`, `Phase Creation UI`, `Phase Item Widget`, `Project List Widget`, `Recent Requests Table`, `Profile Page`, `Calendar Widget`, `Knowledge Base UI`, `Support Cards UI`, `Custom Drawer & Navigation`, `File Management UI`, `Admin View Mode API`, `Form Widgets`, `UI Theming (Colors)`, `Project Calendar UI`, `Support Dashboard Logic`, `API Utils (Download)`, `Session Management Logic`, `Login Selection UI`?**
-  _High betweenness centrality (0.043) - this node is a cross-community bridge._
-- **What connects `MainApp`, `NoTransitionPage`, `build` to the rest of the system?**
-  _1059 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Why does `package:flutter/material.dart` connect `Phase Creation Dialog` to `Projects Dashboard & Widgets`, `Support Requests UI`, `Flutter Material Widgets`, `Dart Core Async`, `Base64 Conversion & File Management`, `Support Dashboard Metrics`, `Request Filtering & Modals`, `Project Requests Table`, `Project Item Widget`, `Home Controller & State`, `Home Page UI (Assets)`, `Product UI & Marketplace`, `File Preview & Preview Manager`, `Breadcrumb Navigation`, `Phase Creation UI`, `Phase Item Widget`, `Breadcrumb Navigation (alt)`, `Project List Widget`, `Recent Requests Table`, `Profile Page`, `Calendar Widget`, `Project Request Filters`, `Knowledge Base UI`, `Task Item Widget`, `Support Cards UI`, `Custom Drawer & Navigation`, `User Profile UI`, `File Management UI`, `Session Management API`, `Admin View Mode API`, `Metrics View`, `UI Theming (Colors)`, `Project Calendar UI`, `Support Summary UI`, `Support Dashboard Logic`, `Metrics Logic`, `User Profile Logic`, `Project Page Logic`, `Custom Charts (Painting)`, `Graphic Functions`, `Text Formatters`, `App Icons (iOS)`, `Metrics Requests Page`, `API Utils (Download)`, `UI Components (Icons/Phase)`, `Login Selection Page`, `Splash Loading Page`, `Chart Painting`, `Request Functions`, `User Info & Navigation`, `Login Selection UI`, `Hover Interaction Widgets`, `Support Request Filter Bar`, `Project Creation UI`, `Custom Data Table`, `Item Edit Dialog`, `Task Creation UI`, `Requests Data Table Core`, `macOS App Delegate`, `Windows Main & Utils`, `Container UI Elements`, `iOS/macOS Runner Tests`, `Endpoint Configuration`, `Custom Modal System`, `Flutter Linux C Bindings`?**
+  _High betweenness centrality (0.313) - this node is a cross-community bridge._
+- **Why does `package:primhub/ui/Shared_Custom/custom_modal.dart` connect `App Icons (iOS)` to `Projects Dashboard & Widgets`, `Support Requests UI`, `Dart Core Async`, `Base64 Conversion & File Management`, `Support Dashboard Metrics`, `Request Filtering & Modals`, `Project Requests Table`, `Project Item Widget`, `Home Controller & State`, `Home Page UI (Assets)`, `File Preview & Preview Manager`, `Breadcrumb Navigation`, `Phase Creation UI`, `Breadcrumb Navigation (alt)`, `Project List Widget`, `Recent Requests Table`, `Profile Page`, `Calendar Widget`, `Knowledge Base UI`, `Task Item Widget`, `File Management UI`, `Admin View Mode API`, `Metrics View`, `UI Theming (Colors)`, `Project Calendar UI`, `Support Summary UI`, `API Utils (Download)`, `Project Creation UI`, `Task Creation UI`, `macOS App Delegate`, `Windows Main & Utils`?**
+  _High betweenness centrality (0.052) - this node is a cross-community bridge._
+- **Why does `package:primhub/api/access_control.dart` connect `Base64 Conversion & File Management` to `Projects Dashboard & Widgets`, `Support Requests UI`, `Flutter Material Widgets`, `Dart Core Async`, `Support Dashboard Metrics`, `Project Requests Table`, `Project Item Widget`, `Home Controller & State`, `Home Page UI (Assets)`, `Breadcrumb Navigation (alt)`, `Project List Widget`, `Recent Requests Table`, `Profile Page`, `Calendar Widget`, `Project Request Filters`, `Knowledge Base UI`, `Task Item Widget`, `Custom Drawer & Navigation`, `User Profile UI`, `File Management UI`, `Session Management API`, `Admin View Mode API`, `Metrics View`, `UI Theming (Colors)`, `Support Summary UI`, `Metrics Logic`, `Graphic Functions`, `Metrics Requests Page`, `API Utils (Download)`, `Splash Loading Page`, `Custom Data Table`?**
+  _High betweenness centrality (0.035) - this node is a cross-community bridge._
+- **What connects `main`, `MainApp`, `NoTransitionPage` to the rest of the system?**
+  _1104 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Projects Dashboard & Widgets` be split into smaller, more focused modules?**
   _Cohesion score 0.03 - nodes in this community are weakly interconnected._
 - **Should `Support Requests UI` be split into smaller, more focused modules?**

@@ -36,8 +36,15 @@ class _SplashLoadingPageState extends State<SplashLoadingPage> with SingleTicker
     // 1. Inicia la animación para que el usuario vea el progreso.
     _progressController.forward();
 
-    // 2. Carga los datos esenciales, pero forzando un tiempo máximo de 8 segundos.
-    await Future.any([GlobalCache.syncData(force: true), Future.delayed(const Duration(seconds: 8))]);
+    // 2. Carga los datos en paralelo (Fase 1 y Fase 2), pero con un tope máximo de 8 segundos.
+    final syncFuture = () async {
+      await GlobalCache.syncData(force: true);
+      if (GlobalCache.phase2SyncFuture != null) {
+        await GlobalCache.phase2SyncFuture;
+      }
+    }();
+
+    await Future.any([syncFuture, Future.delayed(const Duration(seconds: 8))]);
 
     if (mounted) {
       // 3. Acelera la animación para que llegue al 100% de inmediato y sin esperas innecesarias.

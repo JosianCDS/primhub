@@ -41,7 +41,7 @@ class _RequestUpdatesPageState extends State<RequestUpdatesPage> {
 
   Future<void> _fetchDetails({bool forceNetwork = false}) async {
     try {
-      debugPrint("DEBUG: [INIT] Fetching details. ID: ${widget.requestId}, DocNo: ${widget.docNo}, Force: $forceNetwork");
+// [Mantenimiento] Log removido:       debugPrint("DEBUG: [INIT] Fetching details. ID: ${widget.requestId}, DocNo: ${widget.docNo}, Force: $forceNetwork");
 
       // 1. INTENTO EN CACHÉ (Instantáneo si no se fuerza red)
       if (!forceNetwork) {
@@ -59,44 +59,44 @@ class _RequestUpdatesPageState extends State<RequestUpdatesPage> {
         }
 
         if (cached.isNotEmpty) {
-          debugPrint("DEBUG: [CACHE] Found request in GlobalCache.");
+// [Mantenimiento] Log removido:           debugPrint("DEBUG: [CACHE] Found request in GlobalCache.");
           _handleFoundRequest(cached.first);
           return;
         }
       }
 
       // 2. INTENTO API POR ID (Búsqueda principal y más precisa)
-      debugPrint("DEBUG: [STAGE 1] Searching by ID: ${widget.requestId}");
+// [Mantenimiento] Log removido:       debugPrint("DEBUG: [STAGE 1] Searching by ID: ${widget.requestId}");
       final reqsId = await fetchRequest(
         filter: "id eq ${widget.requestId} or R_Request_ID eq ${widget.requestId}",
         select: "id,DocumentNo,Summary,Description,Help,Result,CDS_EmailSubject,Created,Priority,R_Status_ID,R_Category_ID,R_RequestType_ID,C_BPartner_ID,AD_User_ID,SalesRep_ID,QtySpent,ConfidentialTypeEntry",
       );
 
       if (reqsId.isNotEmpty) {
-        debugPrint("DEBUG: [STAGE 1 SUCCESS] Found via internal ID.");
+// [Mantenimiento] Log removido:         debugPrint("DEBUG: [STAGE 1 SUCCESS] Found via internal ID.");
         _handleFoundRequest(reqsId.first);
         return;
       }
 
       // 3. INTENTO API POR DOCUMENT NO (Respaldo si el ID no funcionó)
       if (widget.docNo.isNotEmpty && widget.docNo != widget.requestId.toString()) {
-        debugPrint("DEBUG: [STAGE 2] ID search failed. Searching by DocumentNo: ${widget.docNo}");
+// [Mantenimiento] Log removido:         debugPrint("DEBUG: [STAGE 2] ID search failed. Searching by DocumentNo: ${widget.docNo}");
         final reqsDoc = await fetchRequest(
           filter: "DocumentNo eq '${widget.docNo}'",
           select: "id,DocumentNo,Summary,Description,Help,Result,CDS_EmailSubject,Created,Priority,R_Status_ID,R_Category_ID,R_RequestType_ID,C_BPartner_ID,AD_User_ID,SalesRep_ID,QtySpent,ConfidentialTypeEntry",
         );
         if (reqsDoc.isNotEmpty) {
-          debugPrint("DEBUG: [STAGE 2 SUCCESS] Found via DocumentNo.");
+// [Mantenimiento] Log removido:           debugPrint("DEBUG: [STAGE 2 SUCCESS] Found via DocumentNo.");
           _handleFoundRequest(reqsDoc.first);
           return;
         }
       }
 
-      debugPrint("DEBUG: [FAILED] No request found after all stages for identifier: ${widget.requestId} / ${widget.docNo}");
+// [Mantenimiento] Log removido:       debugPrint("DEBUG: [FAILED] No request found after all stages for identifier: ${widget.requestId} / ${widget.docNo}");
       if (mounted) setState(() => _isLoadingDetails = false);
 
     } catch (e) {
-      debugPrint("DEBUG: [ERROR] Exception in _fetchDetails: $e");
+// [Mantenimiento] Log removido:       debugPrint("DEBUG: [ERROR] Exception in _fetchDetails: $e");
       if (mounted) setState(() => _isLoadingDetails = false);
     }
   }
@@ -107,10 +107,10 @@ class _RequestUpdatesPageState extends State<RequestUpdatesPage> {
     final realId = details['id'] is int ? details['id'] : int.tryParse(details['id']?.toString() ?? '');
     final docNo = details['DocumentNo']?.toString();
 
-    debugPrint("DEBUG: [RESOLVED] ID: $realId, DocNo: $docNo");
+// [Mantenimiento] Log removido:     debugPrint("DEBUG: [RESOLVED] ID: $realId, DocNo: $docNo");
 
     if (realId != null && realId != widget.requestId) {
-      debugPrint("DEBUG: [SYNC] Refreshing updates with REAL ID: $realId");
+// [Mantenimiento] Log removido:       debugPrint("DEBUG: [SYNC] Refreshing updates with REAL ID: $realId");
       _refreshUpdates(realId);
     }
 
@@ -832,3 +832,4 @@ class _RequestSummaryHeader extends StatelessWidget {
     );
   }
 }
+

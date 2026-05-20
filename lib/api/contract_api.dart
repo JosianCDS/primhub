@@ -25,7 +25,7 @@ class ContractApi {
         _validProductIds = records.map((r) => r['id'] as int).toList();
       }
     } catch (e) {
-      debugPrint("Error fetching product IDs by UUID: $e");
+// [Mantenimiento] Log removido:       debugPrint("Error fetching product IDs by UUID: $e");
     }
     // Si la API falla o no devuelve datos, usamos el ID conocido por defecto para no romper el sistema
     if (_validProductIds == null || _validProductIds!.isEmpty) {
@@ -67,7 +67,7 @@ class ContractApi {
         }
       }
     } catch (e) {
-      debugPrint("Error en paginación ProductChipApi: $e");
+// [Mantenimiento] Log removido:       debugPrint("Error en paginación ProductChipApi: $e");
     }
     return allRecords;
   }
@@ -104,13 +104,13 @@ class ContractApi {
     }
 
     final String baseUrl = "$endpoint?\$filter=$filter";
-    debugPrint("DEBUG ContractApi: Fetching chips from $baseUrl");
+// [Mantenimiento] Log removido:     debugPrint("DEBUG ContractApi: Fetching chips from $baseUrl");
 
     try {
       final records = await _fetchPaginated(baseUrl);
       return records.map((r) => Map<String, dynamic>.from(r)).toList();
     } catch (e) {
-      debugPrint("Error obteniendo Product Chips: $e");
+// [Mantenimiento] Log removido:       debugPrint("Error obteniendo Product Chips: $e");
     }
     return [];
   }
@@ -141,7 +141,7 @@ class ContractApi {
       }
       return bPartners.values.toList()..sort((a, b) => a['Name'].compareTo(b['Name']));
     } catch (e) {
-      debugPrint("Error obteniendo terceros con Product Chips: $e");
+// [Mantenimiento] Log removido:       debugPrint("Error obteniendo terceros con Product Chips: $e");
     }
     return [];
   }
@@ -155,7 +155,7 @@ class ContractApi {
     };
 
     try {
-      debugPrint("DEBUG ContractApi: Updating chip $chipId with PUT. URL: $url");
+// [Mantenimiento] Log removido:       debugPrint("DEBUG ContractApi: Updating chip $chipId with PUT. URL: $url");
       
       var response = await http.put(
         Uri.parse(url),
@@ -183,12 +183,13 @@ class ContractApi {
       }
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        debugPrint("Error actualizando ficha (${response.statusCode}): ${response.body}");
+// [Mantenimiento] Log removido:         debugPrint("Error actualizando ficha (${response.statusCode}): ${response.body}");
       }
       return response.statusCode >= 200 && response.statusCode < 300;
     } catch (e) {
-      debugPrint("Error actualizando descripción de Product Chip: $e");
+// [Mantenimiento] Log removido:       debugPrint("Error actualizando descripción de Product Chip: $e");
       return false;
     }
   }
 }
+

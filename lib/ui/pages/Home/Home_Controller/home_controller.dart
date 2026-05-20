@@ -104,7 +104,7 @@ class HomeController extends ChangeNotifier {
       try {
         if (GlobalCache.phase2SyncFuture != null) await GlobalCache.phase2SyncFuture;
       } catch (e) {
-        debugPrint("Error esperando la Fase 2 de la caché en Home: $e");
+// [Mantenimiento] Log removido:         debugPrint("Error esperando la Fase 2 de la caché en Home: $e");
       }
 
       await loadValidationData();
@@ -131,7 +131,7 @@ class HomeController extends ChangeNotifier {
       notifyListeners();
 
     } catch (e) {
-      debugPrint("Error en carga en cascada de Home: $e");
+// [Mantenimiento] Log removido:       debugPrint("Error en carga en cascada de Home: $e");
     }
 
     _hasShownInitialSkeleton = true;
@@ -425,17 +425,17 @@ class HomeController extends ChangeNotifier {
     Map<int, int> unlinkedClosedCountByBp = {};
     Map<int, int> unlinkedInProgressCountByBp = {};
 
-    debugPrint("DEBUG CHIPS: Iniciando loadSupportProductChips para BPs: $bpIdsForQuery");
-    debugPrint("DEBUG CHIPS: Fichas encontradas en caché: ${allFetchedChips.length}");
+// [Mantenimiento] Log removido:     debugPrint("DEBUG CHIPS: Iniciando loadSupportProductChips para BPs: $bpIdsForQuery");
+// [Mantenimiento] Log removido:     debugPrint("DEBUG CHIPS: Fichas encontradas en caché: ${allFetchedChips.length}");
     for (var c in allFetchedChips) {
-      debugPrint("DEBUG CHIPS: Ficha en caché -> ID: ${c['id']}, Name: ${c['Name']}, PK_Field: ${c['C_BPartner_Product_Chip_ID']}");
+// [Mantenimiento] Log removido:       debugPrint("DEBUG CHIPS: Ficha en caché -> ID: ${c['id']}, Name: ${c['Name']}, PK_Field: ${c['C_BPartner_Product_Chip_ID']}");
     }
 
     // Usamos processRequests para obtener datos normalizados
     final processedResult = await processRequests(allSupportRequests, GlobalCache.statuses);
     final List<Map<String, dynamic>> processedRequests = List<Map<String, dynamic>>.from(processedResult['requests']);
     
-    debugPrint("DEBUG CHIPS: Solicitudes de soporte a procesar: ${processedRequests.length}");
+// [Mantenimiento] Log removido:     debugPrint("DEBUG CHIPS: Solicitudes de soporte a procesar: ${processedRequests.length}");
 
     for (var req in processedRequests) {
       final int? reqBpId = (req['bpId'] as num?)?.toInt();
@@ -446,7 +446,7 @@ class HomeController extends ChangeNotifier {
       final double qtySpent = (req['qtySpent'] as num?)?.toDouble() ?? 0.0;
 
       if (linkedChipId != null) {
-        debugPrint("DEBUG CHIPS: Solicitud ${req['code']} VINCULADA a Chip ID: $linkedChipId (Horas: $qtySpent, Cerrada: $isClosed)");
+// [Mantenimiento] Log removido:         debugPrint("DEBUG CHIPS: Solicitud ${req['code']} VINCULADA a Chip ID: $linkedChipId (Horas: $qtySpent, Cerrada: $isClosed)");
         if (isClosed) {
           chipConsumedHoursMap[linkedChipId] = (chipConsumedHoursMap[linkedChipId] ?? 0.0) + qtySpent;
           chipClosedCountMap[linkedChipId] = (chipClosedCountMap[linkedChipId] ?? 0) + 1;
@@ -455,7 +455,7 @@ class HomeController extends ChangeNotifier {
           chipInProgressCountMap[linkedChipId] = (chipInProgressCountMap[linkedChipId] ?? 0) + 1;
         }
       } else {
-        debugPrint("DEBUG CHIPS: Solicitud ${req['code']} NO VINCULADA (BP: $reqBpId, Horas: $qtySpent) - SE IGNORA PARA CONSUMO DE FICHAS");
+// [Mantenimiento] Log removido:         debugPrint("DEBUG CHIPS: Solicitud ${req['code']} NO VINCULADA (BP: $reqBpId, Horas: $qtySpent) - SE IGNORA PARA CONSUMO DE FICHAS");
         // No vinculado: Ya no lo acumulamos para distribuir FIFO, ya que el usuario indica que si no tiene ficha no debe contarse.
       }
     }
@@ -470,7 +470,7 @@ class HomeController extends ChangeNotifier {
       final int? chipId = int.tryParse(chipIdRaw?.toString() ?? '');
       if (chipId == null) continue;
       
-      debugPrint("DEBUG CHIPS: Analizando Ficha ID $chipId para BP $bpId");
+// [Mantenimiento] Log removido:       debugPrint("DEBUG CHIPS: Analizando Ficha ID $chipId para BP $bpId");
       double chipAcquired = (chip['Qty'] as num?)?.toDouble() ?? 0.0;
       
       // Consumo directo
@@ -597,3 +597,4 @@ class HomeController extends ChangeNotifier {
     notifyListeners();
   }
 }
+

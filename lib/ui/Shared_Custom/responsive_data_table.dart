@@ -98,11 +98,22 @@ class _ResponsiveDataTableState<T> extends State<ResponsiveDataTable<T>> {
           ),
         );
       }
-      fixedCells.addAll(widget.fixedCellBuilder(item));
+      
+      final builtFixed = widget.fixedCellBuilder(item);
+      if (builtFixed.length != widget.fixedColumns.length) {
+        // Mismatch during state transitions (e.g. logging out). Skip to avoid assertion crash.
+        continue;
+      }
+      fixedCells.addAll(builtFixed);
+
+      final builtScrollable = widget.scrollableCellBuilder(item);
+      if (builtScrollable.length != widget.scrollableColumns.length) {
+        // Mismatch during state transitions (e.g. logging out). Skip to avoid assertion crash.
+        continue;
+      }
 
       fixedRows.add(DataRow(selected: isSelected, onSelectChanged: (_) => widget.onRowTap?.call(item), cells: fixedCells));
-
-      scrollableRows.add(DataRow(selected: isSelected, onSelectChanged: (_) => widget.onRowTap?.call(item), cells: widget.scrollableCellBuilder(item)));
+      scrollableRows.add(DataRow(selected: isSelected, onSelectChanged: (_) => widget.onRowTap?.call(item), cells: builtScrollable));
     }
 
     // --- Theme ---
@@ -164,17 +175,20 @@ class _ResponsiveDataTableState<T> extends State<ResponsiveDataTable<T>> {
       elevation: 4,
       clipBehavior: Clip.hardEdge,
       child: SingleChildScrollView(
+        physics: const ClampingScrollPhysics(),
         scrollDirection: Axis.vertical,
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // --- Fixed Part ---
-            DataTableTheme(
-              data: fixedDataTableTheme,
-              child: DataTable(
-                showCheckboxColumn: false, // Handled manually
-                columns: allFixedColumns,
-                rows: fixedRows,
+            RepaintBoundary(
+              child: DataTableTheme(
+                data: fixedDataTableTheme,
+                child: DataTable(
+                  showCheckboxColumn: false, // Handled manually
+                  columns: allFixedColumns,
+                  rows: fixedRows,
+                ),
               ),
             ),
             // --- Scrollable Part ---
@@ -184,13 +198,16 @@ class _ResponsiveDataTableState<T> extends State<ResponsiveDataTable<T>> {
                 thumbVisibility: true,
                 child: SingleChildScrollView(
                   controller: _horizontalScrollController,
+                  physics: const ClampingScrollPhysics(),
                   scrollDirection: Axis.horizontal,
-                  child: DataTableTheme(
-                    data: scrollableDataTableTheme,
-                    child: DataTable(
-                        showCheckboxColumn: false,
-                        columns: allScrollableColumns,
-                        rows: scrollableRows),
+                  child: RepaintBoundary(
+                    child: DataTableTheme(
+                      data: scrollableDataTableTheme,
+                      child: DataTable(
+                          showCheckboxColumn: false,
+                          columns: allScrollableColumns,
+                          rows: scrollableRows),
+                    ),
                   ),
                 ),
               ),

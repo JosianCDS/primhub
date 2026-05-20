@@ -108,16 +108,13 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
       final currentUserIsRep = _salesReps.any(
         (rep) => (rep['AD_User_ID'] ?? rep['id']) == currentUserId,
       );
-      if (currentUserIsRep) _selectedSalesRepId = currentUserId;
+      if (currentUserIsRep && !AccessControl.isRealSupport) {
+        _selectedSalesRepId = currentUserId;
+      }
     }
 
-    if (AccessControl.isAdmin) {
-      _fetchBPartners();
-    } else {
-      _isLoadingBPartners = false;
-      _selectedBpId = User.cBPartnerID;
-      _fetchUsers(); // Cargar usuarios para el tercero del usuario actual
-    }
+    _selectedBpId = AccessControl.isAdmin ? null : User.cBPartnerID;
+    _fetchBPartners();
   }
 
   Future<void> _fetchProductChips() async {
@@ -186,13 +183,41 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
         }
       }
 
-      final logic = ProjectsLogic();
-      final bps = await logic.fetchBPartners();
+      List<dynamic> bps = [];
+      if (GlobalCache.bPartners.isNotEmpty) {
+        bps = GlobalCache.bPartners;
+      } else {
+        final logic = ProjectsLogic();
+        bps = await logic.fetchBPartners();
+      }
+
+      int? newSelectedBpId = _selectedBpId ?? resolvedBpId ?? (AccessControl.isAdmin ? null : User.cBPartnerID);
+
+      // Si el tercero seleccionado no está en la lista bps, intentamos buscarlo de forma individual para obtener su nombre real
+      String? fetchedSingleBpName;
+      if (newSelectedBpId != null && !bps.any((bp) => bp['id'] == newSelectedBpId)) {
+        try {
+          var singleBpRes = await http.get(
+            Uri.parse('${Endpoint.cBPartner}/$newSelectedBpId?\$select=Name'),
+            headers: {'Authorization': Token.token},
+          );
+          if (singleBpRes.statusCode == 401) {
+            if (await handleTokenRefresh()) {
+              singleBpRes = await http.get(
+                Uri.parse('${Endpoint.cBPartner}/$newSelectedBpId?\$select=Name'),
+                headers: {'Authorization': Token.token},
+              );
+            }
+          }
+          if (singleBpRes.statusCode == 200) {
+            final data = jsonDecode(utf8.decode(singleBpRes.bodyBytes));
+            fetchedSingleBpName = data['Name'];
+          }
+        } catch (_) {}
+      }
+
       if (mounted) {
-        int? newSelectedBpId = _selectedBpId;
         setState(() {
-          // APLICAMOS EL FILTRO AQUÍ
-          // Excluir terceros que sean proveedores o que empiecen con '~'
           _bPartnersList = bps.where((bp) {
             final name = bp['Name']?.toString() ?? '';
             final rawVendor = bp['IsVendor'] ?? bp['isVendor'];
@@ -203,7 +228,14 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
             final isCustomerStr = rawCustomer?.toString().trim().toLowerCase();
             bool isCustomer = isCustomerStr == 'true' || isCustomerStr == 'y';
             if (rawCustomer == null) isCustomer = true;
-            return !name.startsWith('~') && isCustomer && !isVendor;
+
+            final isSpecificAdmin = name.trim().toUpperCase().contains('LA CASA DEL SOFTWARE') ||
+                                    bp['C_BPartner_UU'] == 'e4e48cad-f8f8-4f61-954c-60f431bd5d95' ||
+                                    bp['Record_UU'] == 'e4e48cad-f8f8-4f61-954c-60f431bd5d95' ||
+                                    bp['UUID'] == 'e4e48cad-f8f8-4f61-954c-60f431bd5d95' ||
+                                    bp['uuid'] == 'e4e48cad-f8f8-4f61-954c-60f431bd5d95';
+
+            return !name.startsWith('~') && ((isCustomer && !isVendor) || isSpecificAdmin);
           }).toList();
 
           _isLoadingBPartners = false;
@@ -219,12 +251,12 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
           }
           _selectedBpId = newSelectedBpId;
 
-          // Rescate: Si el tercero del proyecto no estaba en la lista de activos o clientes, lo añadimos para evitar errores en el dropdown
+          // Añadir el rescatado a la lista con su nombre real si se obtuvo
           if (_selectedBpId != null &&
               !_bPartnersList.any((bp) => bp['id'] == _selectedBpId)) {
             _bPartnersList.add({
               'id': _selectedBpId,
-              'Name': 'Tercero $_selectedBpId (Vinculado)',
+              'Name': fetchedSingleBpName ?? 'Tercero $_selectedBpId',
             });
           }
         });
@@ -255,7 +287,15 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
           setState(() {
             _statusIdMap = {for (var r in records) r['Name']: r['id']};
             _isLoadingStatuses = false;
-            if (!_statusIdMap.containsKey(_selectedStatus) &&
+             if (AccessControl.isRealSupport && _statusIdMap.isNotEmpty) {
+              _selectedStatus = _statusIdMap.keys.firstWhere(
+                (k) => k.toLowerCase().contains('recibida'),
+                orElse: () => _statusIdMap.keys.firstWhere(
+                  (k) => k.toLowerCase().contains('open'),
+                  orElse: () => _statusIdMap.keys.first,
+                ),
+              );
+            } else if (!_statusIdMap.containsKey(_selectedStatus) &&
                 _statusIdMap.isNotEmpty) {
               _selectedStatus = _statusIdMap.keys.firstWhere(
                 (k) => k.toLowerCase().contains('open'),
@@ -286,7 +326,12 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
             
             // Establecer tipo por defecto según el contexto
             if (_requestTypeMap.isNotEmpty) {
-              if (isProject) {
+              if (AccessControl.isRealSupport) {
+                _selectedType = _requestTypeMap.keys.firstWhere(
+                  (k) => k.toLowerCase().contains('soporte lirion'),
+                  orElse: () => _requestTypeMap.keys.first,
+                );
+              } else if (isProject) {
                 _selectedType = _requestTypeMap.keys.firstWhere(
                   (k) => k.toLowerCase().contains('implantacion lirion'),
                   orElse: () => _requestTypeMap.keys.first,
@@ -455,7 +500,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
           _isLoadingUsers = false;
         });
 
-        if (userWasCleared) {
+        if (userWasCleared && AccessControl.isAdmin) {
           WidgetsBinding.instance.addPostFrameCallback(
             (_) => ToastMessage.show(
               context: context,
@@ -807,7 +852,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     double qty = double.tryParse(_qtyUsedController.text) ?? 0.0;
 
     // Notificación de Ficha de Producto preferible (ya no es obligatorio)
-    if (widget.linkedRecordUU == null && _selectedProductChipId == null) {
+    if (widget.linkedRecordUU == null && _selectedProductChipId == null && !AccessControl.isRealSupport) {
       final bool? continueWithoutChip = await showDialog<bool>(
         context: context,
         builder: (context) => CustomModal(
@@ -944,8 +989,11 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
           : 100;
       int openStatusId = _statusIdMap.entries
           .firstWhere(
-            (e) => e.key.toLowerCase().contains('open'),
-            orElse: () => MapEntry('', defaultStatusId),
+            (e) => e.key.toLowerCase().contains('recibida'),
+            orElse: () => _statusIdMap.entries.firstWhere(
+              (e) => e.key.toLowerCase().contains('open'),
+              orElse: () => MapEntry('', defaultStatusId),
+            ),
           )
           .value;
 
@@ -981,9 +1029,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
 
     final Map<String, dynamic> data = {
       'Summary': _summaryController.text,
-      'Priority': isFullAccess
-          ? _priorityMap[_selectedPriority]
-          : '5', // 5 es Media por defecto
+      'Priority': _priorityMap[_selectedPriority] ?? '5',
       'R_RequestType_ID': {'id': _requestTypeMap[_selectedType!]},
       'R_Status_ID': {
         'id': isFullAccess
@@ -1014,27 +1060,29 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
 
     // --- Lógica segura para asignar SalesRep_ID ---
     int? repIdToAssign;
-    // 1. Si es admin, el valor seleccionado tiene prioridad.
-    if (isFullAccess) {
-      repIdToAssign = _selectedSalesRepId;
-    }
-    // 2. Si no hay rep, usar el usuario actual si es un rep válido.
-    if (repIdToAssign == null && userId != null) {
-      final currentUserIsRep = _salesReps.any(
-        (rep) => (rep['AD_User_ID'] ?? rep['id']) == userId,
-      );
-      if (currentUserIsRep) repIdToAssign = userId;
-    }
-    // 3. Como fallback, usar el rep del tercero si existe.
-    if (repIdToAssign == null && _selectedBpId != null) {
-      final bpData = _bPartnersList.firstWhere(
-        (bp) => bp['id'] == _selectedBpId,
-        orElse: () => {},
-      );
-      final bpRep = bpData['SalesRep_ID'];
-      repIdToAssign = (bpRep is Map)
-          ? bpRep['id']
-          : (bpRep is int ? bpRep : null);
+    if (!AccessControl.isRealSupport) {
+      // 1. Si es admin, el valor seleccionado tiene prioridad.
+      if (isFullAccess) {
+        repIdToAssign = _selectedSalesRepId;
+      }
+      // 2. Si no hay rep, usar el usuario actual si es un rep válido.
+      if (repIdToAssign == null && userId != null) {
+        final currentUserIsRep = _salesReps.any(
+          (rep) => (rep['AD_User_ID'] ?? rep['id']) == userId,
+        );
+        if (currentUserIsRep) repIdToAssign = userId;
+      }
+      // 3. Como fallback, usar el rep del tercero si existe.
+      if (repIdToAssign == null && _selectedBpId != null) {
+        final bpData = _bPartnersList.firstWhere(
+          (bp) => bp['id'] == _selectedBpId,
+          orElse: () => {},
+        );
+        final bpRep = bpData['SalesRep_ID'];
+        repIdToAssign = (bpRep is Map)
+            ? bpRep['id']
+            : (bpRep is int ? bpRep : null);
+      }
     }
     // 4. Asignar al payload si se encontró un rep válido.
     if (repIdToAssign != null) data['SalesRep_ID'] = repIdToAssign;
@@ -1167,98 +1215,95 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
             children: [
               const SizedBox(height: 12),
 
-              // SECCIÓN: Datos de Tercero y Usuario (Solo Admin)
-              if (isFullAccess) ...[
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: _buildSearchableField<int>(
-                        label: 'Tercero',
-                        hintText: 'Seleccione Tercero',
-                        value: _selectedBpId,
-                        isLoading: _isLoadingBPartners,
-                        isDisabled: false,
-                        displayText:
-                            _selectedBpId != null &&
-                                _bPartnersList.any(
-                                  (bp) => bp['id'] == _selectedBpId,
-                                )
-                            ? _bPartnersList.firstWhere(
+              // SECCIÓN: Datos de Tercero y Usuario
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _buildSearchableField<int>(
+                      label: 'Tercero',
+                      hintText: 'Seleccione Tercero',
+                      value: _selectedBpId,
+                      isLoading: _isLoadingBPartners,
+                      isDisabled: !isFullAccess,
+                      displayText:
+                          _selectedBpId != null &&
+                                  _bPartnersList.any(
+                                    (bp) => bp['id'] == _selectedBpId,
+                                  )
+                              ? _bPartnersList.firstWhere(
                                     (bp) => bp['id'] == _selectedBpId,
                                   )['Name'] ??
                                   ''
-                            : '',
-                        errorMessage: _selectedBpId == null
-                            ? 'Debe seleccionar un tercero.'
-                            : null,
-                        onTap: () => _openSearchModal<int>(
-                          title: 'Tercero',
-                          items: _bPartnersList
-                              .where((bp) => bp['id'] != null)
-                              .toList(),
-                          currentValue: _selectedBpId,
-                          getTitle: (item) => item['Name'] ?? 'Sin Nombre',
-                          
-                          getValue: (item) => item['id'] as int,
-                          onSelected: (val) {
-                            setState(() {
-                              _selectedBpId = val;
-                              _selectedUserId = null; // Reseteamos usuario al cambiar tercero
-                              _selectedProductChipId = null;
-                              _users = [];
-                              _isLoadingUsers = true;
-                            });
-                            _fetchUsers();
-                            _fetchProductChips();
-                          },
-                        ),
-                      ),
+                              : '',
+                      errorMessage: _selectedBpId == null
+                          ? 'Debe seleccionar un tercero.'
+                          : null,
+                      onTap: () => _openSearchModal<int>(
+                                title: 'Tercero',
+                                items: _bPartnersList
+                                    .where((bp) => bp['id'] != null)
+                                    .toList(),
+                                currentValue: _selectedBpId,
+                                getTitle: (item) => item['Name'] ?? 'Sin Nombre',
+                                getValue: (item) => item['id'] as int,
+                                onSelected: (val) {
+                                  setState(() {
+                                    _selectedBpId = val;
+                                    _selectedUserId = null; // Reseteamos usuario al cambiar tercero
+                                    _selectedProductChipId = null;
+                                    _users = [];
+                                    _isLoadingUsers = true;
+                                  });
+                                  _fetchUsers();
+                                  _fetchProductChips();
+                                },
+                              ),
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: _buildSearchableField<int>(
-                        label: 'Usuario',
-                        hintText: _selectedBpId == null
-                            ? 'Seleccione un tercero primero'
-                            : 'Seleccione Usuario',
-                        value: _selectedUserId,
-                        isLoading: _isLoadingUsers,
-                        isDisabled: _selectedBpId == null || _isLoadingUsers,
-                        displayText:
-                            _selectedUserId != null &&
-                                _users.any(
-                                  (u) =>
-                                      (u['AD_User_ID'] ?? u['id']) ==
-                                      _selectedUserId,
-                                )
-                            ? _users.firstWhere(
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildSearchableField<int>(
+                      label: 'Usuario',
+                      hintText: _selectedBpId == null
+                          ? 'Seleccione un tercero primero'
+                          : 'Seleccione Usuario',
+                      value: _selectedUserId,
+                      isLoading: _isLoadingUsers,
+                      isDisabled: !isFullAccess || _selectedBpId == null || _isLoadingUsers,
+                      displayText:
+                          _selectedUserId != null &&
+                                  _users.any(
                                     (u) =>
                                         (u['AD_User_ID'] ?? u['id']) ==
                                         _selectedUserId,
-                                  )['Name'] ??
-                                  ''
-                            : '',
-                        onTap: () => _openSearchModal<int>(
-                          title: 'Usuario',
-                          items: _users
-                              .where(
-                                (u) => (u['AD_User_ID'] ?? u['id']) != null,
-                              )
-                              .toList(),
-                          currentValue: _selectedUserId,
-                          getTitle: (item) => item['Name'] ?? 'Sin Nombre',
-                          getValue: (item) =>
-                              (item['AD_User_ID'] ?? item['id']) as int,
-                          onSelected: (val) =>
-                              setState(() => _selectedUserId = val),
-                        ),
-                      ),
+                                  )
+                              ? _users.firstWhere(
+                                      (u) =>
+                                          (u['AD_User_ID'] ?? u['id']) ==
+                                          _selectedUserId,
+                                    )['Name'] ??
+                                    ''
+                              : (User.name ?? ''),
+                      onTap: () => _openSearchModal<int>(
+                                title: 'Usuario',
+                                items: _users
+                                    .where(
+                                      (u) => (u['AD_User_ID'] ?? u['id']) != null,
+                                    )
+                                    .toList(),
+                                currentValue: _selectedUserId,
+                                getTitle: (item) => item['Name'] ?? 'Sin Nombre',
+                                getValue: (item) =>
+                                    (item['AD_User_ID'] ?? item['id']) as int,
+                                onSelected: (val) =>
+                                    setState(() => _selectedUserId = val),
+                              ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-              ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
               const SizedBox(height: 16),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1269,7 +1314,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                         hintText: 'Seleccione Tipo',
                         value: _selectedType,
                         isLoading: _isLoadingTypes,
-                        isDisabled: false,
+                        isDisabled: AccessControl.isRealSupport,
                         displayText: _selectedType ?? '',
                         onTap: () => _openSearchModal<String>(
                           title: 'Tipo de Solicitud',
@@ -1364,7 +1409,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                 ),
                 const SizedBox(height: 16),
                 // SECCIÓN: Ficha de Producto (Solo para Soporte)
-                if (!(widget.linkedRecordUU != null && widget.linkedRecordUU!.isNotEmpty)) ...[
+                if (!(widget.linkedRecordUU != null && widget.linkedRecordUU!.isNotEmpty) && !AccessControl.isRealSupport) ...[
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [

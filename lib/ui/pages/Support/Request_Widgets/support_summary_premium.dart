@@ -5,6 +5,7 @@ import 'package:primhub/ui/widgets/duration_formatter.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart'; // Para CustomTextField
 import 'package:primhub/api/contract_api.dart';
+import 'package:primhub/ui/Shared_Custom/custom_skeleton.dart';
 
 class SupportSummaryPremium extends StatelessWidget {
   final double contractedHours;
@@ -17,6 +18,7 @@ class SupportSummaryPremium extends StatelessWidget {
   final VoidCallback onRefresh;
   final bool allowRename;
   final String? emptyMessage;
+  final bool isLoading;
 
   const SupportSummaryPremium({
     super.key,
@@ -30,6 +32,7 @@ class SupportSummaryPremium extends StatelessWidget {
     this.onChipTap,
     this.allowRename = false,
     this.emptyMessage,
+    this.isLoading = false,
   });
 
   @override
@@ -120,7 +123,20 @@ class SupportSummaryPremium extends StatelessWidget {
             // Carrusel de Fichas
             SizedBox(
               height: 140,
-              child: processedChips.isEmpty
+              child: isLoading
+                  ? ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: 3,
+                      itemBuilder: (context, index) => const Padding(
+                        padding: EdgeInsets.only(right: 16),
+                        child: CustomSkeleton(
+                          width: 280,
+                          height: 140,
+                          borderRadius: 20,
+                        ),
+                      ),
+                    )
+                  : processedChips.isEmpty
                   ? Center(
                       child: Text(
                         emptyMessage ??
@@ -411,7 +427,7 @@ class SupportSummaryPremium extends StatelessWidget {
     );
     final chipId = int.tryParse(chip['id']?.toString() ?? '') ?? 0;
     if (chipId == 0) {
-      debugPrint("ERROR: ID de ficha no válido para renombrar: ${chip['id']}");
+// [Mantenimiento] Log removido:       debugPrint("ERROR: ID de ficha no válido para renombrar: ${chip['id']}");
       return;
     }
 
@@ -484,3 +500,4 @@ class SupportSummaryPremium extends StatelessWidget {
     );
   }
 }
+

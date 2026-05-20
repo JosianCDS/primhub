@@ -116,8 +116,14 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
 
   Future<void> _fetchBPartners() async {
     try {
-      final logic = ProjectsLogic();
-      final bps = await logic.fetchBPartners();
+      List<dynamic> bps = [];
+      if (GlobalCache.bPartners.isNotEmpty) {
+        bps = GlobalCache.bPartners;
+      } else {
+        final logic = ProjectsLogic();
+        bps = await logic.fetchBPartners();
+      }
+
       if (mounted) {
         setState(() {
           // APLICAMOS EL FILTRO AQUÍ
@@ -132,7 +138,14 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
             final isCustomerStr = rawCustomer?.toString().trim().toLowerCase();
             bool isCustomer = isCustomerStr == 'true' || isCustomerStr == 'y';
             if (rawCustomer == null) isCustomer = true;
-            return !name.startsWith('~') && isCustomer && !isVendor;
+
+            final isSpecificAdmin = name.trim().toUpperCase().contains('LA CASA DEL SOFTWARE') ||
+                                    bp['C_BPartner_UU'] == 'e4e48cad-f8f8-4f61-954c-60f431bd5d95' ||
+                                    bp['Record_UU'] == 'e4e48cad-f8f8-4f61-954c-60f431bd5d95' ||
+                                    bp['UUID'] == 'e4e48cad-f8f8-4f61-954c-60f431bd5d95' ||
+                                    bp['uuid'] == 'e4e48cad-f8f8-4f61-954c-60f431bd5d95';
+
+            return !name.startsWith('~') && ((isCustomer && !isVendor) || isSpecificAdmin);
           }).toList();
 
           // Rescate: Si el tercero actual del ticket estaba inactivo o no es cliente,
@@ -361,7 +374,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
           }
           _isLoadingUsers = false;
         });
-        if (userWasCleared) {
+        if (userWasCleared && AccessControl.isAdmin) {
           WidgetsBinding.instance.addPostFrameCallback((_) => ToastMessage.show(context: context, message: 'El filtro de usuario se ha actualizado para coincidir con el tercero.', type: ToastType.help));
         }
       }
@@ -820,7 +833,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                             isLoading: _isLoadingProducts,
                             isDisabled: (() {
                               final bool d = _isReadOnly || _isLoadingProducts || _selectedBpId == null;
-                              debugPrint("DEBUG EDIT CHIP: disabled=$d (ReadOnly=$_isReadOnly, Loading=$_isLoadingProducts, BP=$_selectedBpId)");
+// [Mantenimiento] Log removido:                               debugPrint("DEBUG EDIT CHIP: disabled=$d (ReadOnly=$_isReadOnly, Loading=$_isLoadingProducts, BP=$_selectedBpId)");
                               return d;
                             })(),
                             displayText: _selectedProductChipId != null && _productChips.any((c) => c['id'] == _selectedProductChipId) 
@@ -854,7 +867,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                         hintText: 'Seleccione Tipo',
                         value: _selectedType,
                         isLoading: _isLoadingTypes,
-                        isDisabled: _isReadOnly || _isLoadingTypes,
+                        isDisabled: _isReadOnly || _isLoadingTypes || AccessControl.isRealSupport,
                         displayText: _selectedType ?? '',
                         onTap: () => _openSearchModal<String>(
                           title: 'Tipo de Solicitud',
@@ -1104,3 +1117,4 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
     );
   }
 }
+

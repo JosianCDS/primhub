@@ -7,10 +7,10 @@ import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
-import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/api/global_cache.dart';
 import 'package:primhub/api/contract_api.dart'; // Para Product Chips
+import 'package:primhub/api/access_control.dart';
 
 class BulkEditRequestDialog extends StatefulWidget {
   final Set<int> selectedIds;
@@ -92,6 +92,10 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
 
   Future<void> _loadDictionaries() async {
     try {
+      final bPartnersFuture = GlobalCache.bPartners.isNotEmpty
+          ? Future.value(GlobalCache.bPartners)
+          : ProjectsLogic().fetchBPartners();
+
       final futures = await Future.wait([
         fetchStatuses(),
         _fetchMap('${Endpoint.baseUrl}/api/v1/models/R_RequestType'),
@@ -100,7 +104,7 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
         ),
         _fetchMap('${Endpoint.baseUrl}/api/v1/models/R_Group'),
         ProjectsLogic().fetchUsers(),
-        ProjectsLogic().fetchBPartners(),
+        bPartnersFuture,
       ]);
 
       if (mounted) {
@@ -112,7 +116,6 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
           _users = futures[4] as List<dynamic>;
           // Aplicamos el filtro para excluir terceros inactivos (con '~')
           final bps = futures[5] as List<dynamic>;
-          // Excluir terceros que sean proveedores o que empiecen con '~'
           _bPartnersList = bps.where((bp) {
             final name = bp['Name']?.toString() ?? '';
             final rawVendor = bp['IsVendor'] ?? bp['isVendor'];
@@ -123,7 +126,14 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
             final isCustomerStr = rawCustomer?.toString().trim().toLowerCase();
             bool isCustomer = isCustomerStr == 'true' || isCustomerStr == 'y';
             if (rawCustomer == null) isCustomer = true;
-            return !name.startsWith('~') && isCustomer && !isVendor;
+
+            final isSpecificAdmin = name.trim().toUpperCase().contains('LA CASA DEL SOFTWARE') ||
+                                    bp['C_BPartner_UU'] == 'e4e48cad-f8f8-4f61-954c-60f431bd5d95' ||
+                                    bp['Record_UU'] == 'e4e48cad-f8f8-4f61-954c-60f431bd5d95' ||
+                                    bp['UUID'] == 'e4e48cad-f8f8-4f61-954c-60f431bd5d95' ||
+                                    bp['uuid'] == 'e4e48cad-f8f8-4f61-954c-60f431bd5d95';
+
+            return !name.startsWith('~') && ((isCustomer && !isVendor) || isSpecificAdmin);
           }).toList();
           _isLoading = false;
         });
@@ -330,7 +340,9 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
                         (k) => DropdownMenuItem(value: k, child: Text(k)),
                       ),
                     ],
-                    onChanged: (val) => setState(() => _selectedType = val),
+                    onChanged: AccessControl.isRealSupport
+                        ? null
+                        : (val) => setState(() => _selectedType = val),
                   ),
                 ),
                 const SizedBox(width: 16),

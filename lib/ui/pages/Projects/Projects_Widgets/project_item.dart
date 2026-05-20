@@ -147,7 +147,7 @@ class ProjectItem extends StatelessWidget {
                     const SizedBox(width: 8),
                     _buildActionButton(Icons.assignment_add, 'General', Colors.grey, () => onShowFiles(project, 'General')),
                     const SizedBox(width: 8),
-                    if (AccessControl.isAdmin)
+                    if (AccessControl.isAdmin || AccessControl.isProject)
                       _buildActionButton(Icons.calendar_today, 'Calendario', Colors.purple, () {
                         showDialog(
                           context: context,

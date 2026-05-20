@@ -180,12 +180,12 @@ Future<List<Map<String, dynamic>>> fetchRequest({String? model = 'R_Request', St
         }
       } else {
         hasMore = false;
-        debugPrint("DEBUG: API Error in fetchRequest ($model): ${response.statusCode} - ${response.body}");
+// [Mantenimiento] Log removido:         debugPrint("DEBUG: API Error in fetchRequest ($model): ${response.statusCode} - ${response.body}");
         if (allRecords.isEmpty) throw Exception('Error API: ${response.statusCode}');
       }
     }
   } catch (e) {
-    debugPrint("DEBUG: Exception in fetchRequest ($model): $e");
+// [Mantenimiento] Log removido:     debugPrint("DEBUG: Exception in fetchRequest ($model): $e");
   }
   return allRecords;
 }
@@ -273,7 +273,7 @@ Future<Map<String, dynamic>> fetchRequestPaginated({
       }
     }
   } catch (e) {
-    debugPrint("Error in fetchRequestPaginated: $e");
+// [Mantenimiento] Log removido:     debugPrint("Error in fetchRequestPaginated: $e");
   }
 
   // Si fetchCount es true pero la API no lo retornó en la respuesta principal,
@@ -336,7 +336,7 @@ Future<int> fetchRequestCount({String? model = 'R_Request', String? filter}) asy
       }
     }
   } catch (e) {
-    debugPrint("Error counting records: $e");
+// [Mantenimiento] Log removido:     debugPrint("Error counting records: $e");
   }
   return 0;
 }
@@ -404,7 +404,7 @@ Future<Map<String, dynamic>> fetchStatusesWithMetadata() async {
       return {'nameToId': nameToId, 'idToIsClosed': idToIsClosed};
     }
   } catch (e) {
-    debugPrint("Error fetching statuses: $e");
+// [Mantenimiento] Log removido:     debugPrint("Error fetching statuses: $e");
   }
   return {'nameToId': <String, int>{}, 'idToIsClosed': <int, bool>{}};
 }
@@ -429,7 +429,7 @@ Future<Map<String, int>> fetchRequestTypes() async {
       return {for (var r in records) r['Name'].toString().trim(): r['id'] as int};
     }
   } catch (e) {
-    debugPrint("Error fetching request types: $e");
+// [Mantenimiento] Log removido:     debugPrint("Error fetching request types: $e");
   }
   return {};
 }
@@ -437,7 +437,7 @@ Future<Map<String, int>> fetchRequestTypes() async {
 Future<List<Map<String, dynamic>>> fetchCategories() async {
   try {
     final url = Uri.parse('${Endpoint.baseUrl}/api/v1/models/R_Category');
-    debugPrint("Fetching ALL Categories from: $url");
+// [Mantenimiento] Log removido:     debugPrint("Fetching ALL Categories from: $url");
     
     final response = await http.get(
       url,
@@ -462,10 +462,10 @@ Future<List<Map<String, dynamic>>> fetchCategories() async {
         return map;
       }).toList();
     } else {
-      debugPrint("Categories Error: ${response.statusCode} - ${response.body}");
+// [Mantenimiento] Log removido:       debugPrint("Categories Error: ${response.statusCode} - ${response.body}");
     }
   } catch (e) {
-    debugPrint("Exception in fetchCategories: $e");
+// [Mantenimiento] Log removido:     debugPrint("Exception in fetchCategories: $e");
   }
   return [];
 }
@@ -485,7 +485,7 @@ Future<Map<String, int>> fetchGroups() async {
       return {for (var r in records) r['Name'].toString().trim(): r['id'] as int};
     }
   } catch (e) {
-    debugPrint("Error fetching groups: $e");
+// [Mantenimiento] Log removido:     debugPrint("Error fetching groups: $e");
   }
   return {};
 }
@@ -1060,3 +1060,4 @@ class _RequestAttachmentsDialogState extends State<RequestAttachmentsDialog> {
     );
   }
 }
+
