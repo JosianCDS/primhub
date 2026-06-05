@@ -123,24 +123,32 @@ class _TaskItemState extends State<TaskItem> {
               radius: 14,
               child: Icon(Icons.task_alt_outlined, size: 16, color: Colors.blue[700]),
             ),
-            title: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    taskName,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w500,
-                      fontSize: 14,
-                      color: Colors.blue[900],
+            title: LayoutBuilder(
+              builder: (context, constraints) {
+                final isNarrow = MediaQuery.of(context).size.width < 500;
+                return Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        taskName,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w500,
+                          fontSize: 14,
+                          color: Colors.blue[900],
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                  ),
-                ),
-                if (requests.isNotEmpty) ...[
-                  const Icon(Icons.description_outlined, size: 14, color: Colors.grey),
-                  const SizedBox(width: 4),
-                  Text(countText, style: const TextStyle(fontSize: 12, color: Colors.grey))
-                ],
-              ],
+                    if (requests.isNotEmpty && !isNarrow) ...[
+                      const SizedBox(width: 8),
+                      const Icon(Icons.description_outlined, size: 14, color: Colors.grey),
+                      const SizedBox(width: 4),
+                      Text(countText, style: const TextStyle(fontSize: 12, color: Colors.grey))
+                    ],
+                  ],
+                );
+              }
             ),
             subtitle: widget.task['Description'] != null
                 ? Text(
@@ -158,6 +166,8 @@ class _TaskItemState extends State<TaskItem> {
                         IconButton(
                           icon: const Icon(Icons.add_comment_outlined, size: 18, color: Colors.blue),
                           tooltip: 'Crear Solicitud',
+                          constraints: const BoxConstraints(),
+                          padding: const EdgeInsets.all(4),
                           onPressed: () async {
                             final result = await showDialog(
                               context: context,
@@ -173,9 +183,13 @@ class _TaskItemState extends State<TaskItem> {
                             }
                           },
                         ),
+                      if (AccessControl.canCreateRequests && AccessControl.canEditProject)
+                        const SizedBox(width: 8),
                       if (AccessControl.canEditProject)
                         IconButton(
                           icon: const Icon(Icons.edit, size: 16, color: Colors.grey),
+                          constraints: const BoxConstraints(),
+                          padding: const EdgeInsets.all(4),
                           onPressed: () {
                             showDialog(
                               context: context,

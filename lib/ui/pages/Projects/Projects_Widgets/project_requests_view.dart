@@ -355,10 +355,12 @@ class _ProjectRequestsViewState extends State<ProjectRequestsView> {
         color: Theme.of(context).scaffoldBackgroundColor,
         border: Border(top: BorderSide(color: Theme.of(context).dividerColor)),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               const Text('Filas:'),
               const SizedBox(width: 8),
@@ -387,6 +389,7 @@ class _ProjectRequestsViewState extends State<ProjectRequestsView> {
             '${_totalRecords == 0 ? 0 : _currentSkip + 1} - ${(_currentSkip + _currentPageSize < _totalRecords) ? _currentSkip + _currentPageSize : _totalRecords} de $_totalRecords',
           ),
           Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               IconButton(
                 icon: const Icon(Icons.chevron_left),
@@ -431,35 +434,37 @@ class _ProjectRequestsViewState extends State<ProjectRequestsView> {
           IconButton(icon: const Icon(Icons.refresh), onPressed: _initData),
         ],
       ),
-      body: Column(
-        children: [
-          _buildSearchAndFilters(),
-          Expanded(
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 300),
-              child: _isLoading
-                  ? const SkeletonTable()
-                  : _requests.isEmpty
-                      ? const Center(
-                          child: Text('No se encontraron solicitudes vinculadas.'),
-                        )
-                      : Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: RequestsDataTableCore(
-                            requests: _requests,
-                            statusIdMap: _statusIdMap,
-                            priorityMap: priorityMap,
-                            onEdit: (req) => _editRequest(req),
-                            onRefresh: () => _initData(showLoading: false),
-                            showProjectContext: true,
-                            serverSidePagination: true,
-                            paginationControls: _buildPaginationControls(),
-                            useSimpleStatus: true,
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildSearchAndFilters(),
+            Expanded(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                child: _isLoading
+                    ? const SkeletonTable()
+                    : _requests.isEmpty
+                        ? const Center(
+                            child: Text('No se encontraron solicitudes vinculadas.'),
+                          )
+                        : Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: RequestsDataTableCore(
+                              requests: _requests,
+                              statusIdMap: _statusIdMap,
+                              priorityMap: priorityMap,
+                              onEdit: (req) => _editRequest(req),
+                              onRefresh: () => _initData(showLoading: false),
+                              showProjectContext: true,
+                              serverSidePagination: true,
+                              paginationControls: _buildPaginationControls(),
+                              useSimpleStatus: true,
+                            ),
                           ),
-                        ),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

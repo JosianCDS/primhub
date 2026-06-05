@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 
 /// A data class to define columns for the responsive table.
 class ResponsiveDataColumn {
@@ -32,6 +33,14 @@ class ResponsiveDataTable<T> extends StatefulWidget {
 
 class _ResponsiveDataTableState<T> extends State<ResponsiveDataTable<T>> {
   final ScrollController _horizontalScrollController = ScrollController();
+  
+  List<DataRow>? _cachedFixedRows;
+  List<DataRow>? _cachedScrollableRows;
+  List<T>? _lastItems;
+  Set<int>? _lastSelectedIds;
+  bool? _lastShowCheckboxColumn;
+  int? _lastFixedColumnsLength;
+  int? _lastScrollableColumnsLength;
 
   @override
   void dispose() {
@@ -76,45 +85,65 @@ class _ResponsiveDataTableState<T> extends State<ResponsiveDataTable<T>> {
     final allScrollableColumns = widget.scrollableColumns.map((c) => DataColumn(label: Text(c.label), numeric: c.numeric)).toList();
 
     // --- Build Rows ---
-    final List<DataRow> fixedRows = [];
-    final List<DataRow> scrollableRows = [];
+    final bool shouldRebuildRows = _cachedFixedRows == null ||
+        _cachedScrollableRows == null ||
+        _lastItems != widget.items ||
+        _lastItems?.length != widget.items.length ||
+        _lastShowCheckboxColumn != widget.showCheckboxColumn ||
+        !setEquals(_lastSelectedIds, widget.selectedIds) ||
+        _lastFixedColumnsLength != widget.fixedColumns.length ||
+        _lastScrollableColumnsLength != widget.scrollableColumns.length;
 
-    for (var item in widget.items) {
-      final int realId = widget.getId(item);
-      final bool isSelected = widget.selectedIds.contains(realId);
+    if (shouldRebuildRows) {
+      _lastItems = widget.items;
+      _lastSelectedIds = Set.from(widget.selectedIds);
+      _lastShowCheckboxColumn = widget.showCheckboxColumn;
+      _lastFixedColumnsLength = widget.fixedColumns.length;
+      _lastScrollableColumnsLength = widget.scrollableColumns.length;
 
-      final List<DataCell> fixedCells = [];
-      if (widget.showCheckboxColumn) {
-        fixedCells.add(
-          DataCell(
-            Checkbox(
-              value: isSelected,
-              onChanged: (selected) {
-                if (widget.onSelectChanged != null) {
-                  widget.onSelectChanged!(realId, selected ?? false);
-                }
-              },
+      _cachedFixedRows = [];
+      _cachedScrollableRows = [];
+
+      for (var item in widget.items) {
+        final int realId = widget.getId(item);
+        final bool isSelected = widget.selectedIds.contains(realId);
+
+        final List<DataCell> fixedCells = [];
+        if (widget.showCheckboxColumn) {
+          fixedCells.add(
+            DataCell(
+              Checkbox(
+                value: isSelected,
+                onChanged: (selected) {
+                  if (widget.onSelectChanged != null) {
+                    widget.onSelectChanged!(realId, selected ?? false);
+                  }
+                },
+              ),
             ),
-          ),
-        );
-      }
-      
-      final builtFixed = widget.fixedCellBuilder(item);
-      if (builtFixed.length != widget.fixedColumns.length) {
-        // Mismatch during state transitions (e.g. logging out). Skip to avoid assertion crash.
-        continue;
-      }
-      fixedCells.addAll(builtFixed);
+          );
+        }
+        
+        final builtFixed = widget.fixedCellBuilder(item);
+        if (builtFixed.length != widget.fixedColumns.length) {
+          // Mismatch during state transitions (e.g. logging out). Skip to avoid assertion crash.
+          continue;
+        }
+        fixedCells.addAll(builtFixed);
 
-      final builtScrollable = widget.scrollableCellBuilder(item);
-      if (builtScrollable.length != widget.scrollableColumns.length) {
-        // Mismatch during state transitions (e.g. logging out). Skip to avoid assertion crash.
-        continue;
-      }
+        final builtScrollable = widget.scrollableCellBuilder(item);
+        if (builtScrollable.length != widget.scrollableColumns.length) {
+          // Mismatch during state transitions (e.g. logging out). Skip to avoid assertion crash.
+          continue;
+        }
 
-      fixedRows.add(DataRow(selected: isSelected, onSelectChanged: (_) => widget.onRowTap?.call(item), cells: fixedCells));
-      scrollableRows.add(DataRow(selected: isSelected, onSelectChanged: (_) => widget.onRowTap?.call(item), cells: builtScrollable));
+        _cachedFixedRows!.add(DataRow(selected: isSelected, onSelectChanged: (_) => widget.onRowTap?.call(item), cells: fixedCells));
+        _cachedScrollableRows!.add(DataRow(selected: isSelected, onSelectChanged: (_) => widget.onRowTap?.call(item), cells: builtScrollable));
+      }
     }
+
+    final List<DataRow> fixedRows = _cachedFixedRows!;
+    final List<DataRow> scrollableRows = _cachedScrollableRows!;
 
     // --- Theme ---
     const double rowHeight = 52.0;
@@ -175,6 +204,7 @@ class _ResponsiveDataTableState<T> extends State<ResponsiveDataTable<T>> {
       elevation: 4,
       clipBehavior: Clip.hardEdge,
       child: SingleChildScrollView(
+        controller: PrimaryScrollController.maybeOf(context),
         physics: const ClampingScrollPhysics(),
         scrollDirection: Axis.vertical,
         child: Row(

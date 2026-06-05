@@ -319,53 +319,61 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
         ],
       ),
 
-      body: _isLoading
-          ? const SkeletonTable()
-          : _allRequests.isEmpty
-              ? const Center(child: Text('No se encontraron solicitudes para este tipo.'))
-              : Column(
-                  children: [
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: RequestsDataTableCore(
-                          requests: _paginatedRequests,
-                          statusIdMap: _statusIdMap,
-                          priorityMap: priorityMap,
-                          onEdit: _editRequest,
-                          onRefresh: () => _initData(showLoading: false),
-                          showProjectContext: AccessControl.isProject,
+      body: SafeArea(
+        child: _isLoading
+            ? const SkeletonTable()
+            : _allRequests.isEmpty
+                ? const Center(child: Text('No se encontraron solicitudes para este tipo.'))
+                : Column(
+                    children: [
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: RequestsDataTableCore(
+                            requests: _paginatedRequests,
+                            statusIdMap: _statusIdMap,
+                            priorityMap: priorityMap,
+                            onEdit: _editRequest,
+                            onRefresh: () => _initData(showLoading: false),
+                            showProjectContext: AccessControl.isProject,
+                          ),
                         ),
                       ),
-                    ),
-                    if (totalPages > 1) 
-                      Padding(
-                        padding: const EdgeInsets.only(top: 16.0, bottom: 16.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            DropdownButton<int>(
-                              value: _rowsPerPage,
-                              items: const [10, 25, 50, 100].map((int value) => DropdownMenuItem<int>(value: value, child: Text('$value filas'))).toList(),
-                              onChanged: (val) {
-                                if (val != null) {
-                                  setState(() {
-                                    _rowsPerPage = val;
-                                    _currentPage = 0;
-                                  });
-                                  _applyPagination();
-                                }
-                              },
-                            ),
-                            const SizedBox(width: 20),
-                            IconButton(icon: const Icon(Icons.chevron_left), onPressed: _currentPage > 0 ? () => setState(() { _currentPage--; _applyPagination(); }) : null),
-                            Text('Página ${_currentPage + 1} de $totalPages', style: const TextStyle(fontWeight: FontWeight.bold)),
-                            IconButton(icon: const Icon(Icons.chevron_right), onPressed: _currentPage < totalPages - 1 ? () => setState(() { _currentPage++; _applyPagination(); }) : null),
-                          ],
+                      if (totalPages > 1) 
+                        Padding(
+                          padding: const EdgeInsets.only(top: 16.0, bottom: 16.0),
+                          child: Wrap(
+                            alignment: WrapAlignment.center,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            spacing: 16.0,
+                            children: [
+                              DropdownButton<int>(
+                                value: _rowsPerPage,
+                                items: const [10, 25, 50, 100].map((int value) => DropdownMenuItem<int>(value: value, child: Text('$value filas'))).toList(),
+                                onChanged: (val) {
+                                  if (val != null) {
+                                    setState(() {
+                                      _rowsPerPage = val;
+                                      _currentPage = 0;
+                                    });
+                                    _applyPagination();
+                                  }
+                                },
+                              ),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(icon: const Icon(Icons.chevron_left), onPressed: _currentPage > 0 ? () => setState(() { _currentPage--; _applyPagination(); }) : null),
+                                  Text('Página ${_currentPage + 1} de $totalPages', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                  IconButton(icon: const Icon(Icons.chevron_right), onPressed: _currentPage < totalPages - 1 ? () => setState(() { _currentPage++; _applyPagination(); }) : null),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                  ],
-                ),
+                    ],
+                  ),
+      ),
     );
   }
 }

@@ -339,7 +339,10 @@ class ProjectFullCard extends StatelessWidget {
                   child: ElevatedButton.icon(
                     onPressed: onCalendarTap,
                     icon: const Icon(Icons.format_list_bulleted, size: 16, color: Colors.white),
-                    label: const Text('Calendario/Gantt', style: TextStyle(color: Colors.white, fontSize: 11)),
+                    label: const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text('Calendario/Gantt', style: TextStyle(color: Colors.white, fontSize: 11)),
+                    ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF4F46E5),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -353,7 +356,10 @@ class ProjectFullCard extends StatelessWidget {
                   child: ElevatedButton.icon(
                     onPressed: hasMetrics ? onMetricsTap : null,
                     icon: const Icon(Icons.bar_chart, size: 16, color: Colors.white),
-                    label: const Text('Gráficos', style: TextStyle(color: Colors.white, fontSize: 11)),
+                    label: const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text('Gráficos', style: TextStyle(color: Colors.white, fontSize: 11)),
+                    ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: hasMetrics ? const Color(0xFFA855F7) : Colors.grey.shade400,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -411,14 +417,21 @@ class _HoverStatCardState extends State<_HoverStatCard> {
             boxShadow: _isHovered ? [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))] : [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 2, offset: const Offset(0, 1))],
           ),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
               Text(
                 widget.value,
                 style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFFD97708)),
               ),
-              Text(
-                widget.label,
-                style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.w600),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    widget.label,
+                    style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.w600),
+                  ),
+                ),
               ),
             ],
           ),

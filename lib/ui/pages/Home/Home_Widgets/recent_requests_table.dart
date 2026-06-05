@@ -70,6 +70,7 @@ class _DesktopRequestTable extends StatelessWidget {
       if (AccessControl.isAdmin) const ResponsiveDataColumn(label: 'Tercero'),
       if (AccessControl.isAdmin) const ResponsiveDataColumn(label: 'Usuario'),
       if (AccessControl.isAdmin) const ResponsiveDataColumn(label: 'Rep. Comercial'),
+      const ResponsiveDataColumn(label: 'Prioridad'),
       const ResponsiveDataColumn(label: 'Descripción'),
       const ResponsiveDataColumn(label: 'Horas Consumidas'),
       const ResponsiveDataColumn(label: 'Ficha de Producto'),
@@ -122,13 +123,29 @@ class _DesktopRequestTable extends StatelessWidget {
             ),
           ),
         ),
-        DataCell(Text(alert['status']?.toString() ?? 'Sin Estado')),
+        DataCell(Text(DocumentsLogic.cleanStatusName(alert['status']?.toString() ?? 'Sin Estado'))),
         DataCell(Text(alert['situation']?.toString() ?? 'Sin tipo')),
       ],
       scrollableCellBuilder: (alert) => [
         if (AccessControl.isAdmin) DataCell(Text(alert['bpName']?.toString() ?? '')),
         if (AccessControl.isAdmin) DataCell(Text(alert['userName']?.toString() ?? '')),
         if (AccessControl.isAdmin) DataCell(Text(alert['salesRepName']?.toString() ?? '')),
+        DataCell(
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: alert['levelBgColor'] ?? Colors.grey.shade200,
+              borderRadius: BorderRadius.circular(30),
+            ),
+            child: Text(
+              alert['level']?.toString() ?? 'N/A',
+              style: TextStyle(
+                color: alert['levelColor'] ?? Colors.black,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
         DataCell(Text(DocumentsLogic.stripHtmlTags(alert['descriptionClean'] ?? alert['description'] ?? '').length > 50 ? '${DocumentsLogic.stripHtmlTags(alert['descriptionClean'] ?? alert['description'] ?? '').substring(0, 50)}...' : DocumentsLogic.stripHtmlTags(alert['descriptionClean'] ?? alert['description'] ?? ''))),
         DataCell(Text(DurationFormatter.format((alert['qtySpent'] as num?)?.toDouble() ?? 0.0))),
         DataCell(Text(() {
@@ -218,9 +235,12 @@ class _RecentRequestCard extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            Text(
-                              'Ticket #${request['code']}',
-                              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.primary),
+                            Flexible(
+                              child: Text(
+                                'Ticket #${request['code']}',
+                                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.primary),
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
                             const SizedBox(width: 4),
                             InkWell(

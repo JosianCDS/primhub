@@ -1056,11 +1056,12 @@ class _MetricsPageState extends State<MetricsPage> {
           (MediaQuery.of(context).size.width < 900 && !AccessControl.isAdmin)
           ? const ProjectBottomNav(currentRoute: '/metrics')
           : null,
-      body: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (MediaQuery.of(context).size.width >= 900 &&
-              !AccessControl.isAdmin)
+      body: SafeArea(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (MediaQuery.of(context).size.width >= 900 &&
+                !AccessControl.isAdmin)
             const ProjectSideBar(currentRoute: '/metrics'),
           Expanded(
             child: SingleChildScrollView(
@@ -1131,6 +1132,7 @@ class _MetricsPageState extends State<MetricsPage> {
           ),
         ],
       ),
+      ),
     );
   }
 
@@ -1146,11 +1148,13 @@ class _MetricsPageState extends State<MetricsPage> {
         children: [
           Icon(icon, color: colorScheme.primary, size: 28),
           const SizedBox(width: 12),
-          Text(
-            title,
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: colorScheme.onSurface,
+          Expanded(
+            child: Text(
+              title,
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: colorScheme.onSurface,
+              ),
             ),
           ),
         ],
@@ -1199,7 +1203,15 @@ class _MetricsPageState extends State<MetricsPage> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isNarrow = constraints.maxWidth < 600;
+        final double cardWidth;
+        if (constraints.maxWidth < 480) {
+          cardWidth = constraints.maxWidth;
+        } else if (constraints.maxWidth < 750) {
+          cardWidth = (constraints.maxWidth - 16) / 2;
+        } else {
+          cardWidth = (constraints.maxWidth - 32) / 3;
+        }
+
         return Wrap(
           spacing: 16,
           runSpacing: 16,
@@ -1209,27 +1221,21 @@ class _MetricsPageState extends State<MetricsPage> {
               value: totalComp.toString(),
               icon: Icons.assignment_rounded,
               color: Colors.blue,
-              width: isNarrow
-                  ? (constraints.maxWidth - 16) / 2
-                  : (constraints.maxWidth - 32) / 3,
+              width: cardWidth,
             ),
             _KPICard(
               title: 'Cumplimiento',
               value: '${completedPct.toStringAsFixed(1)}%',
               icon: Icons.check_circle_outline_rounded,
               color: ColorTheme.success,
-              width: isNarrow
-                  ? (constraints.maxWidth - 16) / 2
-                  : (constraints.maxWidth - 32) / 3,
+              width: cardWidth,
             ),
             _KPICard(
               title: 'Pendientes',
               value: pendingCount.toString(),
               icon: Icons.pending_actions_rounded,
               color: ColorTheme.atention,
-              width: isNarrow
-                  ? (constraints.maxWidth - 16) / 2
-                  : (constraints.maxWidth - 32) / 3,
+              width: cardWidth,
             ),
           ],
         );
@@ -1249,7 +1255,13 @@ class _MetricsPageState extends State<MetricsPage> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isNarrow = constraints.maxWidth < 600;
+        final double cardWidth;
+        if (constraints.maxWidth < 480) {
+          cardWidth = constraints.maxWidth;
+        } else {
+          cardWidth = (constraints.maxWidth - 16) / 2;
+        }
+
         return Wrap(
           spacing: 16,
           runSpacing: 16,
@@ -1259,18 +1271,14 @@ class _MetricsPageState extends State<MetricsPage> {
               value: total.toString(),
               icon: Icons.confirmation_number_rounded,
               color: Colors.indigo,
-              width: isNarrow
-                  ? (constraints.maxWidth - 16) / 2
-                  : (constraints.maxWidth - 16) / 2,
+              width: cardWidth,
             ),
             _KPICard(
               title: 'Tickets Críticos',
               value: urgentCount.toString(),
               icon: Icons.warning_amber_rounded,
               color: Colors.red,
-              width: isNarrow
-                  ? (constraints.maxWidth - 16) / 2
-                  : (constraints.maxWidth - 16) / 2,
+              width: cardWidth,
             ),
           ],
         );
@@ -1427,8 +1435,10 @@ class _MetricsPageState extends State<MetricsPage> {
               builder: (context, setStateLegend) {
                 return Column(
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 8,
+                      runSpacing: 4,
                       children: [
                         _buildInteractiveLegendDot(
                           context,
@@ -1450,7 +1460,6 @@ class _MetricsPageState extends State<MetricsPage> {
                             },
                           ),
                         ),
-                        const SizedBox(width: 8),
                         _buildInteractiveLegendDot(
                           context,
                           'Pendiente',
@@ -1471,7 +1480,6 @@ class _MetricsPageState extends State<MetricsPage> {
                             },
                           ),
                         ),
-                        const SizedBox(width: 8),
                         _buildInteractiveLegendDot(
                           context,
                           'Espera de Cliente',
@@ -1927,10 +1935,12 @@ class _DonutWithLegendWidgetState extends State<_DonutWithLegendWidget> {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          flex: 5,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 450;
+
+        final donutWidget = SizedBox(
+          height: isNarrow ? 140 : double.infinity,
           child: CustomDonutChart(
             values: widget.values,
             labels: widget.labels,
@@ -1938,34 +1948,36 @@ class _DonutWithLegendWidgetState extends State<_DonutWithLegendWidget> {
             onSliceTapped: widget.onSliceTapped,
             hoveredIndex: _hoveredIndex,
           ),
-        ),
-        Expanded(
-          flex: 6,
-          child: Stack(
-            children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: NotificationListener<ScrollUpdateNotification>(
-                  onNotification: (notification) {
-                    _updateArrows();
-                    return false;
-                  },
-                  child: SingleChildScrollView(
-                    controller: _scrollController,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: List.generate(widget.labels.length, (i) {
-                        final val = widget.values[i];
-                        final total = widget.values.reduce((a, b) => a + b);
-                        final pct = total > 0 ? (val / total * 100) : 0.0;
+        );
 
-                        final isHovered = _hoveredIndex == i;
-                        final isAnyHovered = _hoveredIndex != null;
-                        final textLabel =
-                            '${widget.labels[i]}\n${val.toInt()} ${widget.suffix} (${pct.toStringAsFixed(1)}%)';
+        final legendWidget = Stack(
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: NotificationListener<ScrollUpdateNotification>(
+                onNotification: (notification) {
+                  _updateArrows();
+                  return false;
+                },
+                child: SingleChildScrollView(
+                  controller: _scrollController,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: List.generate(widget.labels.length, (i) {
+                      final val = widget.values[i];
+                      final total = widget.values.reduce((a, b) => a + b);
+                      final pct = total > 0 ? (val / total * 100) : 0.0;
 
-                        return MouseRegion(
+                      final isHovered = _hoveredIndex == i;
+                      final isAnyHovered = _hoveredIndex != null;
+                      final textLabel =
+                          '${widget.labels[i]}\n${val.toInt()} ${widget.suffix} (${pct.toStringAsFixed(1)}%)';
+
+                      return Tooltip(
+                        message: textLabel,
+                        waitDuration: const Duration(milliseconds: 500),
+                        child: MouseRegion(
                           cursor: SystemMouseCursors.click,
                           onEnter: (_) => setState(() => _hoveredIndex = i),
                           onExit: (_) => setState(() => _hoveredIndex = null),
@@ -2023,35 +2035,64 @@ class _DonutWithLegendWidgetState extends State<_DonutWithLegendWidget> {
                                                 context,
                                               ).colorScheme.onSurface,
                                       ),
-                                      child: Text(textLabel),
+                                      child: Text(
+                                        textLabel,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
                                     ),
                                   ),
                                 ],
                               ),
                             ),
                           ),
-                        );
-                      }),
-                    ),
+                        ),
+                      );
+                    }),
                   ),
                 ),
               ),
-              if (_showTopArrow)
-                Positioned(
-                  top: 0,
-                  right: 10,
-                  child: _buildScrollArrow(Icons.keyboard_arrow_up_rounded),
-                ),
-              if (_showBottomArrow)
-                Positioned(
-                  bottom: 0,
-                  right: 10,
-                  child: _buildScrollArrow(Icons.keyboard_arrow_down_rounded),
-                ),
+            ),
+            if (_showTopArrow)
+              Positioned(
+                top: 0,
+                right: 10,
+                child: _buildScrollArrow(Icons.keyboard_arrow_up_rounded),
+              ),
+            if (_showBottomArrow)
+              Positioned(
+                bottom: 0,
+                right: 10,
+                child: _buildScrollArrow(Icons.keyboard_arrow_down_rounded),
+              ),
+          ],
+        );
+
+        if (isNarrow) {
+          return Column(
+            children: [
+              donutWidget,
+              const SizedBox(height: 12),
+              Expanded(
+                child: legendWidget,
+              ),
             ],
-          ),
-        ),
-      ],
+          );
+        }
+
+        return Row(
+          children: [
+            Expanded(
+              flex: 5,
+              child: donutWidget,
+            ),
+            Expanded(
+              flex: 6,
+              child: legendWidget,
+            ),
+          ],
+        );
+      },
     );
   }
 

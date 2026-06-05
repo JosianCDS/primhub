@@ -293,24 +293,76 @@ class HomeController extends ChangeNotifier {
   void _applyFilters() {
     var filtered = List<dynamic>.from(allRequests);
     recentRequests = filtered.take(5).map((r) {
-      String level = 'Baja';
-      dynamic priorityVal = r['Priority'];
-      if (priorityVal is Map) {
-        level = priorityVal['identifier'] ?? priorityVal['Name'] ?? 'Baja';
-      } else if (priorityVal != null) {
-        String pStr = priorityVal.toString();
-        if (pStr == '1') level = 'Urgente';
-        else if (pStr == '3') level = 'Alta';
-        else if (pStr == '5') level = 'Media';
-        else if (pStr == '7') level = 'Baja';
-        else if (pStr == '9') level = 'Menor';
+      final categoryId = r['R_Category_ID'] is Map ? (r['R_Category_ID']['id'] as num?)?.toInt() : (r['R_Category_ID'] as num?)?.toInt();
+      final catInCache = GlobalCache.rawCategories.firstWhere(
+        (c) => (c['id'] as num?)?.toInt() == categoryId, 
+        orElse: () => {}
+      );
+
+      String level = 'Media';
+      Color baseColor = Colors.green;
+      bool resolvedFromCategory = false;
+
+      if (catInCache.isNotEmpty) {
+        final rawPriorityVal = catInCache['Priority'] is Map 
+            ? catInCache['Priority']['id'] 
+            : catInCache['Priority'];
+        
+        int? priorityInt;
+        if (rawPriorityVal != null) {
+          if (rawPriorityVal is num) {
+            priorityInt = rawPriorityVal.toInt();
+          } else {
+            final parsedNum = num.tryParse(rawPriorityVal.toString());
+            if (parsedNum != null) {
+              priorityInt = parsedNum.toInt();
+            }
+          }
+        }
+
+        if (priorityInt != null) {
+          resolvedFromCategory = true;
+          if (priorityInt == 1) {
+            level = 'Urgente';
+            baseColor = Colors.purple;
+          } else if (priorityInt == 3) {
+            level = 'Alta';
+            baseColor = Colors.red;
+          } else if (priorityInt == 5) {
+            level = 'Media';
+            baseColor = Colors.amber.shade800;
+          } else if (priorityInt == 7) {
+            level = 'Baja';
+            baseColor = Colors.green;
+          } else if (priorityInt == 9) {
+            level = 'Muy baja';
+            baseColor = Colors.grey;
+          } else {
+            level = priorityInt.toString();
+            baseColor = Colors.green;
+          }
+        }
       }
 
-      Color baseColor = Colors.green;
-      if (level == 'Urgente') baseColor = Colors.purple;
-      else if (level == 'Alta') baseColor = Colors.red;
-      else if (level == 'Media') baseColor = Colors.amber.shade800;
-      else if (level == 'Menor') baseColor = Colors.grey;
+      if (!resolvedFromCategory) {
+        dynamic priorityVal = r['Priority'];
+        if (priorityVal is Map) {
+          level = priorityVal['identifier'] ?? priorityVal['Name'] ?? 'Media';
+        } else if (priorityVal != null) {
+          String pStr = priorityVal.toString();
+          if (pStr == '1') level = 'Urgente';
+          else if (pStr == '3') level = 'Alta';
+          else if (pStr == '5') level = 'Media';
+          else if (pStr == '7') level = 'Baja';
+          else if (pStr == '9') level = 'Muy baja';
+        }
+
+        if (level == 'Urgente') baseColor = Colors.purple;
+        else if (level == 'Alta') baseColor = Colors.red;
+        else if (level == 'Media') baseColor = Colors.amber.shade800;
+        else if (level == 'Muy baja') baseColor = Colors.grey;
+        else if (level == 'Baja') baseColor = Colors.green;
+      }
 
       String formattedTime = r['Created'] ?? '';
       try {
@@ -322,6 +374,8 @@ class HomeController extends ChangeNotifier {
 
       String situation = r['R_RequestType_ID'] is Map ? (r['R_RequestType_ID']['identifier'] ?? r['R_RequestType_ID']['Name'] ?? r['R_RequestType_Name'] ?? 'Solicitud') : (r['R_RequestType_Name'] ?? 'Solicitud');
       String status = r['R_Status_ID'] is Map ? (r['R_Status_ID']['identifier'] ?? r['R_Status_ID']['Name'] ?? '1_Open') : (r['R_Status_Name'] ?? '1_Open');
+      status = cleanStatusName(status);
+
       String bpName = '';
       if (r['C_BPartner_ID'] is Map) {
         bpName = r['C_BPartner_ID']['identifier'] ?? r['C_BPartner_ID']['Name'] ?? '';

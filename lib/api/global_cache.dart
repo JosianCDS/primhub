@@ -220,8 +220,7 @@ class GlobalCache {
     final initialRequests = await fetchRequest(
       filter: initialFilter,
       top: 5,
-      orderBy: 'Updated desc',
-      expand: 'C_Order_ID(\$select=DocumentNo)',
+      expand: 'C_Order_ID(\$select=DocumentNo),C_BPartner_ID(\$select=Name,Description)',
     );
 
     requests = List<Map<String, dynamic>>.from(initialRequests);
@@ -298,7 +297,7 @@ class GlobalCache {
         years.add(year);
         futures.add(fetchRequest(
           filter: filter,
-          expand: 'C_Order_ID(\$select=DocumentNo)',
+          expand: 'C_Order_ID(\$select=DocumentNo),C_BPartner_ID(\$select=Name,Description)',
         ));
       }
 
@@ -351,7 +350,7 @@ class GlobalCache {
   static Future<void> syncSingleRequest(int requestId) async {
     try {
       const expand =
-          "R_Status_ID(\$select=Name,IsOpen),R_Group_ID(\$select=Name),R_RequestType_ID(\$select=Name),R_Category_ID(\$select=Name),C_Order_ID(\$select=DocumentNo)";
+          "R_Status_ID(\$select=Name,IsOpen),R_Group_ID(\$select=Name),R_RequestType_ID(\$select=Name),R_Category_ID(\$select=Name),C_Order_ID(\$select=DocumentNo),C_BPartner_ID(\$select=Name,Description)";
       final freshData = await fetchRequest(
         filter: "R_Request_ID eq $requestId",
         expand: expand,
@@ -482,8 +481,8 @@ class GlobalCache {
       // 1. Cargar solicitudes del AÑO ACTUAL para este Proyecto (por ID directo)
       final filterCurrent = "C_Project_ID eq $projectId and Created ge '$currentYear-01-01T00:00:00Z'";
       final reqsCurrent = await fetchRequest(
-        filter: filterCurrent, 
-        expand: 'C_Order_ID(\$select=DocumentNo),R_Status_ID,R_RequestType_ID,R_Category_ID'
+        filter: filterCurrent,
+        expand: 'C_Order_ID(\$select=DocumentNo),R_Status_ID,R_RequestType_ID,R_Category_ID,C_BPartner_ID(\$select=Name,Description)'
       );
       
       if (reqsCurrent.isNotEmpty) {
@@ -494,8 +493,8 @@ class GlobalCache {
       // 2. Cargar HISTÓRICO (3 años) para este Proyecto (por ID directo)
       final filterHistory = "C_Project_ID eq $projectId and Created ge '$threeYearsAgo-01-01T00:00:00Z' and Created lt '$currentYear-01-01T00:00:00Z'";
       final reqsHistory = await fetchRequest(
-        filter: filterHistory, 
-        expand: 'C_Order_ID(\$select=DocumentNo),R_Status_ID,R_RequestType_ID,R_Category_ID'
+        filter: filterHistory,
+        expand: 'C_Order_ID(\$select=DocumentNo),R_Status_ID,R_RequestType_ID,R_Category_ID,C_BPartner_ID(\$select=Name,Description)'
       );
 
       if (reqsHistory.isNotEmpty) {

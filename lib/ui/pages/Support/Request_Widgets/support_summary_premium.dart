@@ -66,59 +66,105 @@ class SupportSummaryPremium extends StatelessWidget {
           color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05),
         ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isMobile = constraints.maxWidth < 500;
+          return Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Resumen del contrato',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: isDark
-                            ? colorScheme.primary
-                            : const Color(0xFF463EE2),
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.2,
+                isMobile
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Resumen del contrato',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              color: isDark
+                                  ? colorScheme.primary
+                                  : const Color(0xFF463EE2),
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Año ${DateTime.now().year}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: (isDark ? colorScheme.primary : const Color(0xFF463EE2))
+                                  .withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              '${DurationFormatter.format(contractedHours)} Adquiridas',
+                              style: TextStyle(
+                                color: isDark
+                                    ? colorScheme.primary
+                                    : const Color(0xFF463EE2),
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Resumen del contrato',
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  color: isDark
+                                      ? colorScheme.primary
+                                      : const Color(0xFF463EE2),
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Año ${DateTime.now().year}',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: (isDark ? colorScheme.primary : const Color(0xFF463EE2))
+                                  .withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              '${DurationFormatter.format(contractedHours)} Adquiridas',
+                              style: TextStyle(
+                                color: isDark
+                                    ? colorScheme.primary
+                                    : const Color(0xFF463EE2),
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Año ${DateTime.now().year}',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color:
-                        (isDark ? colorScheme.primary : const Color(0xFF463EE2))
-                            .withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    '${DurationFormatter.format(contractedHours)} Adquiridas',
-                    style: TextStyle(
-                      color: isDark
-                          ? colorScheme.primary
-                          : const Color(0xFF463EE2),
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
             const SizedBox(height: 24),
             // Carrusel de Fichas
             SizedBox(
@@ -330,46 +376,75 @@ class SupportSummaryPremium extends StatelessWidget {
                     ),
             ),
             const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildSmallStat(
-                    context,
-                    'Horas Contratadas',
-                    DurationFormatter.format(contractedHours),
-                    Icons.inventory_2_outlined,
-                    const Color(0xFF64748B),
+            isMobile
+                ? Column(
+                    children: [
+                      _buildSmallStat(
+                        context,
+                        'Horas Contratadas',
+                        DurationFormatter.format(contractedHours),
+                        Icons.inventory_2_outlined,
+                        const Color(0xFF64748B),
+                      ),
+                      const SizedBox(height: 12),
+                      _buildSmallStat(
+                        context,
+                        'Horas Consumidas',
+                        DurationFormatter.format(consumedHours),
+                        Icons.check_circle_outline,
+                        const Color(0xFFEF4444),
+                      ),
+                      const SizedBox(height: 12),
+                      _buildSmallStat(
+                        context,
+                        'Horas Disponibles',
+                        DurationFormatter.format(availableHours),
+                        Icons.account_balance_wallet_outlined,
+                        const Color(0xFF463EE2),
+                        isMain: true,
+                      ),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      Expanded(
+                        child: _buildSmallStat(
+                          context,
+                          'Horas Contratadas',
+                          DurationFormatter.format(contractedHours),
+                          Icons.inventory_2_outlined,
+                          const Color(0xFF64748B),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildSmallStat(
+                          context,
+                          'Horas Consumidas',
+                          DurationFormatter.format(consumedHours),
+                          Icons.check_circle_outline,
+                          const Color(0xFFEF4444),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildSmallStat(
+                          context,
+                          'Horas Disponibles',
+                          DurationFormatter.format(availableHours),
+                          Icons.account_balance_wallet_outlined,
+                          const Color(0xFF463EE2),
+                          isMain: true,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildSmallStat(
-                    context,
-                    'Horas Consumidas',
-                    DurationFormatter.format(consumedHours),
-                    Icons.check_circle_outline,
-                    const Color(0xFFEF4444), // Color rojo para consumo
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildSmallStat(
-                    context,
-                    'Horas Disponibles',
-                    DurationFormatter.format(availableHours),
-                    Icons.account_balance_wallet_outlined,
-                    const Color(
-                      0xFF463EE2,
-                    ), // Color azul primario para disponibles
-                    isMain: true,
-                  ),
-                ),
-              ],
-            ),
           ],
         ),
-      ),
-    );
+      );
+    },
+  ),
+);
   }
 
   Widget _buildSmallStat(
@@ -384,6 +459,7 @@ class SupportSummaryPremium extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
 
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
       decoration: BoxDecoration(
         color: isMain

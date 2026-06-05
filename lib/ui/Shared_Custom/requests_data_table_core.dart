@@ -231,8 +231,15 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
                 mobileCardBuilder: (item) => _RequestCard(
                   request: item,
                   onEdit: widget.onEdit,
-                  onGoToUpdates: () {},
-                  onShowAttachments: () {},
+                  onGoToUpdates: () {
+                    GoRouter.of(context).push('/request-updates/${Uri.encodeComponent(_getRealId(item).toString())}', extra: {'docNo': item['id']});
+                  },
+                  onShowAttachments: () {
+                    showDialog(
+                      context: context,
+                      builder: (context) => RequestAttachmentsDialog(requestId: _getRealId(item), documentNo: item['id']),
+                    );
+                  },
                 ),
               ),
 

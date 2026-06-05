@@ -119,6 +119,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
       if (args != null) {
         if (args['bpId'] != null) _selectedBpId = args['bpId'];
         if (args['chipId'] != null) _selectedSummaryChipId = args['chipId'];
+        if (args['search'] != null) _searchController.text = args['search'];
       } else {
         _selectedBpId = AccessControl.isAdmin ? null : User.cBPartnerID;
       }
@@ -376,7 +377,6 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
         processed.add({
           ...chip,
           'available': totalQty - totalConsumed,
-          'available': totalQty - totalConsumed,
           'consumed': totalConsumed,
           'estimated': totalEstimated,
         });
@@ -389,6 +389,196 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
         _processedChips = processed;
       });
     }
+  }
+
+  void _showAdminModeSelectionDialog(BuildContext context) {
+    final current = _adminViewModeManager.currentMode;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return CustomModal(
+          title: 'Seleccionar Modo de Vista',
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                title: const Text('Modo Mixto'),
+                trailing: current == AdminViewMode.mixed
+                    ? Icon(Icons.check, color: colorScheme.primary)
+                    : null,
+                onTap: () {
+                  _adminViewModeManager.saveMode(AdminViewMode.mixed);
+                  Navigator.pop(dialogContext);
+                },
+              ),
+              ListTile(
+                title: const Text('Modo Soporte'),
+                trailing: current == AdminViewMode.support
+                    ? Icon(Icons.check, color: colorScheme.primary)
+                    : null,
+                onTap: () {
+                  _adminViewModeManager.saveMode(AdminViewMode.support);
+                  Navigator.pop(dialogContext);
+                },
+              ),
+              ListTile(
+                title: const Text('Modo Proyecto'),
+                trailing: current == AdminViewMode.project
+                    ? Icon(Icons.check, color: colorScheme.primary)
+                    : null,
+                onTap: () {
+                  _adminViewModeManager.saveMode(AdminViewMode.project);
+                  Navigator.pop(dialogContext);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cerrar'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildAdminModePopupMenu() {
+    return PopupMenuButton<AdminViewMode>(
+      tooltip: 'Cambiar modo de vista',
+      onSelected: (AdminViewMode mode) {
+        _adminViewModeManager.saveMode(mode);
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.admin_panel_settings),
+            const SizedBox(width: 8),
+            Text(
+              _adminViewModeManager.currentMode == AdminViewMode.support
+                  ? 'Modo Soporte'
+                  : (_adminViewModeManager.currentMode == AdminViewMode.project
+                        ? 'Modo Proyecto'
+                        : 'Modo Mixto'),
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const Icon(Icons.arrow_drop_down),
+          ],
+        ),
+      ),
+      itemBuilder: (BuildContext context) {
+        final current = _adminViewModeManager.currentMode;
+        final colorScheme = Theme.of(context).colorScheme;
+        PopupMenuItem<AdminViewMode> buildItem(
+          AdminViewMode mode,
+          String text,
+        ) {
+          final isSelected = current == mode;
+          return PopupMenuItem<AdminViewMode>(
+            value: mode,
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? colorScheme.primary.withOpacity(0.1)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 8,
+              ),
+              child: Row(
+                children: [
+                  Text(
+                    text,
+                    style: TextStyle(
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      color: isSelected ? colorScheme.primary : colorScheme.onSurface,
+                    ),
+                  ),
+                  if (isSelected) const Spacer(),
+                  if (isSelected)
+                    Icon(
+                      Icons.check,
+                      size: 18,
+                      color: colorScheme.primary,
+                    ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        return [
+          buildItem(AdminViewMode.mixed, 'Modo Mixto'),
+          buildItem(AdminViewMode.support, 'Modo Soporte'),
+          buildItem(AdminViewMode.project, 'Modo Proyecto'),
+        ];
+      },
+    );
+  }
+
+  Widget _buildExceptionInkWell() {
+    return InkWell(
+      onTap: _showExceptionDialog,
+      child: const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16.0),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.shield_outlined),
+            SizedBox(width: 8),
+            Text(
+              'Excepción de Horas',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildAdminAppBarActions(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+    if (isMobile) {
+      return [
+        PopupMenuButton<String>(
+          icon: const Icon(Icons.more_vert),
+          onSelected: (value) {
+            if (value == 'admin_mode') _showAdminModeSelectionDialog(context);
+            if (value == 'exception_hours') _showExceptionDialog();
+          },
+          itemBuilder: (context) => [
+            PopupMenuItem<String>(
+              value: 'admin_mode',
+              child: ListTile(
+                leading: const Icon(Icons.admin_panel_settings),
+                title: Text(
+                  'Modo: ${_adminViewModeManager.currentMode == AdminViewMode.support ? 'Soporte' : (_adminViewModeManager.currentMode == AdminViewMode.project ? 'Proyecto' : 'Mixto')}',
+                ),
+              ),
+            ),
+            PopupMenuItem<String>(
+              value: 'exception_hours',
+              child: const ListTile(
+                leading: Icon(Icons.shield_outlined),
+                title: Text('Excepción de Horas'),
+              ),
+            ),
+          ],
+        ),
+      ];
+    }
+    return [
+      _buildAdminModePopupMenu(),
+      _buildExceptionInkWell(),
+    ];
   }
 
   Future<void> _showExceptionDialog() async {
@@ -775,105 +965,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
               ),
         title: const Text('Dashboard De Horas De Soporte'),
         actions: [
-          if (AccessControl.isAdmin)
-            PopupMenuButton<AdminViewMode>(
-              tooltip: 'Cambiar modo de vista',
-              onSelected: (AdminViewMode mode) {
-                _adminViewModeManager.saveMode(mode);
-              },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.admin_panel_settings),
-                    const SizedBox(width: 8),
-                    Text(
-                      _adminViewModeManager.currentMode == AdminViewMode.support
-                          ? 'Modo Soporte'
-                          : (_adminViewModeManager.currentMode ==
-                                    AdminViewMode.project
-                                ? 'Modo Proyecto'
-                                : 'Modo Mixto'),
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    const Icon(Icons.arrow_drop_down),
-                  ],
-                ),
-              ),
-              itemBuilder: (BuildContext context) {
-                final current = _adminViewModeManager.currentMode;
-                final colorScheme = Theme.of(context).colorScheme;
-                PopupMenuItem<AdminViewMode> buildItem(
-                  AdminViewMode mode,
-                  String text,
-                ) {
-                  final isSelected = current == mode;
-                  return PopupMenuItem<AdminViewMode>(
-                    value: mode,
-                    child: Container(
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? colorScheme.primary.withOpacity(0.1)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      child: Row(
-                        children: [
-                          Text(
-                            text,
-                            style: TextStyle(
-                              fontWeight: isSelected
-                                  ? FontWeight.bold
-                                  : FontWeight.normal,
-                              color: isSelected
-                                  ? colorScheme.primary
-                                  : colorScheme.onSurface,
-                            ),
-                          ),
-                          if (isSelected) const Spacer(),
-                          if (isSelected)
-                            Icon(
-                              Icons.check,
-                              size: 18,
-                              color: colorScheme.primary,
-                            ),
-                        ],
-                      ),
-                    ),
-                  );
-                }
-
-                return [
-                  buildItem(AdminViewMode.mixed, 'Modo Mixto'),
-                  buildItem(AdminViewMode.support, 'Modo Soporte'),
-                  buildItem(AdminViewMode.project, 'Modo Proyecto'),
-                ];
-              },
-            ),
-          if (AccessControl.isAdmin)
-            InkWell(
-              onTap: _showExceptionDialog,
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16.0),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.shield_outlined),
-                    SizedBox(width: 8),
-                    Text(
-                      'Excepción de Horas',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+          if (AccessControl.isAdmin) ..._buildAdminAppBarActions(context),
           if (GlobalCache.backgroundSyncNotifier.value)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),

@@ -12,6 +12,7 @@ import 'package:primhub/api/admin_view_mode.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/api/validation_manager.dart';
 import 'package:primhub/ui/pages/Support/calendar.dart';
+import 'package:primhub/ui/pages/Support/calendar_gantt_wrapper.dart';
 import 'package:primhub/ui/pages/Support/Request_Widgets/request_filter_modal.dart';
 import 'package:primhub/ui/pages/Support/Requests/create_request_dialog.dart';
 import 'package:primhub/ui/pages/Support/Requests/edit_request_dialog.dart';
@@ -182,6 +183,10 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
           levels: args['selectedLevel'] != null ? [args['selectedLevel']] : [],
           productChipIds: args['chipId'] != null ? [args['chipId']] : [],
         );
+
+        if (args['search'] != null) {
+          _searchController.text = args['search'];
+        }
 
         // Si se filtra por un estado cerrado, forzar la vista de bitácora
         if (_filters.statuses.isNotEmpty || _filters.statusIds.isNotEmpty) {
@@ -1361,19 +1366,24 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
 
   Widget _buildPaginationControls() {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: Theme.of(context).scaffoldBackgroundColor,
         border: Border(top: BorderSide(color: Theme.of(context).dividerColor)),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Wrap(
+        alignment: WrapAlignment.end,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 16.0,
         children: [
-          Text(
-            '${_totalRecords == 0 ? 0 : (_currentPage * _rowsPerPage) + 1} - ${((_currentPage + 1) * _rowsPerPage < _totalRecords) ? (_currentPage + 1) * _rowsPerPage : _totalRecords} de $_totalRecords',
-          ),
           Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
+              Text(
+                '${_totalRecords == 0 ? 0 : (_currentPage * _rowsPerPage) + 1} - ${((_currentPage + 1) * _rowsPerPage < _totalRecords) ? (_currentPage + 1) * _rowsPerPage : _totalRecords} de $_totalRecords',
+              ),
+              const SizedBox(width: 8),
               IconButton(
                 icon: const Icon(Icons.chevron_left),
                 onPressed: _currentPage == 0
@@ -1577,9 +1587,8 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
             const ProjectSideBar(currentRoute: '/my-requests'),
           Expanded(
             child: SafeArea(
-              child: _showCalendar
-                  ? CalendarContent(requests: _rawRequests)
-                  : NestedScrollView(
+              bottom: false,
+              child: NestedScrollView(
                       headerSliverBuilder: (context, innerBoxIsScrolled) {
                         return [
                           SliverToBoxAdapter(
@@ -1614,7 +1623,8 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                                   onShowYearFilter: _showYearFilterModal,
                                   onShowFilters: _showFilterModal,
                                   onShowCalendar: () =>
-                                      setState(() => _showCalendar = true),
+                                      setState(() => _showCalendar = !_showCalendar),
+                                  showCalendar: _showCalendar,
                                   activeFilterCount: _activeFilterCount,
                                   isLoading:
                                       _isLoading || !GlobalCache.isDataLoaded,
@@ -1720,7 +1730,13 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                           padding: const EdgeInsets.symmetric(horizontal: 16.0),
                           child: AnimatedSwitcher(
                             duration: const Duration(milliseconds: 300),
-                            child: _buildTableWidget(),
+                            child: _showCalendar
+                                ? CalendarGanttWrapper(requests: _rawRequests)
+                                : Column(
+                                    children: [
+                                      Expanded(child: _buildTableWidget()),
+                                    ],
+                                  ),
                           ),
                         ),
                       ),

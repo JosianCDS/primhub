@@ -424,15 +424,17 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
   }
 
   Future<void> _openSearchModal<T>({required String title, required List<dynamic> items, required T? currentValue, required String Function(dynamic) getTitle, String Function(dynamic)? getSubtitle, required T? Function(dynamic) getValue, required void Function(T?) onSelected}) async {
+    final double dialogHeight = MediaQuery.of(context).size.height * 0.6;
     final dynamic result = await showDialog(
       context: context,
       builder: (context) {
         String searchQuery = '';
         return Dialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          insetAnimationDuration: Duration.zero,
           child: Container(
             width: 400,
-            height: MediaQuery.of(context).size.height * 0.6,
+            height: dialogHeight,
             padding: const EdgeInsets.all(20),
             child: StatefulBuilder(
               builder: (context, setStateDialog) {
@@ -654,6 +656,20 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
       }
       // Actualizamos el ID local para que la segunda fase no tenga conflictos
       widget.request['bpId'] = _selectedBpId;
+    }
+
+    if (!_categoryMap.containsKey(_selectedCategory)) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('La categoría actual no es válida o no está disponible. Por favor, seleccione una nueva categoría antes de guardar.'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
+      return;
     }
 
     final result = await updateRemoteRequest(
@@ -1020,7 +1036,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                         child: GestureDetector(
                           onTap: _isReadOnly ? null : () => _selectDate(context, _dateStartController),
                           child: AbsorbPointer(
-                            child: CustomTextField(controller: _dateStartController, label: 'Fecha de inicio', readOnly: true, hintText: 'YYYY-MM-DD', prefixIcon: const Icon(Icons.calendar_today)),
+                            child: CustomTextField(controller: _dateStartController, label: 'Fecha de Inicio Planeada', readOnly: true, hintText: 'YYYY-MM-DD', prefixIcon: const Icon(Icons.calendar_today)),
                           ),
                         ),
                       ),
@@ -1102,8 +1118,9 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
         // BOTÓN DE RESPONDER (Estilo limpio)
         TextButton.icon(
           onPressed: () {
+            final router = GoRouter.of(context);
             Navigator.pop(context); // Cerrar el diálogo de edición
-            context.push('/request-updates/${widget.request['realId']}', extra: {'docNo': widget.request['id']?.toString() ?? '...'});
+            router.push('/request-updates/${widget.request['realId']}', extra: {'docNo': widget.request['id']?.toString() ?? '...'});
           },
           icon: const Icon(Icons.reply, size: 20),
           label: const Text('Responder', style: TextStyle(fontWeight: FontWeight.bold)),

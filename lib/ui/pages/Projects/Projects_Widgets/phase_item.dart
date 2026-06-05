@@ -37,23 +37,31 @@ class PhaseItem extends StatelessWidget {
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.all(Radius.circular(10)),
         ),
-        title: Row(
-          children: [
-            Expanded(
-              child: Text(
-                phase['Name'] ?? 'Fase',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: Colors.indigo[900],
+        title: LayoutBuilder(
+          builder: (context, constraints) {
+            final isNarrow = MediaQuery.of(context).size.width < 500;
+            return Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    phase['Name'] ?? 'Fase',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Colors.indigo[900],
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-              ),
-            ),
-            if (tasks.isNotEmpty) ...[
-              const Icon(Icons.task_outlined, size: 16, color: Colors.grey),
-              const SizedBox(width: 4),
-              Text('${tasks.length}', style: const TextStyle(color: Colors.grey))
-            ],
-          ],
+                if (tasks.isNotEmpty && !isNarrow) ...[
+                  const SizedBox(width: 8),
+                  const Icon(Icons.task_outlined, size: 16, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  Text('${tasks.length}', style: const TextStyle(color: Colors.grey))
+                ],
+              ],
+            );
+          }
         ),
         subtitle: Text(
           phase['Description'] ?? '',
@@ -69,8 +77,10 @@ class PhaseItem extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.add_task, size: 20, color: Colors.green),
+                    icon: const Icon(Icons.add_task, size: 18, color: Colors.green),
                     tooltip: 'Nueva Tarea',
+                    constraints: const BoxConstraints(),
+                    padding: const EdgeInsets.all(4),
                     onPressed: () {
                       showDialog(
                         context: context,
@@ -80,8 +90,11 @@ class PhaseItem extends StatelessWidget {
                       );
                     },
                   ),
+                  const SizedBox(width: 8),
                   IconButton(
-                    icon: const Icon(Icons.edit, size: 20, color: Colors.grey),
+                    icon: const Icon(Icons.edit, size: 18, color: Colors.grey),
+                    constraints: const BoxConstraints(),
+                    padding: const EdgeInsets.all(4),
                     onPressed: () {
                       showDialog(
                         context: context,

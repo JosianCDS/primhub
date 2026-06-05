@@ -11,7 +11,7 @@ echo "Limpiando proyecto..."
 flutter clean
 
 echo "🏗️  Compilando con versión: $VERSION..."
-flutter build web --release
+flutter build web --release --pwa-strategy=none
 
 if [ ! -f "$INDEX_FILE" ]; then
   echo "Error: No se encontró $INDEX_FILE"

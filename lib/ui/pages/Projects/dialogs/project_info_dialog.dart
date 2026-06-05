@@ -34,17 +34,18 @@ class ProjectInfoDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isMobile = MediaQuery.of(context).size.width < 600;
 
     return CustomModal(
       title: 'Ficha Técnica del Proyecto',
       width: 850,
       content: SingleChildScrollView(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // --- HEADER SECTION ---
             Container(
-              padding: const EdgeInsets.all(20),
+              padding: EdgeInsets.all(isMobile ? 12 : 20),
               decoration: BoxDecoration(
                 color: colorScheme.primary.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(12),
@@ -53,11 +54,11 @@ class ProjectInfoDialog extends StatelessWidget {
               child: Row(
                 children: [
                   CircleAvatar(
-                    radius: 30,
+                    radius: isMobile ? 24 : 30,
                     backgroundColor: colorScheme.primary,
-                    child: const Icon(Icons.assignment_rounded, color: Colors.white, size: 30),
+                    child: Icon(Icons.assignment_rounded, color: Colors.white, size: isMobile ? 24 : 30),
                   ),
-                  const SizedBox(width: 20),
+                  SizedBox(width: isMobile ? 12 : 20),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -67,7 +68,10 @@ class ProjectInfoDialog extends StatelessWidget {
                           style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
                         ),
                         const SizedBox(height: 4),
-                        Row(
+                        Wrap(
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 12,
+                          runSpacing: 8,
                           children: [
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -80,12 +84,16 @@ class ProjectInfoDialog extends StatelessWidget {
                                 style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.secondary, fontSize: 12),
                               ),
                             ),
-                            const SizedBox(width: 12),
-                            Icon(Icons.circle, size: 8, color: (project['IsActive'] == true || project['IsActive'] == 'Y') ? Colors.green : Colors.grey),
-                            const SizedBox(width: 4),
-                            Text(
-                              (project['IsActive'] == true || project['IsActive'] == 'Y') ? 'Activo' : 'Inactivo',
-                              style: TextStyle(fontSize: 13, color: colorScheme.onSurface.withOpacity(0.7)),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.circle, size: 8, color: (project['IsActive'] == true || project['IsActive'] == 'Y') ? Colors.green : Colors.grey),
+                                const SizedBox(width: 4),
+                                Text(
+                                  (project['IsActive'] == true || project['IsActive'] == 'Y') ? 'Activo' : 'Inactivo',
+                                  style: TextStyle(fontSize: 13, color: colorScheme.onSurface.withOpacity(0.7)),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -98,68 +106,95 @@ class ProjectInfoDialog extends StatelessWidget {
             const SizedBox(height: 24),
 
             // --- MAIN INFO & STAKEHOLDERS ---
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: CustomContainer(
-                    title: 'Información General',
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        _buildInfoRow(context, Icons.notes, 'Descripción', project['Description'] ?? 'Sin descripción disponible', isLongText: true),
-                        const Divider(height: 24),
-                        Row(
-                          children: [
-                            Expanded(child: _buildInfoRow(context, Icons.calendar_today, 'Inicio Contrato', _formatDate(project['DateContract']))),
-                            Expanded(child: _buildInfoRow(context, Icons.event_available, 'Fin Estimado', _formatDate(project['DateFinish']))),
-                          ],
-                        ),
-                      ],
-                    ),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final isMobile = MediaQuery.of(context).size.width < 600;
+                
+                final infoWidget = CustomContainer(
+                  title: 'Información General',
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      _buildInfoRow(context, Icons.notes, 'Descripción', project['Description'] ?? 'Sin descripción disponible', isLongText: true),
+                      const Divider(height: 24),
+                      Row(
+                        children: [
+                          Expanded(child: _buildInfoRow(context, Icons.calendar_today, 'Inicio Contrato', _formatDate(project['DateContract']))),
+                          Expanded(child: _buildInfoRow(context, Icons.event_available, 'Fin Estimado', _formatDate(project['DateFinish']))),
+                        ],
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  flex: 2,
-                  child: CustomContainer(
-                    title: 'Responsables',
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        _buildInfoRow(context, Icons.business, 'Cliente', _getIdentifier(project['C_BPartner_ID'])),
-                        const SizedBox(height: 16),
-                        _buildInfoRow(context, Icons.person_outline, 'Resp. Comercial', _getIdentifier(project['SalesRep_ID'] ?? project['C_BPartnerSR_ID'])),
-                        const SizedBox(height: 16),
-                        _buildInfoRow(context, Icons.payments_outlined, 'Moneda / Facturación', '${_getIdentifier(project['C_Currency_ID'])} - ${_getIdentifier(project['ProjInvoiceRule'])}'),
-                      ],
-                    ),
+                );
+
+                final responsiblesWidget = CustomContainer(
+                  title: 'Responsables',
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      _buildInfoRow(context, Icons.business, 'Cliente', _getIdentifier(project['C_BPartner_ID'])),
+                      const SizedBox(height: 16),
+                      _buildInfoRow(context, Icons.person_outline, 'Resp. Comercial', _getIdentifier(project['SalesRep_ID'] ?? project['C_BPartnerSR_ID'])),
+                      const SizedBox(height: 16),
+                      _buildInfoRow(context, Icons.payments_outlined, 'Moneda / Facturación', '${_getIdentifier(project['C_Currency_ID'])} - ${_getIdentifier(project['ProjInvoiceRule'])}'),
+                    ],
                   ),
-                ),
-              ],
+                );
+
+                if (isMobile) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      infoWidget,
+                      const SizedBox(height: 16),
+                      responsiblesWidget,
+                    ],
+                  );
+                } else {
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(flex: 3, child: infoWidget),
+                      const SizedBox(width: 16),
+                      Expanded(flex: 2, child: responsiblesWidget),
+                    ],
+                  );
+                }
+              },
             ),
             const SizedBox(height: 20),
 
             // --- FINANCIAL DETAILS ---
-            CustomContainer(
-              title: 'Métricas y Desempeño Financiero',
-              child: GridView.count(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisCount: 3,
-                childAspectRatio: 2.5,
-                mainAxisSpacing: 16,
-                crossAxisSpacing: 16,
-                children: [
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final isMobile = MediaQuery.of(context).size.width < 600;
+                
+                final metricChildren = [
                   _buildMetricTile(context, 'Importe Planeado', project['PlannedAmt'], Icons.account_balance_wallet_outlined, colorScheme.primary),
                   _buildMetricTile(context, 'Importe Comprometido', project['CommittedAmt'], Icons.shopping_bag_outlined, Colors.orange),
                   _buildMetricTile(context, 'Balance Proyecto', project['ProjectBalanceAmt'], Icons.balance, Colors.blue),
                   _buildMetricTile(context, 'Cantidad Planeada', project['PlannedQty'], Icons.layers_outlined, colorScheme.secondary, isCurrency: false),
                   _buildMetricTile(context, 'Cantidad Comprometida', project['CommittedQty'], Icons.inventory_2_outlined, Colors.purple, isCurrency: false),
                   _buildMetricTile(context, 'Margen Planeado', project['PlannedMarginAmt'], Icons.trending_up, Colors.green),
-                ],
-              ),
+                ];
+
+                return CustomContainer(
+                  title: 'Métricas y Desempeño Financiero',
+                  child: isMobile 
+                      ? Column(
+                          children: metricChildren.map((e) => Padding(padding: const EdgeInsets.only(bottom: 16.0), child: e)).toList(),
+                        )
+                      : GridView.count(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          crossAxisCount: 3,
+                          childAspectRatio: 2.5,
+                          mainAxisSpacing: 16,
+                          crossAxisSpacing: 16,
+                          children: metricChildren,
+                        ),
+                );
+              }
             ),
           ],
         ),

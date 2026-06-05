@@ -17,6 +17,7 @@ import 'package:primhub/ui/pages/Support/Requests/my_requests.dart';
 import 'package:primhub/ui/pages/Support/support_dashboard.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_updates_page.dart';
 import 'package:primhub/api/splash_loading_page.dart';
+import 'package:primhub/ui/pages/Projects/project_calendar_page.dart';
 
 final _router = GoRouter(
   navigatorKey: SessionManager.navigatorKey,
@@ -114,6 +115,14 @@ final _router = GoRouter(
     GoRoute(
       path: '/profile',
       pageBuilder: (context, state) => NoTransitionPage(key: state.pageKey, child: const ProfilePage()),
+    ),
+    GoRoute(
+      path: '/project-calendar',
+      pageBuilder: (context, state) {
+        final extra = state.extra as Map<String, dynamic>?;
+        final project = extra ?? {};
+        return NoTransitionPage(key: state.pageKey, child: ProjectCalendarPage(project: project));
+      },
     ),
   ],
 );

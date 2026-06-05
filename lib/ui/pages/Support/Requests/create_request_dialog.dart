@@ -698,15 +698,17 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     required T Function(dynamic) getValue,
     required void Function(T) onSelected,
   }) async {
+    final double dialogHeight = MediaQuery.of(context).size.height * 0.6;
     final T? result = await showDialog<T>(
       context: context,
       builder: (context) {
         String searchQuery = '';
         return Dialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          insetAnimationDuration: Duration.zero,
           child: Container(
             width: 400,
-            height: MediaQuery.of(context).size.height * 0.6,
+            height: dialogHeight,
             padding: const EdgeInsets.all(20),
             child: StatefulBuilder(
               builder: (context, setStateDialog) {
@@ -1544,7 +1546,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                           child: AbsorbPointer(
                             child: CustomTextField(
                               controller: _dateStartController,
-                              label: 'Inicio Plan',
+                              label: 'Fecha de Inicio Planeada',
                               hintText: 'YYYY-MM-DD',
                               prefixIcon: const Icon(Icons.calendar_today),
                             ),

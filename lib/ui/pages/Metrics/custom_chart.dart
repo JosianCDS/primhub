@@ -78,6 +78,15 @@ class _CustomBarChartState extends State<CustomBarChart>
           }
         }
       },
+      onLongPressStart: (details) {
+        if (mounted) setState(() => _touchPosition = details.localPosition);
+      },
+      onLongPressMoveUpdate: (details) {
+        if (mounted) setState(() => _touchPosition = details.localPosition);
+      },
+      onLongPressEnd: (details) {
+        if (mounted) setState(() => _touchPosition = null);
+      },
       child: MouseRegion(
         onHover: (e) {
           Future.microtask(() {
@@ -89,22 +98,37 @@ class _CustomBarChartState extends State<CustomBarChart>
             if (mounted) setState(() => _touchPosition = null);
           });
         },
-        child: AnimatedBuilder(
-          animation: _animation!,
-          builder: (context, child) => CustomPaint(
-            size: Size.infinite,
-            painter: BarChartPainter(
-              labels: widget.labels,
-              fullLabels: widget.fullLabels,
-              values: widget.values,
-              colors: widget.colors,
-              textColor: Theme.of(context).colorScheme.onSurfaceVariant,
-              touchPosition: _touchPosition,
-              animationValue: _animation!.value,
-              leftAxisSuffix: widget.leftAxisSuffix,
-              tooltipSuffix: widget.tooltipSuffix,
-            ),
-          ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final minWidth = widget.labels.length * 50.0;
+            final isScrollable = constraints.maxWidth < minWidth;
+
+            Widget chart = AnimatedBuilder(
+              animation: _animation!,
+              builder: (context, child) => CustomPaint(
+                size: isScrollable ? Size(minWidth, constraints.maxHeight) : Size.infinite,
+                painter: BarChartPainter(
+                  labels: widget.labels,
+                  fullLabels: widget.fullLabels,
+                  values: widget.values,
+                  colors: widget.colors,
+                  textColor: Theme.of(context).colorScheme.onSurfaceVariant,
+                  touchPosition: _touchPosition,
+                  animationValue: _animation!.value,
+                  leftAxisSuffix: widget.leftAxisSuffix,
+                  tooltipSuffix: widget.tooltipSuffix,
+                ),
+              ),
+            );
+
+            if (isScrollable) {
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: chart,
+              );
+            }
+            return chart;
+          },
         ),
       ),
     );
@@ -173,6 +197,15 @@ class _CustomDonutChartState extends State<CustomDonutChart>
             widget.onSliceTapped!(tappedLabel);
           }
         }
+      },
+      onLongPressStart: (details) {
+        if (mounted) setState(() => _touchPosition = details.localPosition);
+      },
+      onLongPressMoveUpdate: (details) {
+        if (mounted) setState(() => _touchPosition = details.localPosition);
+      },
+      onLongPressEnd: (details) {
+        if (mounted) setState(() => _touchPosition = null);
       },
       child: MouseRegion(
         onHover: (e) {
@@ -278,6 +311,15 @@ class _CustomStackedBarChartState extends State<CustomStackedBarChart>
           }
         }
       },
+      onLongPressStart: (details) {
+        if (mounted) setState(() => _touchPosition = details.localPosition);
+      },
+      onLongPressMoveUpdate: (details) {
+        if (mounted) setState(() => _touchPosition = details.localPosition);
+      },
+      onLongPressEnd: (details) {
+        if (mounted) setState(() => _touchPosition = null);
+      },
       child: MouseRegion(
         onHover: (e) {
           Future.microtask(() {
@@ -289,22 +331,37 @@ class _CustomStackedBarChartState extends State<CustomStackedBarChart>
             if (mounted) setState(() => _touchPosition = null);
           });
         },
-        child: AnimatedBuilder(
-          animation: _animation!,
-          builder: (context, child) => CustomPaint(
-            size: Size.infinite,
-            painter: StackedBarChartPainter(
-              labels: widget.labels,
-              fullLabels: widget.fullLabels,
-              seriesValues: widget.seriesValues,
-              seriesNames: widget.seriesNames,
-              colors: widget.colors,
-              textColor: Theme.of(context).colorScheme.onSurfaceVariant,
-              touchPosition: _touchPosition,
-              animationValue: _animation!.value,
-              hoveredSeriesIndex: widget.hoveredSeriesIndex,
-            ),
-          ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final minWidth = widget.labels.length * 50.0;
+            final isScrollable = constraints.maxWidth < minWidth;
+
+            Widget chart = AnimatedBuilder(
+              animation: _animation!,
+              builder: (context, child) => CustomPaint(
+                size: isScrollable ? Size(minWidth, constraints.maxHeight) : Size.infinite,
+                painter: StackedBarChartPainter(
+                  labels: widget.labels,
+                  fullLabels: widget.fullLabels,
+                  seriesValues: widget.seriesValues,
+                  seriesNames: widget.seriesNames,
+                  colors: widget.colors,
+                  textColor: Theme.of(context).colorScheme.onSurfaceVariant,
+                  touchPosition: _touchPosition,
+                  animationValue: _animation!.value,
+                  hoveredSeriesIndex: widget.hoveredSeriesIndex,
+                ),
+              ),
+            );
+
+            if (isScrollable) {
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: chart,
+              );
+            }
+            return chart;
+          },
         ),
       ),
     );

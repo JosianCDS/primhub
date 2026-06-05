@@ -20,6 +20,7 @@ class RequestFilterBar extends StatelessWidget {
   final VoidCallback onShowFilters;
   final int activeFilterCount;
   final bool isLoading;
+  final bool showCalendar; // Add showCalendar
 
   const RequestFilterBar({
     super.key,
@@ -38,6 +39,7 @@ class RequestFilterBar extends StatelessWidget {
     required this.activeFilterCount,
     required this.onShowCalendar,
     this.isLoading = false,
+    this.showCalendar = false, // Default to false
   });
 
   @override
@@ -47,15 +49,15 @@ class RequestFilterBar extends StatelessWidget {
       runSpacing: 8.0,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        if (AccessControl.canCreateRequests)
-          CustomButton(text: 'Crear Solicitud', onPressed: isLoading ? null : onAddRequest, icon: Icons.add),
         CustomButton(
-          text: 'Ver Calendario',
-          onPressed: isLoading ? null : onShowCalendar,
-          icon: Icons.calendar_month,
+          text: showCalendar ? 'Ver Lista' : 'Calendario/Gantt',
+          onPressed: onShowCalendar,
+          icon: showCalendar ? Icons.list_alt : Icons.calendar_month,
           backgroundColor: Theme.of(context).colorScheme.tertiary,
           textColor: Theme.of(context).colorScheme.onTertiary,
         ),
+        if (AccessControl.canCreateRequests)
+          CustomButton(text: 'Crear Solicitud', onPressed: isLoading ? null : onAddRequest, icon: Icons.add),
         CustomButton(
           text: showHistory ? 'Ver Activas' : 'Ver Bitácora',
           onPressed: onToggleHistory,

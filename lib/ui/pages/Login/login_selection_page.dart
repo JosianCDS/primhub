@@ -188,57 +188,59 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
           onPressed: () => context.pop(),
         ),
       ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [theme.colorScheme.surface, theme.colorScheme.surfaceContainerLow]),
-        ),
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 400),
-              padding: const EdgeInsets.all(29),
-              decoration: BoxDecoration(
-                color: theme.cardColor,
-                borderRadius: BorderRadius.circular(21),
-                boxShadow: [BoxShadow(color: theme.colorScheme.primary.withOpacity(0.2), blurRadius: 20, offset: const Offset(0, 10))],
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    '¿Como deseas ingresar?',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface),
-                  ),
-                  const SizedBox(height: 24),
-                  CustomDropdown<int>(
-                    value: _selectedClientId,
-                    label: 'Empresa',
-                    hintText: 'Seleccione Empresa',
-                    items: _clients.map((c) => DropdownMenuItem<int>(value: c['id'], child: Text(_getName(c)))).toList(),
-                    onChanged: _onClientChanged,
-                  ),
-                  const SizedBox(height: 16),
-                  CustomDropdown<int>(
-                    value: _selectedRoleId,
-                    label: 'Rol',
-                    hintText: 'Seleccione Rol',
-                    items: _roles.map((r) => DropdownMenuItem<int>(value: r['id'], child: Text(_getName(r)))).toList(),
-                    onChanged: _selectedClientId == null ? null : _onRoleChanged,
-                  ),
-                  const SizedBox(height: 16),
-                  CustomDropdown<int>(
-                    value: _selectedOrgId,
-                    label: 'Organización',
-                    hintText: 'Seleccione Organización',
-                    items: _orgs.map((o) => DropdownMenuItem<int>(value: o['id'], child: Text(_getName(o)))).toList(),
-                    onChanged: _selectedRoleId == null ? null : _onOrgChanged,
-                  ),
-                  const SizedBox(height: 24),
-                  CustomButton(text: 'Ingresar', onPressed: (_selectedClientId != null && _selectedRoleId != null && _selectedOrgId != null) ? _finalizeLogin : null, isLoading: _isLoading, width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 16), borderRadius: 12),
-                ],
+      body: SafeArea(
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [theme.colorScheme.surface, theme.colorScheme.surfaceContainerLow]),
+          ),
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24.0),
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 400),
+                padding: const EdgeInsets.all(29),
+                decoration: BoxDecoration(
+                  color: theme.cardColor,
+                  borderRadius: BorderRadius.circular(21),
+                  boxShadow: [BoxShadow(color: theme.colorScheme.primary.withOpacity(0.2), blurRadius: 20, offset: const Offset(0, 10))],
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      '¿Como deseas ingresar?',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface),
+                    ),
+                    const SizedBox(height: 24),
+                    CustomDropdown<int>(
+                      value: _selectedClientId,
+                      label: 'Empresa',
+                      hintText: 'Seleccione Empresa',
+                      items: _clients.map((c) => DropdownMenuItem<int>(value: c['id'], child: Text(_getName(c)))).toList(),
+                      onChanged: _onClientChanged,
+                    ),
+                    const SizedBox(height: 16),
+                    CustomDropdown<int>(
+                      value: _selectedRoleId,
+                      label: 'Rol',
+                      hintText: 'Seleccione Rol',
+                      items: _roles.map((r) => DropdownMenuItem<int>(value: r['id'], child: Text(_getName(r)))).toList(),
+                      onChanged: _selectedClientId == null ? null : _onRoleChanged,
+                    ),
+                    const SizedBox(height: 16),
+                    CustomDropdown<int>(
+                      value: _selectedOrgId,
+                      label: 'Organización',
+                      hintText: 'Seleccione Organización',
+                      items: _orgs.map((o) => DropdownMenuItem<int>(value: o['id'], child: Text(_getName(o)))).toList(),
+                      onChanged: _selectedRoleId == null ? null : _onOrgChanged,
+                    ),
+                    const SizedBox(height: 24),
+                    CustomButton(text: 'Ingresar', onPressed: (_selectedClientId != null && _selectedRoleId != null && _selectedOrgId != null) ? _finalizeLogin : null, isLoading: _isLoading, width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 16), borderRadius: 12),
+                  ],
+                ),
               ),
             ),
           ),

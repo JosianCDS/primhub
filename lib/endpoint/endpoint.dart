@@ -3,7 +3,7 @@ class Envirioment {
 }
 
 class Endpoint {
-  static String baseUrl = Envirioment.isProduction ? "https://erp.primware.net" : "https://primhub.primware.net";
+  static String baseUrl = Envirioment.isProduction ? "https://erp.primware.net" : "https://erp.primware.net";
   static String request = "$baseUrl/api/v1/models/R_Request";
   static String order = "$baseUrl/api/v1/models/C_Order";
   static String productChip = "$baseUrl/api/v1/models/C_BPartner_Product_Chip";

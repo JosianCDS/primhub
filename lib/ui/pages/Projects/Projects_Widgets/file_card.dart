@@ -57,7 +57,7 @@ class _FileCardState extends State<FileCard> {
         ? widget.details['Description'].toString()
         : widget.name;
     final bool isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].contains(widget.extension.toLowerCase());
-    final bool isCompact = widget.columns >= 8;
+    final bool isCompact = widget.columns >= 8 || MediaQuery.of(context).size.width < 500;
 
     // Colores basados en el tipo de archivo/carpeta
     final baseColor = widget.isFolder ? Colors.amber.shade700 : widget.color;

@@ -607,9 +607,13 @@ Future<Map<String, dynamic>> processRequests(List<dynamic> requests, Map<String,
     final salesRepId = req['SalesRep_ID'] is Map ? (req['SalesRep_ID']['id'] as num?)?.toInt() : (req['SalesRep_ID'] as num?)?.toInt();
 
     String bpName = req['C_BPartner_ID'] is Map ? (req['C_BPartner_ID']['identifier'] ?? req['C_BPartner_ID']['Name'] ?? '').toString().trim() : '';
-    if (bpName.isEmpty && bpId != null) {
+    String bpDescription = req['C_BPartner_ID'] is Map ? (req['C_BPartner_ID']['Description'] ?? req['C_BPartner_ID']['description'] ?? '').toString().trim() : '';
+    if (bpId != null) {
       final found = GlobalCache.allBPartners.firstWhere((bp) => (bp['id'] as num?)?.toInt() == bpId, orElse: () => {});
-      if (found.isNotEmpty) bpName = (found['Name'] ?? '').toString().trim();
+      if (found.isNotEmpty) {
+        if (bpName.isEmpty) bpName = (found['Name'] ?? '').toString().trim();
+        if (bpDescription.isEmpty) bpDescription = (found['Description'] ?? found['description'] ?? '').toString().trim();
+      }
     }
 
     String userName = req['AD_User_ID'] is Map ? (req['AD_User_ID']['identifier'] ?? req['AD_User_ID']['Name'] ?? '').toString().trim() : '';
@@ -662,19 +666,44 @@ Future<Map<String, dynamic>> processRequests(List<dynamic> requests, Map<String,
         level = 'N/A';
         baseColor = Colors.grey;
       } else {
-        // Validar si la prioridad de la solicitud coincide con la prioridad oficial de la categoría en el ERP
+        // Tomar la prioridad de la categoría (R_Category.Priority)
         if (catInCache.isNotEmpty) {
-          final String standardPriority = (catInCache['Priority'] is Map 
+          final rawPriorityVal = catInCache['Priority'] is Map 
               ? catInCache['Priority']['id'] 
-              : catInCache['Priority'])?.toString() ?? '';
+              : catInCache['Priority'];
           
-          final String currentPriority = (req['Priority'] is Map 
-              ? req['Priority']['id'] 
-              : req['Priority'])?.toString() ?? '';
-              
-          if (standardPriority.isNotEmpty && currentPriority != standardPriority) {
-            level = 'N/A';
-            baseColor = Colors.grey;
+          int? priorityInt;
+          if (rawPriorityVal != null) {
+            if (rawPriorityVal is num) {
+              priorityInt = rawPriorityVal.toInt();
+            } else {
+              final parsedNum = num.tryParse(rawPriorityVal.toString());
+              if (parsedNum != null) {
+                priorityInt = parsedNum.toInt();
+              }
+            }
+          }
+
+          if (priorityInt != null) {
+            if (priorityInt == 1) {
+              level = 'Urgente';
+              baseColor = Colors.purple;
+            } else if (priorityInt == 3) {
+              level = 'Alta';
+              baseColor = Colors.red;
+            } else if (priorityInt == 5) {
+              level = 'Media';
+              baseColor = Colors.amber.shade800;
+            } else if (priorityInt == 7) {
+              level = 'Baja';
+              baseColor = Colors.green;
+            } else if (priorityInt == 9) {
+              level = 'Muy baja';
+              baseColor = Colors.grey;
+            } else {
+              level = priorityInt.toString();
+              baseColor = Colors.green;
+            }
           }
         }
       }
@@ -702,6 +731,7 @@ Future<Map<String, dynamic>> processRequests(List<dynamic> requests, Map<String,
       'closeDate': req['CloseDate'],
       'userName': userName,
       'bpName': bpName,
+      'bpDescription': bpDescription,
       'result': req['Result'] ?? '',
       'type': getDropdownValue(req['R_RequestType_ID']),
       'category': categoryName,

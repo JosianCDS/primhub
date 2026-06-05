@@ -54,11 +54,17 @@ class BarChartPainter extends CustomPainter {
       paint.color = colors[i % colors.length];
       canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(x, y, barWidth, barHeight), const Radius.circular(4)), paint);
 
-      // Dibujar etiqueta en el Eje X debajo de la barra
-      if (animationValue == 1.0) {
+      // Eje X: Etiquetas
+      if (animationValue == 1.0 && spacing > 20) {
+        String labelText = labels[i];
+        int maxChars = (spacing / 5.5).floor();
+        if (maxChars < 3) maxChars = 3; // mínimo
+        if (labelText.length > maxChars) {
+          labelText = '${labelText.substring(0, maxChars - 2)}..';
+        }
         textPainter.text = TextSpan(
-          text: labels[i],
-          style: TextStyle(color: textColor, fontSize: 11),
+          text: labelText,
+          style: TextStyle(color: textColor, fontSize: 10),
         );
         textPainter.layout();
         textPainter.paint(canvas, Offset(x + (barWidth - textPainter.width) / 2, chartHeight + 8));
@@ -352,9 +358,15 @@ class StackedBarChartPainter extends CustomPainter {
       }
 
       if (animationValue == 1.0) {
+        String labelText = labels[i];
+        int maxChars = (spacing / 5.5).floor();
+        if (maxChars < 3) maxChars = 3;
+        if (labelText.length > maxChars) {
+          labelText = '${labelText.substring(0, maxChars - 2)}..';
+        }
         textPainter.text = TextSpan(
-          text: labels[i],
-          style: TextStyle(color: textColor, fontSize: 11),
+          text: labelText,
+          style: TextStyle(color: textColor, fontSize: 10),
         );
         textPainter.layout();
         textPainter.paint(canvas, Offset(x + (barWidth - textPainter.width) / 2, chartHeight + 8));

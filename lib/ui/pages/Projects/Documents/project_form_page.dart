@@ -310,33 +310,35 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
             ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Form(
-              key: _formKey,
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                children: [
-                  Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 900),
-                      child: Column(
-                        children: [
-                          _buildGeneralInfoSection(),
-                          const SizedBox(height: 24),
-                          _buildMastersSection(),
-                          const SizedBox(height: 24),
-                          _buildDatesAndCurrencySection(),
-                          const SizedBox(height: 24),
-                          _buildFinancialDetailsSection(),
-                          const SizedBox(height: 48),
-                        ],
+      body: SafeArea(
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : Form(
+                key: _formKey,
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                  children: [
+                    Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 900),
+                        child: Column(
+                          children: [
+                            _buildGeneralInfoSection(),
+                            const SizedBox(height: 24),
+                            _buildMastersSection(),
+                            const SizedBox(height: 24),
+                            _buildDatesAndCurrencySection(),
+                            const SizedBox(height: 24),
+                            _buildFinancialDetailsSection(),
+                            const SizedBox(height: 48),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
+      ),
     );
   }
 

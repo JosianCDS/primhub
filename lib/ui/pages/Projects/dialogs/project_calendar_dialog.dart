@@ -47,30 +47,40 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
   @override
   void initState() {
     super.initState();
-    
+
     // Sincronizar scrolls horizontales del Gantt
     _horizontalHeaderController.addListener(() {
-      if (!_horizontalHeaderController.hasClients || !_horizontalBodyController.hasClients) return;
-      if (_horizontalHeaderController.offset != _horizontalBodyController.offset) {
+      if (!_horizontalHeaderController.hasClients ||
+          !_horizontalBodyController.hasClients)
+        return;
+      if (_horizontalHeaderController.offset !=
+          _horizontalBodyController.offset) {
         _horizontalBodyController.jumpTo(_horizontalHeaderController.offset);
       }
     });
     _horizontalBodyController.addListener(() {
-      if (!_horizontalBodyController.hasClients || !_horizontalHeaderController.hasClients) return;
-      if (_horizontalBodyController.offset != _horizontalHeaderController.offset) {
+      if (!_horizontalBodyController.hasClients ||
+          !_horizontalHeaderController.hasClients)
+        return;
+      if (_horizontalBodyController.offset !=
+          _horizontalHeaderController.offset) {
         _horizontalHeaderController.jumpTo(_horizontalBodyController.offset);
       }
     });
 
     // Sincronizar scrolls verticales del Gantt
     _verticalTasksController.addListener(() {
-      if (!_verticalTasksController.hasClients || !_verticalBarsController.hasClients) return;
+      if (!_verticalTasksController.hasClients ||
+          !_verticalBarsController.hasClients)
+        return;
       if (_verticalTasksController.offset != _verticalBarsController.offset) {
         _verticalBarsController.jumpTo(_verticalTasksController.offset);
       }
     });
     _verticalBarsController.addListener(() {
-      if (!_verticalBarsController.hasClients || !_verticalTasksController.hasClients) return;
+      if (!_verticalBarsController.hasClients ||
+          !_verticalTasksController.hasClients)
+        return;
       if (_verticalBarsController.offset != _verticalTasksController.offset) {
         _verticalTasksController.jumpTo(_verticalBarsController.offset);
       }
@@ -100,7 +110,9 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
     List<Map<String, dynamic>> allReqs = [];
     try {
       // 1. Obtener solicitudes asignadas directamente al proyecto
-      final pReqs = await fetchRequest(filter: "C_Project_ID eq ${widget.project['id']}");
+      final pReqs = await fetchRequest(
+        filter: "C_Project_ID eq ${widget.project['id']}",
+      );
       allReqs.addAll(pReqs);
 
       // 2. Obtener UUIDs de las tareas anidadas para buscar sus solicitudes
@@ -112,12 +124,25 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
       List<dynamic> loadedTasks = List.from(directTasks);
       if (loadedPhases.isEmpty && loadedTasks.isEmpty) {
         try {
-          final url = '${Endpoint.project}/${widget.project['id']}?\$expand=C_ProjectPhase(\$expand=C_ProjectTask),C_ProjectTask';
-          var response = await http.get(Uri.parse(url), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+          final url =
+              '${Endpoint.project}/${widget.project['id']}?\$expand=C_ProjectPhase(\$expand=C_ProjectTask),C_ProjectTask';
+          var response = await http.get(
+            Uri.parse(url),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': Token.token,
+            },
+          );
           if (response.statusCode == 401) {
             final refreshed = await handleTokenRefresh();
             if (refreshed) {
-              response = await http.get(Uri.parse(url), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+              response = await http.get(
+                Uri.parse(url),
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': Token.token,
+                },
+              );
             }
           }
           if (response.statusCode == 200) {
@@ -132,15 +157,18 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
       for (var phase in loadedPhases) {
         final tasks = phase['C_ProjectTask'] as List? ?? [];
         for (var task in tasks) {
-          final uuid = task['Record_UU'] ?? task['UUID'] ?? task['uuid'] ?? task['uid'];
+          final uuid =
+              task['Record_UU'] ?? task['UUID'] ?? task['uuid'] ?? task['uid'];
           if (uuid != null && uuid.toString().isNotEmpty) {
             uuids.add(uuid.toString());
-            _uuidToTaskName[uuid.toString()] = task['Name'] ?? 'Tarea sin nombre';
+            _uuidToTaskName[uuid.toString()] =
+                task['Name'] ?? 'Tarea sin nombre';
           }
         }
       }
       for (var task in loadedTasks) {
-        final uuid = task['Record_UU'] ?? task['UUID'] ?? task['uuid'] ?? task['uid'];
+        final uuid =
+            task['Record_UU'] ?? task['UUID'] ?? task['uuid'] ?? task['uid'];
         if (uuid != null && uuid.toString().isNotEmpty) {
           uuids.add(uuid.toString());
           _uuidToTaskName[uuid.toString()] = task['Name'] ?? 'Tarea sin nombre';
@@ -150,8 +178,13 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
       // 3. Buscar las solicitudes conectadas a esas tareas
       if (uuids.isNotEmpty) {
         for (var i = 0; i < uuids.length; i += 10) {
-          final chunk = uuids.sublist(i, i + 10 > uuids.length ? uuids.length : i + 10);
-          final chunkFilter = chunk.map((u) => "Record_UU eq '$u'").join(' or ');
+          final chunk = uuids.sublist(
+            i,
+            i + 10 > uuids.length ? uuids.length : i + 10,
+          );
+          final chunkFilter = chunk
+              .map((u) => "Record_UU eq '$u'")
+              .join(' or ');
           final tReqs = await fetchRequest(filter: "($chunkFilter)");
           allReqs.addAll(tReqs);
         }
@@ -173,8 +206,10 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
       for (var rawReq in uniqueReqs) {
         final req = Map<String, dynamic>.from(rawReq);
 
-        if (req['DateCompletePlan'] != null && req['DateCompletePlan'].toString().isNotEmpty) {
-          if (req['DateStartPlan'] == null || req['DateStartPlan'].toString().isEmpty) {
+        if (req['DateCompletePlan'] != null &&
+            req['DateCompletePlan'].toString().isNotEmpty) {
+          if (req['DateStartPlan'] == null ||
+              req['DateStartPlan'].toString().isEmpty) {
             req['DateStartPlan'] = req['DateCompletePlan'];
           }
         }
@@ -187,10 +222,14 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
           DateTime? start = _parseDateSafely(startStr);
           if (start != null) {
             String? endStr = req['DateCompletePlan'];
-            DateTime end = (endStr != null && endStr.isNotEmpty) ? (_parseDateSafely(endStr) ?? start) : start;
+            DateTime end = (endStr != null && endStr.isNotEmpty)
+                ? (_parseDateSafely(endStr) ?? start)
+                : start;
             start = DateTime(start.year, start.month, start.day);
             end = DateTime(end.year, end.month, end.day);
-            if (end.isBefore(start)) end = start; // Previene errores humanos donde el fin es antes del inicio
+            if (end.isBefore(start))
+              end =
+                  start; // Previene errores humanos donde el fin es antes del inicio
             req['_parsedStart'] = start;
             req['_parsedEnd'] = end;
             validReqs.add(req);
@@ -206,11 +245,28 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
   }
 
   String _getMonthName(int month) {
-    const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const months = [
+      'Enero',
+      'Febrero',
+      'Marzo',
+      'Abril',
+      'Mayo',
+      'Junio',
+      'Julio',
+      'Agosto',
+      'Septiembre',
+      'Octubre',
+      'Noviembre',
+      'Diciembre',
+    ];
     return months[month - 1];
   }
 
-  void _showDayDetails(BuildContext context, DateTime date, List<Map<String, dynamic>> dayRequests) {
+  void _showDayDetails(
+    BuildContext context,
+    DateTime date,
+    List<Map<String, dynamic>> dayRequests,
+  ) {
     int currentIndex = 0;
     showDialog(
       context: context,
@@ -224,7 +280,8 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (dayRequests.isEmpty) const Text('No hay solicitudes programadas para este día.'),
+                  if (dayRequests.isEmpty)
+                    const Text('No hay solicitudes programadas para este día.'),
                   if (dayRequests.isNotEmpty) ...[
                     AnimatedSwitcher(
                       duration: const Duration(milliseconds: 300),
@@ -232,10 +289,19 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
                         key: ValueKey(currentIndex),
                         builder: (context) {
                           final req = dayRequests[currentIndex];
-                          final statusName = req['R_Status_Name'] ?? (req['R_Status_ID'] is Map ? req['R_Status_ID']['identifier'] : '');
-                          final priority = req['Priority'] is Map ? req['Priority']['identifier'] : (req['Priority'] ?? 'Media');
+                          final statusName =
+                              req['R_Status_Name'] ??
+                              (req['R_Status_ID'] is Map
+                                  ? req['R_Status_ID']['identifier']
+                                  : '');
+                          final priority = req['Priority'] is Map
+                              ? req['Priority']['identifier']
+                              : (req['Priority'] ?? 'Media');
                           final uuid = req['Record_UU'];
-                          final taskName = uuid != null ? (_uuidToTaskName[uuid.toString()] ?? 'Tarea Desconocida') : 'General del Proyecto';
+                          final taskName = uuid != null
+                              ? (_uuidToTaskName[uuid.toString()] ??
+                                    'Tarea Desconocida')
+                              : 'General del Proyecto';
                           return SizedBox(
                             height: 220,
                             child: Card(
@@ -243,24 +309,48 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
                               child: Center(
                                 child: SingleChildScrollView(
                                   child: ListTile(
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                    title: Text(req['Summary'] ?? 'Sin asunto', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                    title: Text(
+                                      req['Summary'] ?? 'Sin asunto',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
                                     subtitle: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         const SizedBox(height: 4),
                                         Text(
                                           'Tarea: $taskName',
-                                          style: const TextStyle(color: Colors.blueGrey, fontWeight: FontWeight.w600),
+                                          style: const TextStyle(
+                                            color: Colors.blueGrey,
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                         ),
-                                        Text('Ticket: ${req['DocumentNo'] ?? req['id']?.toString() ?? ''}'),
-                                        if (req['_parsedStart'] != null && req['_parsedEnd'] != null) Text('En Calendario: ${(req['_parsedStart'] as DateTime).day}/${(req['_parsedStart'] as DateTime).month}/${(req['_parsedStart'] as DateTime).year} al ${(req['_parsedEnd'] as DateTime).day}/${(req['_parsedEnd'] as DateTime).month}/${(req['_parsedEnd'] as DateTime).year}'),
-                                        Text('Estado: $statusName | Prioridad: $priority'),
+                                        Text(
+                                          'Ticket: ${req['DocumentNo'] ?? req['id']?.toString() ?? ''}',
+                                        ),
+                                        if (req['_parsedStart'] != null &&
+                                            req['_parsedEnd'] != null)
+                                          Text(
+                                            'En Calendario: ${(req['_parsedStart'] as DateTime).day}/${(req['_parsedStart'] as DateTime).month}/${(req['_parsedStart'] as DateTime).year} al ${(req['_parsedEnd'] as DateTime).day}/${(req['_parsedEnd'] as DateTime).month}/${(req['_parsedEnd'] as DateTime).year}',
+                                          ),
+                                        Text(
+                                          'Estado: $statusName | Prioridad: $priority',
+                                        ),
                                       ],
                                     ),
                                     leading: const CircleAvatar(
                                       backgroundColor: Color(0xFF4F47E5),
-                                      child: Icon(Icons.assignment, color: Colors.white, size: 20),
+                                      child: Icon(
+                                        Icons.assignment,
+                                        color: Colors.white,
+                                        size: 20,
+                                      ),
                                     ),
                                     isThreeLine: true,
                                   ),
@@ -277,16 +367,36 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            IconButton(icon: const Icon(Icons.chevron_left), onPressed: currentIndex > 0 ? () => setStateDialog(() => currentIndex--) : null),
-                            Text('Solicitud ${currentIndex + 1} de ${dayRequests.length}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                            IconButton(icon: const Icon(Icons.chevron_right), onPressed: currentIndex < dayRequests.length - 1 ? () => setStateDialog(() => currentIndex++) : null),
+                            IconButton(
+                              icon: const Icon(Icons.chevron_left),
+                              onPressed: currentIndex > 0
+                                  ? () => setStateDialog(() => currentIndex--)
+                                  : null,
+                            ),
+                            Text(
+                              'Solicitud ${currentIndex + 1} de ${dayRequests.length}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.chevron_right),
+                              onPressed: currentIndex < dayRequests.length - 1
+                                  ? () => setStateDialog(() => currentIndex++)
+                                  : null,
+                            ),
                           ],
                         ),
                       ),
                   ],
                 ],
               ),
-              actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cerrar'))],
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cerrar'),
+                ),
+              ],
             );
           },
         );
@@ -299,112 +409,175 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
     String ganttDateText = '';
     if (_projStart != null && _projEnd != null) {
-      ganttDateText = ' (${_projStart!.day}/${_projStart!.month} - ${_projEnd!.day}/${_projEnd!.month})';
+      ganttDateText =
+          ' (${_projStart!.day}/${_projStart!.month} - ${_projEnd!.day}/${_projEnd!.month})';
     }
 
-    return CustomModal(
-      title: 'Seguimiento de Proyecto',
-      width: 1100,
-      content: _isLoading
-          ? const SizedBox(height: 400, child: Center(child: CircularProgressIndicator()))
-          : Container(
-              height: MediaQuery.of(context).size.height * 0.75,
-              decoration: BoxDecoration(
-                color: colorScheme.surface,
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
+    Widget contentWidget = _isLoading
+        ? const SizedBox(
+            height: 400,
+            child: Center(child: CircularProgressIndicator()),
+          )
+        : Container(
+            height: isMobile ? null : MediaQuery.of(context).size.height * 0.75,
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              borderRadius: isMobile ? BorderRadius.zero : BorderRadius.circular(24),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
                   // HEADER PREMIUM
                   Padding(
                     padding: const EdgeInsets.all(16.0),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                widget.project['Name'] ?? 'Sin Nombre',
-                                style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.primary),
-                                overflow: TextOverflow.ellipsis,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final bool isMobile = constraints.maxWidth < 600;
+                        
+                        final titleWidget = Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.project['Name'] ?? 'Sin Nombre',
+                              style: theme.textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: colorScheme.primary,
                               ),
-                              if (!_isGanttView)
-                                Text(
-                                  '${_getMonthName(_focusedMonth.month)} ${_focusedMonth.year}',
-                                  style: theme.textTheme.titleMedium?.copyWith(color: colorScheme.outline),
-                                )
-                              else
-                                Text(
-                                  'Diagrama de Gantt$ganttDateText',
-                                  style: theme.textTheme.titleMedium?.copyWith(color: colorScheme.outline),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            if (!_isGanttView)
+                              Text(
+                                '${_getMonthName(_focusedMonth.month)} ${_focusedMonth.year}',
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  color: colorScheme.outline,
                                 ),
-                            ],
-                          ),
-                        ),
-                        if (!_isGanttView) ...[
-                          _HeaderNavButton(
-                            icon: Icons.chevron_left,
-                            onPressed: () => setState(() => _focusedMonth = DateTime(_focusedMonth.year, _focusedMonth.month - 1)),
-                          ),
-                          const SizedBox(width: 8),
-                          _HeaderNavButton(
-                            icon: Icons.today,
-                            onPressed: () => setState(() => _focusedMonth = DateTime.now()),
-                          ),
-                          const SizedBox(width: 8),
-                          _HeaderNavButton(
-                            icon: Icons.chevron_right,
-                            onPressed: () => setState(() => _focusedMonth = DateTime(_focusedMonth.year, _focusedMonth.month + 1)),
-                          ),
-                        ],
-                        const SizedBox(width: 16),
-                        Container(
+                              )
+                            else
+                              Text(
+                                'Diagrama de Gantt$ganttDateText',
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  color: colorScheme.outline,
+                                ),
+                              ),
+                          ],
+                        );
+
+                        final navButtons = !_isGanttView ? Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _HeaderNavButton(
+                              icon: Icons.chevron_left,
+                              onPressed: () => setState(
+                                () => _focusedMonth = DateTime(
+                                  _focusedMonth.year,
+                                  _focusedMonth.month - 1,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            _HeaderNavButton(
+                              icon: Icons.today,
+                              onPressed: () =>
+                                  setState(() => _focusedMonth = DateTime.now()),
+                            ),
+                            const SizedBox(width: 8),
+                            _HeaderNavButton(
+                              icon: Icons.chevron_right,
+                              onPressed: () => setState(
+                                () => _focusedMonth = DateTime(
+                                  _focusedMonth.year,
+                                  _focusedMonth.month + 1,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ) : const SizedBox.shrink();
+
+                        final toggleButtons = Container(
                           padding: const EdgeInsets.all(4),
                           decoration: BoxDecoration(
-                            color: colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                            color: colorScheme.surfaceContainerHighest
+                                .withOpacity(0.3),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
                               _ViewToggleButton(
                                 isSelected: !_isGanttView,
                                 icon: Icons.calendar_month,
-                                label: 'Calendario',
-                                onTap: () => setState(() => _isGanttView = false),
+                                label: isMobile ? '' : 'Calendario',
+                                onTap: () =>
+                                    setState(() => _isGanttView = false),
                               ),
                               _ViewToggleButton(
                                 isSelected: _isGanttView,
                                 icon: Icons.bar_chart_outlined,
-                                label: 'Gantt',
-                                onTap: () => setState(() => _isGanttView = true),
+                                label: isMobile ? '' : 'Gantt',
+                                onTap: () =>
+                                    setState(() => _isGanttView = true),
                               ),
                             ],
                           ),
-                        ),
-                      ],
+                        );
+
+                        if (isMobile) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              titleWidget,
+                              const SizedBox(height: 12),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  navButtons,
+                                  toggleButtons,
+                                ],
+                              ),
+                            ],
+                          );
+                        }
+
+                        return Row(
+                          children: [
+                            Expanded(child: titleWidget),
+                            navButtons,
+                            const SizedBox(width: 16),
+                            toggleButtons,
+                          ],
+                        );
+                      },
                     ),
                   ),
 
                   // CALENDAR HEADER DAYS
                   if (!_isGanttView) ...[
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                      padding: EdgeInsets.symmetric(horizontal: MediaQuery.of(context).size.width < 600 ? 8.0 : 24.0),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: ['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM']
-                            .map((day) => Expanded(
-                                  child: Center(
-                                    child: Text(
-                                      day,
-                                      style: TextStyle(color: colorScheme.outline, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1.1),
+                        children:
+                            ['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM']
+                                .map(
+                                  (day) => Expanded(
+                                    child: Center(
+                                      child: Text(
+                                        day,
+                                        style: TextStyle(
+                                          color: colorScheme.outline,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 11,
+                                          letterSpacing: 1.1,
+                                        ),
+                                      ),
                                     ),
                                   ),
-                                ))
-                            .toList(),
+                                )
+                                .toList(),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -417,14 +590,25 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
                       decoration: BoxDecoration(
                         color: colorScheme.surface,
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.5)),
+                        border: Border.all(
+                          color: colorScheme.outlineVariant.withOpacity(0.5),
+                        ),
                         boxShadow: [
-                          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4)),
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.03),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
                         ],
                       ),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(20),
-                        child: _isGanttView ? _buildGanttView() : SingleChildScrollView(controller: _verticalTasksController, child: _buildCalendarGrid()),
+                        child: _isGanttView
+                            ? _buildGanttView()
+                            : SingleChildScrollView(
+                                controller: _verticalTasksController,
+                                child: _buildCalendarGrid(),
+                              ),
                       ),
                     ),
                   ),
@@ -437,7 +621,11 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
                       runSpacing: 8,
                       alignment: WrapAlignment.center,
                       children: [
-                        _buildLegendItem(colorScheme.primary.withOpacity(0.2), 'Periodo Proyecto', isPill: true),
+                        _buildLegendItem(
+                          colorScheme.primary.withOpacity(0.2),
+                          'Periodo Proyecto',
+                          isPill: true,
+                        ),
                         _buildLegendItem(const Color(0xFF4F47E5), 'Urgente'),
                         _buildLegendItem(Colors.red.shade700, 'Alta'),
                         _buildLegendItem(Colors.orange.shade800, 'Media'),
@@ -448,7 +636,16 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
                   ),
                 ],
               ),
-            ),
+            );
+
+    if (isMobile) {
+      return contentWidget;
+    }
+
+    return CustomModal(
+      title: 'Seguimiento de Proyecto',
+      width: 1100,
+      content: contentWidget,
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
@@ -472,23 +669,37 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
           ),
         ),
         const SizedBox(width: 6),
-        Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+        ),
       ],
     );
   }
 
   List<Map<String, dynamic>> _getRequestsForDay(DateTime currentDayDate) {
     return _requests.where((req) {
-      if (req['_parsedStart'] == null || req['_parsedEnd'] == null) return false;
+      if (req['_parsedStart'] == null || req['_parsedEnd'] == null)
+        return false;
       DateTime start = req['_parsedStart'];
       DateTime end = req['_parsedEnd'];
-      return (currentDayDate.isAfter(start) || currentDayDate.isAtSameMomentAs(start)) && (currentDayDate.isBefore(end) || currentDayDate.isAtSameMomentAs(end));
+      return (currentDayDate.isAfter(start) ||
+              currentDayDate.isAtSameMomentAs(start)) &&
+          (currentDayDate.isBefore(end) ||
+              currentDayDate.isAtSameMomentAs(end));
     }).toList();
   }
 
   Widget _buildCalendarGrid() {
-    final daysInMonth = DateUtils.getDaysInMonth(_focusedMonth.year, _focusedMonth.month);
-    final firstDayOfMonth = DateTime(_focusedMonth.year, _focusedMonth.month, 1);
+    final daysInMonth = DateUtils.getDaysInMonth(
+      _focusedMonth.year,
+      _focusedMonth.month,
+    );
+    final firstDayOfMonth = DateTime(
+      _focusedMonth.year,
+      _focusedMonth.month,
+      1,
+    );
     final weekdayOffset = firstDayOfMonth.weekday - 1;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -500,12 +711,14 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 7,
-        childAspectRatio: isMobile ? 0.6 : 1.1,
+        childAspectRatio: isMobile ? 0.48 : 1.1,
       ),
       itemCount: 42,
       itemBuilder: (context, index) {
         if (index < weekdayOffset || index >= daysInMonth + weekdayOffset) {
-          return Container(color: colorScheme.surfaceContainerHighest.withOpacity(0.1));
+          return Container(
+            color: colorScheme.surfaceContainerHighest.withOpacity(0.1),
+          );
         }
 
         final day = index - weekdayOffset + 1;
@@ -515,9 +728,15 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
         // Dentro del proyecto
         bool isProjectDay = false;
         if (_projStart != null && _projEnd != null) {
-          final s = DateTime(_projStart!.year, _projStart!.month, _projStart!.day);
+          final s = DateTime(
+            _projStart!.year,
+            _projStart!.month,
+            _projStart!.day,
+          );
           final e = DateTime(_projEnd!.year, _projEnd!.month, _projEnd!.day);
-          isProjectDay = (date.isAfter(s) || DateUtils.isSameDay(date, s)) && (date.isBefore(e) || DateUtils.isSameDay(date, e));
+          isProjectDay =
+              (date.isAfter(s) || DateUtils.isSameDay(date, s)) &&
+              (date.isBefore(e) || DateUtils.isSameDay(date, e));
         }
 
         final dayRequests = _getRequestsForDay(date);
@@ -526,8 +745,15 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
           onTap: () => _showDayDetails(context, date, dayRequests),
           child: Container(
             decoration: BoxDecoration(
-              color: isToday ? colorScheme.primary.withOpacity(0.05) : (isProjectDay ? colorScheme.primary.withOpacity(0.02) : null),
-              border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.2), width: 0.5),
+              color: isToday
+                  ? colorScheme.primary.withOpacity(0.05)
+                  : (isProjectDay
+                        ? colorScheme.primary.withOpacity(0.02)
+                        : null),
+              border: Border.all(
+                color: colorScheme.outlineVariant.withOpacity(0.2),
+                width: 0.5,
+              ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -536,56 +762,136 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
                   padding: const EdgeInsets.all(6.0),
                   child: Container(
                     padding: const EdgeInsets.all(4),
-                    decoration: isToday ? BoxDecoration(color: colorScheme.primary, shape: BoxShape.circle) : null,
+                    decoration: isToday
+                        ? BoxDecoration(
+                            color: colorScheme.primary,
+                            shape: BoxShape.circle,
+                          )
+                        : null,
                     child: Text(
                       day.toString(),
                       style: TextStyle(
                         fontSize: 12,
-                        fontWeight: isToday || dayRequests.isNotEmpty ? FontWeight.bold : FontWeight.normal,
-                        color: isToday ? colorScheme.onPrimary : (dayRequests.isNotEmpty ? colorScheme.onSurface : colorScheme.outline),
+                        fontWeight: isToday || dayRequests.isNotEmpty
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                        color: isToday
+                            ? colorScheme.onPrimary
+                            : (dayRequests.isNotEmpty
+                                  ? colorScheme.onSurface
+                                  : colorScheme.outline),
                       ),
                       textAlign: TextAlign.center,
                     ),
                   ),
                 ),
-                const Spacer(),
-                if (dayRequests.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.all(4.0),
-                    child: Column(
-                      children: [
-                        ...dayRequests.take(2).map((req) {
-                          final priority = req['Priority'] is Map ? req['Priority']['identifier'] : (req['Priority'] ?? 'Media');
-                          final reqColor = _getPriorityColor(priority);
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 2),
-                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: reqColor.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(color: reqColor.withOpacity(0.3)),
-                            ),
-                            child: Row(
-                              children: [
-                                Container(width: 4, height: 4, decoration: BoxDecoration(color: reqColor, shape: BoxShape.circle)),
-                                const SizedBox(width: 4),
-                                Expanded(
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.bottomCenter,
+                    child: dayRequests.isNotEmpty
+                        ? SingleChildScrollView(
+                            physics: const NeverScrollableScrollPhysics(),
+                            child: Padding(
+                              padding: const EdgeInsets.all(4.0),
+                              child: isMobile
+                                  ? Column(
+                            children: [
+                              Wrap(
+                                alignment: WrapAlignment.center,
+                                spacing: 2,
+                                runSpacing: 2,
+                                children: dayRequests.take(4).map((req) {
+                                  final priority = req['Priority'] is Map
+                                      ? req['Priority']['identifier']
+                                      : (req['Priority'] ?? 'Media');
+                                  final reqColor = _getPriorityColor(priority);
+                                  return Container(
+                                    width: 6,
+                                    height: 6,
+                                    decoration: BoxDecoration(
+                                      color: reqColor,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                              if (dayRequests.length > 4)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 2.0),
                                   child: Text(
-                                    req['Summary'] ?? 'Solicitud',
-                                    style: TextStyle(fontSize: 8, color: reqColor, fontWeight: FontWeight.bold),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
+                                    '+${dayRequests.length - 4}',
+                                    style: TextStyle(
+                                      fontSize: 8,
+                                      fontWeight: FontWeight.bold,
+                                      color: colorScheme.primary,
+                                    ),
                                   ),
                                 ),
-                              ],
+                            ],
+                          )
+                        : Column(
+                            children: [
+                              ...dayRequests.take(2).map((req) {
+                                final priority = req['Priority'] is Map
+                                    ? req['Priority']['identifier']
+                                    : (req['Priority'] ?? 'Media');
+                                final reqColor = _getPriorityColor(priority);
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 2),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: reqColor.withOpacity(0.15),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(
+                                      color: reqColor.withOpacity(0.3),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 4,
+                                        height: 4,
+                                        decoration: BoxDecoration(
+                                          color: reqColor,
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Expanded(
+                                        child: Text(
+                                          req['Summary'] ?? 'Solicitud',
+                                          style: TextStyle(
+                                            fontSize: 8,
+                                            color: reqColor,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }),
+                              if (dayRequests.length > 2)
+                                Text(
+                                  '+${dayRequests.length - 2}',
+                                  style: TextStyle(
+                                    fontSize: 8,
+                                    fontWeight: FontWeight.bold,
+                                    color: colorScheme.primary,
+                                  ),
+                                ),
+                            ],
+                          ),
                             ),
-                          );
-                        }),
-                        if (dayRequests.length > 2)
-                          Text('+${dayRequests.length - 2}', style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: colorScheme.primary)),
-                      ],
-                    ),
+                          )
+                        : const SizedBox.shrink(),
                   ),
+                ),
               ],
             ),
           ),
@@ -596,12 +902,16 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
 
   Widget _buildGanttView() {
     if (_requests.isEmpty && _projStart == null) {
-      return const Center(child: Text('No hay datos programados para el diagrama.'));
+      return const Center(
+        child: Text('No hay datos programados para el diagrama.'),
+      );
     }
 
     final colorScheme = Theme.of(context).colorScheme;
-    List<Map<String, dynamic>> validReqs = _requests.where((r) => r['_parsedStart'] != null && r['_parsedEnd'] != null).toList();
-    
+    List<Map<String, dynamic>> validReqs = _requests
+        .where((r) => r['_parsedStart'] != null && r['_parsedEnd'] != null)
+        .toList();
+
     DateTime? minDate = _projStart;
     DateTime? maxDate = _projEnd;
 
@@ -612,8 +922,9 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
       if (maxDate == null || end.isAfter(maxDate)) maxDate = end;
     }
 
-    if (minDate == null || maxDate == null) return const Center(child: Text('Sin fechas válidas para el diagrama.'));
-    
+    if (minDate == null || maxDate == null)
+      return const Center(child: Text('Sin fechas válidas para el diagrama.'));
+
     minDate = minDate.subtract(const Duration(days: 2));
     maxDate = maxDate.add(const Duration(days: 5));
 
@@ -622,15 +933,25 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
     const double rowHeight = 45.0;
     double chartWidth = totalDays * dayWidth;
 
-    validReqs.sort((a, b) => (a['_parsedStart'] as DateTime).compareTo(b['_parsedStart'] as DateTime));
+    validReqs.sort(
+      (a, b) => (a['_parsedStart'] as DateTime).compareTo(
+        b['_parsedStart'] as DateTime,
+      ),
+    );
+
+    final double leftPanelWidth = MediaQuery.of(context).size.width < 600 ? 120.0 : 200.0;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // LEFT: TASK NAMES (Sticky horizontal, scrollable vertical)
         Container(
-          width: 250,
-          decoration: BoxDecoration(border: Border(right: BorderSide(color: colorScheme.outlineVariant))),
+              width: leftPanelWidth,
+          decoration: BoxDecoration(
+            border: Border(
+              right: BorderSide(color: colorScheme.outlineVariant),
+            ),
+          ),
           child: Column(
             children: [
               Container(
@@ -638,9 +959,14 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: colorScheme.surfaceContainerHighest.withOpacity(0.3),
-                  border: Border(bottom: BorderSide(color: colorScheme.outlineVariant)),
+                  border: Border(
+                    bottom: BorderSide(color: colorScheme.outlineVariant),
+                  ),
                 ),
-                child: const Text('Actividad / Tarea', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                child: const Text(
+                  'Actividad / Tarea',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                ),
               ),
               Expanded(
                 child: Scrollbar(
@@ -651,17 +977,30 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
                     child: Column(
                       children: validReqs.map((req) {
                         final uuid = req['Record_UU'];
-                        final taskName = uuid != null ? (_uuidToTaskName[uuid.toString()] ?? 'Tarea') : 'General';
+                        final taskName = uuid != null
+                            ? (_uuidToTaskName[uuid.toString()] ?? 'Tarea')
+                            : 'General';
                         return Container(
                           height: rowHeight,
                           padding: const EdgeInsets.symmetric(horizontal: 12),
                           alignment: Alignment.centerLeft,
-                          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: colorScheme.outlineVariant.withOpacity(0.3)))),
+                          decoration: BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(
+                                color: colorScheme.outlineVariant.withOpacity(
+                                  0.3,
+                                ),
+                              ),
+                            ),
+                          ),
                           child: Text(
                             '$taskName: ${req['Summary'] ?? ''}',
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         );
                       }).toList(),
@@ -686,7 +1025,9 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
                   children: [
                     // DATE HEADERS (Sticky vertical)
                     Container(
-                      color: colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                      color: colorScheme.surfaceContainerHighest.withOpacity(
+                        0.3,
+                      ),
                       height: 50,
                       child: Row(
                         children: List.generate(totalDays, (i) {
@@ -696,16 +1037,29 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
                             width: dayWidth,
                             alignment: Alignment.center,
                             decoration: BoxDecoration(
-                              color: isWeekend ? colorScheme.outlineVariant.withOpacity(0.1) : null,
+                              color: isWeekend
+                                  ? colorScheme.outlineVariant.withOpacity(0.1)
+                                  : null,
                               border: Border(
-                                right: BorderSide(color: colorScheme.outlineVariant.withOpacity(0.3)),
-                                bottom: BorderSide(color: colorScheme.outlineVariant),
+                                right: BorderSide(
+                                  color: colorScheme.outlineVariant.withOpacity(
+                                    0.3,
+                                  ),
+                                ),
+                                bottom: BorderSide(
+                                  color: colorScheme.outlineVariant,
+                                ),
                               ),
                             ),
                             child: Text(
                               '${d.day}\n${_getMonthName(d.month).substring(0, 3)}',
                               textAlign: TextAlign.center,
-                              style: TextStyle(fontSize: 9, fontWeight: isWeekend ? FontWeight.normal : FontWeight.bold),
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: isWeekend
+                                    ? FontWeight.normal
+                                    : FontWeight.bold,
+                              ),
                             ),
                           );
                         }),
@@ -728,8 +1082,16 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
                                     width: dayWidth,
                                     height: validReqs.length * rowHeight,
                                     decoration: BoxDecoration(
-                                      color: (d.weekday == 6 || d.weekday == 7) ? colorScheme.outlineVariant.withOpacity(0.05) : null,
-                                      border: Border(right: BorderSide(color: colorScheme.outlineVariant.withOpacity(0.1))),
+                                      color: (d.weekday == 6 || d.weekday == 7)
+                                          ? colorScheme.outlineVariant
+                                                .withOpacity(0.05)
+                                          : null,
+                                      border: Border(
+                                        right: BorderSide(
+                                          color: colorScheme.outlineVariant
+                                              .withOpacity(0.1),
+                                        ),
+                                      ),
                                     ),
                                   );
                                 }),
@@ -739,13 +1101,27 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
                                 children: validReqs.map((req) {
                                   DateTime start = req['_parsedStart'];
                                   DateTime end = req['_parsedEnd'];
-                                  int startOffset = start.difference(minDate!).inDays;
-                                  int duration = end.difference(start).inDays + 1;
-                                  final color = _getPriorityColor(req['Priority'] is Map ? req['Priority']['identifier'] : (req['Priority'] ?? 'Media'));
+                                  int startOffset = start
+                                      .difference(minDate!)
+                                      .inDays;
+                                  int duration =
+                                      end.difference(start).inDays + 1;
+                                  final color = _getPriorityColor(
+                                    req['Priority'] is Map
+                                        ? req['Priority']['identifier']
+                                        : (req['Priority'] ?? 'Media'),
+                                  );
 
                                   return Container(
                                     height: rowHeight,
-                                    decoration: BoxDecoration(border: Border(bottom: BorderSide(color: colorScheme.outlineVariant.withOpacity(0.3)))),
+                                    decoration: BoxDecoration(
+                                      border: Border(
+                                        bottom: BorderSide(
+                                          color: colorScheme.outlineVariant
+                                              .withOpacity(0.3),
+                                        ),
+                                      ),
+                                    ),
                                     child: Stack(
                                       children: [
                                         Positioned(
@@ -754,12 +1130,25 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
                                           top: 10,
                                           bottom: 10,
                                           child: InkWell(
-                                            onTap: () => _showDayDetails(context, start, _getRequestsForDay(start)),
+                                            onTap: () => _showDayDetails(
+                                              context,
+                                              start,
+                                              _getRequestsForDay(start),
+                                            ),
                                             child: Container(
                                               decoration: BoxDecoration(
                                                 color: color,
-                                                borderRadius: BorderRadius.circular(20),
-                                                boxShadow: [BoxShadow(color: color.withOpacity(0.3), blurRadius: 4, offset: const Offset(0, 2))],
+                                                borderRadius:
+                                                    BorderRadius.circular(20),
+                                                boxShadow: [
+                                                  BoxShadow(
+                                                    color: color.withOpacity(
+                                                      0.3,
+                                                    ),
+                                                    blurRadius: 4,
+                                                    offset: const Offset(0, 2),
+                                                  ),
+                                                ],
                                               ),
                                             ),
                                           ),
@@ -802,7 +1191,9 @@ class _HeaderNavButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+        color: Theme.of(
+          context,
+        ).colorScheme.surfaceContainerHighest.withOpacity(0.3),
         borderRadius: BorderRadius.circular(12),
       ),
       child: IconButton(
@@ -821,7 +1212,12 @@ class _ViewToggleButton extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
 
-  const _ViewToggleButton({required this.isSelected, required this.icon, required this.label, required this.onTap});
+  const _ViewToggleButton({
+    required this.isSelected,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -837,9 +1233,26 @@ class _ViewToggleButton extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(icon, size: 18, color: isSelected ? colorScheme.onPrimary : colorScheme.onSurfaceVariant),
-            const SizedBox(width: 8),
-            Text(label, style: TextStyle(color: isSelected ? colorScheme.onPrimary : colorScheme.onSurfaceVariant, fontWeight: FontWeight.bold, fontSize: 12)),
+            Icon(
+              icon,
+              size: 18,
+              color: isSelected
+                  ? colorScheme.onPrimary
+                  : colorScheme.onSurfaceVariant,
+            ),
+              if (label.isNotEmpty) ...[
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: isSelected
+                        ? colorScheme.onPrimary
+                        : colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+              ]
           ],
         ),
       ),

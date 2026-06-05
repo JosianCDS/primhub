@@ -14,18 +14,24 @@ class CustomModal extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
       elevation: 8,
+      insetAnimationDuration: Duration.zero, // Elimina la animación costosa de layout al abrir el teclado
       backgroundColor: Colors.transparent, // El fondo lo maneja el Container con decoración
       child: Container(
         width: width ?? 400,
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width - 32,
+        ),
         height: height,
         decoration: BoxDecoration(
           color: theme.dialogBackgroundColor,
           borderRadius: BorderRadius.circular(12.0),
         ),
-        clipBehavior: Clip.antiAlias,
+        clipBehavior: Clip.hardEdge, // hardEdge es mucho más eficiente que antiAlias durante redibujados
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -43,7 +49,23 @@ class CustomModal extends StatelessWidget {
                 child: scrollable
                     ? SingleChildScrollView(
                         padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: content!,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            content!,
+                            if (isMobile && actions != null && actions!.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 16.0, bottom: 24.0),
+                                child: Wrap(
+                                  alignment: WrapAlignment.end,
+                                  spacing: 10.0,
+                                  runSpacing: 10.0,
+                                  children: actions!,
+                                ),
+                              ),
+                          ],
+                        ),
                       )
                     : Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -51,8 +73,8 @@ class CustomModal extends StatelessWidget {
                       ),
               ),
 
-            // Acciones fijas abajo
-            if (actions != null && actions!.isNotEmpty)
+            // Acciones fijas abajo (en Escritorio o si no es scrollable)
+            if ((!isMobile || !scrollable) && actions != null && actions!.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.all(24.0),
                 child: Wrap(

@@ -386,7 +386,7 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
                   double availableWidth = MediaQuery.of(context).size.width;
                   if (availableWidth > 800) availableWidth -= 250; 
 
-                  int dynamicColumns = (availableWidth / 160).floor().clamp(3, 6);
+                  int dynamicColumns = (availableWidth / 160).floor().clamp(2, 6);
 
                   return SingleChildScrollView(
                     padding: const EdgeInsets.all(16.0),
@@ -535,7 +535,7 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
       );
 
     // Relación de aspecto dinámica ajustada para dar más altura a las tarjetas
-    double aspect = crossAxisCount >= 6 ? 0.8 : (crossAxisCount >= 4 ? 0.85 : 0.95);
+    double aspect = crossAxisCount >= 6 ? 0.8 : (crossAxisCount >= 4 ? 0.85 : 0.78);
     double spacing = crossAxisCount >= 6 ? 8.0 : 16.0;
 
     return GridView.builder(

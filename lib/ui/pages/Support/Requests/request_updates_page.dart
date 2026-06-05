@@ -181,49 +181,51 @@ class _RequestUpdatesPageState extends State<RequestUpdatesPage> {
               icon: Icon(Icons.reply, color: colorScheme.onPrimary),
             )
           : null,
-      body: Column(
-        children: [
-          // Cabecera Desplegable con el resumen de la solicitud
-          if (_requestDetails != null)
-            _RequestSummaryHeader(
-              details: _requestDetails!,
-              docNo: widget.docNo,
-              description: _memoizedDescription ?? 'Sin descripción.',
-            ),
-          Expanded(
-            child: FutureBuilder<List<Map<String, dynamic>>>(
-              future: _updatesFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                }
-                if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.chat_bubble_outline, size: 48, color: colorScheme.outline),
-                        const SizedBox(height: 16),
-                        Text('No hay respuestas aún', style: textTheme.bodyLarge?.copyWith(color: colorScheme.outline)),
-                      ],
-                    ),
-                  );
-                }
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Cabecera Desplegable con el resumen de la solicitud
+            if (_requestDetails != null)
+              _RequestSummaryHeader(
+                details: _requestDetails!,
+                docNo: widget.docNo,
+                description: _memoizedDescription ?? 'Sin descripción.',
+              ),
+            Expanded(
+              child: FutureBuilder<List<Map<String, dynamic>>>(
+                future: _updatesFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (snapshot.hasError) {
+                    return Center(child: Text('Error: ${snapshot.error}'));
+                  }
+                  if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.chat_bubble_outline, size: 48, color: colorScheme.outline),
+                          const SizedBox(height: 16),
+                          Text('No hay respuestas aún', style: textTheme.bodyLarge?.copyWith(color: colorScheme.outline)),
+                        ],
+                      ),
+                    );
+                  }
 
-                final updates = snapshot.data!;
-                return ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: updates.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 16),
-                  itemBuilder: (context, index) => _UpdateCard(update: updates[index]),
-                );
-              },
+                  final updates = snapshot.data!;
+                  return ListView.separated(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: updates.length,
+                    separatorBuilder: (context, index) => const SizedBox(height: 16),
+                    itemBuilder: (context, index) => _UpdateCard(update: updates[index]),
+                  );
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
