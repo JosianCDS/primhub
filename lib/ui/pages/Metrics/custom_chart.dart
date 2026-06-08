@@ -12,13 +12,24 @@ class CustomBarChart extends StatefulWidget {
   final String tooltipSuffix;
   final Function(String label)? onBarTapped;
 
-  const CustomBarChart({super.key, required this.labels, required this.values, required this.colors, this.maxWidth = 1000.0, this.fullLabels, this.leftAxisSuffix = '', this.tooltipSuffix = '', this.onBarTapped});
+  const CustomBarChart({
+    super.key,
+    required this.labels,
+    required this.values,
+    required this.colors,
+    this.maxWidth = 1000.0,
+    this.fullLabels,
+    this.leftAxisSuffix = '',
+    this.tooltipSuffix = '',
+    this.onBarTapped,
+  });
 
   @override
   State<CustomBarChart> createState() => _CustomBarChartState();
 }
 
-class _CustomBarChartState extends State<CustomBarChart> with SingleTickerProviderStateMixin {
+class _CustomBarChartState extends State<CustomBarChart>
+    with SingleTickerProviderStateMixin {
   Offset? _touchPosition;
   AnimationController? _controller;
   Animation<double>? _animation;
@@ -26,8 +37,14 @@ class _CustomBarChartState extends State<CustomBarChart> with SingleTickerProvid
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000));
-    _animation = CurvedAnimation(parent: _controller!, curve: Curves.easeOutQuart);
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    );
+    _animation = CurvedAnimation(
+      parent: _controller!,
+      curve: Curves.easeOutQuart,
+    );
     _controller!.forward();
   }
 
@@ -42,22 +59,76 @@ class _CustomBarChartState extends State<CustomBarChart> with SingleTickerProvid
     return GestureDetector(
       onTapUp: (details) {
         if (widget.onBarTapped != null) {
-          final painter = BarChartPainter(labels: widget.labels, fullLabels: widget.fullLabels, values: widget.values, colors: widget.colors, textColor: Theme.of(context).colorScheme.onSurfaceVariant, animationValue: 1.0, leftAxisSuffix: widget.leftAxisSuffix, tooltipSuffix: widget.tooltipSuffix);
-          final tappedLabel = painter.getLabelForTap(details.localPosition, context.size ?? Size.zero);
+          final painter = BarChartPainter(
+            labels: widget.labels,
+            fullLabels: widget.fullLabels,
+            values: widget.values,
+            colors: widget.colors,
+            textColor: Theme.of(context).colorScheme.onSurfaceVariant,
+            animationValue: 1.0,
+            leftAxisSuffix: widget.leftAxisSuffix,
+            tooltipSuffix: widget.tooltipSuffix,
+          );
+          final tappedLabel = painter.getLabelForTap(
+            details.localPosition,
+            context.size ?? Size.zero,
+          );
           if (tappedLabel != null) {
             widget.onBarTapped!(tappedLabel);
           }
         }
       },
+      onLongPressStart: (details) {
+        if (mounted) setState(() => _touchPosition = details.localPosition);
+      },
+      onLongPressMoveUpdate: (details) {
+        if (mounted) setState(() => _touchPosition = details.localPosition);
+      },
+      onLongPressEnd: (details) {
+        if (mounted) setState(() => _touchPosition = null);
+      },
       child: MouseRegion(
-        onHover: (e) => setState(() => _touchPosition = e.localPosition),
-        onExit: (e) => setState(() => _touchPosition = null),
-        child: AnimatedBuilder(
-          animation: _animation!,
-          builder: (context, child) => CustomPaint(
-            size: Size.infinite,
-            painter: BarChartPainter(labels: widget.labels, fullLabels: widget.fullLabels, values: widget.values, colors: widget.colors, textColor: Theme.of(context).colorScheme.onSurfaceVariant, touchPosition: _touchPosition, animationValue: _animation!.value, leftAxisSuffix: widget.leftAxisSuffix, tooltipSuffix: widget.tooltipSuffix),
-          ),
+        onHover: (e) {
+          Future.microtask(() {
+            if (mounted) setState(() => _touchPosition = e.localPosition);
+          });
+        },
+        onExit: (e) {
+          Future.microtask(() {
+            if (mounted) setState(() => _touchPosition = null);
+          });
+        },
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final minWidth = widget.labels.length * 50.0;
+            final isScrollable = constraints.maxWidth < minWidth;
+
+            Widget chart = AnimatedBuilder(
+              animation: _animation!,
+              builder: (context, child) => CustomPaint(
+                size: isScrollable ? Size(minWidth, constraints.maxHeight) : Size.infinite,
+                painter: BarChartPainter(
+                  labels: widget.labels,
+                  fullLabels: widget.fullLabels,
+                  values: widget.values,
+                  colors: widget.colors,
+                  textColor: Theme.of(context).colorScheme.onSurfaceVariant,
+                  touchPosition: _touchPosition,
+                  animationValue: _animation!.value,
+                  leftAxisSuffix: widget.leftAxisSuffix,
+                  tooltipSuffix: widget.tooltipSuffix,
+                ),
+              ),
+            );
+
+            if (isScrollable) {
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: chart,
+              );
+            }
+            return chart;
+          },
         ),
       ),
     );
@@ -70,21 +141,34 @@ class CustomDonutChart extends StatefulWidget {
   final List<Color> colors;
   final double maxWidth;
   final Function(String label)? onSliceTapped;
+  final int? hoveredIndex;
 
-  const CustomDonutChart({super.key, required this.values, required this.colors, this.maxWidth = 300.0, this.labels, this.onSliceTapped});
+  const CustomDonutChart({
+    super.key,
+    required this.values,
+    required this.colors,
+    this.maxWidth = 300.0,
+    this.labels,
+    this.onSliceTapped,
+    this.hoveredIndex,
+  });
 
   @override
   State<CustomDonutChart> createState() => _CustomDonutChartState();
 }
 
-class _CustomDonutChartState extends State<CustomDonutChart> with SingleTickerProviderStateMixin {
+class _CustomDonutChartState extends State<CustomDonutChart>
+    with SingleTickerProviderStateMixin {
   Offset? _touchPosition;
   AnimationController? _controller;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200))..forward();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..forward();
   }
 
   @override
@@ -98,21 +182,54 @@ class _CustomDonutChartState extends State<CustomDonutChart> with SingleTickerPr
     return GestureDetector(
       onTapUp: (details) {
         if (widget.onSliceTapped != null) {
-          final painter = DonutChartPainter(values: widget.values, labels: widget.labels, colors: widget.colors, animationValue: 1.0);
-          final tappedLabel = painter.getLabelForTap(details.localPosition, context.size ?? Size.zero);
+          final painter = DonutChartPainter(
+            values: widget.values,
+            labels: widget.labels,
+            colors: widget.colors,
+            animationValue: 1.0,
+            hoveredIndex: widget.hoveredIndex,
+          );
+          final tappedLabel = painter.getLabelForTap(
+            details.localPosition,
+            context.size ?? Size.zero,
+          );
           if (tappedLabel != null) {
             widget.onSliceTapped!(tappedLabel);
           }
         }
       },
+      onLongPressStart: (details) {
+        if (mounted) setState(() => _touchPosition = details.localPosition);
+      },
+      onLongPressMoveUpdate: (details) {
+        if (mounted) setState(() => _touchPosition = details.localPosition);
+      },
+      onLongPressEnd: (details) {
+        if (mounted) setState(() => _touchPosition = null);
+      },
       child: MouseRegion(
-        onHover: (e) => setState(() => _touchPosition = e.localPosition),
-        onExit: (e) => setState(() => _touchPosition = null),
+        onHover: (e) {
+          Future.microtask(() {
+            if (mounted) setState(() => _touchPosition = e.localPosition);
+          });
+        },
+        onExit: (e) {
+          Future.microtask(() {
+            if (mounted) setState(() => _touchPosition = null);
+          });
+        },
         child: AnimatedBuilder(
           animation: _controller!,
           builder: (context, child) => CustomPaint(
             size: Size.infinite,
-            painter: DonutChartPainter(values: widget.values, labels: widget.labels, colors: widget.colors, touchPosition: _touchPosition, animationValue: _controller!.value),
+            painter: DonutChartPainter(
+              values: widget.values,
+              labels: widget.labels,
+              colors: widget.colors,
+              touchPosition: _touchPosition,
+              animationValue: _controller!.value,
+              hoveredIndex: widget.hoveredIndex,
+            ),
           ),
         ),
       ),
@@ -127,14 +244,25 @@ class CustomStackedBarChart extends StatefulWidget {
   final List<String> seriesNames;
   final List<Color> colors;
   final Function(String category, String series)? onBarTapped;
+  final int? hoveredSeriesIndex;
 
-  const CustomStackedBarChart({super.key, required this.labels, this.fullLabels, required this.seriesValues, required this.seriesNames, required this.colors, this.onBarTapped});
+  const CustomStackedBarChart({
+    super.key,
+    required this.labels,
+    this.fullLabels,
+    required this.seriesValues,
+    required this.seriesNames,
+    required this.colors,
+    this.onBarTapped,
+    this.hoveredSeriesIndex,
+  });
 
   @override
   State<CustomStackedBarChart> createState() => _CustomStackedBarChartState();
 }
 
-class _CustomStackedBarChartState extends State<CustomStackedBarChart> with SingleTickerProviderStateMixin {
+class _CustomStackedBarChartState extends State<CustomStackedBarChart>
+    with SingleTickerProviderStateMixin {
   Offset? _touchPosition;
   AnimationController? _controller;
   Animation<double>? _animation;
@@ -142,8 +270,14 @@ class _CustomStackedBarChartState extends State<CustomStackedBarChart> with Sing
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000));
-    _animation = CurvedAnimation(parent: _controller!, curve: Curves.easeOutQuart);
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    );
+    _animation = CurvedAnimation(
+      parent: _controller!,
+      curve: Curves.easeOutQuart,
+    );
     _controller!.forward();
   }
 
@@ -158,22 +292,76 @@ class _CustomStackedBarChartState extends State<CustomStackedBarChart> with Sing
     return GestureDetector(
       onTapUp: (details) {
         if (widget.onBarTapped != null) {
-          final painter = StackedBarChartPainter(labels: widget.labels, fullLabels: widget.fullLabels, seriesValues: widget.seriesValues, seriesNames: widget.seriesNames, colors: widget.colors, textColor: Theme.of(context).colorScheme.onSurfaceVariant, animationValue: 1.0);
-          final tapDetails = painter.getTapDetails(details.localPosition, context.size ?? Size.zero);
+          final painter = StackedBarChartPainter(
+            labels: widget.labels,
+            fullLabels: widget.fullLabels,
+            seriesValues: widget.seriesValues,
+            seriesNames: widget.seriesNames,
+            colors: widget.colors,
+            textColor: Theme.of(context).colorScheme.onSurfaceVariant,
+            animationValue: 1.0,
+            hoveredSeriesIndex: widget.hoveredSeriesIndex,
+          );
+          final tapDetails = painter.getTapDetails(
+            details.localPosition,
+            context.size ?? Size.zero,
+          );
           if (tapDetails != null) {
             widget.onBarTapped!(tapDetails.category, tapDetails.series);
           }
         }
       },
+      onLongPressStart: (details) {
+        if (mounted) setState(() => _touchPosition = details.localPosition);
+      },
+      onLongPressMoveUpdate: (details) {
+        if (mounted) setState(() => _touchPosition = details.localPosition);
+      },
+      onLongPressEnd: (details) {
+        if (mounted) setState(() => _touchPosition = null);
+      },
       child: MouseRegion(
-        onHover: (e) => setState(() => _touchPosition = e.localPosition),
-        onExit: (e) => setState(() => _touchPosition = null),
-        child: AnimatedBuilder(
-          animation: _animation!,
-          builder: (context, child) => CustomPaint(
-            size: Size.infinite,
-            painter: StackedBarChartPainter(labels: widget.labels, fullLabels: widget.fullLabels, seriesValues: widget.seriesValues, seriesNames: widget.seriesNames, colors: widget.colors, textColor: Theme.of(context).colorScheme.onSurfaceVariant, touchPosition: _touchPosition, animationValue: _animation!.value),
-          ),
+        onHover: (e) {
+          Future.microtask(() {
+            if (mounted) setState(() => _touchPosition = e.localPosition);
+          });
+        },
+        onExit: (e) {
+          Future.microtask(() {
+            if (mounted) setState(() => _touchPosition = null);
+          });
+        },
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final minWidth = widget.labels.length * 50.0;
+            final isScrollable = constraints.maxWidth < minWidth;
+
+            Widget chart = AnimatedBuilder(
+              animation: _animation!,
+              builder: (context, child) => CustomPaint(
+                size: isScrollable ? Size(minWidth, constraints.maxHeight) : Size.infinite,
+                painter: StackedBarChartPainter(
+                  labels: widget.labels,
+                  fullLabels: widget.fullLabels,
+                  seriesValues: widget.seriesValues,
+                  seriesNames: widget.seriesNames,
+                  colors: widget.colors,
+                  textColor: Theme.of(context).colorScheme.onSurfaceVariant,
+                  touchPosition: _touchPosition,
+                  animationValue: _animation!.value,
+                  hoveredSeriesIndex: widget.hoveredSeriesIndex,
+                ),
+              ),
+            );
+
+            if (isScrollable) {
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: chart,
+              );
+            }
+            return chart;
+          },
         ),
       ),
     );

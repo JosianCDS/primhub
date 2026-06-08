@@ -1,15 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/access_control.dart';
-import 'package:primhub/api/admin_view_mode.dart';
-import 'package:primhub/api/token.dart';
 import 'package:primhub/ui/pages/Projects/Documents/project_file_manager.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
+import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 import 'package:primhub/ui/pages/Projects/Projects_Widgets/project_item.dart';
 import 'package:primhub/ui/pages/Projects/Documents/project_form_page.dart';
+import 'package:primhub/ui/widgets/project_sidebar.dart';
 import '../../../widgets/custom_drawer.dart';
+import 'package:primhub/api/admin_view_mode.dart';
+import 'package:primhub/api/token.dart';
 import 'package:primhub/api/global_cache.dart';
+import 'package:primhub/ui/widgets/project_bottom_nav.dart';
+import 'package:primhub/api/api_utils.dart';
+import 'package:primhub/ui/Shared_Custom/custom_skeleton.dart';
+import 'package:primhub/ui/Shared_Custom/user_info_leading.dart';
+import 'package:primhub/ui/Shared_Custom/help_icon.dart';
 
 class DeliverablesPage extends StatefulWidget {
   const DeliverablesPage({super.key});
@@ -34,14 +41,20 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
   bool _showInactive = false;
   bool _viewingInactive = false;
 
-  bool _expandAll = false;
+  final Set<int> _expandedProjectIds = {};
   int? _targetExpandedProjectId;
   bool _isInit = true;
   String _currentViewType = '';
   final ProjectsLogic _logic = ProjectsLogic();
 
   Map<String, int> _statusIdMap = {};
-  final Map<String, String> _priorityMap = {'Urgente': '1', 'Alta': '3', 'Media': '5', 'Baja': '7', 'Menor': '9'};
+  final Map<String, String> _priorityMap = {
+    'Urgente': '1',
+    'Alta': '3',
+    'Media': '5',
+    'Baja': '7',
+    'Menor': '9',
+  };
   Map<int, Map<String, dynamic>> _projectStats = {}; // Almacenar stats
 
   @override
@@ -51,12 +64,18 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
     _fetchStatuses();
     _searchController.addListener(() => setState(() {}));
     _adminViewModeManager.addListener(_onViewModeChanged);
+    GlobalCache.backgroundSyncNotifier.addListener(_onBackgroundSyncChanged);
+  }
+
+  void _onBackgroundSyncChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
     _searchController.dispose();
     _adminViewModeManager.removeListener(_onViewModeChanged);
+    GlobalCache.backgroundSyncNotifier.removeListener(_onBackgroundSyncChanged);
     super.dispose();
   }
 
@@ -76,16 +95,26 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
 
       List<dynamic> projects = [];
       if (_showInactive || _viewingInactive) {
-        projects = await _logic.fetchProjects(showInactive: _showInactive, onlyInactive: _viewingInactive, isViewingMine: _adminViewModeManager.isViewingMine);
+        projects = await _logic.fetchProjects(
+          showInactive: _showInactive,
+          onlyInactive: _viewingInactive,
+          isViewingMine: _adminViewModeManager.isViewingMine,
+        );
       } else {
         projects = GlobalCache.projects;
+        
         if (_adminViewModeManager.isViewingMine && AccessControl.isAdmin) {
           int? partnerID = User.cBPartnerID;
           int? userID = User.userID;
           projects = projects.where((p) {
-            final bpId = p['C_BPartner_ID'] is Map ? p['C_BPartner_ID']['id'] : p['C_BPartner_ID'];
-            final repId = p['SalesRep_ID'] is Map ? p['SalesRep_ID']['id'] : p['SalesRep_ID'];
-            return (partnerID != null && bpId == partnerID) || (userID != null && repId == userID);
+            final bpId = p['C_BPartner_ID'] is Map
+                ? p['C_BPartner_ID']['id']
+                : p['C_BPartner_ID'];
+            final repId = p['SalesRep_ID'] is Map
+                ? p['SalesRep_ID']['id']
+                : p['SalesRep_ID'];
+            return (partnerID != null && bpId == partnerID) ||
+                (userID != null && repId == userID);
           }).toList();
         }
       }
@@ -103,7 +132,9 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
             extra = GoRouterState.of(context).extra;
           } catch (_) {}
 
-          final args = (extra ?? ModalRoute.of(context)?.settings.arguments) as Map<String, dynamic>?;
+          final args =
+              (extra ?? ModalRoute.of(context)?.settings.arguments)
+                  as Map<String, dynamic>?;
           if (args != null && _isInit) {
             _applyPendingArgs(args);
             _isInit = false;
@@ -122,41 +153,49 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
 
   Future<void> _loadProjectStats() async {
     // Implementación simplificada o llamada a lógica compartida
-    // Por ahora, para no duplicar código complejo de HomeController aquí,
-    // podrías mover la lógica de 'loadDocumentStats' a DocumentsLogic.
-    // Asumiremos que DocumentsLogic tiene un método para esto o lo añadimos.
-    // Ver paso 7.
   }
 
   Future<void> _fetchStatuses() async {
     final statuses = await DocumentsLogic.fetchStatuses();
     if (mounted) {
       setState(() {
-        _statusIdMap = {for (var s in statuses) s['name'].toString(): int.tryParse(s['id'].toString()) ?? 0};
+        _statusIdMap = {
+          for (var s in statuses)
+            s['name'].toString(): int.tryParse(s['id'].toString()) ?? 0,
+        };
       });
     }
   }
 
   // Navegación al formulario (Crear/Editar)
   Future<void> _navigateToForm({Map<String, dynamic>? project}) async {
-    final result = await Navigator.push(context, MaterialPageRoute(builder: (context) => ProjectFormPage(project: project)));
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ProjectFormPage(project: project),
+      ),
+    );
 
     if (result == true) {
-      _loadProjects();
+      _loadProjects(forceRefresh: true);
     }
   }
 
   void _applyPendingArgs(Map<String, dynamic> args) {
     final projectId = args['projectId'];
     final view = args['view'];
-    final project = _projects.firstWhere((p) => p['id'].toString() == projectId.toString(), orElse: () => null);
+    final project = _projects.firstWhere(
+      (p) => p['id'].toString() == projectId.toString(),
+      orElse: () => null,
+    );
     if (project == null) return;
 
     if (view == 'projects') {
       setState(() {
         final rawId = project['id'];
-        _targetExpandedProjectId = rawId is int ? rawId : int.tryParse(rawId.toString());
-        _expandAll = false;
+        final id = rawId is int ? rawId : int.tryParse(rawId.toString()) ?? 0;
+        _expandedProjectIds.add(id);
+        _targetExpandedProjectId = id;
         _exitFileManager();
       });
     } else {
@@ -182,187 +221,443 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
   }
 
   // Métodos de fases y tareas
-  Future<void> _createPhase(int projectId, String name, String description) async {
+  Future<void> _createPhase(
+    int projectId,
+    String name,
+    String description,
+  ) async {
     setState(() {
       _isLoadingProjects = true;
-      _targetExpandedProjectId = projectId; // Asegurar que este proyecto se expanda
+      _expandedProjectIds.add(projectId);
+      _targetExpandedProjectId = projectId;
     });
     final result = await _logic.createPhase(projectId, name, description);
     if (result['success'] == true) {
-      _loadProjects();
+      _loadProjects(forceRefresh: true);
     } else {
       if (mounted) {
         setState(() => _isLoadingProjects = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al crear fase: ${result['error']}'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al crear fase: ${result['error']}'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
 
   Future<void> _createTask(int phaseId, String name, String description) async {
-    // Necesitamos el ID del proyecto para mantenerlo expandido.
-    // Buscamos el proyecto que contiene esta fase.
-    final project = _projects.firstWhere((p) => (p['C_ProjectPhase'] as List? ?? []).any((ph) => ph['id'] == phaseId), orElse: () => null);
+    final project = _projects.firstWhere(
+      (p) =>
+          (p['C_ProjectPhase'] as List? ?? []).any((ph) => ph['id'] == phaseId),
+      orElse: () => null,
+    );
     setState(() {
       _isLoadingProjects = true;
       if (project != null) {
         final rawId = project['id'];
-        _targetExpandedProjectId = rawId is int ? rawId : int.tryParse(rawId.toString());
+        final id = rawId is int ? rawId : int.tryParse(rawId.toString()) ?? 0;
+        _expandedProjectIds.add(id);
+        _targetExpandedProjectId = id;
       }
     });
     final result = await _logic.createTask(phaseId, name, description);
     if (result['success'] == true) {
-      _loadProjects();
+      _loadProjects(forceRefresh: true);
     } else {
       if (mounted) {
         setState(() => _isLoadingProjects = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al crear tarea: ${result['error']}'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al crear tarea: ${result['error']}'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
+  }
+
+  Widget _buildAdminModePopupMenu() {
+    return PopupMenuButton<AdminViewMode>(
+      tooltip: 'Cambiar modo de vista',
+      onSelected: (AdminViewMode mode) {
+        _adminViewModeManager.saveMode(mode);
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.admin_panel_settings),
+            const SizedBox(width: 8),
+            Text(
+              _adminViewModeManager.currentMode == AdminViewMode.support
+                  ? 'Modo Soporte'
+                  : (_adminViewModeManager.currentMode == AdminViewMode.project
+                        ? 'Modo Proyecto'
+                        : 'Modo Mixto'),
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const Icon(Icons.arrow_drop_down),
+          ],
+        ),
+      ),
+      itemBuilder: (BuildContext context) {
+        final current = _adminViewModeManager.currentMode;
+        final colorScheme = Theme.of(context).colorScheme;
+        PopupMenuItem<AdminViewMode> buildItem(
+          AdminViewMode mode,
+          String text,
+        ) {
+          final isSelected = current == mode;
+          return PopupMenuItem<AdminViewMode>(
+            value: mode,
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? colorScheme.primary.withOpacity(0.1)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                children: [
+                  Text(
+                    text,
+                    style: TextStyle(
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                      color: isSelected
+                          ? colorScheme.primary
+                          : colorScheme.onSurface,
+                    ),
+                  ),
+                  if (isSelected) const Spacer(),
+                  if (isSelected)
+                    Icon(Icons.check, size: 18, color: colorScheme.primary),
+                ],
+              ),
+            ),
+          );
+        }
+
+        return [
+          buildItem(AdminViewMode.mixed, 'Modo Mixto'),
+          buildItem(AdminViewMode.support, 'Modo Soporte'),
+          buildItem(AdminViewMode.project, 'Modo Proyecto'),
+        ];
+      },
+    );
+  }
+
+  Widget _buildProjectFilterPopupMenu() {
+    return PopupMenuButton<bool>(
+      tooltip: 'Filtrar proyectos',
+      onSelected: (bool viewingMine) =>
+          _adminViewModeManager.setViewingMine(viewingMine),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              _adminViewModeManager.isViewingMine ? Icons.person : Icons.group,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              _adminViewModeManager.isViewingMine
+                  ? 'Mis Proyectos'
+                  : 'Todos los Proyectos',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const Icon(Icons.arrow_drop_down),
+          ],
+        ),
+      ),
+      itemBuilder: (BuildContext context) {
+        final colorScheme = Theme.of(context).colorScheme;
+        final isViewingMine = _adminViewModeManager.isViewingMine;
+        PopupMenuItem<bool> buildItem(
+          bool isMineOption,
+          String text,
+          IconData icon,
+        ) {
+          final isSelected = isViewingMine == isMineOption;
+          return PopupMenuItem<bool>(
+            value: isMineOption,
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? colorScheme.primary.withOpacity(0.1)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                children: [
+                  Icon(
+                    icon,
+                    size: 20,
+                    color: isSelected
+                        ? colorScheme.primary
+                        : colorScheme.onSurface,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    text,
+                    style: TextStyle(
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                      color: isSelected
+                          ? colorScheme.primary
+                          : colorScheme.onSurface,
+                    ),
+                  ),
+                  if (isSelected) const Spacer(),
+                  if (isSelected)
+                    Icon(Icons.check, size: 18, color: colorScheme.primary),
+                ],
+              ),
+            ),
+          );
+        }
+
+        return [
+          buildItem(true, 'Mis Proyectos', Icons.person),
+          buildItem(false, 'Todos los Proyectos', Icons.group),
+        ];
+      },
+    );
+  }
+
+  List<Widget> _buildAppBarActions(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 800;
+
+    final List<Widget> commonActions = [
+      if (GlobalCache.backgroundSyncNotifier.value)
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16.0),
+          child: Center(
+            child: SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+        ),
+      const HelpIcon(),
+      IconButton(
+        icon: const Icon(Icons.refresh),
+        tooltip: 'Refrescar',
+        onPressed: () => _showingFiles
+            ? _fileManagerKey.currentState?.refresh()
+            : GlobalCache.performSmartSync(
+                context,
+                () async => await _loadProjects(forceRefresh: true),
+              ),
+      ),
+      if (!AccessControl.isAdmin)
+        IconButton(
+          icon: const Icon(Icons.logout_rounded, color: Colors.red),
+          tooltip: 'Cerrar Sesión',
+          onPressed: () => showLogoutConfirmation(context),
+        ),
+    ];
+
+    if (_showingFiles) {
+      final List<Widget> fileManagerActions = [];
+      if (AccessControl.canManageFiles) {
+        if (_isFileManagerRoot) {
+          fileManagerActions.add(
+            IconButton(
+              icon: const Icon(Icons.create_new_folder_outlined),
+              tooltip: 'Nueva Carpeta',
+              onPressed: () => _fileManagerKey.currentState?.createFolderDialog(),
+            ),
+          );
+        }
+        fileManagerActions.add(
+          IconButton(
+            icon: const Icon(Icons.upload_file),
+            tooltip: 'Subir Archivo',
+            onPressed: () => _fileManagerKey.currentState?.pickAndUploadFile(),
+          ),
+        );
+      }
+      return [...fileManagerActions, ...commonActions];
+    }
+
+    if (isMobile) {
+      List<PopupMenuItem<String>> mobileMenuItems = [];
+      if (AccessControl.isAdmin) {
+        mobileMenuItems.add(
+          PopupMenuItem<String>(
+            value: 'admin_mode',
+            child: ListTile(
+              leading: const Icon(Icons.admin_panel_settings),
+              title: Text(
+                'Modo: ${_adminViewModeManager.currentMode == AdminViewMode.support ? 'Soporte' : (_adminViewModeManager.currentMode == AdminViewMode.project ? 'Proyecto' : 'Mixto')}',
+              ),
+            ),
+          ),
+        );
+        mobileMenuItems.add(
+          PopupMenuItem<String>(
+            value: 'project_filter',
+            child: ListTile(
+              leading: Icon(
+                _adminViewModeManager.isViewingMine
+                    ? Icons.person
+                    : Icons.group,
+              ),
+              title: Text(
+                _adminViewModeManager.isViewingMine ? 'Mis Proyectos' : 'Todos',
+              ),
+            ),
+          ),
+        );
+      }
+      if (!AccessControl.isProject) {
+        mobileMenuItems.add(
+          PopupMenuItem<String>(
+            value: 'toggle_inactive',
+            child: ListTile(
+              leading: Icon(
+                _viewingInactive ? Icons.visibility : Icons.visibility_off,
+              ),
+              title: Text(_viewingInactive ? 'Ver Activos' : 'Ver Inactivos'),
+            ),
+          ),
+        );
+      }
+
+      return [
+        if (mobileMenuItems.isNotEmpty)
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) {
+              if (value == 'toggle_inactive') {
+                setState(() {
+                  _viewingInactive = !_viewingInactive;
+                  _targetExpandedProjectId = null;
+                  _expandedProjectIds.clear();
+                });
+                _loadProjects();
+              }
+            },
+            itemBuilder: (context) => mobileMenuItems,
+          ),
+        ...commonActions,
+      ];
+    }
+
+    // Desktop view
+    List<Widget> desktopActions = [];
+    if (!_showingFiles) {
+      if (AccessControl.isAdmin) {
+        desktopActions.add(_buildAdminModePopupMenu());
+        desktopActions.add(_buildProjectFilterPopupMenu());
+      }
+      if (!AccessControl.isProject) {
+        desktopActions.add(
+          IconButton(
+            icon: Icon(
+              _viewingInactive ? Icons.archive : Icons.archive_outlined,
+            ),
+            tooltip: _viewingInactive
+                ? 'Ver Proyectos Activos'
+                : 'Ver Proyectos Desactivados',
+            onPressed: () =>
+                setState(() => _viewingInactive = !_viewingInactive),
+          ),
+        );
+      }
+    }
+
+    return [...desktopActions, ...commonActions];
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_viewingInactive ? 'Bitácora de Proyectos' : 'Mis Proyectos', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+        title: Text(
+          _viewingInactive ? 'Bitácora de Proyectos' : 'Mis Proyectos',
+          style: const TextStyle(fontSize: 22),
+        ),
+        leadingWidth: _showingFiles
+            ? null
+            : (!AccessControl.isAdmin ? 180 : null),
         leading: _showingFiles
             ? IconButton(
                 icon: const Icon(Icons.arrow_back),
                 onPressed: () {
-                  if (!(_fileManagerKey.currentState?.navigateBack() ?? false)) _exitFileManager();
+                  if (!(_fileManagerKey.currentState?.navigateBack() ?? false))
+                    _exitFileManager();
                 },
               )
-            : null,
-        actions: [
-          if (AccessControl.isAdmin)
-            PopupMenuButton<AdminViewMode>(
-              tooltip: 'Cambiar modo de vista',
-              onSelected: (AdminViewMode mode) {
-                _adminViewModeManager.saveMode(mode);
-              },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.admin_panel_settings),
-                    const SizedBox(width: 8),
-                    Text(_adminViewModeManager.currentMode == AdminViewMode.support ? 'Modo Soporte' : (_adminViewModeManager.currentMode == AdminViewMode.project ? 'Modo Proyecto' : 'Modo Mixto'), style: const TextStyle(fontWeight: FontWeight.bold)),
-                    const Icon(Icons.arrow_drop_down),
-                  ],
-                ),
-              ),
-              itemBuilder: (BuildContext context) {
-                final current = _adminViewModeManager.currentMode;
-                final colorScheme = Theme.of(context).colorScheme;
-                PopupMenuItem<AdminViewMode> buildItem(AdminViewMode mode, String text) {
-                  final isSelected = current == mode;
-                  return PopupMenuItem<AdminViewMode>(
-                    value: mode,
-                    child: Container(
-                      width: double.infinity,
-                      decoration: BoxDecoration(color: isSelected ? colorScheme.primary.withOpacity(0.1) : Colors.transparent, borderRadius: BorderRadius.circular(8)),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      child: Row(
-                        children: [
-                          Text(
-                            text,
-                            style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? colorScheme.primary : colorScheme.onSurface),
-                          ),
-                          if (isSelected) const Spacer(),
-                          if (isSelected) Icon(Icons.check, size: 18, color: colorScheme.primary),
-                        ],
+            : (!AccessControl.isAdmin
+                  ? const UserInfoLeading()
+                  : Builder(
+                      builder: (ctx) => IconButton(
+                        icon: const Icon(Icons.menu_rounded),
+                        tooltip: 'Menú Principal',
+                        onPressed: () => Scaffold.of(ctx).openDrawer(),
                       ),
-                    ),
-                  );
-                }
-
-                return [buildItem(AdminViewMode.mixed, 'Modo Mixto'), buildItem(AdminViewMode.support, 'Modo Soporte'), buildItem(AdminViewMode.project, 'Modo Proyecto')];
-              },
-            ),
-          if (!_showingFiles) ...[
-            if (AccessControl.isAdmin)
-              PopupMenuButton<bool>(
-                tooltip: 'Filtrar proyectos',
-                onSelected: (bool viewingMine) => _adminViewModeManager.setViewingMine(viewingMine),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(_adminViewModeManager.isViewingMine ? Icons.person : Icons.group),
-                      const SizedBox(width: 8),
-                      Text(_adminViewModeManager.isViewingMine ? 'Mis Proyectos' : 'Todos los Proyectos', style: const TextStyle(fontWeight: FontWeight.bold)),
-                      const Icon(Icons.arrow_drop_down),
-                    ],
-                  ),
-                ),
-                itemBuilder: (BuildContext context) {
-                  final colorScheme = Theme.of(context).colorScheme;
-                  final isViewingMine = _adminViewModeManager.isViewingMine;
-                  PopupMenuItem<bool> buildItem(bool isMineOption, String text, IconData icon) {
-                    final isSelected = isViewingMine == isMineOption;
-                    return PopupMenuItem<bool>(
-                      value: isMineOption,
-                      child: Container(
-                        width: double.infinity,
-                        decoration: BoxDecoration(color: isSelected ? colorScheme.primary.withOpacity(0.1) : Colors.transparent, borderRadius: BorderRadius.circular(8)),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        child: Row(
-                          children: [
-                            Icon(icon, size: 20, color: isSelected ? colorScheme.primary : colorScheme.onSurface),
-                            const SizedBox(width: 8),
-                            Text(
-                              text,
-                              style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? colorScheme.primary : colorScheme.onSurface),
-                            ),
-                            if (isSelected) const Spacer(),
-                            if (isSelected) Icon(Icons.check, size: 18, color: colorScheme.primary),
-                          ],
-                        ),
-                      ),
-                    );
-                  }
-
-                  return [buildItem(true, 'Mis Proyectos', Icons.person), buildItem(false, 'Todos los Proyectos', Icons.group)];
-                },
-              ),
-            if (!AccessControl.isProject)
-              IconButton(
-                icon: Icon(_viewingInactive ? Icons.archive : Icons.archive_outlined),
-                tooltip: _viewingInactive ? 'Ver Proyectos Activos' : 'Ver Proyectos Desactivados',
-                onPressed: () {
-                  setState(() {
-                    _viewingInactive = !_viewingInactive;
-                    _targetExpandedProjectId = null;
-                    _expandAll = false;
-                  });
-                  _loadProjects();
-                },
-              ),
-            IconButton(
-              icon: Icon(_expandAll ? Icons.unfold_less : Icons.unfold_more),
-              tooltip: _expandAll ? 'Contraer todo' : 'Expandir todo',
-              onPressed: () => setState(() {
-                _expandAll = !_expandAll;
-                _targetExpandedProjectId = null;
-              }),
-            ),
-          ],
-          if (_showingFiles && AccessControl.canManageFiles) ...[if (_isFileManagerRoot) IconButton(icon: const Icon(Icons.create_new_folder_outlined), tooltip: 'Nueva Carpeta', onPressed: () => _fileManagerKey.currentState?.createFolderDialog()), IconButton(icon: const Icon(Icons.upload_file), tooltip: 'Subir Archivo', onPressed: () => _fileManagerKey.currentState?.pickAndUploadFile())],
-          IconButton(icon: const Icon(Icons.refresh), tooltip: 'Refrescar', onPressed: () => _showingFiles ? _fileManagerKey.currentState?.refresh() : _loadProjects(forceRefresh: true)),
-        ],
+                    )),
+        actions: _buildAppBarActions(context),
       ),
-      drawer: _showingFiles ? null : const CustomDrawer(),
-      floatingActionButton: !_showingFiles && !_viewingInactive && AccessControl.canCreateProjectItems ? FloatingActionButton(onPressed: () => _navigateToForm(), child: const Icon(Icons.add), tooltip: 'Nuevo Proyecto') : null,
-      body: SafeArea(
-        child: _showingFiles ? ProjectFileManager(key: _fileManagerKey, project: _selectedProject!, viewType: _currentViewType, onExit: _exitFileManager, onRootChanged: (isRoot) => setState(() => _isFileManagerRoot = isRoot)) : _buildProjectsView(),
+      drawer: (_showingFiles || !AccessControl.isAdmin)
+          ? null
+          : const CustomDrawer(currentRoute: '/deliverables'),
+      bottomNavigationBar: (MediaQuery.of(context).size.width < 900 &&
+              !AccessControl.isAdmin &&
+              !_showingFiles)
+          ? const ProjectBottomNav(currentRoute: '/deliverables')
+          : null,
+      floatingActionButton:
+          !_showingFiles &&
+              !_viewingInactive &&
+              AccessControl.canCreateProjectItems
+          ? FloatingActionButton(
+              onPressed: () => _navigateToForm(),
+              child: const Icon(Icons.add),
+              tooltip: 'Nuevo Proyecto',
+            )
+          : null,
+      body: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (MediaQuery.of(context).size.width >= 900 &&
+              !AccessControl.isAdmin &&
+              !_showingFiles)
+            const ProjectSideBar(currentRoute: '/deliverables'),
+          Expanded(
+            child: SafeArea(
+              child: _showingFiles
+                  ? ProjectFileManager(
+                      key: _fileManagerKey,
+                      project: _selectedProject!,
+                      viewType: _currentViewType,
+                      onExit: _exitFileManager,
+                      onRootChanged: (isRoot) =>
+                          setState(() => _isFileManagerRoot = isRoot),
+                    )
+                  : _buildProjectsView(),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildProjectsView() {
-    if (_isLoadingProjects) return const Center(child: CircularProgressIndicator());
+    if (_isLoadingProjects) return const SkeletonList();
 
     final filteredProjects = _projects.where((project) {
       final projectName = (project['Name'] as String? ?? '').toLowerCase();
@@ -373,12 +668,19 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
       children: [
         Padding(
           padding: const EdgeInsets.all(16.0),
-          child: CustomTextField(controller: _searchController, hintText: 'Buscar proyecto...', prefixIcon: const Icon(Icons.search)),
+          child: CustomTextField(
+            controller: _searchController,
+            hintText: 'Buscar proyecto...',
+            prefixIcon: const Icon(Icons.search),
+          ),
         ),
         if (_projectsErrorMessage != null)
           Padding(
             padding: const EdgeInsets.all(8.0),
-            child: Text(_projectsErrorMessage!, style: const TextStyle(color: Colors.red)),
+            child: Text(
+              _projectsErrorMessage!,
+              style: const TextStyle(color: Colors.red),
+            ),
           ),
         Expanded(
           child: filteredProjects.isEmpty
@@ -388,14 +690,26 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
                   itemCount: filteredProjects.length,
                   itemBuilder: (context, index) {
                     final project = filteredProjects[index];
-                    final projId = project['id'] is int ? project['id'] as int : int.tryParse(project['id'].toString()) ?? 0;
+                    final projId = project['id'] is int
+                        ? project['id'] as int
+                        : int.tryParse(project['id'].toString()) ?? 0;
+                    final isExpanded = _expandedProjectIds.contains(projId);
                     return ProjectItem(
-                      key: ValueKey('pj-$projId-$_expandAll'),
+                      key: ValueKey('pj-$projId-$isExpanded'),
                       project: project,
-                      isExpanded: _expandAll || (_targetExpandedProjectId == projId),
+                      isExpanded: isExpanded,
                       statusIdMap: _statusIdMap,
                       priorityMap: _priorityMap,
                       onRefresh: _loadProjects,
+                      onToggleExpansion: () {
+                        setState(() {
+                          if (isExpanded) {
+                            _expandedProjectIds.remove(projId);
+                          } else {
+                            _expandedProjectIds.add(projId);
+                          }
+                        });
+                      },
                       // Al editar, abrimos el formulario de administrador
                       onEdit: (type, id, name, desc) async {
                         if (type == 'project') {
@@ -403,14 +717,27 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
                         } else {
                           setState(() {
                             _isLoadingProjects = true;
-                            _targetExpandedProjectId = projId; // Mantener expandido
+                            _expandedProjectIds.add(projId);
+                            _targetExpandedProjectId = projId;
                           });
-                          final result = await _logic.updateItem(type, id, name, desc);
+                          final result = await _logic.updateItem(
+                            type,
+                            id,
+                            name,
+                            desc,
+                          );
                           if (result['success'] == true) {
-                            _loadProjects();
+                            _loadProjects(forceRefresh: true);
                           } else if (mounted) {
                             setState(() => _isLoadingProjects = false);
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al actualizar: ${result['error']}'), backgroundColor: Colors.red));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Error al actualizar: ${result['error']}',
+                                ),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
                           }
                         }
                       },

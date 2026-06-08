@@ -10,42 +10,44 @@ class KnowledgeBasePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Base De Conocimiento')),
-      drawer: const CustomDrawer(),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const CustomTextField(hintText: 'Buscar...', prefixIcon: Icon(Icons.search), filled: true, fillColor: Colors.white),
-            const SizedBox(height: 20),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                if (constraints.maxWidth < 800) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _buildCard('Guías de Usuario', ['Manual de usuario (CMS)', 'Primeros pasos con la plataforma', 'Gestion de Roles y Permisos']),
-                      const SizedBox(height: 16),
-                      _buildCard('Solucion de Problemas (FAQ)', ['¿Como recupero mi contraseña?', 'Error 500 al subir un archivo', 'El reporte no se genera']),
-                      const SizedBox(height: 16),
-                      _buildCard('Politicas y S.O.P', ['Politica de Soporte SLAs', 'Procedimiento para solicitudes urgentes']),
-                    ],
-                  );
-                } else {
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: _buildCard('Guías de Usuario', ['Manual de usuario (CMS)', 'Primeros pasos con la plataforma', 'Gestion de Roles y Permisos'])),
-                      const SizedBox(width: 16),
-                      Expanded(child: _buildCard('Solucion de Problemas (FAQ)', ['¿Como recupero mi contraseña?', 'Error 500 al subir un archivo', 'El reporte no se genera'])),
-                      const SizedBox(width: 16),
-                      Expanded(child: _buildCard('Politicas y S.O.P', ['Politica de Soporte SLAs', 'Procedimiento para solicitudes urgentes'])),
-                    ],
-                  );
-                }
-              },
-            ),
-          ],
+      drawer: const CustomDrawer(currentRoute: '/knowledge-base'),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const CustomTextField(hintText: 'Buscar...', prefixIcon: Icon(Icons.search), filled: true, fillColor: Colors.white),
+              const SizedBox(height: 20),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  if (constraints.maxWidth < 800) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildCard('Guías de Usuario', ['Manual de usuario (CMS)', 'Primeros pasos con la plataforma', 'Gestion de Roles y Permisos']),
+                        const SizedBox(height: 16),
+                        _buildCard('Solucion de Problemas (FAQ)', ['¿Como recupero mi contraseña?', 'Error 500 al subir un archivo', 'El reporte no se genera']),
+                        const SizedBox(height: 16),
+                        _buildCard('Politicas y S.O.P', ['Politica de Soporte SLAs', 'Procedimiento para solicitudes urgentes']),
+                      ],
+                    );
+                  } else {
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: _buildCard('Guías de Usuario', ['Manual de usuario (CMS)', 'Primeros pasos con la plataforma', 'Gestion de Roles y Permisos'])),
+                        const SizedBox(width: 16),
+                        Expanded(child: _buildCard('Solucion de Problemas (FAQ)', ['¿Como recupero mi contraseña?', 'Error 500 al subir un archivo', 'El reporte no se genera'])),
+                        const SizedBox(width: 16),
+                        Expanded(child: _buildCard('Politicas y S.O.P', ['Politica de Soporte SLAs', 'Procedimiento para solicitudes urgentes'])),
+                      ],
+                    );
+                  }
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );

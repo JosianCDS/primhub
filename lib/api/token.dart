@@ -7,6 +7,7 @@ class Token {
   static String? refreshToken;
   static int? client;
   static int? rol;
+  static String? roleUU;
   static String? primConfig;
   static int? primConfigId;
   static int? organitation;
@@ -18,6 +19,7 @@ class Token {
     refreshToken = null;
     client = null;
     rol = null;
+    roleUU = null;
     primConfig = null;
     primConfigId = null;
     organitation = null;

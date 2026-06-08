@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'dart:typed_data';
-import 'dart:async';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 import 'package:primhub/ui/widgets/hover_widgets.dart';
 import 'package:super_drag_and_drop/super_drag_and_drop.dart';
 
-class FileCard extends StatelessWidget {
+class FileCard extends StatefulWidget {
   final String extension;
   final String name;
   final String size;
@@ -23,99 +22,249 @@ class FileCard extends StatelessWidget {
   final Function(int draggedId, int targetId)? onReorder;
   final int columns;
 
-  const FileCard({super.key, required this.extension, required this.name, required this.size, required this.color, required this.charLimit, required this.details, required this.onTap, this.isFolder = false, this.onDownload, this.onProperties, this.isDownloading = false, required this.tableName, this.onMoveToFolder, this.onReorder, this.columns = 5});
+  const FileCard({
+    super.key,
+    required this.extension,
+    required this.name,
+    required this.size,
+    required this.color,
+    required this.charLimit,
+    required this.details,
+    required this.onTap,
+    this.isFolder = false,
+    this.onDownload,
+    this.onProperties,
+    this.isDownloading = false,
+    required this.tableName,
+    this.onMoveToFolder,
+    this.onReorder,
+    this.columns = 5,
+  });
+
+  @override
+  State<FileCard> createState() => _FileCardState();
+}
+
+class _FileCardState extends State<FileCard> {
+  bool _isHovered = false;
+  bool _isDragOver = false;
 
   @override
   Widget build(BuildContext context) {
-    final String visualName = (details['Description'] != null && details['Description'].toString().trim().isNotEmpty) ? details['Description'].toString() : name;
-    final bool isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].contains(extension.toLowerCase());
-    final bool isCompact = columns >= 8;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final String visualName = (widget.details['Description'] != null && widget.details['Description'].toString().trim().isNotEmpty)
+        ? widget.details['Description'].toString()
+        : widget.name;
+    final bool isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].contains(widget.extension.toLowerCase());
+    final bool isCompact = widget.columns >= 8 || MediaQuery.of(context).size.width < 500;
 
-    Widget cardContent = HoverScaleCard(
+    // Colores basados en el tipo de archivo/carpeta
+    final baseColor = widget.isFolder ? Colors.amber.shade700 : widget.color;
+    final highlightColor = _isDragOver ? Colors.blue.shade600 : baseColor;
+
+    Widget cardContent = MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
       child: GestureDetector(
-        onTap: onTap,
-        child: Card(
-          elevation: 4,
-          margin: EdgeInsets.zero,
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
+          decoration: BoxDecoration(
+            color: _isDragOver ? Colors.blue.withOpacity(0.05) : theme.cardColor,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: _isDragOver 
+                  ? Colors.blue.shade400 
+                  : (_isHovered ? baseColor.withOpacity(0.5) : colorScheme.outlineVariant.withOpacity(0.3)),
+              width: (_isHovered || _isDragOver) ? 2 : 1,
+            ),
+            boxShadow: (_isHovered || _isDragOver)
+                ? [
+                    BoxShadow(
+                      color: (_isDragOver ? Colors.blue : baseColor).withOpacity(0.15),
+                      blurRadius: 15,
+                      offset: const Offset(0, 8),
+                      spreadRadius: 2,
+                    )
+                  ]
+                : [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    )
+                  ],
+          ),
           clipBehavior: Clip.antiAlias,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           child: Stack(
             children: [
               Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // ÁREA SUPERIOR (Icono / Preview)
                   Expanded(
-                    flex: 55, // 55% para la previsualización de imagen
+                    flex: 55,
                     child: Container(
-                      color: color.withOpacity(0.1),
-                      child: isFolder
-                          ? Icon(Icons.folder, color: color, size: isCompact ? 56 : 80)
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            highlightColor.withOpacity((_isHovered || _isDragOver) ? 0.15 : 0.08),
+                            highlightColor.withOpacity((_isHovered || _isDragOver) ? 0.08 : 0.03),
+                          ],
+                        ),
+                      ),
+                      child: widget.isFolder
+                          ? Hero(
+                              tag: 'folder_${widget.details['id']}',
+                              child: Icon(
+                                Icons.folder_rounded,
+                                color: highlightColor.withOpacity((_isHovered || _isDragOver) ? 1.0 : 0.8),
+                                size: isCompact ? 56 : 80,
+                              ),
+                            )
                           : (isImage
-                                ? FutureBuilder<Uint8List?>(
-                                    future: DocumentsLogic.fetchImagePreview(tableName, details['id'], name),
-                                    builder: (context, snapshot) {
-                                      if (snapshot.hasData && snapshot.data != null) {
-                                        return ImageHoverPreview(
-                                          imageBytes: snapshot.data!,
-                                          child: Image.memory(snapshot.data!, fit: BoxFit.cover, width: double.infinity, height: double.infinity, gaplessPlayback: true),
-                                        );
-                                      }
-                                      return Center(
-                                        child: Icon(DocumentsLogic.getFileIcon(extension), color: color, size: isCompact ? 48 : 72),
+                              ? FutureBuilder<Uint8List?>(
+                                  future: DocumentsLogic.fetchImagePreview(widget.tableName, widget.details['id'], widget.name),
+                                  builder: (context, snapshot) {
+                                    if (snapshot.hasData && snapshot.data != null) {
+                                      return AnimatedOpacity(
+                                        duration: const Duration(milliseconds: 300),
+                                        opacity: (_isHovered || _isDragOver) ? 0.9 : 1.0,
+                                        child: Image.memory(
+                                          snapshot.data!,
+                                          fit: BoxFit.cover,
+                                          width: double.infinity,
+                                          height: double.infinity,
+                                          gaplessPlayback: true,
+                                        ),
                                       );
-                                    },
-                                  )
-                                : Center(
-                                    child: Icon(DocumentsLogic.getFileIcon(extension), color: color, size: isCompact ? 48 : 72),
-                                  )),
+                                    }
+                                    return Center(
+                                      child: Icon(
+                                        DocumentsLogic.getFileIcon(widget.extension),
+                                        color: highlightColor,
+                                        size: isCompact ? 48 : 72,
+                                      ),
+                                    );
+                                  },
+                                )
+                              : Center(
+                                  child: Icon(
+                                    DocumentsLogic.getFileIcon(widget.extension),
+                                    color: highlightColor.withOpacity((_isHovered || _isDragOver) ? 1.0 : 0.7),
+                                    size: isCompact ? 48 : 72,
+                                  ),
+                                )),
                     ),
                   ),
+                  // ÁREA INFERIOR (Info)
                   Expanded(
-                    flex: 45, // 45% para los detalles inferiores
+                    flex: 45,
                     child: Container(
-                      padding: EdgeInsets.symmetric(horizontal: isCompact ? 4.0 : 8.0, vertical: 4.0),
-                      color: Theme.of(context).cardColor,
-                      child: Center(
-                        child: SingleChildScrollView(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                visualName.split('.').first,
-                                textAlign: TextAlign.center,
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: isCompact ? 12 : 13),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 4),
-                              if (!isFolder && !isCompact) ...[_buildStatusChip(context), const SizedBox(height: 4)],
-                              if (isFolder && size.isNotEmpty && !isCompact) ...[Text(size, style: TextStyle(color: Colors.grey[600], fontSize: 11)), const SizedBox(height: 4)],
-                              if (isDownloading) const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) else if (!isCompact) Icon(isFolder ? Icons.folder_open : Icons.download, color: Theme.of(context).colorScheme.primary, size: 18),
-                            ],
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isCompact ? 6.0 : 12.0,
+                        vertical: 8.0,
+                      ),
+                      decoration: BoxDecoration(
+                        color: (_isHovered || _isDragOver) ? highlightColor.withOpacity(0.02) : null,
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            visualName.split('.').first,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontWeight: (_isHovered || _isDragOver) ? FontWeight.bold : FontWeight.w600,
+                              fontSize: isCompact ? 11 : 12.5,
+                              color: colorScheme.onSurface,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
+                          if (!widget.isFolder && !isCompact) ...[
+                            const SizedBox(height: 6),
+                            _buildStatusChip(context),
+                          ],
+                          if (widget.isFolder && widget.size.isNotEmpty && !isCompact) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              widget.size,
+                              style: TextStyle(
+                                color: colorScheme.onSurfaceVariant.withOpacity(0.7),
+                                fontSize: 10,
+                              ),
+                            ),
+                          ],
+                          if (widget.isDownloading)
+                            const Padding(
+                              padding: EdgeInsets.only(top: 8.0),
+                              child: SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            )
+                          else if (!isCompact)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 6.0),
+                              child: Icon(
+                                widget.isFolder ? Icons.open_in_new_rounded : Icons.file_download_outlined,
+                                color: (_isHovered || _isDragOver) ? highlightColor : colorScheme.primary.withOpacity(0.5),
+                                size: 16,
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                   ),
                 ],
               ),
-              if (AccessControl.canManageFiles && onProperties != null)
+              // BOTÓN INFO (Propiedades)
+              if (AccessControl.canManageFiles && widget.onProperties != null)
                 Positioned(
-                  top: 0,
-                  right: 0,
-                  child: IconButton(icon: const Icon(Icons.info_outline), color: Colors.grey[500], tooltip: 'Ver propiedades', onPressed: onProperties),
+                  top: 4,
+                  right: 4,
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 200),
+                    opacity: _isHovered ? 1.0 : 0.0,
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: widget.onProperties,
+                        borderRadius: BorderRadius.circular(20),
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: theme.cardColor.withOpacity(0.9),
+                            shape: BoxShape.circle,
+                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4)],
+                          ),
+                          child: Icon(Icons.info_outline_rounded, color: baseColor, size: 18),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
-              if (!isFolder && AccessControl.canManageFiles)
+              // INDICADOR DRAG
+              if (AccessControl.canManageFiles)
                 Positioned(
                   top: 4,
                   left: 4,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(color: Theme.of(context).cardColor.withOpacity(0.8), shape: BoxShape.circle),
-                    child: Tooltip(
-                      message: 'Arrastra para mover',
-                      child: Icon(Icons.drag_indicator, color: Colors.grey[600], size: 20),
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 200),
+                    opacity: (_isHovered || _isDragOver) ? 0.8 : 0.2,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: theme.cardColor.withOpacity(0.7),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Icon(Icons.drag_indicator_rounded, color: colorScheme.onSurfaceVariant, size: 18),
                     ),
                   ),
                 ),
@@ -127,46 +276,56 @@ class FileCard extends StatelessWidget {
 
     Widget dropRegion = DropRegion(
       formats: Formats.standardFormats,
+      onDropEnter: (event) {
+        setState(() => _isDragOver = true);
+      },
+      onDropLeave: (event) {
+        setState(() => _isDragOver = false);
+      },
       onDropOver: (event) {
         if (event.session.items.isEmpty) return DropOperation.none;
         final item = event.session.items.first;
         if (item.localData != null && item.localData is Map) {
-          final draggedData = item.localData as Map;
-          final draggedId = draggedData['id'];
+          final data = item.localData as Map;
+          if (data['id'] == widget.details['id']) return DropOperation.none;
 
-          if (draggedId == details['id']) return DropOperation.none; // Evitar soltar sobre sí mismo
-
-          final draggedType = draggedData['type'];
-          if (isFolder && draggedType == 'file') {
-            return DropOperation.move; // Mover a la carpeta
+          // REGLA: Si soltamos sobre una CARPETA, movemos adentro.
+          // Si soltamos sobre un ARCHIVO, reordenamos.
+          if (widget.isFolder) {
+            return DropOperation.move; // Mostramos cursor de mover para carpetas
           } else {
-            return DropOperation.copy; // Reordenar posición
+            return DropOperation.copy;
           }
         }
         return DropOperation.none;
       },
       onPerformDrop: (event) async {
+        setState(() => _isDragOver = false);
         final item = event.session.items.first;
         if (item.localData is Map) {
           final data = item.localData as Map;
-          final draggedId = data['id'];
-          final draggedType = data['type'];
-          if (isFolder && draggedType == 'file') {
-            onMoveToFolder?.call(data['doc'], data['tableName'], details['id']);
+          if (widget.isFolder) {
+            widget.onMoveToFolder?.call(data['doc'], data['tableName'], widget.details['id']);
           } else {
-            onReorder?.call(draggedId, details['id']);
+            widget.onReorder?.call(data['id'], widget.details['id']);
           }
         }
       },
       child: cardContent,
     );
 
-    // Envolvemos el DropRegion con los widgets de arrastre para que la tarjeta sea bidireccional
     if (AccessControl.canManageFiles) {
       return DragItemWidget(
         dragItemProvider: (request) {
-          final item = DragItem(localData: {'id': details['id'], 'tableName': tableName, 'type': isFolder ? 'folder' : 'file', 'doc': details});
-          item.add(Formats.plainText(name)); // Formato genérico obligatorio para que el OS inicie el drag
+          final item = DragItem(
+            localData: {
+              'id': widget.details['id'],
+              'tableName': widget.tableName,
+              'type': widget.isFolder ? 'folder' : 'file',
+              'doc': widget.details
+            },
+          );
+          item.add(Formats.plainText(widget.name));
           return item;
         },
         allowedOperations: () => [DropOperation.copy, DropOperation.move],
@@ -178,115 +337,19 @@ class FileCard extends StatelessWidget {
   }
 
   Widget _buildStatusChip(BuildContext context) {
-    final status = DocumentsLogic.extractStatus(details['Status']);
+    final status = DocumentsLogic.extractStatus(widget.details['Status']);
     final statusColor = DocumentsLogic.getStatusColor(status);
-    return Chip(
-      label: Text(
-        status,
-        style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 11),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: statusColor.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: statusColor.withOpacity(0.3), width: 0.5),
       ),
-      backgroundColor: statusColor.withOpacity(0.15),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      child: Text(
+        status,
+        style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 9.5),
+      ),
     );
-  }
-}
-
-/// Widget que muestra una vista previa ampliada de la imagen al pasar el ratón por encima (Hover)
-class ImageHoverPreview extends StatefulWidget {
-  final Uint8List imageBytes;
-  final Widget child;
-
-  const ImageHoverPreview({super.key, required this.imageBytes, required this.child});
-
-  @override
-  State<ImageHoverPreview> createState() => _ImageHoverPreviewState();
-}
-
-class _ImageHoverPreviewState extends State<ImageHoverPreview> {
-  OverlayEntry? _overlayEntry;
-  Timer? _hideTimer;
-
-  void _showOverlay(BuildContext context) {
-    _hideTimer?.cancel();
-    _hideTimer = null;
-
-    if (_overlayEntry != null) return;
-
-    // Usamos post frame para evitar colisiones con el LayoutBuilder durante Drag & Drop
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _overlayEntry != null) return;
-
-      final renderBox = context.findRenderObject() as RenderBox?;
-      if (renderBox == null) return;
-
-      final offset = renderBox.localToGlobal(Offset.zero);
-      final size = renderBox.size;
-      final screenSize = MediaQuery.of(context).size;
-
-      const double previewSize = 400.0;
-
-      double left = offset.dx + size.width + 16;
-      double top = offset.dy - (previewSize / 2) + (size.height / 2);
-
-      if (left + previewSize > screenSize.width) {
-        left = offset.dx - previewSize - 16;
-      }
-
-      if (top < 16) top = 16;
-      if (top + previewSize > screenSize.height) top = screenSize.height - previewSize - 16;
-
-      _overlayEntry = OverlayEntry(
-        builder: (context) => Positioned(
-          left: left,
-          top: top,
-          child: IgnorePointer(
-            child: Material(
-              elevation: 16,
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(12),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  width: previewSize,
-                  height: previewSize,
-                  color: Theme.of(context).cardColor,
-                  child: Image.memory(widget.imageBytes, fit: BoxFit.contain),
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-
-      Overlay.of(context).insert(_overlayEntry!);
-    });
-  }
-
-  void _hideOverlay() {
-    _hideTimer?.cancel();
-    // Añadimos un pequeño retraso antes de ocultar para evitar parpadeos
-    // si el ratón sale y vuelve a entrar en milisegundos.
-    _hideTimer = Timer(const Duration(milliseconds: 150), () {
-      if (_overlayEntry != null) {
-        _overlayEntry!.remove();
-        _overlayEntry = null;
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _hideTimer?.cancel();
-    if (_overlayEntry != null) {
-      _overlayEntry!.remove();
-      _overlayEntry = null;
-    }
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(onEnter: (_) => _showOverlay(context), onExit: (_) => _hideOverlay(), child: widget.child);
   }
 }

@@ -1,9 +1,9 @@
 class Envirioment {
-  static bool isProduction = false;
+  static bool isProduction = true;
 }
 
 class Endpoint {
-  static String baseUrl = Envirioment.isProduction ? "https://erp.primware.net" : "https://primhub.primware.net";
+  static String baseUrl = Envirioment.isProduction ? "https://erp.primware.net" : "https://erp.primware.net";
   static String request = "$baseUrl/api/v1/models/R_Request";
   static String order = "$baseUrl/api/v1/models/C_Order";
   static String productChip = "$baseUrl/api/v1/models/C_BPartner_Product_Chip";
@@ -27,5 +27,10 @@ class PostMedia {
 
   PostMedia({required this.recordID, required this.tableName});
 
-  String get endPoint => '$tableName/$recordID/attachments';
+  String get endPoint {
+    if (tableName.startsWith('http')) {
+      return '$tableName/$recordID/attachments';
+    }
+    return '${Endpoint.baseUrl}/api/v1/models/$tableName/$recordID/attachments';
+  }
 }

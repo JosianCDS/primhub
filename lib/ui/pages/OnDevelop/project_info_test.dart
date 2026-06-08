@@ -136,7 +136,7 @@ class _ProjectInfoTestPageState extends State<ProjectInfoTestPage> {
             ],
           ),
         ),
-        drawer: const CustomDrawer(),
+        drawer: const CustomDrawer(currentRoute: '/project-info-test'),
         body: _isLoading ? const Center(child: CircularProgressIndicator()) : TabBarView(children: [_buildProjectList(), _buildProjectPhasesTab(), _buildDebugList(_productChipList), _buildDebugList(_orderList), _buildRequestsTab()]),
       ),
     );

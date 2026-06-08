@@ -3,11 +3,14 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:go_router/go_router.dart';
 import '../../../api/token.dart';
 import '../../widgets/custom_drawer.dart';
 import '../../Shared_Custom/custom_modal.dart';
 import '../../../theme/theme.dart';
 import 'package:primhub/endpoint/endpoint.dart';
+import 'package:primhub/api/access_control.dart';
+import 'package:primhub/api/api_utils.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -116,16 +119,33 @@ class _ProfilePageState extends State<ProfilePage> {
     final String email = _userInfo['email'] ?? 'admin@gardenworld.com';
     final String bPartner = _userInfo['bpartner_name'] ?? 'GardenWorld HQ';
 
-    final String roleName = _userInfo['roleName'] ?? (roleId == 102 ? 'GardenWorld Admin' : 'Usuario');
-    final String clientName = clientId == 11 ? 'GardenWorld' : 'Cliente $clientId';
+    String roleFallback = 'Usuario';
+    if (AccessControl.isRealAdmin) {
+      roleFallback = 'Administrador';
+    } else if (AccessControl.isRealSupport) {
+      roleFallback = 'Soporte Técnico';
+    } else if (AccessControl.isRealProject) {
+      roleFallback = 'Cliente / Proyecto';
+    }
+    final String roleName = _userInfo['role_name'] ?? _userInfo['roleName'] ?? roleFallback;
+    final String clientName = _userInfo['client_name'] ?? _userInfo['clientName'] ?? (clientId == 11 ? 'GardenWorld' : 'Cliente $clientId');
     final String orgName = orgId == 0 ? '*' : (orgId == 11 ? 'HQ' : 'Org $orgId');
 
     return Scaffold(
       appBar: AppBar(
+        leading: !AccessControl.isAdmin ? IconButton(icon: const Icon(Icons.arrow_back), tooltip: 'Volver al Inicio', onPressed: () => context.go('/')) : null,
         title: const Text('Perfil de Usuario'),
-        actions: [IconButton(icon: const Icon(Icons.refresh), tooltip: 'Refrescar', onPressed: _loadUserInfo)],
+        actions: [
+          IconButton(icon: const Icon(Icons.refresh), tooltip: 'Refrescar', onPressed: _loadUserInfo),
+          if (!AccessControl.isAdmin)
+            IconButton(
+              icon: const Icon(Icons.logout, color: Colors.red),
+              tooltip: 'Cerrar Sesión',
+              onPressed: () => showLogoutConfirmation(context),
+            ),
+        ],
       ),
-      drawer: const CustomDrawer(),
+      drawer: AccessControl.isAdmin ? const CustomDrawer(currentRoute: '/profile') : null,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16.0),

@@ -1,218 +1,189 @@
 import 'package:flutter/material.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/api/access_control.dart';
+import 'package:primhub/ui/Shared_Custom/custom_button.dart';
+import 'package:primhub/ui/pages/Support/Requests/request_functions.dart'; // Para priorityMap
 
 class RequestFilterBar extends StatelessWidget {
   final TextEditingController searchController;
-  final int? selectedYear;
-  final String? selectedBP;
-  final String? selectedSituation;
-  final String? selectedUser;
-  final String? selectedLevel;
-  final String? selectedSalesRep;
-  final String? selectedStatus;
   final bool isAscending;
   final int rowsPerPage;
   final bool showHistory;
-  final List<Map<String, dynamic>> requests;
-  final List<dynamic> users;
-  final List<Map<String, dynamic>> bPartners;
-  final Map<String, int> statusIdMap;
-  final Function(int?) onYearChanged;
-  final Function(String?) onBPChanged;
-  final Function(String?) onSituationChanged;
-  final Function(String?) onUserChanged;
-  final Function(String?) onLevelChanged;
-  final Function(String?) onStatusChanged;
-  final Function(String?) onSalesRepChanged;
+  final List<int> selectedYears;
+  final VoidCallback onShowYearFilter;
   final VoidCallback onSortChanged;
   final Function(int?) onRowsPerPageChanged;
   final VoidCallback onClearFilters;
   final VoidCallback onAddRequest;
   final VoidCallback onToggleHistory;
+  final VoidCallback onShowCalendar; // Nuevo callback para mostrar el calendario
+  final VoidCallback onShowFilters;
+  final int activeFilterCount;
+  final bool isLoading;
+  final bool showCalendar; // Add showCalendar
 
   const RequestFilterBar({
     super.key,
     required this.searchController,
-    required this.selectedYear,
-    required this.selectedBP,
-    required this.selectedSituation,
-    required this.selectedUser,
-    required this.selectedLevel,
-    required this.selectedStatus,
-    required this.selectedSalesRep,
     required this.isAscending,
     required this.rowsPerPage,
     required this.showHistory,
-    required this.requests,
-    required this.users,
-    required this.bPartners,
-    required this.statusIdMap,
-    required this.onYearChanged,
-    required this.onBPChanged,
-    required this.onSituationChanged,
-    required this.onUserChanged,
-    required this.onLevelChanged,
-    required this.onStatusChanged,
-    required this.onSalesRepChanged,
+    required this.selectedYears,
+    required this.onShowYearFilter,
     required this.onSortChanged,
     required this.onRowsPerPageChanged,
     required this.onClearFilters,
     required this.onAddRequest,
     required this.onToggleHistory,
+    required this.onShowFilters,
+    required this.activeFilterCount,
+    required this.onShowCalendar,
+    this.isLoading = false,
+    this.showCalendar = false, // Default to false
   });
 
   @override
   Widget build(BuildContext context) {
+    final buttons = Wrap(
+      spacing: 12.0,
+      runSpacing: 8.0,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        if (!AccessControl.isRealSupport)
+          CustomButton(
+            text: showCalendar ? 'Ver Lista' : 'Calendario/Gantt',
+            onPressed: isLoading ? null : onShowCalendar,
+            icon: showCalendar ? Icons.list_alt : Icons.calendar_month,
+            backgroundColor: Theme.of(context).colorScheme.tertiary,
+            textColor: Theme.of(context).colorScheme.onTertiary,
+          ),
+        if (AccessControl.canCreateRequests)
+          CustomButton(text: 'Crear Solicitud', onPressed: isLoading ? null : onAddRequest, icon: Icons.add),
+        CustomButton(
+          text: showHistory ? 'Ver Activas' : 'Ver Bitácora',
+          onPressed: isLoading ? null : onToggleHistory,
+          icon: showHistory ? Icons.list : Icons.history,
+          backgroundColor: Theme.of(context).colorScheme.secondary,
+          textColor: Theme.of(context).colorScheme.onSecondary,
+        ),
+      ],
+    );
+
+    final filterChips = Wrap(
+      spacing: 16.0,
+      runSpacing: 8.0,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        CustomButton(
+          text: 'Filtros',
+          onPressed: isLoading ? null : onShowFilters,
+          icon: Icons.filter_list,
+          backgroundColor: activeFilterCount > 0
+              ? Theme.of(context).colorScheme.primaryContainer
+              : null,
+          textColor: activeFilterCount > 0
+              ? Theme.of(context).colorScheme.onPrimaryContainer
+              : null,
+        ),
+        if (activeFilterCount > 0)
+          Chip(
+            label: Text('$activeFilterCount'),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            labelStyle: TextStyle(
+              color: Theme.of(context).colorScheme.onPrimary,
+              fontWeight: FontWeight.bold,
+            ),
+            padding: const EdgeInsets.all(4),
+            visualDensity: VisualDensity.compact,
+          ),
+        ActionChip(
+          avatar: Icon(
+            isAscending ? Icons.arrow_upward : Icons.arrow_downward,
+            size: 16,
+          ),
+          label: Text(isAscending ? 'Más antiguas' : 'Más recientes'),
+          onPressed: onSortChanged,
+        ),
+        ActionChip(
+          avatar: const Icon(Icons.calendar_today, size: 16),
+          label: Text(() {
+            if (selectedYears.isEmpty) return 'Año: Todos';
+            if (selectedYears.length == 1) {
+              if (selectedYears.first == DateTime.now().year) return 'Año: Actual';
+              return 'Año: ${selectedYears.first}';
+            }
+            return 'Años: ${selectedYears.length}';
+          }()),
+          onPressed: onShowYearFilter,
+        ),
+        DropdownButton<int>(
+          value: rowsPerPage,
+          items: [10, 25, 50, 100]
+              .map((int value) => DropdownMenuItem<int>(
+                    value: value,
+                    child: Text('$value filas'),
+                  ))
+              .toList(),
+          onChanged: onRowsPerPageChanged,
+        ),
+        TextButton.icon(
+          icon: const Icon(Icons.filter_alt_off, size: 18),
+          label: const Text('Limpiar'),
+          onPressed: onClearFilters,
+        ),
+      ],
+    );
+
     return LayoutBuilder(
       builder: (context, constraints) {
-        final filters = Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12.0),
-              child: SizedBox(
-                width: 400,
-                child: CustomTextField(controller: searchController, hintText: 'Buscar por número de ticket...', prefixIcon: const Icon(Icons.search)),
-              ),
-            ),
-            const Text('Filtros:', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.only(left: 10.0),
-              child: Wrap(
-                spacing: 8.0,
-                runSpacing: 4.0,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  DropdownButton<int?>(
-                    hint: const Text('Todos los Años'),
-                    value: selectedYear,
-                    items: [
-                      const DropdownMenuItem<int?>(value: null, child: Text('Todos los Años')),
-                      // Genera desde 3 años atrás hasta 6 en el futuro según el año actual
-                      ...List.generate(10, (index) => (DateTime.now().year - 3) + index).map((int value) {
-                        return DropdownMenuItem<int?>(value: value, child: Text(value.toString()));
-                      }),
-                    ],
-                    onChanged: onYearChanged,
-                  ),
-                  const SizedBox(width: 16),
-                  if (AccessControl.isAdmin) ...[
-                    DropdownButton<String?>(
-                      hint: const Text('Todos los Terceros'),
-                      value: selectedBP,
-                      items: [
-                        const DropdownMenuItem<String?>(value: null, child: Text('Todos los Terceros')),
-                        ...bPartners.map((e) => e['Name'].toString()).where((e) => e.isNotEmpty).toSet().toList().map((String value) {
-                          return DropdownMenuItem<String?>(value: value, child: Text(value));
-                        }),
-                      ],
-                      onChanged: onBPChanged,
-                    ),
-                    const SizedBox(width: 16),
-                    DropdownButton<String?>(
-                      hint: const Text('Rep. Comercial'),
-                      value: selectedSalesRep,
-                      items: [
-                        const DropdownMenuItem<String?>(value: null, child: Text('Todos los Rep. Comerciales')),
-                        ...users.map((e) => e['Name']?.toString() ?? '').where((e) => e.isNotEmpty).toSet().toList().map((String value) {
-                          return DropdownMenuItem<String?>(value: value, child: Text(value));
-                        }),
-                      ],
-                      onChanged: onSalesRepChanged,
-                    ),
-                    const SizedBox(width: 16),
-                  ],
-                  DropdownButton<String>(
-                    hint: const Text('Tipo de solicitud'),
-                    value: selectedSituation,
-                    items: requests.map((e) => e['situation'].toString()).toSet().toList().map((String value) {
-                      return DropdownMenuItem<String>(value: value, child: Text(value));
-                    }).toList(),
-                    onChanged: onSituationChanged,
-                  ),
-                  const SizedBox(width: 16),
-                  DropdownButton<String>(
-                    hint: const Text('Usuario'),
-                    value: selectedUser,
-                    items: requests.map((e) => e['userName'].toString()).where((e) => e.isNotEmpty).toSet().toList().map((String value) {
-                      return DropdownMenuItem<String>(value: value, child: Text(value));
-                    }).toList(),
-                    onChanged: onUserChanged,
-                  ),
-                  const SizedBox(width: 16),
-                  DropdownButton<String>(
-                    hint: const Text('Nivel'),
-                    value: selectedLevel,
-                    items: ['Urgente', 'Alta', 'Media', 'Baja', 'Menor'].map((String value) {
-                      return DropdownMenuItem<String>(value: value, child: Text(value));
-                    }).toList(),
-                    onChanged: onLevelChanged,
-                  ),
-                  const SizedBox(width: 16),
-                  DropdownButton<String>(
-                    hint: const Text('Estado'),
-                    value: (statusIdMap.isNotEmpty && selectedStatus != null && !statusIdMap.containsKey(selectedStatus)) ? null : selectedStatus,
-                    items: (statusIdMap.isNotEmpty ? (statusIdMap.keys.toList()..sort()) : ['1_Open', '2_Waiting on customer', '3_Closed']).map((String value) {
-                      return DropdownMenuItem<String>(value: value, child: Text(value));
-                    }).toList(),
-                    onChanged: onStatusChanged,
-                  ),
-                  const SizedBox(width: 16),
-                  ActionChip(avatar: Icon(isAscending ? Icons.arrow_upward : Icons.arrow_downward, size: 16), label: Text(isAscending ? 'Más antiguas' : 'Más recientes'), onPressed: onSortChanged),
-                  const SizedBox(width: 16),
-                  DropdownButton<int>(
-                    value: rowsPerPage,
-                    items: [25, 50, 100].map((int value) {
-                      return DropdownMenuItem<int>(value: value, child: Text('$value filas'));
-                    }).toList(),
-                    onChanged: onRowsPerPageChanged,
-                  ),
-                  IconButton(icon: const Icon(Icons.filter_alt_off), onPressed: onClearFilters, tooltip: 'Limpiar filtros'),
-                ],
-              ),
-            ),
-          ],
-        );
-
-        final buttons = Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (AccessControl.canCreateRequests)
-              ElevatedButton.icon(
-                onPressed: onAddRequest,
-                icon: const Icon(Icons.add, color: Colors.white),
-                label: const Text('Crear Solicitud', style: TextStyle(color: Colors.white)),
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4F47E5)),
-              ),
-            const SizedBox(width: 16),
-            ElevatedButton.icon(
-              onPressed: onToggleHistory,
-              icon: Icon(showHistory ? Icons.list : Icons.history, color: Colors.white),
-              label: Text(showHistory ? 'Ver Activas' : 'Ver Bitácora', style: const TextStyle(color: Colors.white)),
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4F47E5)),
-            ),
-          ],
-        );
-
-        if (constraints.maxWidth < 800) {
+        if (constraints.maxWidth < 1200) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              filters,
-              const SizedBox(height: 16),
-              SizedBox(width: double.infinity, child: buttons),
+              SizedBox(
+                width: 400,
+                child: CustomTextField(
+                  controller: searchController,
+                  hintText: 'Buscar por número de ticket...',
+                  prefixIcon: const Icon(Icons.search),
+                ),
+              ),
+              const SizedBox(height: 8),
+              filterChips,
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 16.0,
+                runSpacing: 8.0,
+                children: buttons.children,
+              ),
+              const SizedBox(height: 8),
             ],
           );
         } else {
-          return Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.end,
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(child: filters),
-              const SizedBox(width: 16),
-              buttons,
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8.0),
+                child: SizedBox(
+                  width: 400,
+                  child: CustomTextField(
+                    controller: searchController,
+                    hintText: 'Buscar por número de ticket...',
+                    prefixIcon: const Icon(Icons.search),
+                  ),
+                ),
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(child: filterChips),
+                  const SizedBox(width: 16),
+                  buttons,
+                ],
+              ),
+              const SizedBox(height: 8),
             ],
           );
         }

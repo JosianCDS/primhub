@@ -1,19 +1,22 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter/services.dart'; // Para FilteringTextInputFormatter
 import 'package:http/http.dart' as http;
+import 'package:file_picker/file_picker.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import '../../../Shared_Custom/custom_button.dart';
 import '../../../../api/contract_api.dart';
+import 'package:primhub/ui/Shared_Custom/customToast.dart';
 import '../../../../ui/pages/Support/Requests/request_functions.dart';
 import '../../../../api/validation_manager.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 import '../../../../api/token.dart';
 import 'package:primhub/api/api_utils.dart';
 import 'package:primhub/api/global_cache.dart';
+import 'package:primhub/ImagesManagment/postAttachments.dart';
 
 class CreateRequestDialog extends StatefulWidget {
   final String? linkedRecordUU;
@@ -23,7 +26,15 @@ class CreateRequestDialog extends StatefulWidget {
   final int? linkedPhaseId;
   final int? linkedTaskId;
 
-  const CreateRequestDialog({super.key, this.linkedRecordUU, this.bPartners, this.selectedBPartnerId, this.linkedProjectId, this.linkedPhaseId, this.linkedTaskId});
+  const CreateRequestDialog({
+    super.key,
+    this.linkedRecordUU,
+    this.bPartners,
+    this.selectedBPartnerId,
+    this.linkedProjectId,
+    this.linkedPhaseId,
+    this.linkedTaskId,
+  });
 
   @override
   State<CreateRequestDialog> createState() => _CreateRequestDialogState();
@@ -41,55 +52,104 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
 
   String _selectedPriority = 'Media';
   String? _selectedType;
-  String _selectedStatus = '1_Open';
+  String _selectedStatus = 'Recibida';
   String? _selectedCategory;
   String? _selectedGroup;
   int? _selectedProjectId;
   int? _selectedBpId;
   int? _selectedSalesRepId;
   int? _selectedUserId;
+  int? _selectedProductChipId;
 
   Map<String, int> _statusIdMap = {};
   Map<String, int> _requestTypeMap = {};
   Map<String, int> _categoryMap = {};
+  Map<String, String> _categoryPriorityMap = {};
+  List<Map<String, dynamic>> _categoryRecords = [];
   Map<String, int> _groupMap = {};
   List<dynamic> _users = [];
+  List<Map<String, dynamic>> _salesReps = [];
   List<dynamic> _bPartnersList = [];
 
   bool _isLoadingStatuses = true;
   bool _isLoadingTypes = true;
   bool _isLoadingCategories = true;
-  bool _isLoadingGroups = true;
+  bool _loadingGroupsState = true;
   bool _isLoadingUsers = true;
+  bool _isLoadingSalesReps = true;
   bool _isLoadingBPartners = true;
+  bool _isLoadingProducts = true;
+  List<dynamic> _productChips = [];
+
+  List<PlatformFile?> _evidences = [null, null, null, null];
 
   @override
   void initState() {
     super.initState();
-    _fetchStatuses();
-    _fetchRequestTypes();
-    _fetchCategories();
-    _fetchGroups();
-    _fetchUsers();
-    // Inicializar fechas con el día de hoy para evitar strings vacíos
+    _salesReps = GlobalCache.salesReps;
+    _isLoadingSalesReps = false;
+    _fetchInitialData();
     final now = DateTime.now();
-    final todayStr = "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+    final todayStr =
+        "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
     _dateStartController.text = todayStr;
     _dateCompleteController.text = todayStr;
 
-    // Pre-llenar datos si es posible (ej. usuario actual como sales rep)
     final payload = Token.decodePayload(Token.token);
-    if (payload['AD_User_ID'] != null) {
-      _selectedSalesRepId = payload['AD_User_ID'];
+    final currentUserId = payload['AD_User_ID'];
+    
+    // Si viene vinculado a una tarea, pre-llenar el asunto
+    if (widget.linkedRecordUU != null) {
+      _emailSubjectController.text = 'Solicitud de Tarea';
+    }
+    if (currentUserId != null) {
       _selectedUserId = payload['AD_User_ID'];
+      // Solo pre-seleccionar si el usuario actual es un representante de ventas válido
+      final currentUserIsRep = _salesReps.any(
+        (rep) => (rep['AD_User_ID'] ?? rep['id']) == currentUserId,
+      );
+      if (currentUserIsRep && !AccessControl.isRealSupport) {
+        _selectedSalesRepId = currentUserId;
+      }
     }
 
-    if (AccessControl.isAdmin || AccessControl.isRealSupport) {
-      _fetchBPartners();
-    } else {
-      _isLoadingBPartners = false;
-      _selectedBpId = User.cBPartnerID;
+    _selectedBpId = AccessControl.isAdmin ? null : User.cBPartnerID;
+    _fetchBPartners();
+  }
+
+  Future<void> _fetchProductChips() async {
+    if (_selectedBpId == null) {
+      if (mounted) setState(() => _isLoadingProducts = false);
+      return;
     }
+    if (mounted) setState(() => _isLoadingProducts = true);
+    try {
+      final fetchedChips =
+          await ContractApi.getSupportProductChips(bPartnerId: _selectedBpId);
+      if (mounted) {
+        setState(() {
+          _productChips = fetchedChips;
+          // Si solo hay 1 ficha, se coloca automáticamente (independiente del rol)
+          if (_productChips.length == 1) {
+            _selectedProductChipId = ((_productChips.first['id'] ?? _productChips.first['C_BPartner_Product_Chip_ID']) as num?)?.toInt();
+          }
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _isLoadingProducts = false);
+    }
+  }
+
+  Future<void> _fetchInitialData() async {
+    await Future.wait([
+      _fetchStatuses(),
+      _fetchRequestTypes(),
+      _fetchCategories(),
+      _fetchGroups(),
+      _fetchBPartners(),
+      _fetchUsers(),
+      _fetchProductChips(),
+    ]);
   }
 
   Future<void> _fetchBPartners() async {
@@ -98,34 +158,112 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
 
       // Si la solicitud nace desde un proyecto, heredamos obligatoriamente su tercero
       if (resolvedBpId == null && widget.linkedProjectId != null) {
-        var projRes = await http.get(Uri.parse('${Endpoint.project}/${widget.linkedProjectId}?\$select=C_BPartner_ID'), headers: {'Authorization': Token.token});
+        var projRes = await http.get(
+          Uri.parse(
+            '${Endpoint.project}/${widget.linkedProjectId}?\$select=C_BPartner_ID',
+          ),
+          headers: {'Authorization': Token.token},
+        );
         if (projRes.statusCode == 401) {
           if (await handleTokenRefresh()) {
-            projRes = await http.get(Uri.parse('${Endpoint.project}/${widget.linkedProjectId}?\$select=C_BPartner_ID'), headers: {'Authorization': Token.token});
+            projRes = await http.get(
+              Uri.parse(
+                '${Endpoint.project}/${widget.linkedProjectId}?\$select=C_BPartner_ID',
+              ),
+              headers: {'Authorization': Token.token},
+            );
           }
         }
         if (projRes.statusCode == 200) {
           final data = jsonDecode(utf8.decode(projRes.bodyBytes));
           final bpField = data['C_BPartner_ID'];
-          resolvedBpId = (bpField is Map) ? bpField['id'] : (bpField is int ? bpField : null);
+          resolvedBpId = (bpField is Map)
+              ? bpField['id']
+              : (bpField is int ? bpField : null);
         }
       }
 
-      final logic = ProjectsLogic();
-      final bps = await logic.fetchBPartners();
+      List<dynamic> bps = [];
+      if (GlobalCache.bPartners.isNotEmpty) {
+        bps = GlobalCache.bPartners;
+      } else {
+        final logic = ProjectsLogic();
+        bps = await logic.fetchBPartners();
+      }
+
+      int? newSelectedBpId = _selectedBpId ?? resolvedBpId ?? (AccessControl.isAdmin ? null : User.cBPartnerID);
+
+      // Si el tercero seleccionado no está en la lista bps, intentamos buscarlo de forma individual para obtener su nombre real
+      String? fetchedSingleBpName;
+      if (newSelectedBpId != null && !bps.any((bp) => bp['id'] == newSelectedBpId)) {
+        try {
+          var singleBpRes = await http.get(
+            Uri.parse('${Endpoint.cBPartner}/$newSelectedBpId?\$select=Name'),
+            headers: {'Authorization': Token.token},
+          );
+          if (singleBpRes.statusCode == 401) {
+            if (await handleTokenRefresh()) {
+              singleBpRes = await http.get(
+                Uri.parse('${Endpoint.cBPartner}/$newSelectedBpId?\$select=Name'),
+                headers: {'Authorization': Token.token},
+              );
+            }
+          }
+          if (singleBpRes.statusCode == 200) {
+            final data = jsonDecode(utf8.decode(singleBpRes.bodyBytes));
+            fetchedSingleBpName = data['Name'];
+          }
+        } catch (_) {}
+      }
+
       if (mounted) {
         setState(() {
-          _bPartnersList = bps;
-          _isLoadingBPartners = false;
-          if (_selectedBpId == null && _bPartnersList.isNotEmpty) {
-            _selectedBpId = resolvedBpId != null && _bPartnersList.any((bp) => bp['id'] == resolvedBpId) ? resolvedBpId : (widget.linkedProjectId != null ? resolvedBpId : _bPartnersList.first['id']);
-          }
+          _bPartnersList = bps.where((bp) {
+            final name = bp['Name']?.toString() ?? '';
+            final rawVendor = bp['IsVendor'] ?? bp['isVendor'];
+            final isVendorStr = rawVendor?.toString().trim().toLowerCase();
+            bool isVendor = isVendorStr == 'true' || isVendorStr == 'y';
 
-          // Rescate: Si el tercero del proyecto no estaba en la lista de activos, lo añadimos para evitar errores en el dropdown
-          if (_selectedBpId != null && !_bPartnersList.any((bp) => bp['id'] == _selectedBpId)) {
-            _bPartnersList.add({'id': _selectedBpId, 'Name': 'Tercero $_selectedBpId (Vinculado)'});
+            final rawCustomer = bp['IsCustomer'] ?? bp['isCustomer'];
+            final isCustomerStr = rawCustomer?.toString().trim().toLowerCase();
+            bool isCustomer = isCustomerStr == 'true' || isCustomerStr == 'y';
+            if (rawCustomer == null) isCustomer = true;
+
+            final isSpecificAdmin = name.trim().toUpperCase().contains('LA CASA DEL SOFTWARE') ||
+                                    bp['C_BPartner_UU'] == 'e4e48cad-f8f8-4f61-954c-60f431bd5d95' ||
+                                    bp['Record_UU'] == 'e4e48cad-f8f8-4f61-954c-60f431bd5d95' ||
+                                    bp['UUID'] == 'e4e48cad-f8f8-4f61-954c-60f431bd5d95' ||
+                                    bp['uuid'] == 'e4e48cad-f8f8-4f61-954c-60f431bd5d95';
+
+            return !name.startsWith('~') && ((isCustomer && !isVendor) || isSpecificAdmin);
+          }).toList();
+
+          _isLoadingBPartners = false;
+
+          if (newSelectedBpId == null && _bPartnersList.isNotEmpty) {
+            newSelectedBpId =
+                resolvedBpId != null &&
+                    _bPartnersList.any((bp) => bp['id'] == resolvedBpId)
+                ? resolvedBpId
+                : (widget.linkedProjectId != null
+                      ? resolvedBpId
+                      : _bPartnersList.first['id']);
+          }
+          _selectedBpId = newSelectedBpId;
+
+          // Añadir el rescatado a la lista con su nombre real si se obtuvo
+          if (_selectedBpId != null &&
+              !_bPartnersList.any((bp) => bp['id'] == _selectedBpId)) {
+            _bPartnersList.add({
+              'id': _selectedBpId,
+              'Name': fetchedSingleBpName ?? 'Tercero $_selectedBpId',
+            });
           }
         });
+        // Llamar a las funciones de carga después de que el estado se haya actualizado
+        if (_selectedBpId != null) {
+          _fetchUsers();
+        }
       }
     } catch (e) {
       if (mounted) setState(() => _isLoadingBPartners = false);
@@ -134,7 +272,13 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
 
   Future<void> _fetchStatuses() async {
     try {
-      final response = await http.get(Uri.parse('${Endpoint.baseUrl}/api/v1/models/R_Status'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+      final response = await http.get(
+        Uri.parse('${Endpoint.baseUrl}/api/v1/models/R_Status'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': Token.token,
+        },
+      );
 
       if (response.statusCode == 200) {
         final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
@@ -143,15 +287,28 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
           setState(() {
             _statusIdMap = {for (var r in records) r['Name']: r['id']};
             _isLoadingStatuses = false;
-            if (!_statusIdMap.containsKey(_selectedStatus) && _statusIdMap.isNotEmpty) {
-              _selectedStatus = _statusIdMap.keys.firstWhere((k) => k.toLowerCase().contains('open'), orElse: () => _statusIdMap.keys.first);
+             if (AccessControl.isRealSupport && _statusIdMap.isNotEmpty) {
+              _selectedStatus = _statusIdMap.keys.firstWhere(
+                (k) => k.toLowerCase().contains('recibida'),
+                orElse: () => _statusIdMap.keys.firstWhere(
+                  (k) => k.toLowerCase().contains('open'),
+                  orElse: () => _statusIdMap.keys.first,
+                ),
+              );
+            } else if (!_statusIdMap.containsKey(_selectedStatus) &&
+                _statusIdMap.isNotEmpty) {
+              _selectedStatus = _statusIdMap.keys.firstWhere(
+                (k) => k.toLowerCase().contains('open'),
+                orElse: () => _statusIdMap.keys.first,
+              );
             }
           });
         }
       }
     } catch (e) {
     } finally {
-      if (mounted && _isLoadingStatuses) setState(() => _isLoadingStatuses = false);
+      if (mounted && _isLoadingStatuses)
+        setState(() => _isLoadingStatuses = false);
     }
   }
 
@@ -161,17 +318,32 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
       if (response.statusCode == 200) {
         final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
         final records = jsonResponse['records'] as List;
+        final bool isProject = widget.linkedRecordUU != null && widget.linkedRecordUU!.isNotEmpty;
+
         if (mounted) {
           setState(() {
             _requestTypeMap = {for (var r in records) r['Name']: r['id']};
-            if (_selectedType == null && _requestTypeMap.isNotEmpty) {
-              // Prefer 'Service Request' if available, otherwise first
-              if (_requestTypeMap.containsKey('Service Request')) {
-                _selectedType = 'Service Request';
+            
+            // Establecer tipo por defecto según el contexto
+            if (_requestTypeMap.isNotEmpty) {
+              if (AccessControl.isRealSupport) {
+                _selectedType = _requestTypeMap.keys.firstWhere(
+                  (k) => k.toLowerCase().contains('soporte lirion'),
+                  orElse: () => _requestTypeMap.keys.first,
+                );
+              } else if (isProject) {
+                _selectedType = _requestTypeMap.keys.firstWhere(
+                  (k) => k.toLowerCase().contains('implantacion lirion'),
+                  orElse: () => _requestTypeMap.keys.first,
+                );
               } else {
-                _selectedType = _requestTypeMap.keys.first;
+                _selectedType = _requestTypeMap.keys.firstWhere(
+                  (k) => k.toLowerCase().contains('soporte lirion'),
+                  orElse: () => _requestTypeMap.keys.first,
+                );
               }
             }
+            
             _isLoadingTypes = false;
           });
         }
@@ -181,30 +353,109 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     }
   }
 
+  void _showCategoryHelpModal() {
+    showDialog(
+      context: context,
+      builder: (context) => CustomModal(
+        title: 'Guía de Categorías / Síntomas',
+        width: 800,
+        content: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.7,
+          ),
+          child: SingleChildScrollView(
+            child: Table(
+              border: TableBorder.all(color: Colors.grey.withOpacity(0.3)),
+              columnWidths: const {
+                0: FlexColumnWidth(1),
+                1: FlexColumnWidth(2),
+              },
+              children: [
+                const TableRow(
+                  decoration: BoxDecoration(color: Colors.deepPurple),
+                  children: [
+                    Padding(
+                      padding: EdgeInsets.all(8.0),
+                      child: Text('Categoría / Síntoma',
+                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.all(8.0),
+                      child: Text('Justificación Técnica',
+                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                    ),
+                  ],
+                ),
+                ..._categoryRecords.map((cat) => TableRow(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Text(cat['Name'] ?? '',
+                              style: const TextStyle(fontWeight: FontWeight.w500)),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Text(cat['Description'] ?? 'Sin descripción técnica disponible.'),
+                        ),
+                      ],
+                    )),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          CustomButton(
+            text: 'Cerrar',
+            onPressed: () => Navigator.pop(context),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _fetchCategories() async {
     try {
-      final response = await http.get(Uri.parse('${Endpoint.baseUrl}/api/v1/models/R_Category'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
-      if (response.statusCode == 200) {
-        final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
-        final records = jsonResponse['records'] as List;
-        if (mounted) {
-          setState(() {
-            _categoryMap = {for (var r in records) r['Name']: r['id']};
-            if (_selectedCategory == null && _categoryMap.isNotEmpty) {
+      final allRecords = await fetchCategories();
+      final bool isProject = widget.linkedRecordUU != null && widget.linkedRecordUU!.isNotEmpty;
+      
+      // Filtrar categorías según el contexto:
+      // Si es Proyecto: mostrar las que tienen showinprimhub = false
+      // Si es Soporte: mostrar las que tienen showinprimhub = true
+      final records = allRecords.where((c) {
+        final bool isPrimhub = c['showinprimhub'] == true;
+        return isProject ? !isPrimhub : isPrimhub;
+      }).toList();
+
+      if (mounted) {
+        setState(() {
+          _categoryRecords = records;
+          _categoryMap = {for (var r in records) r['Name']: r['id']};
+          _categoryPriorityMap = {
+            for (var r in records)
+              r['Name']: r['Priority']?.toString() ?? '5'
+          };
+            if (_selectedCategory == null &&
+                _categoryMap.isNotEmpty &&
+                AccessControl.isAdmin) {
               _selectedCategory = _categoryMap.keys.first;
             }
             _isLoadingCategories = false;
           });
         }
-      }
-    } catch (e) {
+      } catch (e) {
       if (mounted) setState(() => _isLoadingCategories = false);
     }
   }
 
   Future<void> _fetchGroups() async {
     try {
-      final response = await http.get(Uri.parse('${Endpoint.baseUrl}/api/v1/models/R_Group'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+      final response = await http.get(
+        Uri.parse('${Endpoint.baseUrl}/api/v1/models/R_Group'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': Token.token,
+        },
+      );
       if (response.statusCode == 200) {
         final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
         final records = jsonResponse['records'] as List;
@@ -214,37 +465,81 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
             if (_selectedGroup == null && _groupMap.isNotEmpty) {
               _selectedGroup = _groupMap.keys.first;
             }
-            _isLoadingGroups = false;
+            _loadingGroupsState = false;
           });
         }
       }
     } catch (e) {
-      if (mounted) setState(() => _isLoadingGroups = false);
+      if (mounted) setState(() => _loadingGroupsState = false);
     }
   }
 
   Future<void> _fetchUsers() async {
     try {
+      if (_selectedBpId == null) {
+        if (mounted) setState(() => _isLoadingUsers = false);
+        return;
+      }
       final logic = ProjectsLogic();
-      final users = await logic.fetchUsers();
+      final users = await logic.fetchUsers(bPartnerId: _selectedBpId);
       if (mounted) {
+        final previouslySelectedUserId = _selectedUserId;
+        bool userWasCleared = false;
+
+        // Si el usuario actual ya no está en la lista filtrada, lo deseleccionamos.
+        if (previouslySelectedUserId != null &&
+            !users.any(
+              (u) => (u['AD_User_ID'] ?? u['id']) == previouslySelectedUserId,
+            )) {
+          _selectedUserId = null;
+          userWasCleared = true;
+        }
+
         setState(() {
           _users = users;
           _isLoadingUsers = false;
         });
+
+        if (userWasCleared && AccessControl.isAdmin) {
+          WidgetsBinding.instance.addPostFrameCallback(
+            (_) => ToastMessage.show(
+              context: context,
+              message:
+                  'El filtro de usuario se ha actualizado para coincidir con el tercero.',
+              type: ToastType.help,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) setState(() => _isLoadingUsers = false);
     }
   }
 
-  final Map<String, String> _priorityMap = {'Urgente': '1', 'Alta': '3', 'Media': '5', 'Baja': '7', 'Menor': '9'};
 
-  Future<void> _selectDate(BuildContext context, TextEditingController controller) async {
-    final DateTime? picked = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2101));
+
+  final Map<String, String> _priorityMap = {
+    'Urgente': '1',
+    'Alta': '3',
+    'Media': '5',
+    'Baja': '7',
+    'Muy baja': '9',
+  };
+
+  Future<void> _selectDate(
+    BuildContext context,
+    TextEditingController controller,
+  ) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2101),
+    );
     if (picked != null) {
       setState(() {
-        controller.text = "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
+        controller.text =
+            "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
       });
     }
   }
@@ -252,7 +547,8 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
   // --- CORRECCIÓN LÓGICA DE FECHAS ---
   String _combineDateAndTime(String date, String time) {
     if (date.isEmpty) {
-      date = "${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}";
+      date =
+          "${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}";
     }
     String cleanTime = time.isEmpty ? "00:00:00" : time;
     // Si el tiempo ya trae una Z o una T, lo limpiamos para estandarizar
@@ -262,25 +558,343 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     return "${date}T${cleanTime}Z";
   }
 
+  Future<void> _pickFile(int index) async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      withData: true,
+    );
+    if (result != null && result.files.isNotEmpty) {
+      if (result.files.first.bytes == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Error al leer el archivo. Intente con otro formato.',
+            ),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+      setState(() {
+        _evidences[index] = result.files.first;
+      });
+    }
+  }
+
+  void _removeFile(int index) {
+    setState(() {
+      _evidences[index] = null;
+    });
+  }
+
+  Widget _buildEvidenceField(int index) {
+    final file = _evidences[index];
+    final theme = Theme.of(context);
+
+    bool isImage = false;
+    if (file != null && file.extension != null) {
+      final ext = file.extension!.toLowerCase();
+      isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].contains(ext);
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Row(
+        children: [
+          Expanded(
+            child: InkWell(
+              onTap: (isImage && file?.bytes != null)
+                  ? () {
+                      showDialog(
+                        context: context,
+                        builder: (context) => Dialog(
+                          backgroundColor: Colors.transparent,
+                          child: Stack(
+                            alignment: Alignment.topRight,
+                            children: [
+                              InteractiveViewer(
+                                child: Image.memory(file!.bytes!),
+                              ),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.close,
+                                  color: Colors.white,
+                                  shadows: [
+                                    Shadow(color: Colors.black, blurRadius: 4),
+                                  ],
+                                ),
+                                onPressed: () => Navigator.pop(context),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
+                  : null,
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: theme.colorScheme.outline.withOpacity(0.5),
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        file != null
+                            ? file.name
+                            : 'Adjunto ${index + 1} (Sin archivo)',
+                        style: TextStyle(
+                          color: file != null
+                              ? theme.colorScheme.onSurface
+                              : theme.colorScheme.onSurfaceVariant,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (isImage)
+                      const Icon(
+                        Icons.visibility,
+                        size: 18,
+                        color: Colors.grey,
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          if (file == null)
+            IconButton(
+              icon: const Icon(Icons.attach_file),
+              onPressed: () => _pickFile(index),
+              tooltip: 'Adjuntar Archivo',
+              color: theme.colorScheme.primary,
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.delete),
+              onPressed: () => _removeFile(index),
+              tooltip: 'Eliminar Adjunto',
+              color: theme.colorScheme.error,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openSearchModal<T>({
+    required String title,
+    required List<dynamic> items,
+    required T? currentValue,
+    required String Function(dynamic) getTitle,
+    String Function(dynamic)? getSubtitle,
+    required T Function(dynamic) getValue,
+    required void Function(T) onSelected,
+  }) async {
+    final double dialogHeight = MediaQuery.of(context).size.height * 0.6;
+    final T? result = await showDialog<T>(
+      context: context,
+      builder: (context) {
+        String searchQuery = '';
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          insetAnimationDuration: Duration.zero,
+          child: Container(
+            width: 400,
+            height: dialogHeight,
+            padding: const EdgeInsets.all(20),
+            child: StatefulBuilder(
+              builder: (context, setStateDialog) {
+                final filteredItems = items.where((item) {
+                  return getTitle(
+                    item,
+                  ).toLowerCase().contains(searchQuery.toLowerCase());
+                }).toList();
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Seleccionar $title *',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.filter_list, color: Colors.grey),
+                        hintText: 'Filtrar...',
+                        enabledBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(color: Colors.grey),
+                        ),
+                        focusedBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(color: Colors.blue),
+                        ),
+                      ),
+                      onChanged: (val) =>
+                          setStateDialog(() => searchQuery = val),
+                    ),
+                    const SizedBox(height: 16),
+                    Expanded(
+                      child: ListView.separated(
+                        itemCount: filteredItems.length,
+                        separatorBuilder: (_, __) => const Divider(
+                          height: 1,
+                          color: Colors.grey,
+                          thickness: 0.3,
+                        ),
+                        itemBuilder: (context, index) {
+                          final item = filteredItems[index];
+                          final itemValue = getValue(item);
+                          final isSelected = itemValue == currentValue;
+
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            tileColor: isSelected
+                                ? Colors.grey.withOpacity(0.1)
+                                : null,
+                            title: Text(
+                              getTitle(item),
+                              style: const TextStyle(fontSize: 14),
+                            ),
+                            subtitle: getSubtitle != null
+                                ? Text(
+                                    getSubtitle(item),
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey,
+                                    ),
+                                  )
+                                : null,
+                            onTap: () => Navigator.of(context).pop(itemValue),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+
+    if (result != null) onSelected(result);
+  }
+
+  Widget _buildSearchableField<T>({
+    required String label,
+    required String? hintText,
+    required T? value,
+    required bool isLoading,
+    required bool isDisabled,
+    required String displayText,
+    required VoidCallback onTap,
+    String? errorMessage,
+  }) {
+    return InkWell(
+      onTap: (isLoading || isDisabled) ? null : onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          errorText: errorMessage,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 14,
+          ),
+          floatingLabelBehavior: FloatingLabelBehavior.always,
+          suffixIcon: isLoading
+              ? Transform.scale(
+                  scale: 0.5,
+                  child: const CircularProgressIndicator(strokeWidth: 3),
+                )
+              : const Icon(Icons.search),
+        ),
+        isEmpty: value == null,
+        child: Text(
+          value == null ? (hintText ?? '') : displayText,
+          style: TextStyle(
+            fontSize: 16,
+            color: (isLoading || isDisabled || value == null)
+                ? Colors.grey[600]
+                : Theme.of(context).colorScheme.onSurface,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+    );
+  }
+
   Future<void> _submitForm() async {
     final bool isFullAccess = AccessControl.isAdmin;
 
     if (!_formKey.currentState!.validate()) return;
     if (!AccessControl.canCreateRequests) return;
-    if (_isLoadingStatuses || _isLoadingTypes || _isLoadingCategories || _isLoadingGroups || _isLoadingUsers || _isLoadingBPartners) return;
+    if (_isLoadingStatuses ||
+        _isLoadingTypes ||
+        _isLoadingCategories ||
+        _loadingGroupsState ||
+        _isLoadingUsers ||
+        _isLoadingBPartners)
+      return;
 
     double qty = double.tryParse(_qtyUsedController.text) ?? 0.0;
+
+    // Notificación de Ficha de Producto preferible (ya no es obligatorio)
+    if (widget.linkedRecordUU == null && _selectedProductChipId == null && !AccessControl.isRealSupport) {
+      final bool? continueWithoutChip = await showDialog<bool>(
+        context: context,
+        builder: (context) => CustomModal(
+          title: 'Ficha de Producto no seleccionada',
+          content: const Text(
+            'Es preferible seleccionar una Ficha de Producto para solicitudes de soporte para asegurar una correcta vinculación y seguimiento de horas.\n\n¿Desea continuar sin seleccionar una ficha?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Volver y seleccionar'),
+            ),
+            CustomButton(
+              text: 'Continuar de todos modos',
+              onPressed: () => Navigator.pop(context, true),
+            ),
+          ],
+        ),
+      );
+
+      if (continueWithoutChip != true) return;
+    }
 
     int? bpId = _selectedBpId ?? User.cBPartnerID;
 
     // Validación de Horas Disponibles (Solo para Soporte)
-    if (widget.linkedRecordUU == null && qty > 0 && !ValidationManager.isExempt(bpId)) {
+    if (widget.linkedRecordUU == null &&
+        qty > 0 &&
+        !ValidationManager.isExempt(bpId)) {
       setState(() => _isSubmitting = true); // Mostrar carga mientras validamos
       try {
         if (bpId != null) {
-          // 1. Obtener horas contratadas
-          final contracts = await ContractApi.getSupportContracts(bPartnerId: bpId);
-          final double totalContracted = contracts.fold(0.0, (sum, contract) => sum + ((contract['contractedHours'] as num?)?.toDouble() ?? 0.0));
+          // 1. Obtener horas adquiridas (Fichas de Producto)
+          final chips = await ContractApi.getSupportProductChips(
+            bPartnerId: bpId,
+          );
+          final double totalContracted = chips.fold(
+            0.0,
+            (sum, chip) => sum + ((chip['Qty'] as num?)?.toDouble() ?? 0.0),
+          );
 
           // 2. Obtener horas consumidas y estimadas
           final requests = await fetchRequest(filter: "C_BPartner_ID eq $bpId");
@@ -289,14 +903,25 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
             final recordUU = req['Record_UU'];
             if (recordUU != null && recordUU.toString().isNotEmpty) continue;
 
-            totalEstimatedAndConsumed += (req['QtyPlan'] as num?)?.toDouble() ?? 0.0;
+            // Usamos QtySpent (consumidas) o QtyPlan (en progreso)
+            totalEstimatedAndConsumed +=
+                (req['QtySpent'] as num?)?.toDouble() ?? 
+                (req['QtyPlan'] as num?)?.toDouble() ?? 0.0;
           }
 
           final double available = totalContracted - totalEstimatedAndConsumed;
 
           if (qty > available) {
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No se puede exceder las horas estimadas/consumidas de las Disponibles.'), backgroundColor: Colors.red, duration: Duration(seconds: 4)));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'No se puede exceder las horas estimadas/consumidas de las Disponibles.',
+                  ),
+                  backgroundColor: Colors.red,
+                  duration: Duration(seconds: 4),
+                ),
+              );
               setState(() => _isSubmitting = false);
             }
             return;
@@ -308,16 +933,50 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
       // No se detiene el spinner aquí, continúa al bloque de submit.
     }
 
-    if (widget.linkedRecordUU == null && AccessControl.isAdmin && _selectedBpId == null) {
+    if (widget.linkedRecordUU == null &&
+        AccessControl.isAdmin &&
+        _selectedBpId == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Como administrador, debe seleccionar un tercero.'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Como administrador, debe seleccionar un tercero.'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
       // Detener el spinner si la validación falla aquí
       if (_isSubmitting) setState(() => _isSubmitting = false);
       return;
     }
 
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => CustomModal(
+        title: 'Confirmar Solicitud',
+        content: const Text(
+          '¿Seguro quiere continuar? Al enviar la solicitud esta no puede ser editada por usted, compruebe que toda la información y/o adjuntos sean correctos antes de continuar.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: _isSubmitting ? null : () {
+              if (Navigator.of(context).canPop()) {
+                Navigator.of(context).pop(false);
+              }
+            },
+            child: const Text('Revisar'),
+          ),
+          CustomButton(
+            text: 'Sí, continuar',
+            onPressed: () => Navigator.pop(context, true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
     if (!mounted) return;
+
     if (!_isSubmitting) setState(() => _isSubmitting = true);
 
     try {
@@ -327,37 +986,68 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
       int? orgId = Token.organitation ?? payloadToken['AD_Org_ID'];
       int? userId = payloadToken['AD_User_ID'];
 
-      int defaultStatusId = _statusIdMap.isNotEmpty ? _statusIdMap.values.first : 100;
-      int openStatusId = _statusIdMap.entries.firstWhere((e) => e.key.toLowerCase().contains('open'), orElse: () => MapEntry('', defaultStatusId)).value;
+      int defaultStatusId = _statusIdMap.isNotEmpty
+          ? _statusIdMap.values.first
+          : 100;
+      int openStatusId = _statusIdMap.entries
+          .firstWhere(
+            (e) => e.key.toLowerCase().contains('recibida'),
+            orElse: () => _statusIdMap.entries.firstWhere(
+              (e) => e.key.toLowerCase().contains('open'),
+              orElse: () => MapEntry('', defaultStatusId),
+            ),
+          )
+          .value;
 
       // Inyectamos directamente la relación a la tabla y el UUID en el modelo R_Request
       // asegurando que herede el proyecto y se vincule a la tarea.
-      await _createManualRequest(clientId, orgId, userId, openStatusId, isFullAccess);
+      await _createManualRequest(
+        clientId,
+        orgId,
+        userId,
+        openStatusId,
+        isFullAccess,
+      );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
       }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
-  Future<void> _createManualRequest(int? clientId, int? orgId, int? userId, int openStatusId, bool isFullAccess) async {
+  Future<void> _createManualRequest(
+    int? clientId,
+    int? orgId,
+    int? userId,
+    int openStatusId,
+    bool isFullAccess,
+  ) async {
     final url = Uri.parse(Endpoint.request);
     double qty = double.tryParse(_qtyUsedController.text) ?? 0.0;
 
     final Map<String, dynamic> data = {
       'Summary': _summaryController.text,
-      'Priority': isFullAccess ? _priorityMap[_selectedPriority] : '5', // 5 es Media por defecto
+      'Priority': _priorityMap[_selectedPriority] ?? '5',
       'R_RequestType_ID': {'id': _requestTypeMap[_selectedType!]},
-      'R_Status_ID': {'id': isFullAccess ? (_statusIdMap[_selectedStatus] ?? openStatusId) : openStatusId},
+      'R_Status_ID': {
+        'id': isFullAccess
+            ? (_statusIdMap[_selectedStatus] ?? openStatusId)
+            : openStatusId,
+      },
     };
+
+
 
     if (_emailSubjectController.text.isNotEmpty) {
       data['CDS_EmailSubject'] = _emailSubjectController.text;
     }
 
-    if (_selectedCategory != null && _categoryMap.containsKey(_selectedCategory)) {
+    if (_selectedCategory != null &&
+        _categoryMap.containsKey(_selectedCategory)) {
       data['R_Category_ID'] = {'id': _categoryMap[_selectedCategory]};
     }
 
@@ -370,17 +1060,42 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
       data['AD_User_ID'] = {'id': userId};
     }
 
-    if (isFullAccess && _selectedSalesRepId != null) {
-      data['SalesRep_ID'] = {'id': _selectedSalesRepId};
-    } else if (userId != null) {
-      data['SalesRep_ID'] = {'id': userId};
+    // --- Lógica segura para asignar SalesRep_ID ---
+    int? repIdToAssign;
+    if (!AccessControl.isRealSupport) {
+      // 1. Si es admin, el valor seleccionado tiene prioridad.
+      if (isFullAccess) {
+        repIdToAssign = _selectedSalesRepId;
+      }
+      // 2. Si no hay rep, usar el usuario actual si es un rep válido.
+      if (repIdToAssign == null && userId != null) {
+        final currentUserIsRep = _salesReps.any(
+          (rep) => (rep['AD_User_ID'] ?? rep['id']) == userId,
+        );
+        if (currentUserIsRep) repIdToAssign = userId;
+      }
+      // 3. Como fallback, usar el rep del tercero si existe.
+      if (repIdToAssign == null && _selectedBpId != null) {
+        final bpData = _bPartnersList.firstWhere(
+          (bp) => bp['id'] == _selectedBpId,
+          orElse: () => {},
+        );
+        final bpRep = bpData['SalesRep_ID'];
+        repIdToAssign = (bpRep is Map)
+            ? bpRep['id']
+            : (bpRep is int ? bpRep : null);
+      }
     }
+    // 4. Asignar al payload si se encontró un rep válido.
+    if (repIdToAssign != null) data['SalesRep_ID'] = repIdToAssign;
 
     if (isFullAccess) {
-      if (_selectedGroup != null && _groupMap.containsKey(_selectedGroup)) data['R_Group_ID'] = {'id': _groupMap[_selectedGroup]};
+      if (_selectedGroup != null && _groupMap.containsKey(_selectedGroup))
+        data['R_Group_ID'] = {'id': _groupMap[_selectedGroup]};
     }
 
     if (_selectedBpId != null) data['C_BPartner_ID'] = {'id': _selectedBpId};
+    if (_selectedProductChipId != null) data['C_BPartner_Product_Chip_ID'] = {'id': _selectedProductChipId};
 
     // Vinculación directa de IDs del Proyecto en el payload nativo
     if (widget.linkedProjectId != null) {
@@ -395,7 +1110,12 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
 
       // Obtenemos dinámicamente el ID de la tabla C_ProjectTask para evitar errores de Foreign Key
       try {
-        final tableRes = await http.get(Uri.parse('${Endpoint.baseUrl}/api/v1/models/AD_Table?\$filter=TableName eq \'C_ProjectTask\''), headers: {'Authorization': Token.token});
+        final tableRes = await http.get(
+          Uri.parse(
+            '${Endpoint.baseUrl}/api/v1/models/AD_Table?\$filter=TableName eq \'C_ProjectTask\'',
+          ),
+          headers: {'Authorization': Token.token},
+        );
         if (tableRes.statusCode == 200) {
           final tData = jsonDecode(utf8.decode(tableRes.bodyBytes));
           if (tData['records'] != null && tData['records'].isNotEmpty) {
@@ -405,7 +1125,9 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
       } catch (_) {}
     }
 
-    if (isFullAccess && (_selectedType == 'Service Request' || _dateStartController.text.isNotEmpty)) {
+    if (isFullAccess &&
+        (_selectedType == 'Service Request' ||
+            _dateStartController.text.isNotEmpty)) {
       // Corregimos el envío de fechas y horas combinándolas
       String startDate = _dateStartController.text;
       String endDate = _dateCompleteController.text;
@@ -419,39 +1141,73 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
 
       // Cantidad usada (solicitado) en lugar de horas/minutos separados
       if (qty > 0) {
-        data['QtyPlan'] = qty;
+        data['QtySpent'] = qty;
       }
     }
 
     final body = jsonEncode(data);
 
-    final response = await http.post(url, headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: body);
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': Token.token,
+      },
+      body: body,
+    );
 
     if (response.statusCode == 200 || response.statusCode == 201) {
       try {
         final data = jsonDecode(utf8.decode(response.bodyBytes));
         final newId = data['id'];
         if (newId != null) {
+          // Subir archivos adjuntos
+          final tableName = '${Endpoint.baseUrl}/api/v1/models/R_Request';
+          for (var file in _evidences) {
+            if (file != null && file.bytes != null) {
+              final convertedFile = {
+                'title': file.name,
+                'base64': base64Encode(file.bytes!),
+              };
+              await postAttachments(
+                recordID: newId,
+                tableName: tableName,
+                convertedFile: convertedFile,
+              );
+            }
+          }
+
           await GlobalCache.syncSingleRequest(newId);
         }
       } catch (_) {}
 
       if (mounted) {
-        Navigator.of(context).pop(true);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Solicitud creada correctamente')));
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop(true);
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Solicitud creada correctamente')),
+        );
       }
     } else {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error ${response.statusCode}: ${response.body}'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error ${response.statusCode}: ${response.body}'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final bool isFullAccess = AccessControl.isAdmin || AccessControl.isRealSupport;
+    final bool isFullAccess = AccessControl.isAdmin;
     return CustomModal(
-      title: widget.linkedRecordUU != null ? 'Nueva Solicitud De Tarea' : 'Nueva Solicitud de Soporte',
+      title: widget.linkedRecordUU != null
+          ? 'Nueva Solicitud De Tarea'
+          : 'Nueva Solicitud de Soporte',
       width: 700,
       content: SingleChildScrollView(
         child: Form(
@@ -459,129 +1215,356 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (isFullAccess) ...[
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: CustomDropdown<int>(
-                        label: 'Tercero',
-                        hintText: _isLoadingBPartners ? 'Cargando terceros...' : 'Seleccione Tercero',
-                        value: _isLoadingBPartners || !_bPartnersList.any((bp) => bp['id'] == _selectedBpId) ? null : _selectedBpId,
-                        items: _bPartnersList.map((bp) => DropdownMenuItem<int>(value: bp['id'], child: Text(bp['Name'] ?? 'Tercero ${bp['id']}'))).toList(),
-                        onChanged: (_isLoadingBPartners || widget.linkedProjectId != null) ? null : (value) => setState(() => _selectedBpId = value),
-                        validator: (value) => value == null ? 'Debe seleccionar un tercero.' : null,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: CustomDropdown<int>(
-                        label: 'Usuario',
-                        hintText: _isLoadingUsers ? 'Cargando usuarios...' : 'Seleccione Usuario',
-                        value: _isLoadingUsers || !_users.any((u) => (u['AD_User_ID'] ?? u['id']) == _selectedUserId) ? null : _selectedUserId,
-                        items: _users.map<DropdownMenuItem<int>>((u) => DropdownMenuItem<int>(value: u['AD_User_ID'] ?? u['id'], child: Text(u['Name'] ?? 'Sin Nombre'))).toList(),
-                        onChanged: _isLoadingUsers ? null : (value) => setState(() => _selectedUserId = value),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-              ],
+              const SizedBox(height: 12),
 
+              // SECCIÓN: Datos de Tercero y Usuario
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    child: CustomDropdown<String?>(
-                      value: _isLoadingTypes || !_requestTypeMap.containsKey(_selectedType) ? null : _selectedType,
-                      label: 'Tipo de Solicitud',
-                      hintText: _isLoadingTypes ? 'Cargando tipos...' : null,
-                      items: _requestTypeMap.keys.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-                      onChanged: _isLoadingTypes ? null : (val) => setState(() => _selectedType = val!),
+                    child: _buildSearchableField<int>(
+                      label: 'Tercero',
+                      hintText: 'Seleccione Tercero',
+                      value: _selectedBpId,
+                      isLoading: _isLoadingBPartners,
+                      isDisabled: !isFullAccess,
+                      displayText:
+                          _selectedBpId != null &&
+                                  _bPartnersList.any(
+                                    (bp) => bp['id'] == _selectedBpId,
+                                  )
+                              ? _bPartnersList.firstWhere(
+                                    (bp) => bp['id'] == _selectedBpId,
+                                  )['Name'] ??
+                                  ''
+                              : '',
+                      errorMessage: _selectedBpId == null
+                          ? 'Debe seleccionar un tercero.'
+                          : null,
+                      onTap: () => _openSearchModal<int>(
+                                title: 'Tercero',
+                                items: _bPartnersList
+                                    .where((bp) => bp['id'] != null)
+                                    .toList(),
+                                currentValue: _selectedBpId,
+                                getTitle: (item) => item['Name'] ?? 'Sin Nombre',
+                                getValue: (item) => item['id'] as int,
+                                onSelected: (val) {
+                                  setState(() {
+                                    _selectedBpId = val;
+                                    _selectedUserId = null; // Reseteamos usuario al cambiar tercero
+                                    _selectedProductChipId = null;
+                                    _users = [];
+                                    _isLoadingUsers = true;
+                                  });
+                                  _fetchUsers();
+                                  _fetchProductChips();
+                                },
+                              ),
                     ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
-                    child: CustomDropdown<String?>(
-                      value: _isLoadingCategories || !_categoryMap.containsKey(_selectedCategory) ? null : _selectedCategory,
-                      label: 'Categoría',
-                      hintText: _isLoadingCategories ? 'Cargando categorías...' : null,
-                      items: _categoryMap.keys.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-                      onChanged: _isLoadingCategories ? null : (val) => setState(() => _selectedCategory = val!),
+                    child: _buildSearchableField<int>(
+                      label: 'Usuario',
+                      hintText: _selectedBpId == null
+                          ? 'Seleccione un tercero primero'
+                          : 'Seleccione Usuario',
+                      value: _selectedUserId,
+                      isLoading: _isLoadingUsers,
+                      isDisabled: !isFullAccess || _selectedBpId == null || _isLoadingUsers,
+                      displayText:
+                          _selectedUserId != null &&
+                                  _users.any(
+                                    (u) =>
+                                        (u['AD_User_ID'] ?? u['id']) ==
+                                        _selectedUserId,
+                                  )
+                              ? _users.firstWhere(
+                                      (u) =>
+                                          (u['AD_User_ID'] ?? u['id']) ==
+                                          _selectedUserId,
+                                    )['Name'] ??
+                                    ''
+                              : (User.name ?? ''),
+                      onTap: () => _openSearchModal<int>(
+                                title: 'Usuario',
+                                items: _users
+                                    .where(
+                                      (u) => (u['AD_User_ID'] ?? u['id']) != null,
+                                    )
+                                    .toList(),
+                                currentValue: _selectedUserId,
+                                getTitle: (item) => item['Name'] ?? 'Sin Nombre',
+                                getValue: (item) =>
+                                    (item['AD_User_ID'] ?? item['id']) as int,
+                                onSelected: (val) =>
+                                    setState(() => _selectedUserId = val),
+                              ),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 16),
-              CustomTextField(controller: _emailSubjectController, label: 'Asunto'),
               const SizedBox(height: 16),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                    Expanded(
+                      child: _buildSearchableField<String>(
+                        label: 'Tipo de Solicitud',
+                        hintText: 'Seleccione Tipo',
+                        value: _selectedType,
+                        isLoading: _isLoadingTypes,
+                        isDisabled: AccessControl.isRealSupport,
+                        displayText: _selectedType ?? '',
+                        onTap: () => _openSearchModal<String>(
+                          title: 'Tipo de Solicitud',
+                          items: _requestTypeMap.keys.toList(),
+                          currentValue: _selectedType,
+                          getTitle: (item) => item.toString(),
+                          getValue: (item) => item.toString(),
+                          onSelected: (val) =>
+                              setState(() => _selectedType = val),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // ASUNTO (Campo común para todos)
+                CustomTextField(
+                  controller: _emailSubjectController,
+                  label: 'Asunto',
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      flex: 10,
+                      child: _buildSearchableField<String>(
+                        label: 'Categoría',
+                        hintText: 'Seleccione Categoría',
+                        value: _selectedCategory,
+                        isLoading: _isLoadingCategories,
+                        isDisabled: false,
+                        displayText: _selectedCategory ?? '',
+                        onTap: () => _openSearchModal<String>(
+                          title: 'Categoría',
+                          items: _categoryMap.keys.toList(),
+                          currentValue: _selectedCategory,
+                          getTitle: (item) => item.toString(),
+                          getValue: (item) => item.toString(),
+                          onSelected: (val) {
+                            setState(() {
+                              _selectedCategory = val;
+                              final bool isProject = widget.linkedRecordUU != null && widget.linkedRecordUU!.isNotEmpty;
+                              
+                              // La automatización de prioridad solo aplica a SOPORTE (no proyectos)
+                              if (!isProject && val != null &&
+                                  _categoryPriorityMap.containsKey(val)) {
+                                final pValue = _categoryPriorityMap[val]!;
+                                final label = _priorityMap.entries
+                                    .firstWhere(
+                                      (e) => e.value == pValue,
+                                      orElse: () => _priorityMap.entries
+                                          .firstWhere((e) => e.key == 'Media'),
+                                    )
+                                    .key;
+                                _selectedPriority = label;
+                              }
+                            });
+                          },
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                      child: IconButton(
+                        icon: const Icon(Icons.info_outline, color: Colors.blue),
+                        tooltip: 'Ver guía de categorías',
+                        onPressed: _showCategoryHelpModal,
+                      ),
+                    ),
+                    Expanded(
+                      flex: 10,
+                      child: _buildSearchableField<String>(
+                        label: 'Prioridad',
+                        hintText: 'Seleccione Prioridad',
+                        value: _selectedPriority,
+                        isLoading: false,
+                        isDisabled: !(widget.linkedRecordUU != null && widget.linkedRecordUU!.isNotEmpty), 
+                        displayText: _selectedPriority,
+                        onTap: () => _openSearchModal<String>(
+                          title: 'Prioridad',
+                          items: _priorityMap.keys.toList(),
+                          currentValue: _selectedPriority,
+                          getTitle: (item) => item.toString(),
+                          getValue: (item) => item.toString(),
+                          onSelected: (val) =>
+                              setState(() => _selectedPriority = val),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // SECCIÓN: Ficha de Producto (Solo para Soporte)
+                if (!(widget.linkedRecordUU != null && widget.linkedRecordUU!.isNotEmpty) && !AccessControl.isRealSupport) ...[
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: _buildSearchableField<int>(
+                          label: 'Ficha de Producto',
+                          hintText: _selectedBpId == null
+                              ? 'Seleccione un tercero primero'
+                              : 'Seleccione Ficha',
+                          value: _selectedProductChipId,
+                          isLoading: _isLoadingProducts,
+                          isDisabled: _selectedBpId == null || _isLoadingProducts,
+                          displayText: _selectedProductChipId != null &&
+                                  _productChips.any(
+                                    (c) => c['id'] == _selectedProductChipId,
+                                  )
+                              ? _productChips.firstWhere(
+                                  (c) => c['id'] == _selectedProductChipId,
+                                )['identifier'] ??
+                                  ''
+                              : '',
+                          onTap: () => _openSearchModal<int>(
+                            title: 'Ficha de Producto',
+                            items: _productChips,
+                            currentValue: _selectedProductChipId,
+                            getTitle: (item) => item['identifier'] ?? 'Sin ID',
+                            getValue: (item) => item['id'] as int,
+                            onSelected: (val) =>
+                                setState(() => _selectedProductChipId = val),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                ],
 
+              // SECCIÓN: Gestión Interna (Solo Admin)
               if (isFullAccess) ...[
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
-                      child: CustomDropdown<String?>(
-                        value: _isLoadingGroups || !_groupMap.containsKey(_selectedGroup) ? null : _selectedGroup,
+                      child: _buildSearchableField<String>(
                         label: 'Grupo',
-                        hintText: _isLoadingGroups ? 'Cargando grupos...' : null,
-                        items: _groupMap.keys.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-                        onChanged: _isLoadingGroups ? null : (val) => setState(() => _selectedGroup = val!),
+                        hintText: 'Seleccione Grupo',
+                        value: _selectedGroup,
+                        isLoading: _loadingGroupsState,
+                        isDisabled: false,
+                        displayText: _selectedGroup ?? '',
+                        onTap: () => _openSearchModal<String>(
+                          title: 'Grupo',
+                          items: _groupMap.keys.toList(),
+                          currentValue: _selectedGroup,
+                          getTitle: (item) => item.toString(),
+                          getValue: (item) => item.toString(),
+                          onSelected: (val) =>
+                              setState(() => _selectedGroup = val),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
-                      child: CustomDropdown<int>(
+                      child: _buildSearchableField<int>(
                         label: 'Representante Comercial',
-                        hintText: _isLoadingUsers ? 'Cargando usuarios...' : null,
-                        value: _isLoadingUsers || !_users.any((u) => (u['AD_User_ID'] ?? u['id']) == _selectedSalesRepId) ? null : _selectedSalesRepId,
-                        items: _users.map<DropdownMenuItem<int>>((u) => DropdownMenuItem<int>(value: u['AD_User_ID'] ?? u['id'], child: Text(u['Name'] ?? 'Sin Nombre'))).toList(),
-                        onChanged: _isLoadingUsers ? null : (value) => setState(() => _selectedSalesRepId = value),
+                        hintText: 'Seleccione Representante',
+                        value: _selectedSalesRepId,
+                        isLoading: _isLoadingSalesReps,
+                        isDisabled: false,
+                        displayText:
+                            _selectedSalesRepId != null &&
+                                _salesReps.any(
+                                  (u) =>
+                                      (u['AD_User_ID'] ?? u['id']) ==
+                                      _selectedSalesRepId,
+                                )
+                            ? _salesReps.firstWhere(
+                                    (u) =>
+                                        (u['AD_User_ID'] ?? u['id']) ==
+                                        _selectedSalesRepId,
+                                  )['Name'] ??
+                                  ''
+                            : '',
+                        onTap: () => _openSearchModal<int>(
+                          title: 'Representante Comercial',
+                          items: _salesReps,
+                          currentValue: _selectedSalesRepId,
+                          getTitle: (item) => item['Name'] ?? 'Sin Nombre',
+                          getValue: (item) =>
+                              (item['AD_User_ID'] ?? item['id']) as int,
+                          onSelected: (val) =>
+                              setState(() => _selectedSalesRepId = val),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildSearchableField<String>(
+                        label: 'Estado',
+                        hintText: 'Seleccione Estado',
+                        value: _selectedStatus,
+                        isLoading: _isLoadingStatuses,
+                        isDisabled: false,
+                        displayText: cleanStatusName(_selectedStatus),
+                        onTap: () => _openSearchModal<String>(
+                          title: 'Estado',
+                          items: _statusIdMap.keys.toList(),
+                          currentValue: _selectedStatus,
+                          getTitle: (item) => cleanStatusName(item.toString()),
+                          getValue: (item) => item.toString(),
+                          onSelected: (val) =>
+                              setState(() => _selectedStatus = val),
+                        ),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 16),
 
-                Row(
-                  children: [
-                    Expanded(
-                      child: CustomDropdown<String>(
-                        value: _selectedStatus,
-                        label: 'Estado',
-                        items: _statusIdMap.keys.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
-                        onChanged: (val) => setState(() => _selectedStatus = val!),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: CustomDropdown<String>(
-                        value: _selectedPriority,
-                        label: 'Prioridad',
-                        items: _priorityMap.keys.map((p) => DropdownMenuItem(value: p, child: Text(p))).toList(),
-                        onChanged: (val) => setState(() => _selectedPriority = val!),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                if (_selectedType == 'Service Request' || _selectedType != null) ...[
+                // SECCIÓN: Planificación y Horas (Solo Admin)
+                if (_selectedType != null) ...[
                   Row(
                     children: [
                       Expanded(
                         child: GestureDetector(
-                          onTap: () => _selectDate(context, _dateStartController),
+                          onTap: () =>
+                              _selectDate(context, _dateStartController),
                           child: AbsorbPointer(
-                            child: CustomTextField(controller: _dateStartController, label: 'Inicio Plan', hintText: 'YYYY-MM-DD', prefixIcon: const Icon(Icons.calendar_today)),
+                            child: CustomTextField(
+                              controller: _dateStartController,
+                              label: 'Fecha de Inicio Planeada',
+                              hintText: 'YYYY-MM-DD',
+                              prefixIcon: const Icon(Icons.calendar_today),
+                            ),
                           ),
                         ),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
                         child: GestureDetector(
-                          onTap: () => _selectDate(context, _dateCompleteController),
+                          onTap: () =>
+                              _selectDate(context, _dateCompleteController),
                           child: AbsorbPointer(
-                            child: CustomTextField(controller: _dateCompleteController, label: 'Fecha de Cierre', hintText: 'YYYY-MM-DD', prefixIcon: const Icon(Icons.calendar_today)),
+                            child: CustomTextField(
+                              controller: _dateCompleteController,
+                              label: 'Fecha de Cierre',
+                              hintText: 'YYYY-MM-DD',
+                              prefixIcon: const Icon(Icons.calendar_today),
+                            ),
                           ),
                         ),
                       ),
@@ -591,7 +1574,19 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                   Row(
                     children: [
                       Expanded(
-                        child: CustomTextField(controller: _qtyUsedController, label: 'Horas Invertidas', hintText: '0.0', keyboardType: const TextInputType.numberWithOptions(decimal: true), inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))]),
+                        child: CustomTextField(
+                          controller: _qtyUsedController,
+                          label: 'Horas Invertidas',
+                          hintText: '0.0',
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(
+                              RegExp(r'^\d*\.?\d*'),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -599,22 +1594,43 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                 ],
               ],
 
+              // RESUMEN Y ADJUNTOS (Campos comunes)
               CustomTextField(
                 controller: _summaryController,
                 label: 'Descripción / Resumen',
                 maxLines: 4,
                 validator: (value) {
-                  if (value == null || value.trim().isEmpty) return 'Por favor ingrese una descripción';
+                  if (value == null || value.trim().isEmpty)
+                    return 'Por favor ingrese una descripción';
                   return null;
                 },
               ),
+              const SizedBox(height: 24),
+              const Text(
+                'Adjuntos (Opcional, hasta 4 archivos):',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 12),
+              _buildEvidenceField(0),
+              _buildEvidenceField(1),
+              _buildEvidenceField(2),
+              _buildEvidenceField(3),
             ],
           ),
         ),
       ),
       actions: [
-        TextButton(onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(false), child: const Text('Cancelar')),
-        CustomButton(text: 'Enviar Solicitud', onPressed: _submitForm, isLoading: _isSubmitting),
+        TextButton(
+          onPressed: _isSubmitting
+              ? null
+              : () => Navigator.of(context).pop(false),
+          child: const Text('Cancelar'),
+        ),
+        CustomButton(
+          text: 'Enviar Solicitud',
+          onPressed: _submitForm,
+          isLoading: _isSubmitting,
+        ),
       ],
     );
   }

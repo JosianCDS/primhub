@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/access_control.dart';
-import 'package:primhub/ui/pages/Projects/Projects_Widgets/phase_item.dart';
-import 'package:primhub/ui/pages/Projects/Projects_Widgets/task_item.dart';
 import 'package:primhub/ui/pages/Projects/dialogs/item_edit_dialog.dart';
 import 'package:primhub/ui/pages/Projects/dialogs/phase_create_dialog.dart';
 import 'package:primhub/ui/pages/Projects/dialogs/project_calendar_dialog.dart';
 import 'package:primhub/ui/pages/Projects/dialogs/project_info_dialog.dart';
+import 'package:primhub/ui/pages/Projects/Projects_Widgets/phase_item.dart';
+import 'package:primhub/ui/pages/Projects/Projects_Widgets/task_item.dart';
+import 'package:primhub/api/global_cache.dart';
 
 class ProjectItem extends StatelessWidget {
   final Map<String, dynamic> project;
@@ -18,14 +19,29 @@ class ProjectItem extends StatelessWidget {
   final Function(int projectId, String name, String desc) onCreatePhase;
   final Function(int phaseId, String name, String desc) onCreateTask;
   final Function(Map<String, dynamic> project, String viewType) onShowFiles;
+  final VoidCallback? onToggleExpansion;
   final bool isArchived;
-  final Map<String, dynamic>? stats; // Nuevo parámetro para indicadores
+  final Map<String, dynamic>? stats;
 
-  const ProjectItem({super.key, required this.project, required this.isExpanded, required this.statusIdMap, required this.priorityMap, required this.onRefresh, required this.onEdit, required this.onCreatePhase, required this.onCreateTask, required this.onShowFiles, this.isArchived = false, this.stats});
+  const ProjectItem({
+    super.key,
+    required this.project,
+    required this.isExpanded,
+    required this.statusIdMap,
+    required this.priorityMap,
+    required this.onRefresh,
+    required this.onEdit,
+    required this.onCreatePhase,
+    required this.onCreateTask,
+    required this.onShowFiles,
+    this.onToggleExpansion,
+    this.isArchived = false,
+    this.stats,
+  });
 
   @override
   Widget build(BuildContext context) {
-    // Ordenar Fases por ID Ascendente (Las nuevas van al fondo)
+    // ... (sorting logic stays same)
     final phases = (project['C_ProjectPhase'] as List? ?? []).map((e) {
       if (e is Map) return Map<String, dynamic>.from(e);
       return <String, dynamic>{};
@@ -36,7 +52,6 @@ class ProjectItem extends StatelessWidget {
       return idA.compareTo(idB);
     });
 
-    // Ordenar Tareas Directas por ID Ascendente
     final directTasks = (project['C_ProjectTask'] as List? ?? []).map((e) {
       if (e is Map) return Map<String, dynamic>.from(e);
       return <String, dynamic>{};
@@ -48,128 +63,368 @@ class ProjectItem extends StatelessWidget {
     });
 
     final int projId = project['id'] is int ? project['id'] as int : int.tryParse(project['id'].toString()) ?? 0;
+
+    int totalPhases = phases.length;
+    int totalTasks = directTasks.length;
+    for (var phase in phases) {
+      if (phase['C_ProjectTask'] is List) {
+        totalTasks += (phase['C_ProjectTask'] as List).length;
+      }
+    }
+    
+    int totalRequests = 0;
+    try {
+      final projIdStr = projId.toString();
+      totalRequests = GlobalCache.requests.where((r) {
+        final rProjId = r['C_Project_ID'];
+        if (rProjId is Map) {
+          return rProjId['id']?.toString() == projIdStr;
+        }
+        return rProjId?.toString() == projIdStr;
+      }).length;
+    } catch (_) {}
+
+    final colorScheme = Theme.of(context).colorScheme;
+    final uniformColor = colorScheme.primary;
+
     return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ExpansionTile(
-        key: Key('project-$projId'),
-        initiallyExpanded: isExpanded,
-        leading: const Icon(Icons.folder, color: Color(0xFF4F47E5)),
-        title: Row(
-          children: [
-            Expanded(
-              child: Text(project['Name'] ?? 'Sin Nombre', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+      margin: const EdgeInsets.only(bottom: 16, left: 4, right: 4),
+      elevation: 3,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey[200]!, width: 1),
+      ),
+      child: Container(
+        child: ExpansionTile(
+          key: Key('project-$projId-$isExpanded'), // Forzamos reconstrucción al cambiar estado
+          initiallyExpanded: isExpanded,
+          backgroundColor: Colors.white,
+          collapsedBackgroundColor: Colors.white,
+          iconColor: uniformColor,
+          trailing: const SizedBox.shrink(),
+          onExpansionChanged: (expanded) {
+            if (onToggleExpansion != null) {
+              onToggleExpansion!();
+            }
+          },
+          leading: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: uniformColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
             ),
-            if (phases.isNotEmpty) ...[const Icon(Icons.layers_outlined, size: 16, color: Colors.grey), const SizedBox(width: 4), Text('${phases.length}', style: const TextStyle(fontSize: 14, color: Colors.grey)), const SizedBox(width: 8)],
-          ],
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (project['Description'] != null) Text(project['Description'], style: const TextStyle(fontSize: 12, color: Colors.grey)),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 16.0,
-              runSpacing: 8.0,
-              children: [
-                _buildActionButton(Icons.folder_open, 'Entregables', Colors.orange, () => onShowFiles(project, 'Entregables') /*, hasPending: stats?['pendingEt'] ?? false*/),
-                _buildActionButton(Icons.assignment, 'Seguimiento', Colors.blue, () => onShowFiles(project, 'Seguimiento') /*, hasPending: stats?['pendingSg'] ?? false*/),
-                _buildActionButton(Icons.assignment_add, 'General', Colors.grey, () => onShowFiles(project, 'General') /*, hasPending: stats?['pendingGn'] ?? false*/),
-                _buildActionButton(Icons.calendar_today, 'Calendario', Colors.purple, () {
-                  showDialog(
-                    context: context,
-                    builder: (context) => ProjectCalendarDialog(project: project),
-                  );
-                }),
-                _buildActionButton(Icons.list_alt, 'Solicitudes', Colors.indigo, () {
-                  context.push('/project-requests', extra: {'projectId': projId, 'showAllGroups': true});
-                }),
-                if (AccessControl.isAdmin)
-                  _buildActionButton(Icons.info_outline, 'Información', Colors.teal, () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => ProjectInfoDialog(project: project),
-                    );
-                  }),
-              ],
-            ),
-          ],
-        ),
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                if (AccessControl.canCreateProjectItems && !isArchived)
-                  TextButton.icon(
-                    icon: const Icon(Icons.add),
-                    label: const Text('Nueva Fase'),
-                    onPressed: () {
+            child: Icon(Icons.folder, color: uniformColor, size: 24),
+          ),
+          title: LayoutBuilder(
+            builder: (context, constraints) {
+              final isNarrow = MediaQuery.of(context).size.width < 500;
+              return Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      project['Name'] ?? 'Sin Nombre',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 17,
+                        color: Color(0xFF1E293B),
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  if (AccessControl.canEditProject)
+                    IconButton(
+                      icon: const Icon(Icons.edit, size: 20, color: Colors.blueGrey),
+                      tooltip: isArchived ? 'Reactivar Proyecto' : 'Editar Proyecto',
+                      onPressed: () {
+                        onEdit('project', projId, project['Name'] ?? '', project['Description'] ?? '');
+                      },
+                      constraints: const BoxConstraints(),
+                      padding: const EdgeInsets.all(4),
+                    ),
+                ],
+              );
+            },
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (project['Description'] != null)
+                Text(
+                  project['Description'],
+                  style: const TextStyle(fontSize: 12, color: Colors.blueGrey),
+                ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 16,
+                runSpacing: 8,
+                children: [
+                  _buildCounterBadge(
+                    Icons.layers_outlined, 
+                    '$totalPhases Fases',
+                  ),
+                  _buildCounterBadge(
+                    Icons.task_alt, 
+                    '$totalTasks Tareas',
+                  ),
+                  _buildCounterBadge(
+                    Icons.assignment_ind_outlined, 
+                    '$totalRequests Solicitudes',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _buildActionButton(context, Icons.folder_open, 'Entregables', Colors.indigo.shade500, () => onShowFiles(project, 'Entregables')),
+                  _buildActionButton(context, Icons.assignment, 'Seguimiento', Colors.indigo.shade500, () => onShowFiles(project, 'Seguimiento')),
+                  _buildActionButton(context, Icons.assignment_add, 'General', Colors.indigo.shade500, () => onShowFiles(project, 'General')),
+                  if (AccessControl.isAdmin || AccessControl.isProject)
+                    _buildActionButton(context, Icons.calendar_today, 'Calendario', Colors.teal.shade500, () {
+                      if (MediaQuery.of(context).size.width < 600) {
+                        context.push('/project-calendar', extra: project);
+                      } else {
+                        showDialog(
+                          context: context,
+                          builder: (context) => ProjectCalendarDialog(project: project),
+                        );
+                      }
+                    }),
+                  if (AccessControl.isAdmin)
+                    _buildActionButton(context, Icons.list_alt, 'Solicitudes', Colors.teal.shade500, () {
+                      context.push('/project-requests', extra: {'projectId': projId, 'showAllGroups': true});
+                    }),
+                  if (AccessControl.isAdmin)
+                    _buildActionButton(context, Icons.info_outline, 'Información', Colors.blue.shade500, () {
                       showDialog(
                         context: context,
-                        builder: (context) => PhaseCreateDialog(onSave: (name, desc) => onCreatePhase(projId, name, desc)),
+                        builder: (context) => ProjectInfoDialog(project: project),
                       );
-                    },
+                    }),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: uniformColor.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: uniformColor.withOpacity(0.2)),
                   ),
-                if (AccessControl.canEditProject)
-                  IconButton(
-                    icon: const Icon(Icons.edit, size: 20),
-                    tooltip: isArchived ? 'Reactivar Proyecto' : 'Editar Proyecto',
-                    onPressed: () {
-                      onEdit('project', projId, project['Name'] ?? '', project['Description'] ?? '');
-                    },
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        isExpanded ? 'Ocultar Detalles' : 'Ver Detalles',
+                        style: TextStyle(
+                          color: uniformColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Icon(
+                        isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                        color: uniformColor,
+                        size: 20,
+                      ),
+                    ],
                   ),
-              ],
-            ),
+                ),
+              ),
+            ],
           ),
-          const Divider(),
-          if (phases.isEmpty && directTasks.isEmpty) const Padding(padding: EdgeInsets.all(16.0), child: Text('No hay fases ni tareas registradas.')),
-          ...phases.map((phase) => PhaseItem(phase: phase, initiallyExpanded: isExpanded, statusIdMap: statusIdMap, priorityMap: priorityMap, onRefresh: onRefresh, onEdit: onEdit, onCreateTask: onCreateTask, isArchived: isArchived, projectId: projId)),
-          ...directTasks.map((task) => TaskItem(task: task, initiallyExpanded: isExpanded, statusIdMap: statusIdMap, priorityMap: priorityMap, onRefresh: onRefresh, onEdit: onEdit, isArchived: isArchived, projectId: projId)),
-        ],
+          children: [
+            Container(
+              color: Colors.grey[50]?.withOpacity(0.5),
+              child: Column(
+                children: [
+                   Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                    child: Container(
+                      width: double.infinity,
+                      child: Wrap(
+                        alignment: WrapAlignment.spaceBetween,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 8,
+                        runSpacing: 4,
+                        children: [
+                          const Text(
+                            'Estructura del Proyecto',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          if (AccessControl.canCreateProjectItems && !isArchived)
+                            TextButton.icon(
+                              icon: const Icon(Icons.add, size: 18),
+                              label: const Text('Nueva Fase', style: TextStyle(fontSize: 13)),
+                              style: TextButton.styleFrom(
+                                backgroundColor: uniformColor.withOpacity(0.08),
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              ),
+                              onPressed: () {
+                                showDialog(
+                                  context: context,
+                                  builder: (context) => PhaseCreateDialog(onSave: (name, desc) => onCreatePhase(projId, name, desc)),
+                                );
+                              },
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  if (phases.isEmpty && directTasks.isEmpty)
+                    const Padding(padding: EdgeInsets.all(24.0), child: Text('No hay fases ni tareas registradas.', style: TextStyle(color: Colors.grey))),
+                  const SizedBox(height: 8),
+                  ...phases.map((phase) => PhaseItem(phase: phase, initiallyExpanded: false, statusIdMap: statusIdMap, priorityMap: priorityMap, onRefresh: onRefresh, onEdit: onEdit, onCreateTask: onCreateTask, isArchived: isArchived, projectId: projId)),
+                  ...directTasks.map((task) => TaskItem(task: task, initiallyExpanded: false, statusIdMap: statusIdMap, priorityMap: priorityMap, onRefresh: onRefresh, onEdit: onEdit, isArchived: isArchived, projectId: projId)),
+                  const SizedBox(height: 12),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildActionButton(IconData icon, String label, Color color, VoidCallback onPressed /*, {bool hasPending = false}*/) {
+  Widget _buildActionButton(BuildContext context, IconData icon, String label, Color color, VoidCallback onPressed) {
     return InkWell(
       onTap: onPressed,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
+      borderRadius: BorderRadius.circular(12),
+      hoverColor: color.withOpacity(0.1),
+      splashColor: color.withOpacity(0.2),
+      highlightColor: color.withOpacity(0.05),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 8.0),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Stack(
-              children: [
-                Icon(icon, color: color, size: 24),
-                // if (hasPending)
-                //   Positioned(
-                //     right: 0,
-                //     top: 0,
-                //     child: Container(
-                //       width: 8,
-                //       height: 8,
-                //       decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
-                //     ),
-                //   )
-                // else
-                //   Positioned(
-                //     right: 0,
-                //     top: 0,
-                //     child: Container(
-                //       width: 8,
-                //       height: 8,
-                //       decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle),
-                //     ),
-                //   ),
-              ],
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 22),
             ),
-            Text(label, style: TextStyle(fontSize: 10, color: color)),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8),
+              ),
+            ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildCounterBadge(IconData icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: Colors.blueGrey),
+          const SizedBox(width: 6),
+          Text(text, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.blueGrey)),
+        ],
+      ),
+    );
+  }
+}
+
+class _HorizontalActionButtons extends StatefulWidget {
+  final List<Widget> children;
+
+  const _HorizontalActionButtons({required this.children});
+
+  @override
+  State<_HorizontalActionButtons> createState() => _HorizontalActionButtonsState();
+}
+
+class _HorizontalActionButtonsState extends State<_HorizontalActionButtons> {
+  final ScrollController _scrollController = ScrollController();
+  bool _canScrollRight = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_checkScroll);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkScroll());
+  }
+
+  void _checkScroll() {
+    if (!_scrollController.hasClients) return;
+    final maxScroll = _scrollController.position.maxScrollExtent;
+    final currentScroll = _scrollController.position.pixels;
+    
+    final canScrollRight = currentScroll < maxScroll - 5;
+    if (canScrollRight != _canScrollRight) {
+      setState(() {
+        _canScrollRight = canScrollRight;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_checkScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        SingleChildScrollView(
+          controller: _scrollController,
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: widget.children,
+          ),
+        ),
+        if (_canScrollRight && MediaQuery.of(context).size.width < 600)
+          Positioned(
+            right: 0,
+            top: 0,
+            bottom: 0,
+            child: IgnorePointer(
+              child: Container(
+                width: 32,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    colors: [
+                      Theme.of(context).colorScheme.surface.withOpacity(0.0),
+                      Theme.of(context).colorScheme.surface.withOpacity(0.8),
+                      Theme.of(context).colorScheme.surface,
+                    ],
+                  ),
+                ),
+                child: Center(
+                  child: Icon(Icons.chevron_right, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5), size: 20),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

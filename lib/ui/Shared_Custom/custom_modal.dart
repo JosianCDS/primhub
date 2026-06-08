@@ -7,32 +7,83 @@ class CustomModal extends StatelessWidget {
   final double? width;
   final double? height;
   final EdgeInsetsGeometry padding;
+  final bool scrollable;
 
-  const CustomModal({super.key, this.title, this.content, this.actions, this.width, this.height, this.padding = const EdgeInsets.all(24.0)});
+  const CustomModal({super.key, this.title, this.content, this.actions, this.width, this.height, this.padding = const EdgeInsets.all(24.0), this.scrollable = true});
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
       elevation: 8,
-      backgroundColor: Theme.of(context).dialogBackgroundColor,
+      insetAnimationDuration: Duration.zero, // Elimina la animación costosa de layout al abrir el teclado
+      backgroundColor: Colors.transparent, // El fondo lo maneja el Container con decoración
       child: Container(
         width: width ?? 400,
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width - 32,
+        ),
         height: height,
-        padding: padding,
+        decoration: BoxDecoration(
+          color: theme.dialogBackgroundColor,
+          borderRadius: BorderRadius.circular(12.0),
+        ),
+        clipBehavior: Clip.hardEdge, // hardEdge es mucho más eficiente que antiAlias durante redibujados
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (title != null) ...[Text(title!, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)), const SizedBox(height: 20)],
-            if (content != null) Flexible(child: SingleChildScrollView(child: content!)),
-            if (actions != null && actions!.isNotEmpty) ...[
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: Wrap(alignment: WrapAlignment.end, spacing: 10.0, runSpacing: 10.0, children: actions!),
+            // Título fijo arriba
+            if (title != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                child: Text(title!, style: theme.textTheme.titleLarge),
               ),
-            ],
+            
+            // Contenido (Scrollable o no)
+            if (content != null)
+              Flexible(
+                child: scrollable
+                    ? SingleChildScrollView(
+                        padding: const EdgeInsets.only(left: 24, right: 24, top: 16),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            content!,
+                            if (isMobile && actions != null && actions!.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 16.0, bottom: 24.0),
+                                child: Wrap(
+                                  alignment: WrapAlignment.end,
+                                  spacing: 10.0,
+                                  runSpacing: 10.0,
+                                  children: actions!,
+                                ),
+                              ),
+                          ],
+                        ),
+                      )
+                    : Padding(
+                        padding: const EdgeInsets.only(left: 24, right: 24, top: 16),
+                        child: content!,
+                      ),
+              ),
+
+            // Acciones fijas abajo (en Escritorio o si no es scrollable)
+            if ((!isMobile || !scrollable) && actions != null && actions!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: 10.0,
+                  runSpacing: 10.0,
+                  children: actions!,
+                ),
+              ),
           ],
         ),
       ),

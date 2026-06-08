@@ -54,11 +54,17 @@ class BarChartPainter extends CustomPainter {
       paint.color = colors[i % colors.length];
       canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(x, y, barWidth, barHeight), const Radius.circular(4)), paint);
 
-      // Dibujar etiqueta en el Eje X debajo de la barra
-      if (animationValue == 1.0) {
+      // Eje X: Etiquetas
+      if (animationValue == 1.0 && spacing > 20) {
+        String labelText = labels[i];
+        int maxChars = (spacing / 5.5).floor();
+        if (maxChars < 3) maxChars = 3; // mínimo
+        if (labelText.length > maxChars) {
+          labelText = '${labelText.substring(0, maxChars - 2)}..';
+        }
         textPainter.text = TextSpan(
-          text: labels[i],
-          style: TextStyle(color: textColor, fontSize: 11),
+          text: labelText,
+          style: TextStyle(color: textColor, fontSize: 10),
         );
         textPainter.layout();
         textPainter.paint(canvas, Offset(x + (barWidth - textPainter.width) / 2, chartHeight + 8));
@@ -142,8 +148,9 @@ class DonutChartPainter extends CustomPainter {
   final List<Color> colors;
   final Offset? touchPosition;
   final double animationValue;
+  final int? hoveredIndex;
 
-  DonutChartPainter({required this.values, this.labels, required this.colors, this.touchPosition, this.animationValue = 1.0});
+  DonutChartPainter({required this.values, this.labels, required this.colors, this.touchPosition, this.animationValue = 1.0, this.hoveredIndex});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -155,18 +162,29 @@ class DonutChartPainter extends CustomPainter {
     double startAngle = -pi / 2;
     for (int i = 0; i < values.length; i++) {
       final sweepAngle = (values[i] / total) * 2 * pi * animationValue;
+
+      bool isHovered = hoveredIndex == i;
+      bool isAnyHovered = hoveredIndex != null;
+
+      Color sliceColor = colors[i % colors.length];
+      if (isAnyHovered && !isHovered) {
+        sliceColor = Colors.grey.withOpacity(0.2); // Vuelve gris las demás porciones
+      }
+
+      double currentRadius = isHovered ? radius * 1.08 : radius; // Aumenta ligeramente la porción en foco
+
       final paint = Paint()
         ..style = PaintingStyle.fill
-        ..color = colors[i % colors.length];
+        ..color = sliceColor;
 
-      canvas.drawArc(Rect.fromCircle(center: center, radius: radius), startAngle, sweepAngle, true, paint);
+      canvas.drawArc(Rect.fromCircle(center: center, radius: currentRadius), startAngle, sweepAngle, true, paint);
 
       if (animationValue == 1.0) {
         final percentage = (values[i] / total) * 100;
-        if (percentage >= 5) {
+        if (percentage >= 5 && (!isAnyHovered || isHovered)) {
           // Solo dibuja texto si el pedazo es mayor al 5%
           final double midAngle = startAngle + sweepAngle / 2;
-          final double r = radius * 0.65;
+          final double r = currentRadius * 0.65;
           final double tx = center.dx + r * cos(midAngle);
           final double ty = center.dy + r * sin(midAngle);
 
@@ -278,8 +296,9 @@ class StackedBarChartPainter extends CustomPainter {
   final Offset? touchPosition;
   final double animationValue;
   final List<String> seriesNames;
+  final int? hoveredSeriesIndex;
 
-  StackedBarChartPainter({required this.labels, this.fullLabels, required this.seriesValues, required this.colors, required this.textColor, this.touchPosition, this.animationValue = 1.0, required this.seriesNames});
+  StackedBarChartPainter({required this.labels, this.fullLabels, required this.seriesValues, required this.colors, required this.textColor, this.touchPosition, this.animationValue = 1.0, required this.seriesNames, this.hoveredSeriesIndex});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -325,16 +344,29 @@ class StackedBarChartPainter extends CustomPainter {
         if (val == 0) continue;
         double barHeight = (val / maxY) * chartHeight * animationValue;
         double y = currentY - barHeight;
-        paint.color = colors[s % colors.length];
 
+        bool isHovered = hoveredSeriesIndex == s;
+        bool isAnyHovered = hoveredSeriesIndex != null;
+        Color sliceColor = colors[s % colors.length];
+        if (isAnyHovered && !isHovered) {
+          sliceColor = Colors.grey.withOpacity(0.2); // Vuelve gris las demás barras
+        }
+
+        paint.color = sliceColor;
         canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(x, y, barWidth, barHeight), const Radius.circular(2)), paint);
         currentY = y;
       }
 
       if (animationValue == 1.0) {
+        String labelText = labels[i];
+        int maxChars = (spacing / 5.5).floor();
+        if (maxChars < 3) maxChars = 3;
+        if (labelText.length > maxChars) {
+          labelText = '${labelText.substring(0, maxChars - 2)}..';
+        }
         textPainter.text = TextSpan(
-          text: labels[i],
-          style: TextStyle(color: textColor, fontSize: 11),
+          text: labelText,
+          style: TextStyle(color: textColor, fontSize: 10),
         );
         textPainter.layout();
         textPainter.paint(canvas, Offset(x + (barWidth - textPainter.width) / 2, chartHeight + 8));

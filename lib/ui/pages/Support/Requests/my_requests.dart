@@ -1,23 +1,40 @@
+import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:file_picker/file_picker.dart';
+import 'package:primhub/endpoint/endpoint.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/access_control.dart';
+import 'package:primhub/ui/Shared_Custom/help_icon.dart';
 import 'package:primhub/api/contract_api.dart';
 import 'package:primhub/api/admin_view_mode.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/api/validation_manager.dart';
 import 'package:primhub/ui/pages/Support/calendar.dart';
+import 'package:primhub/ui/pages/Support/calendar_gantt_wrapper.dart';
+import 'package:primhub/ui/pages/Support/Request_Widgets/request_filter_modal.dart';
 import 'package:primhub/ui/pages/Support/Requests/create_request_dialog.dart';
 import 'package:primhub/ui/pages/Support/Requests/edit_request_dialog.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
 import 'package:primhub/ui/pages/Support/Request_Widgets/request_stats_card.dart';
 import 'package:primhub/ui/pages/Support/Request_Widgets/request_filter_bar.dart';
-import 'package:primhub/ui/pages/Support/Request_Widgets/requests_data_table.dart';
+import 'package:primhub/ui/Shared_Custom/requests_data_table_core.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
+import 'package:primhub/ui/Shared_Custom/customToast.dart';
+import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
+import 'package:primhub/ui/widgets/project_sidebar.dart';
 import '../../../widgets/custom_drawer.dart';
 import 'package:primhub/ui/pages/Home/Home_Controller/home_controller.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 import 'package:primhub/api/global_cache.dart';
+import 'package:primhub/ui/widgets/project_bottom_nav.dart';
+import 'package:primhub/api/api_utils.dart';
+import 'package:flutter_html/flutter_html.dart';
+import 'package:primhub/ui/Shared_Custom/custom_skeleton.dart';
+import 'package:primhub/ui/widgets/duration_formatter.dart';
+import 'package:primhub/ui/Shared_Custom/user_info_leading.dart';
 
 class MyRequestsPage extends StatefulWidget {
   const MyRequestsPage({super.key});
@@ -29,8 +46,6 @@ class MyRequestsPage extends StatefulWidget {
 class _MyRequestsPageState extends State<MyRequestsPage> {
   List<Map<String, dynamic>> _requests = [];
   List<dynamic> _rawRequests = [];
-  List<dynamic> _allFetchedRequests = [];
-  List<Map<String, dynamic>> _allContracts = [];
   bool _isLoading = true;
   bool _isAscending = false;
   bool _showHistory = false;
@@ -41,30 +56,102 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   Map<String, int> _statusIdMap = {};
   int _currentPage = 0;
   int _rowsPerPage = 25;
-  int? _selectedYear = 2026;
-  String? _selectedBP;
-  String? _selectedLevel;
-  String? _selectedStatus;
-  String? _selectedSituation;
-  String? _selectedSalesRep;
-  String? _selectedUser;
+  int _totalRecords = 0;
   final TextEditingController _searchController = TextEditingController();
+  List<int> _selectedYears = [DateTime.now().year];
+  RequestFilterModel _filters = const RequestFilterModel();
+  Map<int, String> _bpNameCache = {};
+  List<Map<String, dynamic>> _sortedRequests = [];
 
   int? _bpId;
   List<Map<String, dynamic>> _bPartners = [];
   List<dynamic> _users = [];
+  List<Map<String, dynamic>> _processedChips = [];
 
   final _adminViewModeManager = AdminViewModeManager();
+  Timer? _skeletonTimer;
+  bool _isHistorySkeletonActive = false;
+
+  bool _showCalendar =
+      false; // Nuevo estado para controlar la vista del calendario
+  Timer? _historySkeletonTimer;
+
+  // Optimización de rendimiento para evitar reconstruir la tabla en cada scroll de la página.
+  Widget? _cachedTable;
+  List<Map<String, dynamic>>? _lastSortedRequests;
+  bool? _lastIsLoading;
+  bool? _lastIsHistorySkeletonActive;
+  int? _lastRowsPerPage;
+  int? _lastCurrentPage;
+  bool? _lastShowHistory;
+
+  Widget _buildTableWidget() {
+    final bool currentSkeleton = (_showHistory && _isHistorySkeletonActive);
+    if (_cachedTable != null &&
+        _lastSortedRequests == _sortedRequests &&
+        _lastIsLoading == _isLoading &&
+        _lastIsHistorySkeletonActive == currentSkeleton &&
+        _lastRowsPerPage == _rowsPerPage &&
+        _lastCurrentPage == _currentPage &&
+        _lastShowHistory == _showHistory) {
+      return _cachedTable!;
+    }
+
+    _lastSortedRequests = _sortedRequests;
+    _lastIsLoading = _isLoading;
+    _lastIsHistorySkeletonActive = currentSkeleton;
+    _lastRowsPerPage = _rowsPerPage;
+    _lastCurrentPage = _currentPage;
+    _lastShowHistory = _showHistory;
+
+    if (_isLoading || currentSkeleton) {
+      _cachedTable = const SkeletonTable();
+    } else {
+      _cachedTable = RequestsDataTableCore(
+        key: ValueKey('requests_table_${_currentPage}_${_rowsPerPage}_${_sortedRequests.length}'),
+        requests: _sortedRequests,
+        onEdit: _editRequest,
+        onRefresh: () => _refreshRequest(fetchNetwork: true),
+        statusIdMap: _statusIdMap,
+        priorityMap: priorityMap,
+        serverSidePagination: true,
+        paginationControls: _buildPaginationControls(),
+        useSimpleStatus: false,
+      );
+    }
+    return _cachedTable!;
+  }
 
   @override
   void initState() {
     super.initState();
-    _searchController.addListener(() => setState(() => _currentPage = 0));
+    _searchController.addListener(() {
+      if (mounted) {
+        setState(() => _currentPage = 0);
+        _refreshRequest(fetchNetwork: false);
+      }
+    });
     _adminViewModeManager.addListener(_onViewModeChanged);
+    GlobalCache.backgroundSyncNotifier.addListener(_onBackgroundSyncChanged);
+  }
+
+  void _onBackgroundSyncChanged() {
+    if (mounted) {
+// [Mantenimiento] Log removido:       debugPrint(
+// [Mantenimiento] Log removido:         "DEBUG: [SYNC] Refreshing MyRequests due to global sync notification.",
+// [Mantenimiento] Log removido:       );
+      _refreshRequest(fetchNetwork: false);
+    }
   }
 
   void _onViewModeChanged() {
     _initData();
+  }
+
+  void _startHistorySkeleton() {
+    // Ya no usamos un temporizador fijo de 8 segundos.
+    // El skeleton se controla ahora por el estado real de carga (_isLoading).
+    _isHistorySkeletonActive = false;
   }
 
   @override
@@ -81,14 +168,51 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       if (args is Map) {
         if (args['showHistory'] == true) _showHistory = true;
         if (args['bpId'] != null) _bpId = args['bpId'];
-        if (args['selectedStatus'] != null) {
-          _selectedStatus = args['selectedStatus'];
-          // Si tocamos un estado final, aseguramos que se vea la bitácora
-          if (_selectedStatus!.toLowerCase().contains('close') || _selectedStatus!.toLowerCase().contains('cerrad')) _showHistory = true;
+
+        List<String> initialStatuses = [];
+        if (args['selectedStatus'] != null &&
+            args['selectedStatus'] is String) {
+          initialStatuses.add(args['selectedStatus']);
+        } else if (args['selectedStatuses'] != null &&
+            args['selectedStatuses'] is List) {
+          initialStatuses.addAll(List<String>.from(args['selectedStatuses']));
         }
-        if (args['selectedLevel'] != null) _selectedLevel = args['selectedLevel'];
-        _selectedYear = null; // Reiniciar año para que el gráfico aplique libremente
+
+        _filters = RequestFilterModel(
+          statuses: initialStatuses,
+          levels: args['selectedLevel'] != null ? [args['selectedLevel']] : [],
+          productChipIds: args['chipId'] != null ? [args['chipId']] : [],
+        );
+
+        if (args['search'] != null) {
+          _searchController.text = args['search'];
+        }
+
+        // Si se filtra por un estado cerrado, forzar la vista de bitácora
+        if (_filters.statuses.isNotEmpty || _filters.statusIds.isNotEmpty) {
+          final lowerStatuses = _filters.statuses
+              .map((s) => s.toLowerCase())
+              .toList();
+
+          bool hasArchivedStatus = lowerStatuses.any(
+            (s) =>
+                s.contains('close') ||
+                s.contains('cerrad') ||
+                s.contains('archivada'),
+          );
+
+          if (!hasArchivedStatus && _filters.statusIds.isNotEmpty) {
+            hasArchivedStatus = _filters.statusIds.any(
+              (id) => [1000019, 1000015, 1000018, 103].contains(id),
+            );
+          }
+
+          if (hasArchivedStatus) _showHistory = true;
+        }
       }
+
+      if (_showHistory) _startHistorySkeleton();
+
       _isInit = false;
       _initData();
     }
@@ -96,170 +220,1054 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
 
   @override
   void dispose() {
+    _historySkeletonTimer?.cancel();
+    _skeletonTimer?.cancel();
     _searchController.dispose();
     _adminViewModeManager.removeListener(_onViewModeChanged);
+    GlobalCache.backgroundSyncNotifier.removeListener(_onBackgroundSyncChanged);
     super.dispose();
   }
 
   Future<void> _initData() async {
-    setState(() => _isLoading = true);
-
-    await GlobalCache.syncData();
-
-    if (AccessControl.isAdmin) {
-      _bPartners = GlobalCache.bPartners;
-      _users = GlobalCache.users;
-
-      // Auto-configurar el filtro visual local si entramos desde un atajo
-      if (_bpId != null && _selectedBP == null) {
-        final found = _bPartners.firstWhere((bp) => bp['id'] == _bpId, orElse: () => <String, dynamic>{});
-        if (found.isNotEmpty) {
-          _selectedBP = found['Name'];
-        }
-      }
-    }
-    _allContracts = GlobalCache.contracts;
-    if (_bpId != null && AccessControl.isAdmin) {
-      _allContracts = _allContracts.where((c) => c['C_BPartner_ID'] == _bpId).toList();
-    }
-    _statusIdMap = GlobalCache.statuses;
-
-    final double total = _allContracts.fold(0.0, (sum, contract) => sum + ((contract['contractedHours'] as num?)?.toDouble() ?? 0.0));
-
-    if (mounted) {
+// [Mantenimiento] Log removido:     debugPrint("DEBUG UI: _initData iniciado.");
+    if (_isInit) {
       setState(() {
-        _contractedHours = total > 0 ? total : null;
+        _isLoading = true;
       });
     }
 
-    // 3. Procesar la data (sin volver a consultar la red)
-    await _refreshRequest(fetchNetwork: false);
+// [Mantenimiento] Log removido:     debugPrint("DEBUG UI: Llamando a GlobalCache.syncData()...");
+    await GlobalCache.syncData();
+// [Mantenimiento] Log removido:     debugPrint("DEBUG UI: GlobalCache.syncData completado.");
+
+    // Esperar a que la Fase 2 (carga del año actual) termine antes de continuar.
+    // Esto asegura que el skeleton se muestre hasta que los datos estén listos.
+    try {
+      if (GlobalCache.phase2SyncFuture != null)
+        await GlobalCache.phase2SyncFuture;
+    } catch (e) {
+// [Mantenimiento] Log removido:       debugPrint("Error esperando la Fase 2 de la caché: $e");
+    }
+
+    if (mounted) {
+      setState(() {
+        _bPartners = GlobalCache.bPartners;
+        _users = GlobalCache.users;
+// [Mantenimiento] Log removido:         debugPrint(
+// [Mantenimiento] Log removido:           "DEBUG UI: _bPartners poblados con ${_bPartners.length} items.",
+// [Mantenimiento] Log removido:         );
+// [Mantenimiento] Log removido:         debugPrint("DEBUG UI: _users poblados con ${_users.length} items.");
+        _isLoading = false;
+        _isInit = false;
+      });
+    }
+
+    _statusIdMap = GlobalCache.statuses;
+
+    // 3. Procesar la data (con consulta a la red para asegurar datos frescos al inicio)
+    await _refreshRequest(fetchNetwork: true);
+  }
+
+  int get _activeFilterCount => _filters.activeFilterCount;
+
+  Widget _buildActiveFilterChips() {
+    final List<Widget> chips = [];
+    final theme = Theme.of(context);
+
+    void addChip(String label, ActiveFilterType type) {
+      chips.add(
+        InputChip(
+          label: Text(label),
+          onDeleted: () => _removeFilter(type),
+          deleteButtonTooltipMessage: 'Quitar',
+          deleteIcon: const Icon(Icons.close, size: 18),
+          labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+          backgroundColor: theme.colorScheme.surfaceContainerHighest
+              .withOpacity(0.5),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          side: BorderSide(color: theme.colorScheme.outline.withOpacity(0.2)),
+        ),
+      );
+    }
+
+    if (_selectedYears.isNotEmpty) {
+      String yearLabel = _selectedYears.length == 1
+          ? _selectedYears.first.toString()
+          : '${_selectedYears.length} años';
+      if (_selectedYears.length == 1 &&
+          _selectedYears.first == DateTime.now().year) {
+        yearLabel = 'Año Actual';
+      }
+      addChip('Año: $yearLabel', ActiveFilterType.year);
+    }
+    for (final bpId in _filters.bpIds) {
+      String? bpName = _bpNameCache[bpId];
+      if (bpName == null) {
+        final found = _bPartners.firstWhere(
+          (bp) => (bp['id'] as num?)?.toInt() == bpId,
+          orElse: () => <String, dynamic>{},
+        );
+        bpName = found.isNotEmpty
+            ? (found['Name'] ?? 'ID: $bpId')
+            : 'ID: $bpId';
+        _bpNameCache[bpId] = bpName!;
+      }
+      addChip('Tercero: $bpName', ActiveFilterType.bp);
+    }
+
+    if (_filters.levels.isNotEmpty) {
+      addChip(
+        'Nivel: ${_filters.levels.length == 1 ? _filters.levels.first : "${_filters.levels.length} seleccionados"}',
+        ActiveFilterType.level,
+      );
+    }
+    if (_filters.statusIds.isNotEmpty || _filters.statuses.isNotEmpty) {
+      final total = _filters.statusIds.length + _filters.statuses.length;
+      String label = '';
+      if (total == 1) {
+        if (_filters.statusIds.isNotEmpty) {
+          final id = _filters.statusIds.first;
+          label =
+              SUPPORT_STATUS_MAPPING[id] ??
+              _statusIdMap.entries
+                  .firstWhere(
+                    (e) => e.value == id,
+                    orElse: () => const MapEntry('ID: 0', 0),
+                  )
+                  .key;
+          if (label == 'ID: 0') label = 'ID: $id';
+        } else {
+          label = _filters.statuses.first;
+        }
+      } else {
+        label = "$total seleccionados";
+      }
+      addChip('Estado: $label', ActiveFilterType.status);
+    }
+    if (_filters.requestTypeIds.isNotEmpty) {
+      String label = '';
+      if (_filters.requestTypeIds.length == 1) {
+        final id = _filters.requestTypeIds.first;
+        label = GlobalCache.requestTypes.entries
+            .firstWhere(
+              (e) => e.value == id,
+              orElse: () => const MapEntry('Tipo Desconocido', 0),
+            )
+            .key;
+      } else {
+        label = "${_filters.requestTypeIds.length} seleccionados";
+      }
+      addChip('Tipo: $label', ActiveFilterType.situation);
+    }
+    if (_filters.productChipIds.isNotEmpty) {
+      final chipId = _filters.productChipIds.first;
+      final found = GlobalCache.productChips.firstWhere(
+        (c) => (c['id'] as num?)?.toInt() == chipId,
+        orElse: () => <String, dynamic>{},
+      );
+      final chipName = found.isNotEmpty
+          ? (found['Description'] ?? 'Ficha $chipId')
+          : 'Ficha $chipId';
+      addChip(
+        'Ficha: ${_filters.productChipIds.length == 1 ? chipName : "${_filters.productChipIds.length} seleccionadas"}',
+        ActiveFilterType.productChip,
+      );
+    }
+    if (_filters.categoryIds.isNotEmpty) {
+      String label = '';
+      if (_filters.categoryIds.length == 1) {
+        final id = _filters.categoryIds.first;
+        label = GlobalCache.categories.entries
+            .firstWhere(
+              (e) => e.value == id,
+              orElse: () => const MapEntry('Categoría Desconocida', 0),
+            )
+            .key;
+      } else {
+        label = "${_filters.categoryIds.length} seleccionados";
+      }
+      addChip('Categoría: $label', ActiveFilterType.search);
+    }
+    for (final repId in _filters.salesRepIds) {
+      final found = GlobalCache.salesReps.firstWhere(
+        (rep) => ((rep['AD_User_ID'] ?? rep['id']) as num?)?.toInt() == repId,
+        orElse: () => <String, dynamic>{},
+      );
+      final repName = found.isNotEmpty
+          ? (found['Name'] ?? 'ID: $repId')
+          : 'ID: $repId';
+      addChip('Rep. Comercial: $repName', ActiveFilterType.salesRep);
+    }
+    for (final userId in _filters.userIds) {
+      final found = _users.firstWhere(
+        (u) => ((u['AD_User_ID'] ?? u['id']) as num?)?.toInt() == userId,
+        orElse: () => <String, dynamic>{},
+      );
+      final uName = found.isNotEmpty
+          ? (found['Name'] ?? 'ID: $userId')
+          : 'ID: $userId';
+      addChip('Usuario: $uName', ActiveFilterType.user);
+    }
+    if (chips.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Wrap(spacing: 8.0, runSpacing: 8.0, children: chips),
+    );
+  }
+
+  /// Elimina un filtro específico y actualiza la UI.
+  void _removeFilter(ActiveFilterType type) {
+    setState(() {
+      switch (type) {
+        case ActiveFilterType.bp:
+          _filters = _filters.copyWith(bpIds: []);
+          _bpId = null; // También limpia el ID del tercero
+          break;
+        case ActiveFilterType.level:
+          _filters = _filters.copyWith(levels: []);
+          break;
+        case ActiveFilterType.status:
+          _filters = _filters.copyWith(statuses: [], statusIds: []);
+          break;
+        case ActiveFilterType.situation:
+          _filters = _filters.copyWith(situations: [], requestTypeIds: []);
+          break;
+        case ActiveFilterType.salesRep:
+          _filters = _filters.copyWith(salesRepIds: []);
+          break;
+        case ActiveFilterType.user:
+          _filters = _filters.copyWith(userIds: []);
+          break;
+        case ActiveFilterType.search:
+          _filters = _filters.copyWith(categoryIds: []);
+          _searchController.clear();
+          break;
+        case ActiveFilterType.year:
+          _selectedYears = [];
+          break;
+        case ActiveFilterType.productChip:
+          _filters = _filters.copyWith(productChipIds: []);
+          break;
+      }
+      _currentPage = 0; // Reinicia la paginación
+    });
+    // Si se cambió el tercero, necesitamos reinicializar los datos para obtener los contratos correctos.
+    // De lo contrario, solo actualizamos las estadísticas localmente.
+    if (type == ActiveFilterType.bp) {
+      _initData();
+    } else {
+      _refreshRequest(fetchNetwork: false);
+    }
+  }
+
+  Future<void> _showYearFilterModal() async {
+    final List<int> availableYears = List.generate(
+      10,
+      (i) => DateTime.now().year - i,
+    );
+    final List<int>? result = await showDialog<List<int>>(
+      context: context,
+      builder: (context) {
+        List<int> tempSelection = List.from(_selectedYears);
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return CustomModal(
+              title: 'Seleccionar Años',
+              content: SizedBox(
+                height: 300,
+                child: ListView(
+                  children: availableYears.map((year) {
+                    return CheckboxListTile(
+                      title: Text(year.toString()),
+                      value: tempSelection.contains(year),
+                      onChanged: (bool? selected) {
+                        setDialogState(() {
+                          if (selected == true) {
+                            tempSelection.add(year);
+                          } else {
+                            tempSelection.remove(year);
+                          }
+                        });
+                      },
+                    );
+                  }).toList(),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, null),
+                  child: const Text('Cancelar'),
+                ),
+                CustomButton(
+                  text: 'Aplicar',
+                  onPressed: () => Navigator.pop(context, tempSelection),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (result == null) return;
+    setState(() {
+      _selectedYears = result..sort((a, b) => b.compareTo(a));
+      _currentPage = 0;
+    });
+    _refreshRequest(fetchNetwork: true);
+  }
+
+  Future<void> _showFilterModal() async {
+    final originalBPs = Set.from(_filters.bpIds);
+
+    final appliedFilters = await showDialog<RequestFilterModel>(
+      context: context,
+      builder: (context) {
+        return RequestFilterModal(
+          initialFilter: _filters,
+          bPartners: _bPartners, // Lista de clientes para el filtro "Tercero"
+          allBPartners: GlobalCache
+              .allBPartners, // Lista completa para el filtro "Rep. Comercial"
+          users: _users,
+          requests: _requests,
+          statusIdMap: _statusIdMap,
+        );
+      },
+    );
+
+    if (appliedFilters != null) {
+// [Mantenimiento] Log removido:       debugPrint(
+// [Mantenimiento] Log removido:         "DEBUG MY_REQUESTS: Filtros recibidos del modal -> BPs: ${appliedFilters.bpIds}, Chips: ${appliedFilters.productChipIds}",
+// [Mantenimiento] Log removido:       );
+      setState(() {
+        _filters = appliedFilters;
+        _currentPage = 0;
+      });
+
+      final currentBPs = Set.from(_filters.bpIds);
+      if (!setEquals(originalBPs, currentBPs)) {
+// [Mantenimiento] Log removido:         debugPrint(
+// [Mantenimiento] Log removido:           "DEBUG MY_REQUESTS: Cambiaron los Terceros. Reiniciando datos...",
+// [Mantenimiento] Log removido:         );
+        _bpNameCache.clear();
+        setState(() => _isLoading = true);
+        if (_filters.bpIds.isNotEmpty) {
+          _bpId = _filters.bpIds.first;
+        } else {
+          _bpId = null;
+        }
+        _initData();
+      } else {
+// [Mantenimiento] Log removido:         debugPrint(
+// [Mantenimiento] Log removido:           "DEBUG MY_REQUESTS: No cambiaron los Terceros, pero pueden haber cambiado otros filtros. Refrescando...",
+// [Mantenimiento] Log removido:         );
+        _refreshRequest(
+          fetchNetwork: false,
+        ); // Solo refresco local ya que los datos base (GlobalCache) son los mismos
+      }
+    }
+  }
+
+  /// Muestra un diálogo para seleccionar el modo de vista del administrador.
+  void _showAdminModeSelectionDialog(BuildContext context) {
+    final current = _adminViewModeManager.currentMode;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return CustomModal(
+          title: 'Seleccionar Modo de Vista',
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                title: const Text('Modo Mixto'),
+                trailing: current == AdminViewMode.mixed
+                    ? Icon(Icons.check, color: colorScheme.primary)
+                    : null,
+                onTap: () {
+                  _adminViewModeManager.saveMode(AdminViewMode.mixed);
+                  Navigator.pop(dialogContext);
+                },
+              ),
+              ListTile(
+                title: const Text('Modo Soporte'),
+                trailing: current == AdminViewMode.support
+                    ? Icon(Icons.check, color: colorScheme.primary)
+                    : null,
+                onTap: () {
+                  _adminViewModeManager.saveMode(AdminViewMode.support);
+                  Navigator.pop(dialogContext);
+                },
+              ),
+              ListTile(
+                title: const Text('Modo Proyecto'),
+                trailing: current == AdminViewMode.project
+                    ? Icon(Icons.check, color: colorScheme.primary)
+                    : null,
+                onTap: () {
+                  _adminViewModeManager.saveMode(AdminViewMode.project);
+                  Navigator.pop(dialogContext);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cerrar'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Construye las acciones específicas de la AppBar para el administrador, adaptándose a móvil.
+  List<Widget> _buildAdminAppBarActions(BuildContext context) {
+    final List<Widget> actions = [];
+    final bool isMobile = MediaQuery.of(context).size.width < 600;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    if (isMobile) {
+      actions.add(
+        PopupMenuButton<String>(
+          icon: const Icon(Icons.more_vert),
+          tooltip: 'Opciones de Administrador',
+          onSelected: (value) {
+            if (value == 'admin_mode') {
+              _showAdminModeSelectionDialog(context);
+            } else if (value == 'exception_dialog') {
+              _showExceptionDialog();
+            }
+          },
+          itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+            PopupMenuItem<String>(
+              value: 'admin_mode',
+              child: ListTile(
+                leading: const Icon(Icons.admin_panel_settings),
+                title: Text(
+                  'Modo de Vista (${_adminViewModeManager.currentMode == AdminViewMode.support ? 'Soporte' : (_adminViewModeManager.currentMode == AdminViewMode.project ? 'Proyecto' : 'Mixto')})',
+                ),
+              ),
+            ),
+            PopupMenuItem<String>(
+              value: 'exception_dialog',
+              child: ListTile(
+                leading: const Icon(Icons.shield_outlined),
+                title: const Text('Excepción de Horas'),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      // Desktop view: existing buttons
+      actions.add(_buildAdminModePopupMenu(context));
+      actions.add(_buildExceptionHoursInkWell());
+    }
+    return actions;
+  }
+
+  String _buildODataFilter() {
+    List<String> conditions = [];
+
+    // Filtro por años
+    if (_selectedYears.isNotEmpty) {
+      final yearFilterStr = _selectedYears
+          .map((y) => "(Created ge '$y-01-01' and Created lt '${y + 1}-01-01')")
+          .join(' or ');
+      conditions.add("($yearFilterStr)");
+    }
+
+    // Filtro por Archivadas / Activas (Soporte vs Bitácora)
+    // Movido a filtrado local para evitar errores de servidor OData 400
+
+    // Filtro por BP
+    if (_bpId != null) {
+      conditions.add("(C_BPartner_ID eq $_bpId)");
+    } else if (!AccessControl.isAdmin && User.cBPartnerID != null) {
+      conditions.add("(C_BPartner_ID eq ${User.cBPartnerID})");
+    }
+
+    // Unir condiciones
+    return conditions.isNotEmpty ? conditions.join(" and ") : "";
   }
 
   Future<void> _refreshRequest({bool fetchNetwork = true}) async {
-    if (fetchNetwork) {
-      await GlobalCache.syncData(force: true);
-    }
+// [Mantenimiento] Log removido:     debugPrint(
+// [Mantenimiento] Log removido:       "DEBUG REFRESH: Calling _refreshRequest(fetchNetwork: $fetchNetwork). Filters: ${_filters.activeFilterCount} active. ChipIds: ${_filters.productChipIds}",
+// [Mantenimiento] Log removido:     );
+    try {
+      if (mounted) setState(() => _isLoading = true);
 
-    List<dynamic> allFetchedRequests = GlobalCache.requests;
-    if (AccessControl.isAdmin && _bpId != null) {
-      allFetchedRequests = allFetchedRequests.where((r) => r['C_BPartner_ID'] is Map ? r['C_BPartner_ID']['id'] == _bpId : r['C_BPartner_ID'] == _bpId).toList();
-    }
-    _allFetchedRequests = allFetchedRequests;
+      // 1. Sincronizar solo si es necesario (sin forzar borrado total)
+      if (fetchNetwork) {
+        await GlobalCache.syncData();
+      }
 
-    // === LA CLAVE: Filtrar las que NO son de proyecto ===
-    final supportRequestsOnly = _allFetchedRequests.where((req) {
-      final recordUU = req['Record_UU'];
-      return recordUU == null || recordUU.toString().isEmpty;
-    }).toList();
+      _statusIdMap = GlobalCache.statuses;
 
-    // 2. Process ALL support requests to populate the filter bar and serve as the base for the table
-    final processedAll = await processRequests(supportRequestsOnly, _statusIdMap);
+      // 2. Usar los datos centralizados de la caché (Ya cargados por Fase 1 y 2)
+      final List<Map<String, dynamic>> rawAll = List.from(GlobalCache.requests);
+// [Mantenimiento] Log removido:       debugPrint(
+// [Mantenimiento] Log removido:         "DEBUG REFRESH: Iniciando filtrado local sobre ${rawAll.length} registros totales en caché.",
+// [Mantenimiento] Log removido:       );
 
-    if (mounted) {
-      setState(() {
-        _rawRequests = processedAll['rawRequests'];
-        _requests = processedAll['requests']; // Full list for UI
-      });
-      _updateStatsLocally();
-      setState(() {
-        _isLoading = false;
-      });
+      if (rawAll.isEmpty && fetchNetwork) {
+        // Fallback si por alguna razón la caché está vacía pero queremos red
+        // (Aunque GlobalCache.syncData ya debería haber llenado algo)
+      }
+
+      // 3. Filtrado Local sobre datos RAW (Súper rápido)
+      final List<String> selectedChipNames = _filters.productChipIds
+          .map((id) {
+            final found = GlobalCache.productChips.firstWhere(
+              (c) => (c['id'] as num?)?.toInt() == id,
+              orElse: () => <String, dynamic>{},
+            );
+            return (found['Description'] ?? found['Name'] ?? '')
+                .toString()
+                .toLowerCase()
+                .trim();
+          })
+          .where((name) => name.isNotEmpty)
+          .toList();
+
+      final filteredRaw = rawAll.where((req) {
+        // A. Filtrado por Año (si aplica)
+        if (_selectedYears.isNotEmpty) {
+          final createdStr = req['Created']?.toString() ?? '';
+          if (createdStr.isNotEmpty) {
+            final year = DateTime.tryParse(createdStr)?.year;
+            if (year != null && !_selectedYears.contains(year)) return false;
+          }
+        }
+
+        // B. Filtrado de Soporte vs Proyecto
+        final recordUU = req['Record_UU'];
+        bool isSupport = recordUU == null || recordUU.toString().trim().isEmpty;
+
+        if (AccessControl.isSupport && !AccessControl.isProject) {
+          // Modo soporte o usuario soporte real
+          if (!isSupport) return false;
+        } else if (!AccessControl.isSupport && AccessControl.isProject) {
+          // Modo proyecto o usuario proyecto real
+          if (isSupport) return false;
+        }
+
+        // C. Filtrado de Archivadas
+        final statusData = req['R_Status_ID'];
+        bool isArchived = false;
+        if (statusData is Map) {
+          final sIdentifier = (statusData['identifier'] ?? '').toString();
+          final sName = (statusData['Name'] ?? '').toString().toLowerCase();
+          final sId = statusData['id']?.toString();
+          isArchived =
+              sIdentifier == '100_Archivada' ||
+              sIdentifier == '90_Anulada' ||
+              sIdentifier == '80_Implementada en producci' ||
+              sName.contains('archivada') ||
+              sName.contains('anulada') ||
+              sName.contains('implementada') ||
+              sId == '1000019' ||
+              sId == '1000015' ||
+              sId == '1000018' ||
+              sId == '103';
+        } else if (statusData != null) {
+          final sId = statusData.toString();
+          isArchived =
+              sId == '1000019' ||
+              sId == '1000015' ||
+              sId == '1000018' ||
+              sId == '103';
+        }
+        if (_showHistory != isArchived) return false;
+
+        // D. Filtros de la UI (Búsqueda, BP, Usuario, etc.) sobre RAW
+        if (_filters.bpIds.isNotEmpty) {
+          final bpData = req['C_BPartner_ID'];
+          final bpId = bpData is Map ? bpData['id'] : bpData;
+          if (!_filters.bpIds.contains(bpId)) return false;
+        }
+        if (_filters.userIds.isNotEmpty) {
+          final userData = req['AD_User_ID'];
+          final userId = userData is Map ? userData['id'] : userData;
+          if (!_filters.userIds.contains(userId)) return false;
+        }
+        if (_filters.salesRepIds.isNotEmpty) {
+          final repData = req['SalesRep_ID'];
+          final repId = repData is Map
+              ? (repData['id'] as num?)?.toInt()
+              : (repData as num?)?.toInt();
+
+          if (rawAll.indexOf(req) < 10) {
+// [Mantenimiento] Log removido:             debugPrint(
+// [Mantenimiento] Log removido:               "DEBUG FILTER [SalesRep]: Buscando: ${_filters.salesRepIds}, Encontrado: $repId (Data: $repData)",
+// [Mantenimiento] Log removido:             );
+          }
+
+          if (repId == null || !_filters.salesRepIds.contains(repId))
+            return false;
+        }
+        if (_filters.statusIds.isNotEmpty) {
+          final sData = req['R_Status_ID'];
+          final sId = sData is Map
+              ? (sData['id'] as num?)?.toInt()
+              : (sData as num?)?.toInt();
+          if (sId == null || !_filters.statusIds.contains(sId)) return false;
+        } else if (_filters.statuses.isNotEmpty) {
+          final sData = req['R_Status_ID'];
+          final sName = sData is Map
+              ? (sData['Name'] ?? sData['identifier'] ?? '').toString()
+              : sData.toString();
+          if (!_filters.statuses.contains(sName)) return false;
+        }
+
+        if (_filters.levels.isNotEmpty) {
+          final priority = req['Priority'] is Map
+              ? (req['Priority']['identifier'] ?? req['Priority']['Name'] ?? '')
+                    .toString()
+              : req['Priority']?.toString() ?? '';
+          String priorityName = priority;
+          if (priority == '1')
+            priorityName = 'Urgente';
+          else if (priority == '3')
+            priorityName = 'Alta';
+          else if (priority == '5')
+            priorityName = 'Media';
+          else if (priority == '7')
+            priorityName = 'Baja';
+          else if (priority == '9')
+            priorityName = 'Muy baja';
+
+          if (!_filters.levels.any(
+            (l) => l.toLowerCase() == priorityName.toLowerCase(),
+          ))
+            return false;
+        }
+
+        if (_filters.requestTypeIds.isNotEmpty) {
+          final rtData = req['R_RequestType_ID'];
+          final rtId = rtData is Map
+              ? (rtData['id'] as num?)?.toInt()
+              : (rtData is num ? rtData.toInt() : null);
+          if (rtId == null || !_filters.requestTypeIds.contains(rtId))
+            return false;
+        }
+
+        if (_filters.categoryIds.isNotEmpty) {
+          final catData = req['R_Category_ID'];
+          final catId = catData is Map
+              ? (catData['id'] as num?)?.toInt()
+              : (catData is num ? catData.toInt() : null);
+          if (catId == null || !_filters.categoryIds.contains(catId))
+            return false;
+        }
+
+        // --- FILTRO DE FICHAS DE PRODUCTO ---
+        if (_filters.productChipIds.isNotEmpty) {
+          final int? parsedChipId = extractProductChipId(req);
+          final String? chipName = extractProductChipName(
+            req,
+          )?.toLowerCase().trim();
+
+          bool matchById =
+              parsedChipId != null &&
+              _filters.productChipIds.contains(parsedChipId);
+          bool matchByName =
+              chipName != null && selectedChipNames.contains(chipName);
+
+          // Log de diagnóstico para el primer registro
+          if (rawAll.indexOf(req) == 0) {
+// [Mantenimiento] Log removido:             debugPrint(
+// [Mantenimiento] Log removido:               "DEBUG FILTER [Ficha]: Buscando IDs: ${_filters.productChipIds}, Nombres: $selectedChipNames",
+// [Mantenimiento] Log removido:             );
+// [Mantenimiento] Log removido:             debugPrint(
+// [Mantenimiento] Log removido:               "DEBUG FILTER [Ficha]: Registro actual -> ID extraído: $parsedChipId, Nombre extraído: $chipName",
+// [Mantenimiento] Log removido:             );
+// [Mantenimiento] Log removido:             debugPrint(
+// [Mantenimiento] Log removido:               "DEBUG FILTER [Ficha]: Resultado -> matchById: $matchById, matchByName: $matchByName",
+// [Mantenimiento] Log removido:             );
+          }
+
+          if (!matchById && !matchByName) {
+            return false;
+          }
+        }
+
+        if (_searchController.text.trim().isNotEmpty) {
+          final search = _searchController.text.trim().toLowerCase();
+          final docNo = (req['DocumentNo'] ?? '').toString().toLowerCase();
+          final internalId = (req['id'] ?? '').toString().toLowerCase();
+          final summary = (req['Summary'] ?? '').toString().toLowerCase();
+
+          if (!docNo.contains(search) &&
+              !internalId.contains(search) &&
+              !summary.contains(search))
+            return false;
+        }
+
+        return true;
+      }).toList();
+
+      // 4. Actualizar contador total
+      _totalRecords = filteredRaw.length;
+
+      // 5. Paginación sobre la lista filtrada RAW
+      int start = _currentPage * _rowsPerPage;
+      if (start >= _totalRecords) {
+        _currentPage = 0;
+        start = 0;
+      }
+      int end = start + _rowsPerPage;
+      if (end > _totalRecords) end = _totalRecords;
+
+      final pageRawItems = filteredRaw.sublist(start, end);
+
+      // 6. PROCESAR SOLO LA PÁGINA ACTUAL (25 items vs 5000+)
+      // Esto es lo que devuelve el rendimiento instantáneo
+      final processedData = await processRequests(pageRawItems, _statusIdMap);
+      final List<Map<String, dynamic>> pageProcessed =
+          List<Map<String, dynamic>>.from(processedData['requests']);
+
+      if (mounted) {
+        setState(() {
+          _rawRequests = filteredRaw;
+          _requests = pageProcessed;
+          // Cacheamos el ordenamiento aquí para evitar hacerlo en el build
+          _sortedRequests = _requests.toList()
+            ..sort((a, b) {
+              final timeA = a['time'] ?? '';
+              final timeB = b['time'] ?? '';
+              return _isAscending
+                  ? timeA.compareTo(timeB)
+                  : timeB.compareTo(timeA);
+            });
+          _isLoading = false;
+        });
+        _updateStatsLocally();
+      }
+    } catch (e) {
+// [Mantenimiento] Log removido:       debugPrint("Error in optimized _refreshRequest: $e");
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   void _updateStatsLocally() {
-    double contractedForStats = 0.0;
+    double acquiredForStats = 0.0;
     double consumedForStats = 0.0;
-    double estimatedForStats = 0.0;
+    double inProgressForStats = 0.0;
 
-    if (_selectedBP != null) {
-      final bpRequests = _requests.where((r) => r['bpName'] == _selectedBP).toList();
-      for (var r in bpRequests) {
-        double qty = double.tryParse(r['qtyPlan']?.toString() ?? '0.0') ?? 0.0;
-        if (r['status'] == '9_Final Close' || r['statusId'] == 103) {
-          consumedForStats += qty;
-        } else {
-          estimatedForStats += qty;
-        }
-      }
-
-      final foundBp = _bPartners.firstWhere((bp) => bp['Name'] == _selectedBP, orElse: () => {});
-      int? bpIdForContract;
-      if (foundBp.isNotEmpty) {
-        bpIdForContract = foundBp['id'];
-      } else if (User.cBPartnerID != null && User.name == _selectedBP) {
-        bpIdForContract = User.cBPartnerID;
-      }
-
-      if (bpIdForContract != null) {
-        contractedForStats = _allContracts.where((c) => c['C_BPartner_ID'] == bpIdForContract).fold(0.0, (sum, c) => sum + ((c['contractedHours'] as num?)?.toDouble() ?? 0.0));
-      }
-    } else {
-      for (var r in _requests) {
-        double qty = double.tryParse(r['qtyPlan']?.toString() ?? '0.0') ?? 0.0;
-        if (r['status'] == '9_Final Close' || r['statusId'] == 103) {
-          consumedForStats += qty;
-        } else {
-          estimatedForStats += qty;
-        }
-      }
-      contractedForStats = _allContracts.fold(0.0, (sum, contract) => sum + ((contract['contractedHours'] as num?)?.toDouble() ?? 0.0));
+    // 1. Obtener Terceros seleccionados
+    final selectedBpIds = _filters.bpIds.toSet();
+    if (selectedBpIds.isEmpty && !AccessControl.isAdmin) {
+      if (User.cBPartnerID != null) selectedBpIds.add(User.cBPartnerID!);
     }
 
-    setState(() {
-      _consumedHours = consumedForStats;
-      _estimatedHours = estimatedForStats;
-      _contractedHours = contractedForStats > 0 ? contractedForStats : null;
+    // 2. Filtrar Fichas de Producto relevantes
+    final relevantChips = GlobalCache.productChips.where((chip) {
+      final rawBp = chip['C_BPartner_ID'];
+      final chipBpId = rawBp is Map
+          ? (rawBp['id'] as num?)?.toInt()
+          : (rawBp as num?)?.toInt();
+      final isActive = chip['IsActive'] == 'Y' || chip['IsActive'] == true;
+
+      if (selectedBpIds.isNotEmpty && !selectedBpIds.contains(chipBpId))
+        return false;
+      if (!isActive) return false;
+
+      if (_filters.productChipIds.isNotEmpty) {
+        if (!_filters.productChipIds.contains(chip['id'])) return false;
+      }
+
+      return true;
+    }).toList();
+
+    // Ordenar fichas por fecha de creación (FIFO)
+    relevantChips.sort((a, b) {
+      final dateA = DateTime.tryParse(a['Created'] ?? '') ?? DateTime(0);
+      final dateB = DateTime.tryParse(b['Created'] ?? '') ?? DateTime(0);
+      return dateA.compareTo(dateB);
     });
+
+    acquiredForStats = relevantChips.fold(
+      0.0,
+      (sum, chip) => sum + ((chip['Qty'] as num?)?.toDouble() ?? 0.0),
+    );
+
+    // 3. Calcular Consumidas y En Progreso por ficha vinculada
+    final Map<int, double> chipConsumedMap = {};
+    final Map<int, double> chipEstimatedMap = {};
+    consumedForStats = 0.0;
+    inProgressForStats = 0.0;
+
+    for (var r in _rawRequests) {
+      final double qtySpent = (r['QtySpent'] as num?)?.toDouble() ?? 0.0;
+      final statusData = r['R_Status_ID'];
+      int? sId = statusData is Map ? statusData['id'] : statusData;
+      final sName = statusData is Map
+          ? (statusData['Name'] ?? statusData['identifier'] ?? '')
+                .toString()
+                .toLowerCase()
+          : '';
+
+      bool isClosed =
+          sId == 1000019 ||
+          sId == 1000015 ||
+          sId == 1000018 ||
+          sName.contains('archivada') ||
+          sName.contains('anulada') ||
+          sName.contains('implementada en produccion') ||
+          sName.contains('implementada en producción') ||
+          sId == 103;
+
+      // Extraer ID de ficha con los múltiples nombres posibles
+      final int? chipId = extractProductChipId(r);
+
+      if (chipId != null) {
+        if (isClosed) {
+          chipConsumedMap[chipId] = (chipConsumedMap[chipId] ?? 0.0) + qtySpent;
+          consumedForStats += qtySpent;
+        } else {
+          chipEstimatedMap[chipId] =
+              (chipEstimatedMap[chipId] ?? 0.0) + qtySpent;
+          inProgressForStats += qtySpent;
+        }
+      }
+    }
+
+    List<Map<String, dynamic>> processed = [];
+    for (var chip in relevantChips) {
+      final int chipId = (chip['id'] as num).toInt();
+      double totalQty = (chip['Qty'] as num?)?.toDouble() ?? 0.0;
+      double consumed = chipConsumedMap[chipId] ?? 0.0;
+      double estimated = chipEstimatedMap[chipId] ?? 0.0;
+
+      processed.add({
+        ...chip,
+        'consumed': consumed,
+        'estimated': estimated,
+        'available': totalQty - consumed,
+      });
+    }
+
+    if (mounted) {
+      setState(() {
+        _contractedHours = acquiredForStats > 0 ? acquiredForStats : null;
+        _consumedHours = consumedForStats;
+        _estimatedHours = inProgressForStats;
+        _processedChips = processed;
+      });
+    }
   }
 
   Future<void> _deleteRequest(dynamic id) async {
     if (!AccessControl.canManageRequests) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No tienes permisos para eliminar solicitudes.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No tienes permisos para eliminar solicitudes.'),
+        ),
+      );
       return;
     }
     final bool? confirm = await showDialog<bool>(
       context: context,
       builder: (context) => CustomModal(
         title: 'Confirmar Eliminación',
-        content: const Text('¿Está seguro de que desea eliminar esta solicitud?'),
+        content: const Text(
+          '¿Está seguro de que desea eliminar esta solicitud?',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-          CustomButton(text: 'Eliminar', backgroundColor: Colors.red, onPressed: () => Navigator.pop(context, true)),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          CustomButton(
+            text: 'Eliminar',
+            backgroundColor: Theme.of(context).colorScheme.error,
+            onPressed: () => Navigator.pop(context, true),
+          ),
         ],
       ),
     );
 
     if (confirm == true) {
-      setState(() => _isLoading = true);
       final success = await deleteRequestApi(id);
       if (mounted) {
         if (success) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Solicitud eliminada correctamente')));
-          _refreshRequest();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Solicitud eliminada correctamente')),
+          );
+          _refreshRequest(fetchNetwork: false);
         } else {
-          setState(() => _isLoading = false);
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al eliminar'), backgroundColor: Colors.red));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Error al eliminar'),
+              backgroundColor: Colors.red,
+            ),
+          );
         }
       }
     }
   }
 
   void _editRequest(Map<String, dynamic> req) async {
-    if (!AccessControl.canManageRequests) return;
+    if (!AccessControl.canManageRequests) {
+      // Mostrar solo lectura de los detalles para soporte
+      showDialog(
+        context: context,
+        builder: (context) => CustomModal(
+          title: 'Detalle de Solicitud ${req['id']}',
+          width: 500,
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CustomTextField(
+                controller: TextEditingController(text: req['situation']),
+                label: 'Tipo de Solicitud',
+                readOnly: true,
+              ),
+              const SizedBox(height: 16),
+              CustomTextField(
+                controller: TextEditingController(text: req['emailSubject']),
+                label: 'Asunto',
+                readOnly: true,
+              ),
+              const SizedBox(height: 16),
+              CustomTextField(
+                controller: TextEditingController(text: req['category']),
+                label: 'Categoría',
+                readOnly: true,
+              ),
+              const SizedBox(height: 16),
+              CustomTextField(
+                controller: TextEditingController(text: req['level']),
+                label: 'Prioridad',
+                readOnly: true,
+              ),
+              const SizedBox(height: 16),
+              CustomTextField(
+                controller: TextEditingController(text: req['status']),
+                label: 'Estado',
+                readOnly: true,
+              ),
+              const SizedBox(height: 16),
+              Stack(
+                alignment: Alignment.topRight,
+                children: [
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.outline.withOpacity(0.5),
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Descripción',
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                        ),
+                        const SizedBox(height: 8),
+                        Html(
+                          data: req['description'] ?? '',
+                          style: {
+                            "body": Style(
+                              margin: Margins.zero,
+                              padding: HtmlPaddings.zero,
+                              fontSize: FontSize(14),
+                            ),
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4.0, right: 4.0),
+                    child: IconButton(
+                      icon: const Icon(Icons.zoom_out_map),
+                      tooltip: 'Ver descripción completa',
+                      onPressed: () {
+                        showDialog(
+                          context: context,
+                          builder: (BuildContext dialogContext) => CustomModal(
+                            title: 'Descripción Completa',
+                            width: 600,
+                            content: SizedBox(
+                              height: 400,
+                              child: SingleChildScrollView(
+                                child: Html(
+                                  data: req['description'] ?? '',
+                                  style: {
+                                    "body": Style(
+                                      margin: Margins.zero,
+                                      padding: HtmlPaddings.zero,
+                                    ),
+                                  },
+                                ),
+                              ),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () =>
+                                    Navigator.of(dialogContext).pop(),
+                                child: const Text('Cerrar'),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cerrar'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
     showDialog(
       context: context,
-      builder: (context) => EditRequestDialog(request: req, statusIdMap: _statusIdMap, priorityMap: priorityMap, onSave: _initData, onDelete: () => _deleteRequest(req['realId'])),
+      builder: (context) => EditRequestDialog(
+        request: req,
+        statusIdMap: _statusIdMap,
+        priorityMap: priorityMap,
+        onSave: () {
+          _refreshRequest(fetchNetwork: false);
+        },
+        onDelete: () => _deleteRequest(req['realId']),
+      ),
     );
   }
 
+  /// Construye el PopupMenuButton para seleccionar el modo de vista del administrador.
   Future<void> _showExceptionDialog() async {
     if (!AccessControl.isAdmin) return;
 
-    final Set<int> tempSelectedIds = Set.from(ValidationManager.hourValidationExceptions);
-    List<dynamic> allBPartners = [];
-    bool isFetching = true;
+    final Set<int> tempSelectedIds = Set.from(
+      ValidationManager.hourValidationExceptions,
+    );
 
     await showDialog(
       context: context,
@@ -270,61 +1278,82 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
           width: 500,
           content: StatefulBuilder(
             builder: (BuildContext context, StateSetter setState) {
-              if (isFetching && allBPartners.isEmpty) {
-                ProjectsLogic().fetchBPartners().then((bps) {
-                  if (context.mounted) {
-                    setState(() {
-                      allBPartners = bps;
-                      isFetching = false;
-                    });
-                  }
-                });
-              }
-
-              final filteredBps = allBPartners.where((bp) => (bp['Name'] ?? '').toString().toLowerCase().contains(searchQuery.toLowerCase())).toList();
+              // Usamos la lista _bPartners del estado, que ya está filtrada para mostrar solo clientes.
+              final filteredBps = _bPartners
+                  .where(
+                    (bp) => (bp['Name'] ?? '')
+                        .toString()
+                        .toLowerCase()
+                        .contains(searchQuery.toLowerCase()),
+                  )
+                  .toList();
 
               return SizedBox(
                 height: 400,
-                child: isFetching
-                    ? const Center(child: CircularProgressIndicator())
-                    : Column(
-                        children: [
-                          TextField(
-                            decoration: InputDecoration(
-                              hintText: 'Buscar tercero...',
-                              prefixIcon: const Icon(Icons.search),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            ),
-                            onChanged: (val) => setState(() => searchQuery = val),
-                          ),
-                          const SizedBox(height: 10),
-                          Expanded(
-                            child: filteredBps.isEmpty
-                                ? const Center(child: Text('No se encontraron terceros.'))
-                                : ListView.builder(
-                                    itemCount: filteredBps.length,
-                                    itemBuilder: (context, index) {
-                                      final bp = filteredBps[index];
-                                      final rawId = bp['id'] ?? bp['C_BPartner_ID'];
-                                      final intId = rawId is int ? rawId : int.tryParse(rawId.toString()) ?? 0;
-                                      return CheckboxListTile(title: Text(bp['Name'] ?? 'Tercero $intId'), value: tempSelectedIds.contains(intId), onChanged: (bool? value) => setState(() => value == true ? tempSelectedIds.add(intId) : tempSelectedIds.remove(intId)));
-                                    },
-                                  ),
-                          ),
-                        ],
+                child: Column(
+                  children: [
+                    TextField(
+                      decoration: InputDecoration(
+                        hintText: 'Buscar tercero...',
+                        prefixIcon: const Icon(Icons.search),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
                       ),
+                      onChanged: (val) => setState(() => searchQuery = val),
+                    ),
+                    const SizedBox(height: 10),
+                    Expanded(
+                      child: filteredBps.isEmpty
+                          ? const Center(
+                              child: Text('No se encontraron terceros.'),
+                            )
+                          : ListView.builder(
+                              itemCount: filteredBps.length,
+                              itemBuilder: (context, index) {
+                                final bp = filteredBps[index];
+                                final rawId = bp['id'] ?? bp['C_BPartner_ID'];
+                                final intId = rawId is int
+                                    ? rawId
+                                    : int.tryParse(rawId.toString()) ?? 0;
+                                return CheckboxListTile(
+                                  title: Text(bp['Name'] ?? 'Tercero $intId'),
+                                  value: tempSelectedIds.contains(intId),
+                                  onChanged: (bool? value) => setState(
+                                    () => value == true
+                                        ? tempSelectedIds.add(intId)
+                                        : tempSelectedIds.remove(intId),
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
               );
             },
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancelar'),
+            ),
             CustomButton(
               text: 'Guardar',
               onPressed: () {
                 ValidationManager.setExceptions(tempSelectedIds);
                 Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Excepciones de validación de horas actualizadas.')));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Excepciones de validación de horas actualizadas.',
+                    ),
+                  ),
+                );
               },
             ),
           ],
@@ -333,262 +1362,388 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     );
   }
 
-  List<Map<String, dynamic>> _getFilteredRequests() {
-    return _requests.where((alert) {
-      bool isClosed = alert['status'] == '9_Final Close' || alert['statusId'] == 103;
-      if (_showHistory != isClosed) return false;
-      if (_selectedLevel != null && alert['level'] != _selectedLevel) return false;
-      if (_selectedStatus != null && alert['status'] != _selectedStatus) return false;
-      if (_selectedBP != null && alert['bpName'] != _selectedBP) return false;
-      if (_selectedYear != null && alert['time'] != null && alert['time'].toString().isNotEmpty) {
-        try {
-          if (int.parse(alert['time'].toString().substring(0, 4)) != _selectedYear) return false;
-        } catch (_) {}
-      }
-      if (_selectedSituation != null && alert['situation'] != _selectedSituation) return false;
-      if (_selectedSalesRep != null && alert['salesRepName'] != _selectedSalesRep) return false;
-      if (_selectedUser != null && alert['userName'] != _selectedUser) return false;
-      if (_searchController.text.isNotEmpty && !alert['id'].toString().toLowerCase().contains(_searchController.text.toLowerCase())) return false;
-      return true;
-    }).toList()..sort((a, b) {
-      final timeA = a['time'] ?? '';
-      final timeB = b['time'] ?? '';
-      return _isAscending ? timeA.compareTo(timeB) : timeB.compareTo(timeA);
+  Widget _buildPaginationControls() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        border: Border(top: BorderSide(color: Theme.of(context).dividerColor)),
+      ),
+      child: Wrap(
+        alignment: WrapAlignment.end,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 16.0,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '${_totalRecords == 0 ? 0 : (_currentPage * _rowsPerPage) + 1} - ${((_currentPage + 1) * _rowsPerPage < _totalRecords) ? (_currentPage + 1) * _rowsPerPage : _totalRecords} de $_totalRecords',
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.chevron_left),
+                onPressed: _currentPage == 0
+                    ? null
+                    : () {
+                        setState(() {
+                          _currentPage--;
+                        });
+                        _refreshRequest(fetchNetwork: false);
+                      },
+              ),
+              IconButton(
+                icon: const Icon(Icons.chevron_right),
+                onPressed: ((_currentPage + 1) * _rowsPerPage >= _totalRecords)
+                    ? null
+                    : () {
+                        setState(() {
+                          _currentPage++;
+                        });
+                        _refreshRequest(fetchNetwork: false);
+                      },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _updateSortedRequests() {
+    setState(() {
+      _sortedRequests = _requests.toList()
+        ..sort((a, b) {
+          final timeA = a['time'] ?? '';
+          final timeB = b['time'] ?? '';
+          return _isAscending ? timeA.compareTo(timeB) : timeB.compareTo(timeA);
+        });
     });
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final filteredAlerts = _getFilteredRequests();
-    final int totalItems = filteredAlerts.length;
-    final int totalPages = (totalItems / _rowsPerPage).ceil();
-    if (_currentPage >= totalPages) _currentPage = totalPages > 0 ? totalPages - 1 : 0;
-    final int startIndex = _currentPage * _rowsPerPage;
-    final int endIndex = (startIndex + _rowsPerPage < totalItems) ? startIndex + _rowsPerPage : totalItems;
-    final paginatedAlerts = totalItems > 0 ? filteredAlerts.sublist(startIndex, endIndex) : <Map<String, dynamic>>[];
-
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Mis Solicitudes De Soporte'),
-          bottom: TabBar(
-            labelColor: Colors.white,
-            unselectedLabelColor: Colors.white70,
-            indicatorColor: Colors.white,
-            tabs: const [
-              Tab(text: 'Listado'),
-              Tab(text: 'Calendario'),
-            ],
-          ),
-          actions: [
-            if (AccessControl.isAdmin)
-              PopupMenuButton<AdminViewMode>(
-                tooltip: 'Cambiar modo de vista',
-                onSelected: (AdminViewMode mode) {
-                  _adminViewModeManager.saveMode(mode);
-                },
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.admin_panel_settings),
-                      const SizedBox(width: 8),
-                      Text(_adminViewModeManager.currentMode == AdminViewMode.support ? 'Modo Soporte' : (_adminViewModeManager.currentMode == AdminViewMode.project ? 'Modo Proyecto' : 'Modo Mixto'), style: const TextStyle(fontWeight: FontWeight.bold)),
-                      const Icon(Icons.arrow_drop_down),
-                    ],
-                  ),
-                ),
-                itemBuilder: (BuildContext context) {
-                  final current = _adminViewModeManager.currentMode;
-                  final colorScheme = Theme.of(context).colorScheme;
-                  PopupMenuItem<AdminViewMode> buildItem(AdminViewMode mode, String text) {
-                    final isSelected = current == mode;
-                    return PopupMenuItem<AdminViewMode>(
-                      value: mode,
-                      child: Container(
-                        width: double.infinity,
-                        decoration: BoxDecoration(color: isSelected ? colorScheme.primary.withOpacity(0.1) : Colors.transparent, borderRadius: BorderRadius.circular(8)),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        child: Row(
-                          children: [
-                            Text(
-                              text,
-                              style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? colorScheme.primary : colorScheme.onSurface),
-                            ),
-                            if (isSelected) const Spacer(),
-                            if (isSelected) Icon(Icons.check, size: 18, color: colorScheme.primary),
-                          ],
-                        ),
-                      ),
-                    );
-                  }
-
-                  return [buildItem(AdminViewMode.mixed, 'Modo Mixto'), buildItem(AdminViewMode.support, 'Modo Soporte'), buildItem(AdminViewMode.project, 'Modo Proyecto')];
-                },
-              ),
-            if (AccessControl.isAdmin)
-              InkWell(
-                onTap: _showExceptionDialog,
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16.0),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.shield_outlined),
-                      SizedBox(width: 8),
-                      Text('Excepción de Horas', style: TextStyle(fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                ),
-              ),
-            Padding(
-              padding: const EdgeInsets.only(right: 8.0),
-              child: IconButton(
-                onPressed: () {
-                  setState(() => _isLoading = true);
-                  _initData();
-                },
-                icon: const Icon(Icons.refresh),
-                tooltip: 'Refrescar',
-              ),
+  Widget _buildAdminModePopupMenu(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return PopupMenuButton<AdminViewMode>(
+      tooltip: 'Cambiar modo de vista',
+      onSelected: (AdminViewMode mode) {
+        _adminViewModeManager.saveMode(mode);
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.admin_panel_settings),
+            const SizedBox(width: 8),
+            Text(
+              _adminViewModeManager.currentMode == AdminViewMode.support
+                  ? 'Modo Soporte'
+                  : (_adminViewModeManager.currentMode == AdminViewMode.project
+                        ? 'Modo Proyecto'
+                        : 'Modo Mixto'),
+              style: const TextStyle(fontWeight: FontWeight.bold),
             ),
+            const Icon(Icons.arrow_drop_down),
           ],
         ),
-        drawer: const CustomDrawer(),
-        body: SafeArea(
-          child: TabBarView(
-            children: [
-              SingleChildScrollView(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    RequestStatsCard(contractedHours: _contractedHours, consumedHours: _consumedHours, estimatedHours: _estimatedHours),
-                    RequestFilterBar(
-                      searchController: _searchController,
-                      selectedYear: _selectedYear,
-                      selectedBP: _selectedBP,
-                      selectedSituation: _selectedSituation,
-                      selectedUser: _selectedUser,
-                      selectedLevel: _selectedLevel,
-                      selectedStatus: _selectedStatus,
-                      selectedSalesRep: _selectedSalesRep,
-                      isAscending: _isAscending,
-                      rowsPerPage: _rowsPerPage,
-                      showHistory: _showHistory,
-                      requests: _requests,
-                      users: _users,
-                      bPartners: _bPartners,
-                      statusIdMap: _statusIdMap,
-                      onYearChanged: (val) => setState(() {
-                        _selectedYear = val;
-                        _currentPage = 0;
-                      }),
-                      onBPChanged: (val) {
-                        setState(() {
-                          _selectedBP = val;
-                          _currentPage = 0;
-                          _isLoading = true;
-                          if (val != null) {
-                            final found = _bPartners.firstWhere((bp) => bp['Name'] == val, orElse: () => <String, dynamic>{});
-                            if (found.isNotEmpty) {
-                              _bpId = found['id'];
-                            }
-                          } else {
-                            _bpId = null;
-                          }
-                        });
-                        _initData();
-                      },
-                      onSituationChanged: (val) => setState(() {
-                        _selectedSituation = val;
-                        _currentPage = 0;
-                      }),
-                      onUserChanged: (val) => setState(() {
-                        _selectedUser = val;
-                        _currentPage = 0;
-                      }),
-                      onLevelChanged: (val) => setState(() {
-                        _selectedLevel = val;
-                        _currentPage = 0;
-                      }),
-                      onSalesRepChanged: (val) => setState(() {
-                        _selectedSalesRep = val;
-                        _currentPage = 0;
-                      }),
-                      onStatusChanged: (val) => setState(() {
-                        _selectedStatus = val;
-                        _currentPage = 0;
-                      }),
-                      onSortChanged: () => setState(() {
-                        _isAscending = !_isAscending;
-                        _currentPage = 0;
-                      }),
-                      onRowsPerPageChanged: (val) => setState(() {
-                        _rowsPerPage = val!;
-                        _currentPage = 0;
-                      }),
-                      onClearFilters: () {
-                        setState(() {
-                          _selectedBP = null;
-                          _selectedLevel = null;
-                          _selectedStatus = null;
-                          _selectedSituation = null;
-                          _selectedSalesRep = null;
-                          _selectedUser = null;
-                          _searchController.clear();
-                          _isAscending = false;
-                          _currentPage = 0;
-                          _bpId = null; // Reiniciar memoria de navegación
-                          _isLoading = true;
-                        });
-                        _initData();
-                      },
-                      onAddRequest: () async {
-                        if (await showDialog(
-                              context: context,
-                              builder: (context) => CreateRequestDialog(bPartners: _bPartners, selectedBPartnerId: _bpId),
-                            ) ==
-                            true)
-                          _initData();
-                      },
-                      onToggleHistory: () => setState(() {
-                        _showHistory = !_showHistory;
-                        _selectedStatus = null;
-                      }),
-                    ),
-                    const SizedBox(height: 20),
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 1000),
-                      child: _isLoading
-                          ? const Padding(
-                              padding: EdgeInsets.all(50.0),
-                              child: Center(child: CircularProgressIndicator()),
-                            )
-                          : RequestsDataTable(requests: paginatedAlerts, onEdit: _editRequest, onRefresh: _initData),
-                    ),
-                    if (totalPages > 1)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 16.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            IconButton(icon: const Icon(Icons.chevron_left), onPressed: _currentPage > 0 ? () => setState(() => _currentPage--) : null),
-                            Text('Página ${_currentPage + 1} de $totalPages', style: const TextStyle(fontWeight: FontWeight.bold)),
-                            IconButton(icon: const Icon(Icons.chevron_right), onPressed: _currentPage < totalPages - 1 ? () => setState(() => _currentPage++) : null),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
+      ),
+      itemBuilder: (BuildContext context) {
+        final current = _adminViewModeManager.currentMode;
+        PopupMenuItem<AdminViewMode> buildItem(
+          AdminViewMode mode,
+          String text,
+        ) {
+          final isSelected = current == mode;
+          return PopupMenuItem<AdminViewMode>(
+            value: mode,
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? colorScheme.primary.withOpacity(0.1)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
               ),
-              CalendarTab(requests: _rawRequests),
-            ],
-          ),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                children: [
+                  Text(
+                    text,
+                    style: TextStyle(
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                      color: isSelected
+                          ? colorScheme.primary
+                          : colorScheme.onSurface,
+                    ),
+                  ),
+                  if (isSelected) const Spacer(),
+                  if (isSelected)
+                    Icon(Icons.check, size: 18, color: colorScheme.primary),
+                ],
+              ),
+            ),
+          );
+        }
+
+        return [
+          buildItem(AdminViewMode.mixed, 'Modo Mixto'),
+          buildItem(AdminViewMode.support, 'Modo Soporte'),
+          buildItem(AdminViewMode.project, 'Modo Proyecto'),
+        ];
+      },
+    );
+  }
+
+  Widget _buildExceptionHoursInkWell() {
+    return InkWell(
+      onTap: _showExceptionDialog,
+      child: const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16.0),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.shield_outlined),
+            SizedBox(width: 8),
+            Text(
+              'Excepción de Horas',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ],
         ),
       ),
     );
   }
+
+  @override
+  Widget build(BuildContext context) {
+    final appBarActions = [
+      if (AccessControl.isAdmin) ..._buildAdminAppBarActions(context),
+      if (GlobalCache.backgroundSyncNotifier.value)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          child: Center(
+            child: SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Theme.of(context).colorScheme.onPrimary,
+              ),
+            ),
+          ),
+        ),
+      const HelpIcon(),
+      Padding(
+        padding: const EdgeInsets.only(right: 8.0),
+        child: IconButton(
+          onPressed: () => GlobalCache.performSmartSync(context, () async {
+            await _initData();
+          }),
+          icon: const Icon(Icons.refresh),
+          tooltip: 'Refrescar',
+        ),
+      ),
+      if (!AccessControl.isAdmin)
+        IconButton(
+          icon: const Icon(Icons.logout_rounded, color: Colors.red),
+          tooltip: 'Cerrar Sesión',
+          onPressed: () => showLogoutConfirmation(context),
+        ),
+    ];
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          _showCalendar
+              ? 'Calendario de Solicitudes'
+              : 'Mis Solicitudes De Soporte',
+        ),
+        leading: _showCalendar
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                tooltip: 'Volver al Listado',
+                onPressed: () => setState(() => _showCalendar = false),
+              )
+            : null,
+        actions: appBarActions,
+      ),
+      drawer: !AccessControl.isAdmin
+          ? null
+          : const CustomDrawer(currentRoute: '/my-requests'),
+      bottomNavigationBar:
+          (MediaQuery.of(context).size.width < 900 && !AccessControl.isAdmin)
+          ? const ProjectBottomNav(currentRoute: '/my-requests')
+          : null,
+      body: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (MediaQuery.of(context).size.width >= 900 &&
+              !AccessControl.isAdmin)
+            const ProjectSideBar(currentRoute: '/my-requests'),
+          Expanded(
+            child: SafeArea(
+              bottom: false,
+              child: NestedScrollView(
+                      headerSliverBuilder: (context, innerBoxIsScrolled) {
+                        return [
+                          SliverToBoxAdapter(
+                            child: RepaintBoundary(
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  8,
+                                  16,
+                                  4,
+                                ),
+                                child: RequestStatsCard(
+                                  contractedHours: _contractedHours,
+                                  consumedHours: _consumedHours,
+                                  estimatedHours: _estimatedHours,
+                                ),
+                              ),
+                            ),
+                          ),
+                          SliverToBoxAdapter(
+                            child: RepaintBoundary(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16.0,
+                                ),
+                                child: RequestFilterBar(
+                                  searchController: _searchController,
+                                  isAscending: _isAscending,
+                                  rowsPerPage: _rowsPerPage,
+                                  showHistory: _showHistory,
+                                  selectedYears: _selectedYears,
+                                  onShowYearFilter: _showYearFilterModal,
+                                  onShowFilters: _showFilterModal,
+                                  onShowCalendar: () =>
+                                      setState(() => _showCalendar = !_showCalendar),
+                                  showCalendar: _showCalendar,
+                                  activeFilterCount: _activeFilterCount,
+                                  isLoading:
+                                      _isLoading || !GlobalCache.isDataLoaded,
+                                  onSortChanged: () {
+                                    _isAscending = !_isAscending;
+                                    _currentPage = 0;
+                                    _updateSortedRequests();
+                                  },
+                                  onRowsPerPageChanged: (val) {
+                                    setState(() {
+                                      _rowsPerPage = val!;
+                                      _currentPage = 0;
+                                      _cachedTable = null;
+                                    });
+                                    _refreshRequest(fetchNetwork: false);
+                                  },
+                                  onClearFilters: () {
+                                    setState(() {
+                                      _filters = const RequestFilterModel();
+                                      _searchController.clear();
+                                      _isAscending = false;
+                                      _currentPage = 0;
+                                      _bpId = null;
+                                      _selectedYears = [DateTime.now().year];
+                                      _isLoading = true;
+                                    });
+                                    _initData();
+                                  },
+                                  onAddRequest: () async {
+                                    if (await showDialog(
+                                          context: context,
+                                          builder: (context) =>
+                                              CreateRequestDialog(
+                                                bPartners: _bPartners,
+                                                selectedBPartnerId: _bpId,
+                                              ),
+                                        ) ==
+                                        true) {
+                                      _refreshRequest(fetchNetwork: false);
+                                    }
+                                  },
+                                  onToggleHistory: () {
+                                    setState(() {
+                                      _showHistory = !_showHistory;
+                                      _filters = _filters.copyWith(
+                                        statuses: [],
+                                      );
+                                      _currentPage = 0;
+                                      if (_showHistory) {
+                                        _startHistorySkeleton();
+                                      } else {
+                                        _isHistorySkeletonActive = false;
+                                      }
+                                    });
+                                    _refreshRequest(fetchNetwork: false);
+                                  },
+                                ),
+                              ),
+                            ),
+                          ),
+                          SliverToBoxAdapter(
+                            child: RepaintBoundary(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16.0,
+                                  vertical: 4.0,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    _buildActiveFilterChips(),
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 8.0,
+                                      ),
+                                      child: Text(
+                                        '$_totalRecords solicitudes encontradas en total',
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.titleMedium,
+                                      ),
+                                    ),
+                                    if (_selectedYears.length == 1 &&
+                                        _selectedYears.first ==
+                                            DateTime.now().year)
+                                      const Padding(
+                                        padding: EdgeInsets.only(bottom: 4.0),
+                                        child: Text(
+                                          "Mostrando solicitudes del año actual. Use el filtro de año para ver más años.",
+                                          style: TextStyle(color: Colors.grey),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ];
+                      },
+                      body: RepaintBoundary(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 300),
+                            child: _showCalendar
+                                ? CalendarGanttWrapper(requests: _rawRequests)
+                                : Column(
+                                    children: [
+                                      Expanded(child: _buildTableWidget()),
+                                    ],
+                                  ),
+                          ),
+                        ),
+                      ),
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
+

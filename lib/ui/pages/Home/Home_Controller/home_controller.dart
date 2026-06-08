@@ -1,19 +1,20 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:primhub/api/access_control.dart';
-import 'package:primhub/api/contract_api.dart';
 import 'package:primhub/api/api_utils.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/api/admin_view_mode.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
+import 'package:primhub/api/access_control.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:primhub/api/global_cache.dart';
 
 class HomeController extends ChangeNotifier {
   bool isLoading = true;
   bool validationLoading = true;
+  bool _isDisposed = false;
+  static bool _hasShownInitialSkeleton = false;
 
   String username = '';
   int? cBPartnerID;
@@ -29,9 +30,9 @@ class HomeController extends ChangeNotifier {
 
   List<Map<String, dynamic>> recentRequests = [];
   List<dynamic> allRequests = [];
-  Map<int, Map<String, num>> requestsStatsByBp = {};
+  Map<int, Map<String, dynamic>> requestsStatsByBp = {};
 
-  List<Map<String, dynamic>> supportContracts = [];
+  List<Map<String, dynamic>> supportProductChips = [];
 
   List<Map<String, dynamic>> supportBPartners = [];
   List<int> selectedSupportBpIds = [];
@@ -43,6 +44,31 @@ class HomeController extends ChangeNotifier {
     selectedProjectIds = List.from(savedSelectedProjectIds);
     selectedSupportBpIds = List.from(savedSelectedSupportBpIds);
     _loadCurrentUser();
+    GlobalCache.backgroundSyncNotifier.addListener(_onBackgroundSyncChanged);
+  }
+
+  @override
+  void dispose() {
+    GlobalCache.backgroundSyncNotifier.removeListener(_onBackgroundSyncChanged);
+    _isDisposed = true;
+    super.dispose();
+  }
+
+  bool get isSyncingBackground => GlobalCache.backgroundSyncNotifier.value;
+
+  void _onBackgroundSyncChanged() async {
+    if (!GlobalCache.backgroundSyncNotifier.value) {
+      await loadRecentRequests();
+      await loadSupportProductChips();
+    }
+    notifyListeners();
+  }
+
+  @override
+  void notifyListeners() {
+    if (!_isDisposed) {
+      super.notifyListeners();
+    }
   }
 
   void _loadCurrentUser() {
@@ -54,23 +80,64 @@ class HomeController extends ChangeNotifier {
   }
 
   Future<void> initData({bool forceRefresh = false}) async {
+    final startTime = DateTime.now();
+
+    if (GlobalCache.isDataLoaded && !forceRefresh) {
+      validationLoading = false;
+      isLoading = false;
+      await loadValidationData();
+      if (AccessControl.isAdmin) await loadSupportBPartners();
+      await loadDocumentStats();
+      await loadSupportProductChips();
+      await loadRecentRequests();
+      notifyListeners();
+      return;
+    }
+
     validationLoading = true;
     isLoading = true;
     notifyListeners();
 
-    await GlobalCache.syncData(force: forceRefresh);
+    try {
+      await GlobalCache.syncData(force: forceRefresh);
 
-    await loadValidationData();
-    if (AccessControl.isAdmin) {
-      await loadSupportBPartners();
+      try {
+        if (GlobalCache.phase2SyncFuture != null) await GlobalCache.phase2SyncFuture;
+      } catch (e) {
+// [Mantenimiento] Log removido:         debugPrint("Error esperando la Fase 2 de la caché en Home: $e");
+      }
+
+      await loadValidationData();
+      
+      final bool isAdmin = AccessControl.isAdmin;
+      final bool isSupport = AccessControl.isSupport;
+      final bool isProject = AccessControl.isProject;
+
+      if (isAdmin) {
+        await loadSupportBPartners();
+      }
+
+      if (isAdmin || isProject) {
+        await loadDocumentStats();
+      }
+
+      validationLoading = false;
+      notifyListeners();
+      
+      if (isAdmin || isSupport) {
+        await loadRecentRequests();
+        await loadSupportProductChips();
+      }
+      notifyListeners();
+
+    } catch (e) {
+// [Mantenimiento] Log removido:       debugPrint("Error en carga en cascada de Home: $e");
     }
 
-    validationLoading = false;
-    notifyListeners(); // First render to show page structure
+    _hasShownInitialSkeleton = true;
 
-    await loadRecentRequests();
-    await loadDocumentStats();
-    await loadSupportContracts();
+    isLoading = false;
+    notifyListeners();
   }
 
   Future<void> loadSupportBPartners() async {
@@ -118,10 +185,12 @@ class HomeController extends ChangeNotifier {
           final validProjectIds = projects.map<int>((p) => p['id'] is int ? p['id'] as int : int.tryParse(p['id'].toString()) ?? 0).toSet();
           selectedProjectIds = selectedProjectIds.where((id) => validProjectIds.contains(id)).toList();
 
-          if (selectedProjectIds.isEmpty && projects.isNotEmpty) {
-            selectedProjectIds = projects.map<int>((p) => p['id'] is int ? p['id'] as int : int.tryParse(p['id'].toString()) ?? 0).toList();
-            savedSelectedProjectIds = List.from(selectedProjectIds);
-          }
+          // Ya no seleccionamos todos por defecto si la lista está vacía.
+          // El usuario debe elegir cuáles visualizar manualmente.
+          // if (selectedProjectIds.isEmpty && projects.isNotEmpty) {
+          //   selectedProjectIds = projects.map<int>((p) => p['id'] is int ? p['id'] as int : int.tryParse(p['id'].toString()) ?? 0).toList();
+          //   savedSelectedProjectIds = List.from(selectedProjectIds);
+          // }
         }
       } catch (e) {}
     }
@@ -148,42 +217,64 @@ class HomeController extends ChangeNotifier {
 
     if (bpIdsForQuery != null && bpIdsForQuery.isNotEmpty) {
       allBPartnerRequests = GlobalCache.requests.where((r) {
-        final rBpId = r['C_BPartner_ID'] is Map ? r['C_BPartner_ID']['id'] : r['C_BPartner_ID'];
-        return bpIdsForQuery!.contains(rBpId);
+        final rBpIdRaw = r['C_BPartner_ID'] is Map ? r['C_BPartner_ID']['id'] : r['C_BPartner_ID'];
+        final int? rBpId = (rBpIdRaw as num?)?.toInt();
+        return rBpId != null && bpIdsForQuery!.contains(rBpId);
       }).toList();
     } else if (AccessControl.isAdmin) {
       setStateForEmptyRequests();
       return;
     }
 
-    requestsStatsByBp.clear();
     bpIdsForQuery?.forEach((id) {
-      requestsStatsByBp[id] = {'closed': 0, 'inProgress': 0, 'consumedHours': 0.0};
+      requestsStatsByBp[id] ??= {'closed': 0, 'inProgress': 0, 'consumedHours': 0.0, 'inProgressHours': 0.0, 'acquiredHours': 0.0};
+      requestsStatsByBp[id]!['closed'] = 0;
+      requestsStatsByBp[id]!['inProgress'] = 0;
+      requestsStatsByBp[id]!['consumedHours'] = 0.0;
+      requestsStatsByBp[id]!['inProgressHours'] = 0.0;
     });
-
+    final int currentYear = DateTime.now().year;
     for (var req in allBPartnerRequests) {
-      final recordUU = req['Record_UU'];
-      if (recordUU != null && recordUU.toString().isNotEmpty) {
-        continue;
-      }
+      // Eliminamos el filtro de Record_UU para que el Home muestre TODAS las solicitudes recientes del tercero.
+      // Anteriormente: if (recordUU != null && recordUU.toString().trim().isNotEmpty) continue;
+      
+      // Eliminamos el filtro de R_RequestType_ID y de año para incluir todos los tipos de soporte y el historial completo.
 
-      final bpId = req['C_BPartner_ID']?['id'];
+      final bpIdRaw = req['C_BPartner_ID']?['id'] ?? req['C_BPartner_ID'];
+      final int? bpId = (bpIdRaw as num?)?.toInt();
       if (bpId == null || !requestsStatsByBp.containsKey(bpId)) continue;
 
       final statusId = req['R_Status_ID'] is Map ? req['R_Status_ID']['id'] : req['R_Status_ID'];
-      if (statusId == 103 || req['R_Status_Name'] == '9_Final Close') {
-        double hours = (req['QtyPlan'] as num?)?.toDouble() ?? 0.0;
-        requestsStatsByBp[bpId]!['consumedHours'] = (requestsStatsByBp[bpId]!['consumedHours']! as num) + hours;
+      final statusIdentifier = req['R_Status_ID'] is Map ? req['R_Status_ID']['identifier'] : '';
+      final statusNameLower = (req['R_Status_Name'] ?? '').toLowerCase();
+
+      bool isClosed = statusId == 1000019 || statusId == 1000015 || statusId == 1000018 ||
+                      statusId == 103 ||
+                      statusIdentifier == '100_Archivada' || statusIdentifier == '90_Anulada' || 
+                      statusNameLower.contains('archivada') || statusNameLower.contains('anulada') || 
+                      statusNameLower.contains('implementada en produccion') || statusNameLower.contains('implementada en producción') ||
+                      statusNameLower == '9_final close';
+      
+      double spent = (req['QtySpent'] as num?)?.toDouble() ?? 0.0;
+
+      if (isClosed) {
+        requestsStatsByBp[bpId]!['consumedHours'] = (requestsStatsByBp[bpId]!['consumedHours']! as num) + spent;
         requestsStatsByBp[bpId]!['closed'] = (requestsStatsByBp[bpId]!['closed']! as int) + 1;
       } else {
+        requestsStatsByBp[bpId]!['inProgressHours'] = (requestsStatsByBp[bpId]!['inProgressHours']! as num) + spent;
         requestsStatsByBp[bpId]!['inProgress'] = (requestsStatsByBp[bpId]!['inProgress']! as int) + 1;
       }
     }
 
     final nonClosedRequests = allBPartnerRequests.where((r) {
       final statusId = r['R_Status_ID'] is Map ? r['R_Status_ID']['id'] : r['R_Status_ID'];
+      final statusIdentifier = r['R_Status_ID'] is Map ? (r['R_Status_ID']['identifier'] ?? '').toString() : '';
+      final statusNameLower = (r['R_Status_Name'] ?? '').toLowerCase();
       final recordUU = r['Record_UU'];
-      return (statusId != 103 && r['R_Status_Name'] != '9_Final Close') && (recordUU == null || recordUU.toString().isEmpty);
+
+      bool isArchived = statusId == 103 || statusId == 1000019 || statusIdentifier == '100_Archivada' || statusIdentifier == '90_Anulada' || statusNameLower.contains('archivada');
+
+      return !isArchived && (recordUU == null || recordUU.toString().isEmpty);
     }).toList();
 
     nonClosedRequests.sort((a, b) {
@@ -202,34 +293,76 @@ class HomeController extends ChangeNotifier {
   void _applyFilters() {
     var filtered = List<dynamic>.from(allRequests);
     recentRequests = filtered.take(5).map((r) {
-      // Extracción robusta de datos para evitar campos vacíos o incorrectos
-      String level = 'Baja'; // Valor por defecto
-      dynamic priorityVal = r['Priority'];
-      if (priorityVal is Map) {
-        level = priorityVal['identifier'] ?? priorityVal['Name'] ?? 'Baja';
-      } else if (priorityVal != null) {
-        String pStr = priorityVal.toString();
-        if (pStr == '1')
-          level = 'Urgente';
-        else if (pStr == '3')
-          level = 'Alta';
-        else if (pStr == '5')
-          level = 'Media';
-        else if (pStr == '7')
-          level = 'Baja';
-        else if (pStr == '9')
-          level = 'Menor';
+      final categoryId = r['R_Category_ID'] is Map ? (r['R_Category_ID']['id'] as num?)?.toInt() : (r['R_Category_ID'] as num?)?.toInt();
+      final catInCache = GlobalCache.rawCategories.firstWhere(
+        (c) => (c['id'] as num?)?.toInt() == categoryId, 
+        orElse: () => {}
+      );
+
+      String level = 'Media';
+      Color baseColor = Colors.green;
+      bool resolvedFromCategory = false;
+
+      if (catInCache.isNotEmpty) {
+        final rawPriorityVal = catInCache['Priority'] is Map 
+            ? catInCache['Priority']['id'] 
+            : catInCache['Priority'];
+        
+        int? priorityInt;
+        if (rawPriorityVal != null) {
+          if (rawPriorityVal is num) {
+            priorityInt = rawPriorityVal.toInt();
+          } else {
+            final parsedNum = num.tryParse(rawPriorityVal.toString());
+            if (parsedNum != null) {
+              priorityInt = parsedNum.toInt();
+            }
+          }
+        }
+
+        if (priorityInt != null) {
+          resolvedFromCategory = true;
+          if (priorityInt == 1) {
+            level = 'Urgente';
+            baseColor = Colors.purple;
+          } else if (priorityInt == 3) {
+            level = 'Alta';
+            baseColor = Colors.red;
+          } else if (priorityInt == 5) {
+            level = 'Media';
+            baseColor = Colors.amber.shade800;
+          } else if (priorityInt == 7) {
+            level = 'Baja';
+            baseColor = Colors.green;
+          } else if (priorityInt == 9) {
+            level = 'Muy baja';
+            baseColor = Colors.grey;
+          } else {
+            level = priorityInt.toString();
+            baseColor = Colors.green;
+          }
+        }
       }
 
-      Color baseColor = Colors.green;
-      if (level == 'Urgente')
-        baseColor = Colors.purple;
-      else if (level == 'Alta')
-        baseColor = Colors.red;
-      else if (level == 'Media')
-        baseColor = Colors.amber.shade800;
-      else if (level == 'Menor')
-        baseColor = Colors.grey;
+      if (!resolvedFromCategory) {
+        dynamic priorityVal = r['Priority'];
+        if (priorityVal is Map) {
+          level = priorityVal['identifier'] ?? priorityVal['Name'] ?? 'Media';
+        } else if (priorityVal != null) {
+          String pStr = priorityVal.toString();
+          if (pStr == '1') level = 'Urgente';
+          else if (pStr == '3') level = 'Alta';
+          else if (pStr == '5') level = 'Media';
+          else if (pStr == '7') level = 'Baja';
+          else if (pStr == '9') level = 'Muy baja';
+        }
+
+        if (level == 'Urgente') baseColor = Colors.purple;
+        else if (level == 'Alta') baseColor = Colors.red;
+        else if (level == 'Media') baseColor = Colors.amber.shade800;
+        else if (level == 'Muy baja') baseColor = Colors.grey;
+        else if (level == 'Baja') baseColor = Colors.green;
+      }
 
       String formattedTime = r['Created'] ?? '';
       try {
@@ -241,6 +374,8 @@ class HomeController extends ChangeNotifier {
 
       String situation = r['R_RequestType_ID'] is Map ? (r['R_RequestType_ID']['identifier'] ?? r['R_RequestType_ID']['Name'] ?? r['R_RequestType_Name'] ?? 'Solicitud') : (r['R_RequestType_Name'] ?? 'Solicitud');
       String status = r['R_Status_ID'] is Map ? (r['R_Status_ID']['identifier'] ?? r['R_Status_ID']['Name'] ?? '1_Open') : (r['R_Status_Name'] ?? '1_Open');
+      status = cleanStatusName(status);
+
       String bpName = '';
       if (r['C_BPartner_ID'] is Map) {
         bpName = r['C_BPartner_ID']['identifier'] ?? r['C_BPartner_ID']['Name'] ?? '';
@@ -263,17 +398,18 @@ class HomeController extends ChangeNotifier {
         'status': status,
         'bpName': bpName,
         'userName': userName,
+        'productChipId': extractProductChipId(r),
         'original': r,
       };
     }).toList();
   }
 
-  Future<void> loadSupportContracts() async {
+  Future<void> loadSupportProductChips() async {
     List<int>? bpIdsForQuery;
 
     if (AccessControl.isAdmin) {
       if (selectedSupportBpIds.isEmpty) {
-        supportContracts = [];
+        supportProductChips = [];
         hasSupport = false;
         notifyListeners();
         return;
@@ -286,43 +422,130 @@ class HomeController extends ChangeNotifier {
     }
 
     if (bpIdsForQuery == null || bpIdsForQuery.isEmpty) {
-      supportContracts = [];
+      supportProductChips = [];
       hasSupport = false;
       notifyListeners();
       return;
     }
 
-    final allFetchedContracts = GlobalCache.contracts.where((c) {
-      return bpIdsForQuery!.contains(c['C_BPartner_ID']);
+    // Obtener todas las fichas activas de los BPs seleccionados
+    final allFetchedChips = GlobalCache.productChips.where((c) {
+      final rawBp = c['C_BPartner_ID'];
+      final chipBpId = rawBp is Map ? (rawBp['id'] as num?)?.toInt() : (rawBp as num?)?.toInt();
+      
+      final isActive = c['IsActive'] == 'Y' || c['IsActive'] == true;
+      return bpIdsForQuery!.contains(chipBpId) && isActive;
     }).toList();
-    final Map<int, List<Map<String, dynamic>>> contractsByBp = {};
 
-    for (var contract in allFetchedContracts) {
-      final bpId = contract['C_BPartner_ID'];
-      if (bpId != null) {
-        (contractsByBp[bpId] ??= []).add(contract);
+    // Ordenar por fecha de creación (FIFO) para distribuir horas
+    allFetchedChips.sort((a, b) {
+      final dateA = DateTime.tryParse(a['Created'] ?? '') ?? DateTime(0);
+      final dateB = DateTime.tryParse(b['Created'] ?? '') ?? DateTime(0);
+      return dateA.compareTo(dateB);
+    });
+
+    // Resetear stats agregadas (aunque ahora usaremos datos por chip)
+    bpIdsForQuery.forEach((id) {
+      requestsStatsByBp[id] ??= {'closed': 0, 'inProgress': 0, 'consumedHours': 0.0, 'inProgressHours': 0.0, 'acquiredHours': 0.0};
+      requestsStatsByBp[id]!['acquiredHours'] = 0.0;
+    });
+
+    List<Map<String, dynamic>> processedChips = [];
+
+    // Agrupar fichas por BP para distribuir sus consumos locales
+    Map<int, List<Map<String, dynamic>>> chipsByBp = {};
+    for (var chip in allFetchedChips) {
+      final rawBp = chip['C_BPartner_ID'];
+      final bpId = rawBp is Map ? (rawBp['id'] as num?)?.toInt() : (rawBp as num?)?.toInt();
+      if (bpId != null) (chipsByBp[bpId] ??= []).add(Map<String, dynamic>.from(chip));
+    }
+
+    final List<Map<String, dynamic>> allSupportRequests = GlobalCache.requests.where((req) {
+      final recordUU = req['Record_UU'];
+      if (recordUU != null && recordUU.toString().trim().isNotEmpty) return false;
+      // Eliminamos el filtro estricto de R_RequestType_ID para incluir todos los tipos de soporte (ej. RFQ)
+      return true;
+    }).toList();
+
+    // Mapas para acumular consumo por chip
+    Map<int, double> chipConsumedHoursMap = {};
+    Map<int, double> chipInProgressHoursMap = {};
+    Map<int, int> chipClosedCountMap = {};
+    Map<int, int> chipInProgressCountMap = {};
+    
+    // Acumulador para consumos de este BP que NO están vinculados a ninguna ficha
+    Map<int, double> unlinkedConsumedByBp = {};
+    Map<int, double> unlinkedInProgressByBp = {};
+    Map<int, int> unlinkedClosedCountByBp = {};
+    Map<int, int> unlinkedInProgressCountByBp = {};
+
+// [Mantenimiento] Log removido:     debugPrint("DEBUG CHIPS: Iniciando loadSupportProductChips para BPs: $bpIdsForQuery");
+// [Mantenimiento] Log removido:     debugPrint("DEBUG CHIPS: Fichas encontradas en caché: ${allFetchedChips.length}");
+    for (var c in allFetchedChips) {
+// [Mantenimiento] Log removido:       debugPrint("DEBUG CHIPS: Ficha en caché -> ID: ${c['id']}, Name: ${c['Name']}, PK_Field: ${c['C_BPartner_Product_Chip_ID']}");
+    }
+
+    // Usamos processRequests para obtener datos normalizados
+    final processedResult = await processRequests(allSupportRequests, GlobalCache.statuses);
+    final List<Map<String, dynamic>> processedRequests = List<Map<String, dynamic>>.from(processedResult['requests']);
+    
+// [Mantenimiento] Log removido:     debugPrint("DEBUG CHIPS: Solicitudes de soporte a procesar: ${processedRequests.length}");
+
+    for (var req in processedRequests) {
+      final int? reqBpId = (req['bpId'] as num?)?.toInt();
+      if (reqBpId == null || !bpIdsForQuery.contains(reqBpId)) continue;
+
+      final int? linkedChipId = int.tryParse(req['productChipId']?.toString() ?? '');
+      final bool isClosed = req['isClosed'] ?? false;
+      final double qtySpent = (req['qtySpent'] as num?)?.toDouble() ?? 0.0;
+
+      if (linkedChipId != null) {
+// [Mantenimiento] Log removido:         debugPrint("DEBUG CHIPS: Solicitud ${req['code']} VINCULADA a Chip ID: $linkedChipId (Horas: $qtySpent, Cerrada: $isClosed)");
+        if (isClosed) {
+          chipConsumedHoursMap[linkedChipId] = (chipConsumedHoursMap[linkedChipId] ?? 0.0) + qtySpent;
+          chipClosedCountMap[linkedChipId] = (chipClosedCountMap[linkedChipId] ?? 0) + 1;
+        } else {
+          chipInProgressHoursMap[linkedChipId] = (chipInProgressHoursMap[linkedChipId] ?? 0.0) + qtySpent;
+          chipInProgressCountMap[linkedChipId] = (chipInProgressCountMap[linkedChipId] ?? 0) + 1;
+        }
+      } else {
+// [Mantenimiento] Log removido:         debugPrint("DEBUG CHIPS: Solicitud ${req['code']} NO VINCULADA (BP: $reqBpId, Horas: $qtySpent) - SE IGNORA PARA CONSUMO DE FICHAS");
+        // No vinculado: Ya no lo acumulamos para distribuir FIFO, ya que el usuario indica que si no tiene ficha no debe contarse.
       }
     }
 
-    List<Map<String, dynamic>> processedContracts = [];
-    contractsByBp.forEach((bpId, bpContracts) {
-      double remainingConsumed = (requestsStatsByBp[bpId]?['consumedHours'] as num?)?.toDouble() ?? 0.0;
+    // Ahora procesamos cada ficha y distribuimos consumos no vinculados (FIFO)
+    for (var chip in allFetchedChips) {
+      final rawBp = chip['C_BPartner_ID'];
+      final bpId = rawBp is Map ? (rawBp['id'] as num?)?.toInt() : (rawBp as num?)?.toInt();
+      if (bpId == null) continue;
 
-      for (var contract in bpContracts) {
-        double contracted = (contract['contractedHours'] as num?)?.toDouble() ?? 0.0;
-        if (remainingConsumed > 0) {
-          double consumedInContract = (remainingConsumed >= contracted) ? contracted : remainingConsumed;
-          contract['consumedHours'] = consumedInContract;
-          remainingConsumed -= consumedInContract;
-        } else {
-          contract['consumedHours'] = 0.0;
-        }
-        processedContracts.add(contract);
-      }
-    });
+      final chipIdRaw = chip['C_BPartner_Product_Chip_ID'] ?? chip['id'];
+      final int? chipId = int.tryParse(chipIdRaw?.toString() ?? '');
+      if (chipId == null) continue;
+      
+// [Mantenimiento] Log removido:       debugPrint("DEBUG CHIPS: Analizando Ficha ID $chipId para BP $bpId");
+      double chipAcquired = (chip['Qty'] as num?)?.toDouble() ?? 0.0;
+      
+      // Consumo directo
+      double consumed = chipConsumedHoursMap[chipId] ?? 0.0;
+      double estimated = chipInProgressHoursMap[chipId] ?? 0.0;
+      int closedCount = chipClosedCountMap[chipId] ?? 0;
+      int inProgressCount = chipInProgressCountMap[chipId] ?? 0;
 
-    supportContracts = processedContracts;
-    hasSupport = allFetchedContracts.isNotEmpty;
+      // Según la nueva instrucción, ignoramos consumos no vinculados (FIFO eliminada)
+      // Solo cuentan las solicitudes que tengan la ficha vinculada directamente.
+
+      chip['closedRequestsCount'] = closedCount;
+      chip['inProgressRequestsCount'] = inProgressCount;
+      chip['consumedHours'] = consumed;
+      chip['inProgressHours'] = estimated;
+      
+      processedChips.add(chip);
+    }
+
+    supportProductChips = processedChips;
+    hasSupport = allFetchedChips.isNotEmpty;
 
     notifyListeners();
   }
@@ -408,11 +631,11 @@ class HomeController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void updateSelectedSupportBps(List<int> ids) {
+  void updateSelectedSupportBps(List<int> ids) async {
     selectedSupportBpIds = ids;
     savedSelectedSupportBpIds = List.from(ids);
-    loadSupportContracts();
-    loadRecentRequests();
+    await loadRecentRequests();
+    await loadSupportProductChips();
     notifyListeners();
   }
 
@@ -428,3 +651,4 @@ class HomeController extends ChangeNotifier {
     notifyListeners();
   }
 }
+

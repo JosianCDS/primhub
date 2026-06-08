@@ -18,12 +18,11 @@ class _SplashLoadingPageState extends State<SplashLoadingPage> with SingleTicker
   void initState() {
     super.initState();
 
-    // Animación suave que va del 0% al 90% en 18 segundos (50% más lento), ralentizándose al final
-    _progressController = AnimationController(vsync: this, duration: const Duration(seconds: 40));
+    // Animación base ajustada al máximo permitido (8 segundos).
+    _progressController = AnimationController(vsync: this, duration: const Duration(seconds: 8));
 
-    _progressAnimation = Tween<double>(begin: 0.0, end: 0.97).animate(CurvedAnimation(parent: _progressController, curve: Curves.easeOutQuart));
+    _progressAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _progressController, curve: Curves.easeOutQuart));
 
-    _progressController.forward();
     _startSync();
   }
 
@@ -34,30 +33,29 @@ class _SplashLoadingPageState extends State<SplashLoadingPage> with SingleTicker
   }
 
   Future<void> _startSync() async {
-    await GlobalCache.syncData(
-      force: true,
-      onProgress: (message, progress) {
-        if (mounted) {
-          setState(() {
-            _loadingMessage = message;
-          });
-        }
-      },
-    );
+    // 1. Inicia la animación para que el usuario vea el progreso.
+    _progressController.forward();
+
+    // 2. Fase 1 (Datos Esenciales): Esperamos a que termine. Es vital para que 
+    // la app no muestre listas vacías en dispositivos móviles más lentos.
+    await GlobalCache.syncData(force: true);
+
+    // 3. Fase 2 (Datos Históricos): Le damos un tiempo límite razonable en el splash. 
+    // Si excede este tiempo, navegará al Home y la carga continuará en background.
+    final phase2Future = () async {
+      if (GlobalCache.phase2SyncFuture != null) {
+        await GlobalCache.phase2SyncFuture;
+      }
+    }();
+
+    await Future.any([phase2Future, Future.delayed(const Duration(seconds: 8))]);
 
     if (mounted) {
-      // Cuando los datos terminan de cargar, animamos rápidamente el porcentaje restante hasta 100%
-      final currentProgress = _progressAnimation.value;
-      _progressController.stop();
-      _progressController.duration = const Duration(milliseconds: 800);
-      _progressAnimation = Tween<double>(begin: currentProgress, end: 1.0).animate(CurvedAnimation(parent: _progressController, curve: Curves.easeOutCubic));
-
-      await _progressController.forward(from: 0.0);
-
-      // Micropausa para que el usuario perciba visualmente que la barra llegó al final
-      await Future.delayed(const Duration(milliseconds: 200));
-
-      if (mounted) context.go('/');
+      if (_progressController.value < 1.0) {
+        await _progressController.animateTo(1.0, duration: const Duration(milliseconds: 50), curve: Curves.easeOut);
+      }
+      // 4. Navega a la pantalla principal.
+      context.go('/');
     }
   }
 

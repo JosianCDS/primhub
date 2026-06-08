@@ -3,16 +3,18 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
+import 'package:primhub/api/token.dart';
 import 'package:primhub/endpoint/endpoint.dart';
-import '../../api/token.dart';
 import '../../api/access_control.dart';
+import '../../api/api_utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../Shared_Custom/custom_modal.dart';
 import '../Shared_Custom/custom_button.dart';
 import 'hover_widgets.dart';
 
 class CustomDrawer extends StatefulWidget {
-  const CustomDrawer({super.key});
+  final String currentRoute;
+  const CustomDrawer({super.key, required this.currentRoute});
 
   @override
   State<CustomDrawer> createState() => _CustomDrawerState();
@@ -97,37 +99,22 @@ class _CustomDrawerState extends State<CustomDrawer> {
       final payload = Token.decodePayload(Token.token);
       setState(() {
         _username = payload['sub'] ?? 'Usuario';
-        // Mapeo simple de IDs a Nombres (En producción esto vendría de un endpoint de sesión)
         final roleId = payload['AD_Role_ID'];
         final clientId = payload['AD_Client_ID'];
 
-        _role = payload['roleName'] ?? (roleId == 102 ? 'GardenWorld Admin' : 'Usuario');
-        _client = clientId == 11 ? 'GardenWorld' : 'Cliente $clientId';
+        String exactRole = 'Usuario';
+        if (AccessControl.isRealAdmin) {
+          exactRole = 'Administrador';
+        } else if (AccessControl.isRealSupport) {
+          exactRole = 'Usuario de Soporte';
+        } else if (AccessControl.isRealProject) {
+          exactRole = 'Usuario de Proyecto';
+        }
+
+        _role = exactRole;
+        _client = payload['client_name'] ?? payload['clientName'] ?? (clientId == 11 ? 'GardenWorld' : 'Cliente $clientId');
       });
     } catch (e) {}
-  }
-
-  void _showLogoutDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return CustomModal(
-          title: 'Cerrar Sesión',
-          content: const Text('¿Estás seguro de que quieres cerrar sesión y salir de la aplicación?'),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
-            CustomButton(
-              text: 'Sí, salir',
-              onPressed: () {
-                Token.clear();
-                context.go('/login');
-              },
-              backgroundColor: Colors.red,
-            ),
-          ],
-        );
-      },
-    );
   }
 
   @override
@@ -148,73 +135,157 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 children: [
                   DrawerHeader(
                     decoration: BoxDecoration(color: theme.drawerTheme.backgroundColor ?? colorScheme.surface),
-                    child: Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(color: colorScheme.primary, borderRadius: BorderRadius.circular(8)),
-                          child: Icon(Icons.attachment, color: colorScheme.onPrimary),
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 24,
+                              backgroundColor: colorScheme.primaryContainer,
+                              backgroundImage: _profileImageBytes != null ? MemoryImage(_profileImageBytes!) : null,
+                              child: _profileImageBytes != null ? null : Icon(Icons.person_rounded, size: 28, color: colorScheme.onPrimaryContainer),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    _username.isNotEmpty ? _username : 'Nombre',
+                                    style: TextStyle(color: colorScheme.onSurface, fontSize: 18, fontWeight: FontWeight.bold),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  Text(
+                                    _role.isNotEmpty ? _role : 'Rol',
+                                    style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 16),
-                        Text(_client.isNotEmpty ? _client : 'Tu Empresa', style: TextStyle(color: colorScheme.onSurface, fontSize: 24)),
+                        if (!AccessControl.isAdmin) ...[
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Icon(Icons.business_rounded, color: colorScheme.primary, size: 16),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _client.isNotEmpty ? _client : 'Tu Empresa',
+                                  style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 14, fontWeight: FontWeight.w500),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ),
                   if (_userRolePref != 'PROYECTO')
                     HoverListTile(
-                      builder: (isHovered) => ListTile(
-                        leading: Icon(Icons.home, color: isHovered ? colorScheme.primary : colorScheme.onSurfaceVariant),
-                        title: Text('Inicio', style: TextStyle(color: isHovered ? colorScheme.primary : colorScheme.onSurface)),
-                        onTap: () {
-                          Navigator.pop(context);
-                          context.push('/');
-                        },
-                      ),
+                      builder: (isHovered) {
+                        bool isSelected = widget.currentRoute == '/';
+                        return Container(
+                          color: isSelected ? colorScheme.primary.withOpacity(0.2) : Colors.transparent,
+                          child: ListTile(
+                            leading: Icon(Icons.home_rounded, color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant),
+                            title: Text(
+                              'Dashboard',
+                              style: TextStyle(color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurface, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal),
+                            ),
+                            onTap: () {
+                              Navigator.pop(context);
+                              context.push('/');
+                            },
+                          ),
+                        );
+                      },
                     ),
-                  if (AccessControl.isSupport || (_hasSupport && Token.primConfig == null))
+                  if (AccessControl.isSupport)
                     HoverListTile(
-                      builder: (isHovered) => ListTile(
-                        leading: Icon(Icons.schedule, color: isHovered ? colorScheme.primary : colorScheme.onSurfaceVariant),
-                        title: Text('Horas de Soporte', style: TextStyle(color: isHovered ? colorScheme.primary : colorScheme.onSurface)),
-                        onTap: () {
-                          Navigator.pop(context);
-                          context.push('/support');
-                        },
-                      ),
+                      builder: (isHovered) {
+                        bool isSelected = widget.currentRoute == '/support';
+                        return Container(
+                          color: isSelected ? colorScheme.primary.withOpacity(0.2) : Colors.transparent,
+                          child: ListTile(
+                            leading: Icon(Icons.schedule_rounded, color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant),
+                            title: Text(
+                              'Dashboard de Horas',
+                              style: TextStyle(color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurface, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal),
+                            ),
+                            onTap: () {
+                              Navigator.pop(context);
+                              context.push('/support');
+                            },
+                          ),
+                        );
+                      },
                     ),
-                  if (AccessControl.isSupport || (_hasSupport && Token.primConfig == null))
+                  if (AccessControl.isSupport)
                     HoverListTile(
-                      builder: (isHovered) => ListTile(
-                        leading: Icon(Icons.help_outline, color: isHovered ? colorScheme.primary : colorScheme.onSurfaceVariant),
-                        title: Text('Mis Solicitudes', style: TextStyle(color: isHovered ? colorScheme.primary : colorScheme.onSurface)),
-                        onTap: () {
-                          Navigator.pop(context);
-                          context.push('/my-requests');
-                        },
-                      ),
+                      builder: (isHovered) {
+                        bool isSelected = widget.currentRoute == '/my-requests';
+                        return Container(
+                          color: isSelected ? colorScheme.primary.withOpacity(0.2) : Colors.transparent,
+                          child: ListTile(
+                            leading: Icon(Icons.table_chart_rounded, color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant),
+                            title: Text(
+                              'Mis Solicitudes',
+                              style: TextStyle(color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurface, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal),
+                            ),
+                            onTap: () {
+                              Navigator.pop(context);
+                              context.push('/my-requests');
+                            },
+                          ),
+                        );
+                      },
                     ),
 
-                  if (AccessControl.isProject || (_hasProject && Token.primConfig == null))
+                  if (AccessControl.isProject)
                     HoverListTile(
-                      builder: (isHovered) => ListTile(
-                        leading: Icon(Icons.folder, color: isHovered ? colorScheme.primary : colorScheme.onSurfaceVariant),
-                        title: Text('Mis Proyectos', style: TextStyle(color: isHovered ? colorScheme.primary : colorScheme.onSurface)),
-                        onTap: () {
-                          Navigator.pop(context);
-                          context.push('/deliverables');
-                        },
-                      ),
+                      builder: (isHovered) {
+                        bool isSelected = widget.currentRoute == '/deliverables';
+                        return Container(
+                          color: isSelected ? colorScheme.primary.withOpacity(0.2) : Colors.transparent,
+                          child: ListTile(
+                            leading: Icon(Icons.folder_rounded, color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant),
+                            title: Text(
+                              'Mis Proyectos',
+                              style: TextStyle(color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurface, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal),
+                            ),
+                            onTap: () {
+                              Navigator.pop(context);
+                              context.push('/deliverables');
+                            },
+                          ),
+                        );
+                      },
                     ),
 
                   HoverListTile(
-                    builder: (isHovered) => ListTile(
-                      leading: Icon(Icons.bar_chart, color: isHovered ? colorScheme.primary : colorScheme.onSurfaceVariant),
-                      title: Text('Indicadores (BI)', style: TextStyle(color: isHovered ? colorScheme.primary : colorScheme.onSurface)),
-                      onTap: () {
-                        Navigator.pop(context);
-                        context.push('/metrics');
-                      },
-                    ),
+                    builder: (isHovered) {
+                      bool isSelected = widget.currentRoute == '/metrics';
+                      return Container(
+                        color: isSelected ? colorScheme.primary.withOpacity(0.2) : Colors.transparent,
+                        child: ListTile(
+                          leading: Icon(Icons.bar_chart_rounded, color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant),
+                          title: Text(
+                            'Indicadores (BI)',
+                            style: TextStyle(color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurface, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal),
+                          ),
+                          onTap: () {
+                            Navigator.pop(context);
+                            context.push('/metrics');
+                          },
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),
@@ -222,45 +293,11 @@ class _CustomDrawerState extends State<CustomDrawer> {
             const Divider(),
             HoverListTile(
               builder: (isHovered) => ListTile(
-                contentPadding: EdgeInsets.symmetric(vertical: isMobile ? 8.0 : 20.0, horizontal: 16.0),
-                leading: CircleAvatar(
-                  radius: isMobile ? 20 : 30,
-                  backgroundColor: colorScheme.primaryContainer,
-                  backgroundImage: _profileImageBytes != null ? MemoryImage(_profileImageBytes!) : null,
-                  child: _profileImageBytes != null ? null : Icon(Icons.person, size: isMobile ? 24 : 40, color: colorScheme.onPrimaryContainer),
-                ),
-                title: Text(
-                  _username.isNotEmpty ? _username : 'Nombre',
-                  style: TextStyle(fontSize: isMobile ? 16 : 22, color: isHovered ? colorScheme.primary : colorScheme.onSurface),
-                ),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _role.isNotEmpty ? _role : 'Rol',
-                      style: TextStyle(fontSize: isMobile ? 12 : 16, color: isHovered ? colorScheme.primary : colorScheme.onSurfaceVariant),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Ver perfil',
-                      style: TextStyle(fontSize: isMobile ? 11 : 14, color: isHovered ? colorScheme.primary.withOpacity(0.8) : colorScheme.onSurface.withOpacity(0.6)),
-                    ),
-                  ],
-                ),
-
-                onTap: () {
-                  Navigator.pop(context); // Cierra el menú
-                  context.push('/profile');
-                },
-              ),
-            ),
-            HoverListTile(
-              builder: (isHovered) => ListTile(
-                leading: Icon(Icons.logout, color: isHovered ? colorScheme.error : colorScheme.onSurfaceVariant),
+                leading: Icon(Icons.logout_rounded, color: isHovered ? colorScheme.error : colorScheme.onSurfaceVariant),
                 title: Text('Cerrar sesión', style: TextStyle(color: isHovered ? colorScheme.error : colorScheme.onSurface)),
                 onTap: () {
                   Navigator.pop(context); // Cierra el menú
-                  _showLogoutDialog(context);
+                  showLogoutConfirmation(context); // Usa la función centralizada
                 },
               ),
             ),

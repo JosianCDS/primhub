@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
+import 'package:flutter/services.dart'; // Para FilteringTextInputFormatter
 import 'package:http/http.dart' as http;
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
@@ -10,10 +11,12 @@ import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
+import 'package:primhub/ui/Shared_Custom/customToast.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:primhub/api/global_cache.dart';
+import 'package:primhub/api/api_utils.dart';
 
 class EditRequestDialog extends StatefulWidget {
   final Map<String, dynamic> request;
@@ -42,18 +45,25 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
   int? _selectedSalesRepId;
   int? _selectedBpId;
   int? _selectedUserId;
+  int? _selectedProductChipId;
 
   Map<String, int> _requestTypeMap = {};
   Map<String, int> _categoryMap = {};
+  Map<String, String> _categoryPriorityMap = {};
+  List<Map<String, dynamic>> _categoryRecords = [];
   Map<String, int> _groupMap = {};
   List<dynamic> _users = [];
+  List<Map<String, dynamic>> _salesReps = [];
   List<dynamic> _bPartnersList = [];
+  List<Map<String, dynamic>> _productChips = [];
 
   bool _isLoadingTypes = true;
   bool _isLoadingCategories = true;
   bool _isLoadingGroups = true;
   bool _isLoadingUsers = true;
+  bool _isLoadingSalesReps = true;
   bool _isLoadingBPartners = true;
+  bool _isLoadingProducts = true;
 
   bool _isSaving = false;
 
@@ -75,14 +85,14 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
     _currentPriority = widget.request['level'];
     _currentStatus = widget.request['status'];
     _statusId = widget.request['statusId'];
-    _isReadOnly = _currentStatus == '9_Final Close' || _statusId == 103;
+    _isReadOnly = widget.request['isClosed'] == true || _currentStatus == '9_Final Close' || _statusId == 103;
 
     _resultController = TextEditingController(text: widget.request['result']);
     _newUpdateController = TextEditingController();
     _summaryController = TextEditingController(text: widget.request['description']);
     _dateStartController = TextEditingController(text: widget.request['dateStartPlan']);
     _dateCompleteController = TextEditingController(text: widget.request['dateCompletePlan']);
-    _qtyUsedController = TextEditingController(text: widget.request['qtyPlan']?.toString() ?? '0.0');
+    _qtyUsedController = TextEditingController(text: ((widget.request['qtySpent'] as num?)?.toDouble() ?? 0.0).toString());
     _emailSubjectController = TextEditingController(text: widget.request['emailSubject']);
 
     _selectedType = widget.request['type'];
@@ -91,23 +101,55 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
     _selectedSalesRepId = widget.request['salesRepId'];
     _selectedBpId = widget.request['bpId'];
     _selectedUserId = widget.request['userId'];
+    _selectedProductChipId = widget.request['productChipId'];
 
-    _fetchStatuses();
-    _fetchRequestTypes();
-    _fetchCategories();
-    _fetchGroups();
-    _fetchUsers();
+    _salesReps = GlobalCache.salesReps;
+    _isLoadingSalesReps = false;
     _fetchBPartners();
+    _fetchInitialData();
+  }
+
+  Future<void> _fetchInitialData() async {
+    await Future.wait([_fetchStatuses(), _fetchRequestTypes(), _fetchCategories(), _fetchGroups(), _fetchUsers()]);
+    _fetchProductChips();
   }
 
   Future<void> _fetchBPartners() async {
     try {
-      final logic = ProjectsLogic();
-      final bps = await logic.fetchBPartners();
+      List<dynamic> bps = [];
+      if (GlobalCache.bPartners.isNotEmpty) {
+        bps = GlobalCache.bPartners;
+      } else {
+        final logic = ProjectsLogic();
+        bps = await logic.fetchBPartners();
+      }
+
       if (mounted) {
         setState(() {
-          _bPartnersList = bps;
-          // Rescate: Añadir el Tercero actual si no vino en la paginación de activos
+          // APLICAMOS EL FILTRO AQUÍ
+          // Excluir terceros que sean proveedores o que empiecen con '~'
+          _bPartnersList = bps.where((bp) {
+            final name = bp['Name']?.toString() ?? '';
+            final rawVendor = bp['IsVendor'] ?? bp['isVendor'];
+            final isVendorStr = rawVendor?.toString().trim().toLowerCase();
+            bool isVendor = isVendorStr == 'true' || isVendorStr == 'y';
+
+            final rawCustomer = bp['IsCustomer'] ?? bp['isCustomer'];
+            final isCustomerStr = rawCustomer?.toString().trim().toLowerCase();
+            bool isCustomer = isCustomerStr == 'true' || isCustomerStr == 'y';
+            if (rawCustomer == null) isCustomer = true;
+
+            final isSpecificAdmin = name.trim().toUpperCase().contains('LA CASA DEL SOFTWARE') ||
+                                    bp['C_BPartner_UU'] == 'e4e48cad-f8f8-4f61-954c-60f431bd5d95' ||
+                                    bp['Record_UU'] == 'e4e48cad-f8f8-4f61-954c-60f431bd5d95' ||
+                                    bp['UUID'] == 'e4e48cad-f8f8-4f61-954c-60f431bd5d95' ||
+                                    bp['uuid'] == 'e4e48cad-f8f8-4f61-954c-60f431bd5d95';
+
+            return !name.startsWith('~') && ((isCustomer && !isVendor) || isSpecificAdmin);
+          }).toList();
+
+          // Rescate: Si el tercero actual del ticket estaba inactivo o no es cliente,
+          // lo conservamos en la lista visual para no borrar la data existente.
           if (_selectedBpId != null && !_bPartnersList.any((bp) => bp['id'] == _selectedBpId)) {
             _bPartnersList.add({'id': _selectedBpId, 'Name': widget.request['bpName'] ?? 'Tercero $_selectedBpId'});
           }
@@ -116,6 +158,22 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
       }
     } catch (e) {
       if (mounted) setState(() => _isLoadingBPartners = false);
+    }
+  }
+
+  Future<void> _fetchProductChips() async {
+    if (_selectedBpId == null) {
+      if (mounted) setState(() => _isLoadingProducts = false);
+      return;
+    }
+    if (mounted) setState(() => _isLoadingProducts = true);
+    try {
+      final fetchedChips = await ContractApi.getSupportProductChips(bPartnerId: _selectedBpId);
+      if (mounted) {
+        setState(() => _productChips = fetchedChips);
+      }
+    } finally {
+      if (mounted) setState(() => _isLoadingProducts = false);
     }
   }
 
@@ -154,9 +212,28 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
       if (response.statusCode == 200) {
         final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
         final records = jsonResponse['records'] as List;
+        final bool isProject = (widget.request['recordUU'] != null && widget.request['recordUU'].toString().trim().isNotEmpty) ||
+                               (widget.request['Record_UU'] != null && widget.request['Record_UU'].toString().trim().isNotEmpty);
+
         if (mounted) {
           setState(() {
             _requestTypeMap = {for (var r in records) r['Name']: r['id']};
+            
+            // Establecer tipo por defecto si no tiene uno válido asignado
+            if ((_selectedType == null || _selectedType == 'Solicitud' || _selectedType!.isEmpty) && _requestTypeMap.isNotEmpty) {
+              if (isProject) {
+                _selectedType = _requestTypeMap.keys.firstWhere(
+                  (k) => k.toLowerCase().contains('implantacion lirion'),
+                  orElse: () => _requestTypeMap.keys.first
+                );
+              } else {
+                _selectedType = _requestTypeMap.keys.firstWhere(
+                  (k) => k.toLowerCase().contains('soporte lirion'),
+                  orElse: () => _requestTypeMap.keys.first
+                );
+              }
+            }
+            
             _isLoadingTypes = false;
           });
         }
@@ -168,20 +245,93 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
 
   Future<void> _fetchCategories() async {
     try {
-      final response = await http.get(Uri.parse('${Endpoint.baseUrl}/api/v1/models/R_Category'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
-      if (response.statusCode == 200) {
-        final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
-        final records = jsonResponse['records'] as List;
-        if (mounted) {
-          setState(() {
-            _categoryMap = {for (var r in records) r['Name']: r['id']};
-            _isLoadingCategories = false;
-          });
-        }
+      final allRecords = await fetchCategories();
+      final bool isProject = (widget.request['recordUU'] != null && widget.request['recordUU'].toString().trim().isNotEmpty) ||
+                             (widget.request['Record_UU'] != null && widget.request['Record_UU'].toString().trim().isNotEmpty);
+      
+      // Filtrar categorías según el contexto:
+      // Si es Proyecto: mostrar las que tienen showinprimhub = false
+      // Si es Soporte: mostrar las que tienen showinprimhub = true
+      final records = allRecords.where((c) {
+        final bool isPrimhub = c['showinprimhub'] == true;
+        return isProject ? !isPrimhub : isPrimhub;
+      }).toList();
+
+      if (mounted) {
+        setState(() {
+          _categoryRecords = records;
+          _categoryMap = {for (var r in records) r['Name']: r['id']};
+          _categoryPriorityMap = {
+            for (var r in records)
+              r['Name']: r['Priority']?.toString() ?? '5'
+          };
+          _isLoadingCategories = false;
+        });
       }
     } catch (e) {
       if (mounted) setState(() => _isLoadingCategories = false);
     }
+  }
+
+
+  void _showCategoryHelpModal() {
+    showDialog(
+      context: context,
+      builder: (context) => CustomModal(
+        title: 'Guía de Categorías / Síntomas',
+        width: 800,
+        content: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.7,
+          ),
+          child: SingleChildScrollView(
+            child: Table(
+              border: TableBorder.all(color: Colors.grey.withOpacity(0.3)),
+              columnWidths: const {
+                0: FlexColumnWidth(1),
+                1: FlexColumnWidth(2),
+              },
+              children: [
+                const TableRow(
+                  decoration: BoxDecoration(color: Colors.deepPurple),
+                  children: [
+                    Padding(
+                      padding: EdgeInsets.all(8.0),
+                      child: Text('Categoría / Síntoma',
+                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.all(8.0),
+                      child: Text('Justificación Técnica',
+                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                    ),
+                  ],
+                ),
+                ..._categoryRecords.map((cat) => TableRow(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Text(cat['Name'] ?? '',
+                              style: const TextStyle(fontWeight: FontWeight.w500)),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Text(cat['Description'] ?? 'Sin descripción técnica disponible.'),
+                        ),
+                      ],
+                    )),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          CustomButton(
+            text: 'Cerrar',
+            onPressed: () => Navigator.pop(context),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _fetchGroups() async {
@@ -205,19 +355,28 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
   Future<void> _fetchUsers() async {
     try {
       final logic = ProjectsLogic();
-      final users = await logic.fetchUsers();
+      final users = await logic.fetchUsers(bPartnerId: _selectedBpId); // Usa el ID del tercero seleccionado
       if (mounted) {
+        final previouslySelectedUserId = _selectedUserId;
+        bool userWasCleared = false;
+
+        // Si el usuario actual ya no está en la lista filtrada, lo deseleccionamos.
+        if (previouslySelectedUserId != null && !users.any((u) => (u['AD_User_ID'] ?? u['id']) == previouslySelectedUserId)) {
+          _selectedUserId = null;
+          userWasCleared = true;
+        }
+
         setState(() {
           _users = users;
-          // Rescate: Añadir usuarios actuales si no vinieron en la lista de activos
-          if (_selectedUserId != null && !_users.any((u) => (u['AD_User_ID'] ?? u['id']) == _selectedUserId)) {
+          // Rescate: Añadir usuario actual si no vino en la lista de activos
+          if (previouslySelectedUserId != null && !userWasCleared && !_users.any((u) => (u['AD_User_ID'] ?? u['id']) == previouslySelectedUserId)) {
             _users.add({'id': _selectedUserId, 'AD_User_ID': _selectedUserId, 'Name': widget.request['userName'] ?? 'Usuario $_selectedUserId'});
-          }
-          if (_selectedSalesRepId != null && !_users.any((u) => (u['AD_User_ID'] ?? u['id']) == _selectedSalesRepId)) {
-            _users.add({'id': _selectedSalesRepId, 'AD_User_ID': _selectedSalesRepId, 'Name': widget.request['salesRepName'] ?? 'Rep. Comercial $_selectedSalesRepId'});
           }
           _isLoadingUsers = false;
         });
+        if (userWasCleared && AccessControl.isAdmin) {
+          WidgetsBinding.instance.addPostFrameCallback((_) => ToastMessage.show(context: context, message: 'El filtro de usuario se ha actualizado para coincidir con el tercero.', type: ToastType.help));
+        }
       }
     } catch (e) {
       if (mounted) setState(() => _isLoadingUsers = false);
@@ -264,6 +423,97 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
     );
   }
 
+  Future<void> _openSearchModal<T>({required String title, required List<dynamic> items, required T? currentValue, required String Function(dynamic) getTitle, String Function(dynamic)? getSubtitle, required T? Function(dynamic) getValue, required void Function(T?) onSelected}) async {
+    final double dialogHeight = MediaQuery.of(context).size.height * 0.6;
+    final dynamic result = await showDialog(
+      context: context,
+      builder: (context) {
+        String searchQuery = '';
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          insetAnimationDuration: Duration.zero,
+          child: Container(
+            width: 400,
+            height: dialogHeight,
+            padding: const EdgeInsets.all(20),
+            child: StatefulBuilder(
+              builder: (context, setStateDialog) {
+                final filteredItems = items.where((item) {
+                  return getTitle(item).toLowerCase().contains(searchQuery.toLowerCase());
+                }).toList();
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Seleccionar $title', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w400)),
+                    const SizedBox(height: 16),
+                    TextField(
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.filter_list, color: Colors.grey),
+                        hintText: 'Filtrar...',
+                        enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
+                        focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.blue)),
+                      ),
+                      onChanged: (val) => setStateDialog(() => searchQuery = val),
+                    ),
+                    const SizedBox(height: 16),
+                    Expanded(
+                      child: ListView.separated(
+                        itemCount: filteredItems.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1, color: Colors.grey, thickness: 0.3),
+                        itemBuilder: (context, index) {
+                          final item = filteredItems[index];
+                          final itemValue = getValue(item);
+                          final isSelected = itemValue == currentValue;
+
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            tileColor: isSelected ? Colors.grey.withOpacity(0.1) : null,
+                            title: Text(getTitle(item), style: const TextStyle(fontSize: 14)),
+                            subtitle: getSubtitle != null && itemValue != null ? Text(getSubtitle(item), style: const TextStyle(fontSize: 12, color: Colors.grey)) : null,
+                            onTap: () => Navigator.of(context).pop({'selected': true, 'value': itemValue}),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+
+    // Verificamos si retornó explícitamente una selección (incluso si es null para "Todos")
+    if (result != null && result is Map && result['selected'] == true) {
+      onSelected(result['value'] as T?);
+    }
+  }
+
+  Widget _buildSearchableField<T>({required String label, required String? hintText, required T? value, required bool isLoading, required bool isDisabled, required String displayText, required VoidCallback onTap}) {
+    return InkWell(
+      onTap: (isLoading || isDisabled) ? null : onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+          floatingLabelBehavior: FloatingLabelBehavior.always,
+          suffixIcon: isLoading ? Transform.scale(scale: 0.5, child: const CircularProgressIndicator(strokeWidth: 3)) : const Icon(Icons.search),
+        ),
+        isEmpty: value == null && displayText.isEmpty,
+        child: Text(
+          (value == null || displayText.isEmpty) ? (hintText ?? '') : displayText,
+          style: TextStyle(fontSize: 16, color: (isLoading || isDisabled || (value == null && displayText.isEmpty)) ? Colors.grey[600] : Theme.of(context).colorScheme.onSurface),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+    );
+  }
+
   Future<void> _handleSave() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -289,12 +539,10 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
     String? dateStartPlanToSend = _dateStartController.text != widget.request['dateStartPlan'] ? _dateStartController.text : null;
     String? dateCompletePlanToSend = _dateCompleteController.text != widget.request['dateCompletePlan'] ? _dateCompleteController.text : null;
 
-    double currentQty = double.tryParse(widget.request['qtyPlan']?.toString() ?? '0.0') ?? 0.0;
+    double currentQty = (widget.request['qtySpent'] as num?)?.toDouble() ?? 0.0;
     double inputQty = double.tryParse(_qtyUsedController.text) ?? 0.0;
 
-    // VALIDACIÓN DE HORAS DISPONIBLES
-    // Solo validamos si es una solicitud de soporte puro (sin Record_UU, aunque aquí no lo tenemos a mano fácil, asumimos soporte por contexto)
-    // y si hay un cambio en la cantidad o si se está cerrando.
+    // VALIDACIÓN DE HORAS DISPONIBLES (Ficha de Producto)
     if (inputQty > 0) {
       setState(() => _isSaving = true);
       final freshData = await fetchRequest(filter: "R_Request_ID eq ${widget.request['realId']}");
@@ -305,8 +553,8 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
 
         if (bpId != null && !ValidationManager.isExempt(bpId) && (recordUU == null || recordUU.toString().isEmpty)) {
           try {
-            final contracts = await ContractApi.getSupportContracts(bPartnerId: bpId);
-            final double totalContracted = contracts.fold(0.0, (sum, contract) => sum + ((contract['contractedHours'] as num?)?.toDouble() ?? 0.0));
+            final chips = await ContractApi.getSupportProductChips(bPartnerId: bpId);
+            final double totalContracted = chips.fold(0.0, (sum, chip) => sum + ((chip['Qty'] as num?)?.toDouble() ?? 0.0));
 
             final allRequests = await fetchRequest(filter: "C_BPartner_ID eq $bpId");
             double totalEstimatedAndConsumed = 0.0;
@@ -314,12 +562,18 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
             for (var r in allRequests) {
               if (r['Record_UU'] != null && r['Record_UU'].toString().isNotEmpty) continue;
               if (r['id'] == widget.request['realId']) continue;
-              totalEstimatedAndConsumed += (r['QtyPlan'] as num?)?.toDouble() ?? 0.0;
+              
+              // Sumamos QtySpent (consumidas) o QtyPlan (en progreso)
+              totalEstimatedAndConsumed += (r['QtySpent'] as num?)?.toDouble() ?? (r['QtyPlan'] as num?)?.toDouble() ?? 0.0;
             }
 
             if (totalEstimatedAndConsumed + inputQty > totalContracted) {
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No se puede exceder las horas estimadas/consumidas de las Disponibles.'), backgroundColor: Colors.red, duration: Duration(seconds: 4)));
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  content: Text('No se puede exceder las horas disponibles de las Fichas de Producto.'),
+                  backgroundColor: Colors.red,
+                  duration: Duration(seconds: 4)
+                ));
                 setState(() => _isSaving = false);
               }
               return;
@@ -329,20 +583,18 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
           }
         }
       }
-      // Si no hay freshData, o no hay bpId, o es exento, la validación se salta.
-      // No detenemos el spinner aquí, continúa al bloque de save.
     }
 
-    double? qtyPlanToSend;
+    double? qtySpentToSend;
 
     if ((inputQty - currentQty).abs() > 0.001) {
-      qtyPlanToSend = inputQty;
+      qtySpentToSend = inputQty;
     }
 
     String? startDateToSend;
     String? closeDateToSend;
 
-    final bool isClosing = _currentStatus == '9_Final Close' || _currentStatus == 'Final Close' || (statusIdToSend != null && statusIdToSend == 103);
+    final bool isClosing = _currentStatus == '9_Final Close' || _currentStatus == 'Final Close' || (statusIdToSend != null && (statusIdToSend == 103 || statusIdToSend == 1000019));
 
     if (isClosing) {
       if (_dateStartController.text.isNotEmpty) {
@@ -351,24 +603,85 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
       if (_dateCompleteController.text.isNotEmpty) {
         closeDateToSend = "${_dateCompleteController.text}T00:00:00Z";
       }
-
-      // Primera llamada (cuando se cierra): eliminamos priorityMap
-      await updateRemoteRequest(id: widget.request['realId'], priority: _currentPriority, summary: _summaryController.text, result: _resultController.text, dateStartPlan: dateStartPlanToSend, dateCompletePlan: dateCompletePlanToSend, qtyPlan: qtyPlanToSend, startDate: startDateToSend, closeDate: closeDateToSend);
-
-      statusIdToSend = _statusIdMap['9_Final Close'] ?? _statusIdMap.entries.firstWhere((e) => e.key.toLowerCase().contains('close'), orElse: () => const MapEntry('', 103)).value;
+      // Si estamos cerrando, forzamos el statusId a uno de cierre si no está ya definido
+      statusIdToSend ??= _statusIdMap['9_Final Close'] ?? _statusIdMap.entries.firstWhere((e) => e.key.toLowerCase().contains('close'), orElse: () => const MapEntry('', 103)).value;
       statusIdentifierToSend = null;
+    }
+
+    // Fase 1: Actualizar Tercero (y Usuario/Ficha si se seleccionaron nuevos) para asegurar consistencia
+    if (_selectedBpId != widget.request['bpId']) {
+      // VALIDACIÓN: El servidor no acepta null para el usuario al cambiar de tercero
+      if (_selectedUserId == null) {
+        if (mounted) {
+          setState(() => _isSaving = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Debe seleccionar un usuario para el nuevo tercero antes de guardar.'))
+          );
+        }
+        return;
+      }
+
+      final Map<String, dynamic> phase1Data = {
+        "C_BPartner_ID": {"id": _selectedBpId},
+        "AD_User_ID": {"id": _selectedUserId},
+        "C_BPartner_Product_Chip_ID": _selectedProductChipId != null ? {"id": _selectedProductChipId} : null,
+      };
+
+      final url = Uri.parse('${Endpoint.request}/${widget.request['realId']}');
+      var response = await http.put(
+        url,
+        headers: {'Content-Type': 'application/json', 'Authorization': Token.token},
+        body: jsonEncode(phase1Data),
+      );
+      
+      if (response.statusCode == 401) {
+        final refreshed = await handleTokenRefresh();
+        if (refreshed) {
+          response = await http.put(
+            url,
+            headers: {'Content-Type': 'application/json', 'Authorization': Token.token},
+            body: jsonEncode(phase1Data),
+          );
+        }
+      }
+
+      if (response.statusCode != 200 && response.statusCode != 201 && response.statusCode != 204) {
+        if (mounted) {
+          setState(() => _isSaving = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error al actualizar el tercero: ${response.body}'))
+          );
+        }
+        return;
+      }
+      // Actualizamos el ID local para que la segunda fase no tenga conflictos
+      widget.request['bpId'] = _selectedBpId;
+    }
+
+    if (!_categoryMap.containsKey(_selectedCategory)) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('La categoría actual no es válida o no está disponible. Por favor, seleccione una nueva categoría antes de guardar.'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
+      return;
     }
 
     final result = await updateRemoteRequest(
       id: widget.request['realId'],
-      priority: isClosing ? null : _currentPriority,
+      priority: _currentPriority,
       statusId: statusIdToSend,
       statusIdentifier: statusIdentifierToSend,
       result: _resultController.text,
-      summary: isClosing ? null : _summaryController.text,
+      summary: _summaryController.text,
       dateStartPlan: dateStartPlanToSend,
-      dateCompletePlan: dateCompletePlanToSend,
-      qtyPlan: qtyPlanToSend,
+      dateCompletePlan: dateCompletePlanToSend,      
+      qtySpent: qtySpentToSend,
       startDate: startDateToSend,
       closeDate: closeDateToSend,
       emailSubject: _emailSubjectController.text,
@@ -378,6 +691,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
       salesRepId: _selectedSalesRepId,
       bPartnerId: _selectedBpId,
       userId: _selectedUserId,
+      productChipId: _selectedProductChipId,
     );
 
     // Si hay una nueva actualización, la creamos
@@ -387,7 +701,6 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
         requestId: widget.request['realId'],
         resultText: newUpdateText,
         confidentialType: 'I', // Valor por defecto para actualizaciones rápidas
-        isPrinted: false, // Valor por defecto
         evidences: [null, null, null, null], // Sin archivos adjuntos desde aquí
       );
     }
@@ -397,11 +710,12 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
       await GlobalCache.syncSingleRequest(widget.request['realId']);
     }
 
-    setState(() => _isSaving = false);
-
     if (mounted) {
+      setState(() => _isSaving = false);
       if (result['success'] == true) {
-        Navigator.pop(context, true);
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop(true);
+        }
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Solicitud actualizada correctamente')));
         widget.onSave();
       } else {
@@ -417,6 +731,9 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
       statusItems.add(_currentStatus);
     }
     final bool isFullAccess = AccessControl.isAdmin || AccessControl.isRealSupport;
+    final bool isProject = (widget.request['recordUU'] != null && widget.request['recordUU'].toString().trim().isNotEmpty) ||
+                           (widget.request['Record_UU'] != null && widget.request['Record_UU'].toString().trim().isNotEmpty) ||
+                           (widget.request['C_Project_ID'] != null && widget.request['C_Project_ID'].toString().isNotEmpty);
 
     return CustomModal(
       title: 'Editar Solicitud ${widget.request['id']}',
@@ -463,49 +780,120 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
-                        child: CustomDropdown<int>(
+                        child: _buildSearchableField<int>(
                           label: 'Tercero',
-                          hintText: _isLoadingBPartners ? 'Cargando terceros...' : 'Seleccione Tercero',
-                          value: _isLoadingBPartners || !_bPartnersList.any((bp) => bp['id'] == _selectedBpId) ? null : _selectedBpId,
-                          items: _bPartnersList.map((bp) => DropdownMenuItem<int>(value: bp['id'], child: Text(bp['Name'] ?? 'Tercero ${bp['id']}'))).toList(),
-                          onChanged: (_isReadOnly || _isLoadingBPartners) ? null : (value) => setState(() => _selectedBpId = value),
+                          hintText: 'Seleccione Tercero',
+                          value: _selectedBpId,
+                          isLoading: _isLoadingBPartners,
+                          isDisabled: _isReadOnly,
+                          displayText: _selectedBpId != null && _bPartnersList.any((bp) => bp['id'] == _selectedBpId) ? _bPartnersList.firstWhere((bp) => bp['id'] == _selectedBpId)['Name'] ?? '' : '',
+                          onTap: () => _openSearchModal<int>(
+                            title: 'Tercero',
+                            items: _bPartnersList.where((bp) => bp['id'] != null).toList(),
+                            currentValue: _selectedBpId,
+                            getTitle: (item) => item['Name'] ?? 'Sin Nombre',
+                            
+                            getValue: (item) {
+                              var id = item['id'];
+                              return id is int ? id : int.tryParse(id.toString());
+                            },
+                            onSelected: (val) {
+                              setState(() {
+                                _selectedBpId = val;
+                                _selectedUserId = null; // Reseteamos usuario al cambiar tercero
+                                _selectedProductChipId = null;
+                                _users = [];
+                                _isLoadingUsers = true;
+                              });
+                              _fetchUsers();
+                              _fetchProductChips();
+                            },
+                          ),
                         ),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
-                        child: CustomDropdown<int>(
+                        child: _buildSearchableField<int>(
                           label: 'Usuario',
-                          hintText: _isLoadingUsers ? 'Cargando usuarios...' : 'Seleccione Usuario',
-                          value: _isLoadingUsers || !_users.any((u) => (u['AD_User_ID'] ?? u['id']) == _selectedUserId) ? null : _selectedUserId,
-                          items: _users.map<DropdownMenuItem<int>>((u) => DropdownMenuItem<int>(value: u['AD_User_ID'] ?? u['id'], child: Text(u['Name'] ?? 'Sin Nombre'))).toList(),
-                          onChanged: (_isReadOnly || _isLoadingUsers) ? null : (value) => setState(() => _selectedUserId = value),
+                          hintText: _selectedBpId == null ? 'Seleccione un tercero' : 'Seleccione Usuario',
+                          value: _selectedUserId,
+                          isLoading: _isLoadingUsers,
+                          isDisabled: _isReadOnly || _isLoadingUsers || _selectedBpId == null,
+                          displayText: _selectedUserId != null && _users.any((u) => (u['AD_User_ID'] ?? u['id']) == _selectedUserId) ? _users.firstWhere((u) => (u['AD_User_ID'] ?? u['id']) == _selectedUserId)['Name'] ?? '' : '',
+                          onTap: () => _openSearchModal<int>(
+                            title: 'Usuario',
+                            items: _users.where((u) => (u['AD_User_ID'] ?? u['id']) != null).toList(),
+                            currentValue: _selectedUserId,
+                            getTitle: (item) => item['Name'] ?? 'Sin Nombre',
+                            
+                            getValue: (item) {
+                              var id = item['AD_User_ID'] ?? item['id'];
+                              return id is int ? id : int.tryParse(id.toString());
+                            },
+                            onSelected: (val) => setState(() => _selectedUserId = val),
+                          ),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 16),
+                  if (!isProject) ...[
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: _buildSearchableField<int>(
+                            label: 'Ficha de Producto',
+                            hintText: _selectedBpId == null ? 'Seleccione un tercero' : 'Seleccione Ficha',
+                            value: _selectedProductChipId,
+                            isLoading: _isLoadingProducts,
+                            isDisabled: (() {
+                              final bool d = _isReadOnly || _isLoadingProducts || _selectedBpId == null;
+// [Mantenimiento] Log removido:                               debugPrint("DEBUG EDIT CHIP: disabled=$d (ReadOnly=$_isReadOnly, Loading=$_isLoadingProducts, BP=$_selectedBpId)");
+                              return d;
+                            })(),
+                            displayText: _selectedProductChipId != null && _productChips.any((c) => c['id'] == _selectedProductChipId) 
+                                ? _productChips.firstWhere((c) => c['id'] == _selectedProductChipId)['Description'] ?? 'Ficha #${_selectedProductChipId}' 
+                                : '',
+                            onTap: () => _openSearchModal<int>(
+                              title: 'Ficha de Producto',
+                              items: _productChips,
+                              currentValue: _selectedProductChipId,
+                              getTitle: (item) => item['Description'] ?? 'Sin Descripción',
+                              
+                              getValue: (item) => item['id'] as int,
+                              onSelected: (val) => setState(() => _selectedProductChipId = val),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                 ],
+                const SizedBox(height: 16),
+
 
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
-                      child: CustomDropdown<String?>(
-                        value: _isLoadingTypes || !_requestTypeMap.containsKey(_selectedType) ? null : _selectedType,
+                      child: _buildSearchableField<String>(
                         label: 'Tipo de Solicitud',
-                        hintText: _isLoadingTypes ? 'Cargando tipos...' : null,
-                        items: _requestTypeMap.keys.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-                        onChanged: (_isReadOnly || _isLoadingTypes) ? null : (val) => setState(() => _selectedType = val!),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: CustomDropdown<String?>(
-                        value: _isLoadingCategories || !_categoryMap.containsKey(_selectedCategory) ? null : _selectedCategory,
-                        label: 'Categoría',
-                        hintText: _isLoadingCategories ? 'Cargando categorías...' : null,
-                        items: _categoryMap.keys.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-                        onChanged: (_isReadOnly || _isLoadingCategories) ? null : (val) => setState(() => _selectedCategory = val!),
+                        hintText: 'Seleccione Tipo',
+                        value: _selectedType,
+                        isLoading: _isLoadingTypes,
+                        isDisabled: _isReadOnly || _isLoadingTypes || AccessControl.isRealSupport,
+                        displayText: _selectedType ?? '',
+                        onTap: () => _openSearchModal<String>(
+                          title: 'Tipo de Solicitud',
+                          items: _requestTypeMap.keys.toList(),
+                          currentValue: _selectedType,
+                          getTitle: (item) => item.toString(),
+                          getValue: (item) => item.toString(),
+                          onSelected: (val) =>
+                              setState(() => _selectedType = val),
+                        ),
                       ),
                     ),
                   ],
@@ -513,28 +901,106 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                 const SizedBox(height: 16),
                 CustomTextField(controller: _emailSubjectController, label: 'Asunto', readOnly: _isReadOnly),
                 const SizedBox(height: 16),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      flex: 10,
+                      child: _buildSearchableField<String>(
+                        label: 'Categoría',
+                        hintText: 'Seleccione Categoría',
+                        value: _selectedCategory,
+                        isLoading: _isLoadingCategories,
+                        isDisabled: _isReadOnly || _isLoadingCategories,
+                        displayText: _selectedCategory ?? '',
+                        onTap: () => _openSearchModal<String>(
+                          title: 'Categoría',
+                          items: _categoryMap.keys.toList(),
+                          currentValue: _selectedCategory,
+                          getTitle: (item) => item.toString(),
+                          getValue: (item) => item.toString(),
+                          onSelected: (val) {
+                            setState(() {
+                              _selectedCategory = val;
+                              final bool isProject = (widget.request['recordUU'] != null && widget.request['recordUU'].toString().trim().isNotEmpty) ||
+                                                     (widget.request['Record_UU'] != null && widget.request['Record_UU'].toString().trim().isNotEmpty);
+
+                              // La automatización de prioridad solo aplica a SOPORTE (no proyectos)
+                              if (!isProject && val != null &&
+                                  _categoryPriorityMap.containsKey(val)) {
+                                final pValue = _categoryPriorityMap[val]!;
+                                final label = widget.priorityMap.entries
+                                    .firstWhere(
+                                      (e) => e.value == pValue,
+                                      orElse: () => widget.priorityMap.entries
+                                          .firstWhere((e) => e.key == 'Media'),
+                                    )
+                                    .key;
+                                _currentPriority = label;
+                              }
+                            });
+                          },
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                      child: IconButton(
+                        icon: const Icon(Icons.info_outline, color: Colors.blue),
+                        tooltip: 'Ver guía de categorías',
+                        onPressed: _showCategoryHelpModal,
+                      ),
+                    ),
+                    Expanded(
+                      flex: 10,
+                      child: _buildSearchableField<String>(
+                        label: 'Prioridad',
+                        hintText: 'Seleccione Prioridad',
+                        value: _currentPriority,
+                        isLoading: false,
+                        isDisabled: !((widget.request['recordUU'] != null && widget.request['recordUU'].toString().trim().isNotEmpty) ||
+                                       (widget.request['Record_UU'] != null && widget.request['Record_UU'].toString().trim().isNotEmpty)),
+                        displayText: _currentPriority,
+                        onTap: () => _openSearchModal<String>(
+                          title: 'Prioridad',
+                          items: widget.priorityMap.keys.toList(),
+                          currentValue: _currentPriority,
+                          getTitle: (item) => item.toString(),
+                          getValue: (item) => item.toString(),
+                          onSelected: (val) =>
+                              setState(() => _currentPriority = val ?? _currentPriority),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
 
                 if (isFullAccess) ...[
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
-                        child: CustomDropdown<String?>(
-                          value: _isLoadingGroups || !_groupMap.containsKey(_selectedGroup) ? null : _selectedGroup,
+                        child: _buildSearchableField<String>(
                           label: 'Grupo',
-                          hintText: _isLoadingGroups ? 'Cargando grupos...' : null,
-                          items: _groupMap.keys.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-                          onChanged: (_isReadOnly || _isLoadingGroups) ? null : (val) => setState(() => _selectedGroup = val!),
+                          hintText: 'Seleccione Grupo',
+                          value: _selectedGroup,
+                          isLoading: _isLoadingGroups,
+                          isDisabled: _isReadOnly || _isLoadingGroups,
+                          displayText: _selectedGroup ?? '',
+                          onTap: () => _openSearchModal<String>(title: 'Grupo', items: _groupMap.keys.toList(), currentValue: _selectedGroup, getTitle: (item) => item.toString(), getValue: (item) => item.toString(), onSelected: (val) => setState(() => _selectedGroup = val)),
                         ),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
-                        child: CustomDropdown<int>(
+                        child: _buildSearchableField<int>(
                           label: 'Representante Comercial',
-                          hintText: _isLoadingUsers ? 'Cargando usuarios...' : null,
-                          value: _isLoadingUsers || !_users.any((u) => (u['AD_User_ID'] ?? u['id']) == _selectedSalesRepId) ? null : _selectedSalesRepId,
-                          items: _users.map<DropdownMenuItem<int>>((u) => DropdownMenuItem<int>(value: u['AD_User_ID'] ?? u['id'], child: Text(u['Name'] ?? 'Sin Nombre'))).toList(),
-                          onChanged: (_isReadOnly || _isLoadingUsers) ? null : (value) => setState(() => _selectedSalesRepId = value),
+                          hintText: 'Seleccione Representante',
+                          value: _selectedSalesRepId,
+                          isLoading: _isLoadingSalesReps,
+                          isDisabled: _isReadOnly || _isLoadingSalesReps,
+                          displayText: _selectedSalesRepId != null && _salesReps.any((u) => (u['AD_User_ID'] ?? u['id']) == _selectedSalesRepId) ? _salesReps.firstWhere((u) => (u['AD_User_ID'] ?? u['id']) == _selectedSalesRepId)['Name'] ?? '' : '',
+                          onTap: () => _openSearchModal<int>(title: 'Representante Comercial', items: _salesReps, currentValue: _selectedSalesRepId, getTitle: (item) => item['Name'] ?? 'Sin Nombre',  getValue: (item) => (item['AD_User_ID'] ?? item['id']) as int, onSelected: (val) => setState(() => _selectedSalesRepId = val)),
                         ),
                       ),
                     ],
@@ -544,20 +1010,21 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                   Row(
                     children: [
                       Expanded(
-                        child: CustomDropdown<String>(
-                          value: _currentStatus,
+                        child: _buildSearchableField<String>(
                           label: 'Estado',
-                          items: statusItems.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
-                          onChanged: _isReadOnly ? null : (val) => setState(() => _currentStatus = val!),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: CustomDropdown<String>(
-                          value: _currentPriority,
-                          label: 'Prioridad',
-                          items: widget.priorityMap.keys.map((p) => DropdownMenuItem(value: p, child: Text(p))).toList(),
-                          onChanged: _isReadOnly ? null : (val) => setState(() => _currentPriority = val!),
+                          hintText: 'Seleccione Estado',
+                          value: _currentStatus,
+                          isLoading: false,
+                          isDisabled: _isReadOnly,
+                          displayText: cleanStatusName(_currentStatus),
+                          onTap: () => _openSearchModal<String>(
+                            title: 'Estado',
+                            items: statusItems,
+                            currentValue: _currentStatus,
+                            getTitle: (item) => cleanStatusName(item.toString()),
+                            getValue: (item) => item.toString(),
+                            onSelected: (val) => setState(() => _currentStatus = val ?? _currentStatus),
+                          ),
                         ),
                       ),
                     ],
@@ -569,7 +1036,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                         child: GestureDetector(
                           onTap: _isReadOnly ? null : () => _selectDate(context, _dateStartController),
                           child: AbsorbPointer(
-                            child: CustomTextField(controller: _dateStartController, label: 'Fecha de inicio', readOnly: true, hintText: 'YYYY-MM-DD', prefixIcon: const Icon(Icons.calendar_today)),
+                            child: CustomTextField(controller: _dateStartController, label: 'Fecha de Inicio Planeada', readOnly: true, hintText: 'YYYY-MM-DD', prefixIcon: const Icon(Icons.calendar_today)),
                           ),
                         ),
                       ),
@@ -592,17 +1059,43 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                 Stack(
                   alignment: Alignment.topRight,
                   children: [
-                    CustomTextField(
-                      controller: _summaryController,
-                      scrollController: _descriptionScrollController,
-                      label: 'Descripción / Resumen',
-                      readOnly: _isReadOnly,
-                      maxLines: 4,
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) return 'Por favor ingrese una descripción';
-                        return null;
-                      },
-                    ),
+                    _isReadOnly 
+                    ? Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Theme.of(context).colorScheme.outline.withOpacity(0.5)),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Descripción / Resumen', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Theme.of(context).colorScheme.primary)),
+                            const SizedBox(height: 8),
+                            Html(
+                              data: _summaryController.text,
+                              style: {
+                                "body": Style(
+                                  margin: Margins.zero,
+                                  padding: HtmlPaddings.zero,
+                                  fontSize: FontSize(14),
+                                ),
+                              },
+                            ),
+                          ],
+                        ),
+                      )
+                    : CustomTextField(
+                        controller: _summaryController,
+                        scrollController: _descriptionScrollController,
+                        label: 'Descripción / Resumen',
+                        readOnly: _isReadOnly,
+                        maxLines: 4,
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) return 'Por favor ingrese una descripción';
+                          return null;
+                        },
+                      ),
                     Padding(
                       padding: const EdgeInsets.only(top: 4.0, right: 4.0),
                       child: IconButton(icon: const Icon(Icons.zoom_out_map), tooltip: 'Ver descripción completa', onPressed: () => _showFullDescription(context)),
@@ -622,9 +1115,23 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
           },
           child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
         ),
-        TextButton(onPressed: () => Navigator.pop(context), child: Text(_isReadOnly ? 'Cerrar' : 'Cancelar')),
+        // BOTÓN DE RESPONDER (Estilo limpio)
+        TextButton.icon(
+          onPressed: () {
+            final router = GoRouter.of(context);
+            Navigator.pop(context); // Cerrar el diálogo de edición
+            router.push('/request-updates/${widget.request['realId']}', extra: {'docNo': widget.request['id']?.toString() ?? '...'});
+          },
+          icon: const Icon(Icons.reply, size: 20),
+          label: const Text('Responder', style: TextStyle(fontWeight: FontWeight.bold)),
+          style: TextButton.styleFrom(
+            foregroundColor: Theme.of(context).colorScheme.primary,
+          ),
+        ),
+        TextButton(onPressed: _isSaving ? null : () => Navigator.pop(context), child: Text(_isReadOnly ? 'Cerrar' : 'Cancelar')),
         if (!_isReadOnly) CustomButton(text: 'Guardar', isLoading: _isSaving, onPressed: _handleSave),
       ],
     );
   }
 }
+

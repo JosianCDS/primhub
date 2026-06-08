@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:primhub/ui/pages/Metrics/custom_chart.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/ui/Shared_Custom/custom_container.dart';
+import 'package:primhub/ui/widgets/project_sidebar.dart';
 import '../../../theme/colors.dart';
 import '../../widgets/custom_drawer.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
@@ -13,6 +14,11 @@ import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/api/contract_api.dart';
 import 'package:primhub/api/global_cache.dart';
+import 'package:primhub/ui/widgets/project_bottom_nav.dart';
+import 'package:primhub/api/api_utils.dart';
+import 'package:primhub/ui/Shared_Custom/custom_skeleton.dart';
+import 'package:primhub/ui/Shared_Custom/user_info_leading.dart';
+import 'package:primhub/ui/Shared_Custom/help_icon.dart';
 
 // Importante: Asegúrate de que esta ruta sea la correcta para tu clase GraphicsFunctions
 import 'graphic_functions.dart';
@@ -25,8 +31,11 @@ class MetricsPage extends StatefulWidget {
 
 class _MetricsPageState extends State<MetricsPage> {
   bool _isLoading = true;
+  bool _isProjectsLoading = false;
+  String? _projectsErrorMessage;
   int? _selectedProjectId;
   List<dynamic> _projects = [];
+  final ValueNotifier<int> _projectsLoadNotifier = ValueNotifier<int>(0);
 
   final _adminViewModeManager = AdminViewModeManager();
 
@@ -38,7 +47,7 @@ class _MetricsPageState extends State<MetricsPage> {
   List<double> _supportStatusValues = [];
   List<String> _supportStatusLabels = [];
 
-  int? _supportSelectedYear;
+  int? _supportSelectedYear = DateTime.now().year;
   int? _supportSelectedBpId;
   List<Map<String, dynamic>> _supportBPartners = [];
 
@@ -65,6 +74,19 @@ class _MetricsPageState extends State<MetricsPage> {
       _loadSupportBPartners();
       _loadSupportMetrics();
     }
+    GlobalCache.backgroundSyncNotifier.addListener(_onBackgroundSyncChanged);
+  }
+
+  void _onBackgroundSyncChanged() {
+    if (mounted) {
+      setState(() {});
+      // Si terminó la carga de fondo y no tenemos proyectos, intentamos cargar solo si no estamos ya en proceso
+      if (!GlobalCache.backgroundSyncNotifier.value &&
+          _projects.isEmpty &&
+          !_isProjectsLoading) {
+        _loadProjects();
+      }
+    }
   }
 
   @override
@@ -86,6 +108,7 @@ class _MetricsPageState extends State<MetricsPage> {
   @override
   void dispose() {
     _adminViewModeManager.removeListener(_onViewModeChanged);
+    GlobalCache.backgroundSyncNotifier.removeListener(_onBackgroundSyncChanged);
     super.dispose();
   }
 
@@ -100,17 +123,172 @@ class _MetricsPageState extends State<MetricsPage> {
     }
   }
 
+  void _showAdminModeSelectionDialog(BuildContext context) {
+    final current = _adminViewModeManager.currentMode;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return CustomModal(
+          title: 'Seleccionar Modo de Vista',
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                title: const Text('Modo Mixto'),
+                trailing: current == AdminViewMode.mixed
+                    ? Icon(Icons.check, color: colorScheme.primary)
+                    : null,
+                onTap: () {
+                  _adminViewModeManager.saveMode(AdminViewMode.mixed);
+                  Navigator.pop(dialogContext);
+                },
+              ),
+              ListTile(
+                title: const Text('Modo Soporte'),
+                trailing: current == AdminViewMode.support
+                    ? Icon(Icons.check, color: colorScheme.primary)
+                    : null,
+                onTap: () {
+                  _adminViewModeManager.saveMode(AdminViewMode.support);
+                  Navigator.pop(dialogContext);
+                },
+              ),
+              ListTile(
+                title: const Text('Modo Proyecto'),
+                trailing: current == AdminViewMode.project
+                    ? Icon(Icons.check, color: colorScheme.primary)
+                    : null,
+                onTap: () {
+                  _adminViewModeManager.saveMode(AdminViewMode.project);
+                  Navigator.pop(dialogContext);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cerrar'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showProjectFilterSelectionDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return CustomModal(
+          title: 'Filtrar Proyectos',
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.person),
+                title: const Text('Mis Proyectos'),
+                trailing: _adminViewModeManager.isViewingMine
+                    ? Icon(
+                        Icons.check,
+                        color: Theme.of(context).colorScheme.primary,
+                      )
+                    : null,
+                onTap: () {
+                  _adminViewModeManager.setViewingMine(true);
+                  Navigator.pop(dialogContext);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.group),
+                title: const Text('Todos los Proyectos'),
+                trailing: !_adminViewModeManager.isViewingMine
+                    ? Icon(
+                        Icons.check,
+                        color: Theme.of(context).colorScheme.primary,
+                      )
+                    : null,
+                onTap: () {
+                  _adminViewModeManager.setViewingMine(false);
+                  Navigator.pop(dialogContext);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cerrar'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  List<Widget> _buildAdminAppBarActions(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+    if (isMobile) {
+      return [
+        PopupMenuButton<String>(
+          icon: const Icon(Icons.more_vert),
+          onSelected: (value) {
+            if (value == 'admin_mode') _showAdminModeSelectionDialog(context);
+            if (value == 'project_filter')
+              _showProjectFilterSelectionDialog(context);
+          },
+          itemBuilder: (context) => [
+            PopupMenuItem<String>(
+              value: 'admin_mode',
+              child: ListTile(
+                leading: const Icon(Icons.admin_panel_settings),
+                title: Text(
+                  'Modo: ${_adminViewModeManager.currentMode == AdminViewMode.support ? 'Soporte' : (_adminViewModeManager.currentMode == AdminViewMode.project ? 'Proyecto' : 'Mixto')}',
+                ),
+              ),
+            ),
+            PopupMenuItem<String>(
+              value: 'project_filter',
+              child: ListTile(
+                leading: Icon(
+                  _adminViewModeManager.isViewingMine
+                      ? Icons.person
+                      : Icons.group,
+                ),
+                title: Text(
+                  _adminViewModeManager.isViewingMine
+                      ? 'Mis Proyectos'
+                      : 'Todos',
+                ),
+              ),
+            ),
+          ],
+        ),
+      ];
+    }
+    return [_buildAdminModePopupMenu(), _buildProjectFilterPopupMenu()];
+  }
+
   Future<void> _loadSupportBPartners() async {
     if (AccessControl.isAdmin) {
       // Aprovechamos los terceros ya cacheados si están disponibles
       if (GlobalCache.isDataLoaded && GlobalCache.bPartners.isNotEmpty) {
         if (mounted) {
           setState(() {
-            _supportBPartners = GlobalCache.bPartners.map<Map<String, dynamic>>((e) => {'id': e['id'] ?? e['C_BPartner_ID'], 'Name': e['Name'] ?? 'Sin Nombre'}).toList();
+            _supportBPartners = GlobalCache.bPartners
+                .map<Map<String, dynamic>>(
+                  (e) => {
+                    'id': e['id'] ?? e['C_BPartner_ID'],
+                    'Name': e['Name'] ?? 'Sin Nombre',
+                  },
+                )
+                .toList();
           });
         }
       } else {
-        final bps = await ContractApi.getBPartnersWithSupportContracts();
+        final bps = await ContractApi.getBPartnersWithProductChips();
         if (mounted) {
           setState(() {
             _supportBPartners = bps;
@@ -119,7 +297,14 @@ class _MetricsPageState extends State<MetricsPage> {
             final extraBps = await ProjectsLogic().fetchBPartners();
             if (mounted) {
               setState(() {
-                _supportBPartners = extraBps.map<Map<String, dynamic>>((e) => {'id': e['id'] ?? e['C_BPartner_ID'], 'Name': e['Name'] ?? 'Sin Nombre'}).toList();
+                _supportBPartners = extraBps
+                    .map<Map<String, dynamic>>(
+                      (e) => {
+                        'id': e['id'] ?? e['C_BPartner_ID'],
+                        'Name': e['Name'] ?? 'Sin Nombre',
+                      },
+                    )
+                    .toList();
               });
             }
           } catch (_) {}
@@ -129,51 +314,77 @@ class _MetricsPageState extends State<MetricsPage> {
   }
 
   Future<void> _loadProjects() async {
+    if (_isProjectsLoading) return; // Evitar llamadas dobles
+
+    setState(() {
+      _isProjectsLoading = true;
+      _projectsErrorMessage = null;
+    });
+    _projectsLoadNotifier.value++;
+
     try {
       int? bPartnerIdForQuery;
       if (AccessControl.isAdmin) {
-        bPartnerIdForQuery = _adminViewModeManager.isViewingMine ? (User.cBPartnerID ?? -1) : null;
+        bPartnerIdForQuery = _adminViewModeManager.isViewingMine
+            ? (User.cBPartnerID ?? -1)
+            : null;
       } else if (AccessControl.isProject) {
         bPartnerIdForQuery = User.cBPartnerID;
       }
 
-      final projects = await ProjectsLogic().fetchProjectsForDropdown(bPartnerId: bPartnerIdForQuery);
+      // Llamada a la API y Filtrado Null Safety
+      final rawProjects = await ProjectsLogic().fetchProjectsForDropdown(
+        bPartnerId: bPartnerIdForQuery,
+      );
+
+      // Solo incluimos proyectos con datos válidos
+      final projects = rawProjects.where((p) {
+        return p != null &&
+            p['id'] != null &&
+            p['Name'] != null &&
+            p['Name'].toString().trim().isNotEmpty;
+      }).toList();
+
+// [Mantenimiento] Log removido:       debugPrint(
+// [Mantenimiento] Log removido:         "DEBUG METRICS: Proyectos válidos recibidos: ${projects.length}",
+// [Mantenimiento] Log removido:       );
+
       if (mounted) {
         setState(() {
-          _projects = projects ?? [];
-          if (_projects.isNotEmpty) {
-            if (_selectedProjectId == null || !_projects.any((p) => p['id'] == _selectedProjectId)) {
-              _selectedProjectId = _projects.first['id'];
-            }
-          } else {
+          _projects = projects;
+          _isProjectsLoading = false;
+
+          // Limpiar mensaje de error si cargó bien
+          _projectsErrorMessage = null;
+
+          // Solo mantenemos la selección si el proyecto aún existe en la nueva lista.
+          if (_selectedProjectId != null &&
+              !_projects.any((p) => p['id'] == _selectedProjectId)) {
             _selectedProjectId = null;
           }
         });
+        _projectsLoadNotifier.value++;
+
         if (_selectedProjectId != null) {
           _loadMetrics();
         } else {
           setState(() {
             _isLoading = false;
-            _statusLabels = [];
-            _statusValues = [];
-            _complianceLabels = [];
-            _complianceValues = [];
-            _moduleLabels = [];
-            _modulePercentageValues = [];
-            _moduleTerminadaValues = [];
-            _modulePendienteValues = [];
-            _moduleEsperaValues = [];
-            _moduleFullLabels = [];
           });
         }
       }
     } catch (e) {
-      debugPrint("Error cargando proyectos: $e");
+// [Mantenimiento] Log removido:       debugPrint("Error cargando proyectos: $e");
       if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error cargando lista de proyectos: $e')),
+        );
         setState(() {
           _isLoading = false;
+          _isProjectsLoading = false;
           _projects = [];
         });
+        _projectsLoadNotifier.value++;
       }
     }
   }
@@ -183,119 +394,83 @@ class _MetricsPageState extends State<MetricsPage> {
     setState(() => _isLoading = true);
 
     try {
-      print("DEBUG: Iniciando carga para Proyecto ID: '$_selectedProjectId'");
+      // 0. Prioritize project Data to get UUID
+      final projData = _projects.firstWhere(
+        (p) => p['id'] == _selectedProjectId,
+        orElse: () => <String, dynamic>{},
+      );
 
-      final requests = await GraphicsFunctions.fetchMetricsData(projectId: _selectedProjectId!);
-
-      print("DEBUG: Registros recibidos de API (Processed=false): ${requests.length}");
-
-      final Map<String, int> statusCounts = {};
-      final Map<String, int> compliancePieData = {'TERMINADA': 0, 'PENDIENTE': 0, 'ESPERA DE CLIENTE': 0};
-      final Map<String, Map<String, int>> moduleStatusCounts = {};
-      final Map<String, String> debugStatusMapping = {};
-      int totalForCompliance = 0;
-      int ignoredByGroup = 0;
-
-      for (var req in requests) {
-        final statusData = req['R_Status_ID'] as Map?;
-        final groupData = req['R_Group_ID'] as Map?;
-        final typeData = req['R_RequestType_ID'] as Map?;
-        final categoryData = req['R_Category_ID'] as Map?;
-
-        // Limpieza de nombres (quitar 10_, 20_, etc)
-        String rawStatusName = statusData?['Name'] ?? statusData?['identifier'] ?? req['R_Status_Name'] ?? 'Sin Estado';
-        String statusName = rawStatusName.contains('_') ? rawStatusName.split('_').last.trim() : rawStatusName.trim();
-
-        String categoryName = categoryData?['Name'] ?? categoryData?['identifier'] ?? 'Sin Módulo';
-
-        bool isOpen = true;
-        String lowerStatusTemp = rawStatusName.toLowerCase();
-
-        if (statusData != null && statusData['IsOpen'] != null) {
-          isOpen = (statusData['IsOpen'] == 'Y' || statusData['IsOpen'] == true);
-        } else {
-          if (req['R_Status_ID'] == 103 || lowerStatusTemp.contains('close') || lowerStatusTemp.contains('cerrad') || lowerStatusTemp.contains('archivada') || lowerStatusTemp.contains('aprobada') || lowerStatusTemp.contains('implementada') || lowerStatusTemp.contains('entregad')) {
-            isOpen = false;
-          }
-        }
-
-        // Validación robusta por ID de Grupo (1000006 = Requerimiento de cliente)
-        // Evita depender del texto que puede cambiar o no expandirse correctamente
-        final dynamic rawGroup = req['R_Group_ID'];
-        final String groupId = rawGroup is Map ? rawGroup['id']?.toString() ?? '' : rawGroup?.toString() ?? '';
-        final bool isClientReq = groupId == '1000006';
-
-        if (isClientReq) {
-          String lowerStatus = rawStatusName.toLowerCase();
-
-          totalForCompliance++;
-
-          // --- LÓGICA DE AGRUPACIÓN PARA EL PIE CHART ---
-          String category = 'PENDIENTE';
-
-          if (lowerStatus.contains('asignad')) {
-            category = 'PENDIENTE';
-          } else if (lowerStatus.contains('espera de cliente') || lowerStatus.contains('espera del cliente')) {
-            category = 'ESPERA DE CLIENTE';
-          } else if (!isOpen || lowerStatus.contains('close') || lowerStatus.contains('cerrad') || lowerStatus.contains('archivada') || lowerStatus.contains('aprobada') || lowerStatus.contains('implementada') || lowerStatus.contains('entregad') || lowerStatus.contains('anulada')) {
-            category = 'TERMINADA';
-          }
-
-          compliancePieData[category] = (compliancePieData[category] ?? 0) + 1;
-          if (!debugStatusMapping.containsKey(rawStatusName)) {
-            debugStatusMapping[rawStatusName] = category;
-            print("DEBUG MAPPING: Estado Original: '$rawStatusName' -> Asignado a: $category");
-          }
-          moduleStatusCounts.putIfAbsent(categoryName, () => {'TERMINADA': 0, 'PENDIENTE': 0, 'ESPERA DE CLIENTE': 0});
-          moduleStatusCounts[categoryName]![category] = (moduleStatusCounts[categoryName]![category] ?? 0) + 1;
-
-          statusCounts[statusName] = (statusCounts[statusName] ?? 0) + 1;
-        } else {
-          ignoredByGroup++;
-        }
+      final projectUU = projData['uuid'];
+      if (projectUU != null && projectUU.toString().isNotEmpty) {
+        // Garantizar carga de datos jerárquicos
+        await GlobalCache.loadProjectRequestsInBackground(_selectedProjectId!);
       }
 
-      print("--- DEBUG RESULTADOS FINALES ---");
-      print("Total calculado (Objetivo ~264): $totalForCompliance");
-      print("Detalle de estados: $statusCounts");
-      print("--- DEBUG CUMPLIMIENTO (PIE CHART) ---");
-      compliancePieData.forEach((key, value) => print(" -$key: $value"));
-      print("--------------------------------");
+      // 1. Obtener los datos crudos
+      final requests = await GraphicsFunctions.fetchMetricsData(
+        projectId: _selectedProjectId!,
+      );
+
+      if (requests.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _statusLabels = [];
+            _statusValues = [];
+            _complianceLabels = [];
+            _complianceValues = [];
+            _moduleLabels = [];
+            _moduleFullLabels = [];
+            _moduleTerminadaValues = [];
+            _modulePendienteValues = [];
+            _moduleEsperaValues = [];
+            _modulePercentageValues = [];
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'No hay datos suficientes para generar las métricas de este proyecto.',
+              ),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      // 2. Calcular las métricas
+      final metrics = ProjectMetricsCalculator.calculate(requests);
 
       if (mounted) {
         setState(() {
-          _statusLabels = statusCounts.keys.toList();
-          _statusValues = statusCounts.values.map((v) => v.toDouble()).toList();
-          _complianceLabels = compliancePieData.keys.where((k) => compliancePieData[k]! > 0).toList();
-          _complianceValues = _complianceLabels.map((k) => compliancePieData[k]!.toDouble()).toList();
+          _statusLabels = metrics.statusData.labels;
+          _statusValues = metrics.statusData.values;
 
-          _moduleFullLabels = moduleStatusCounts.keys.toList();
-          _moduleLabels = _moduleFullLabels.map((l) => l.length > 8 ? '${l.substring(0, 8)}.' : l).toList();
+          _complianceLabels = metrics.complianceData.labels;
+          _complianceValues = metrics.complianceData.values;
 
-          _moduleTerminadaValues = [];
-          _modulePendienteValues = [];
-          _moduleEsperaValues = [];
-          _modulePercentageValues = [];
+          _moduleLabels = metrics.moduleStatusData.labels;
+          _moduleFullLabels = metrics.moduleStatusData.fullLabels;
+          _moduleTerminadaValues = metrics.moduleStatusData.seriesValues[0];
+          _modulePendienteValues = metrics.moduleStatusData.seriesValues[1];
+          _moduleEsperaValues = metrics.moduleStatusData.seriesValues[2];
 
-          for (String mod in _moduleFullLabels) {
-            int term = moduleStatusCounts[mod]!['TERMINADA'] ?? 0;
-            int pend = moduleStatusCounts[mod]!['PENDIENTE'] ?? 0;
-            int esp = moduleStatusCounts[mod]!['ESPERA DE CLIENTE'] ?? 0;
-            int total = term + pend + esp;
+          _modulePercentageValues = metrics.modulePercentageData.values;
 
-            _moduleTerminadaValues.add(term.toDouble());
-            _modulePendienteValues.add(pend.toDouble());
-            _moduleEsperaValues.add(esp.toDouble());
-
-            double pct = total > 0 ? (term / total) * 100 : 0.0;
-            _modulePercentageValues.add(pct);
-          }
           _isLoading = false;
         });
       }
     } catch (e) {
-      print("DEBUG ERROR EN METRICS: $e");
-      if (mounted) setState(() => _isLoading = false);
+// [Mantenimiento] Log removido:       debugPrint("DEBUG ERROR EN METRICS: $e");
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al calcular métricas: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -310,7 +485,9 @@ class _MetricsPageState extends State<MetricsPage> {
           bool isActive = req['IsActive'] == true || req['IsActive'] == 'Y';
           if (!isActive) return false;
 
-          int? bpId = req['C_BPartner_ID'] is Map ? req['C_BPartner_ID']['id'] : req['C_BPartner_ID'];
+          int? bpId = req['C_BPartner_ID'] is Map
+              ? req['C_BPartner_ID']['id']
+              : req['C_BPartner_ID'];
 
           if (!AccessControl.isAdmin && User.cBPartnerID != null) {
             if (bpId != User.cBPartnerID) return false;
@@ -326,8 +503,13 @@ class _MetricsPageState extends State<MetricsPage> {
         } else if (AccessControl.isAdmin && _supportSelectedBpId != null) {
           filter += " and C_BPartner_ID eq $_supportSelectedBpId";
         }
-        String expand = "R_Status_ID(\$select=Name,IsOpen),Priority(\$select=Name)";
-        rawRequests = await fetchRequest(filter: filter, top: 500, expand: expand);
+        String expand =
+            "R_Status_ID(\$select=Name,IsOpen),Priority(\$select=Name)";
+        rawRequests = await fetchRequest(
+          filter: filter,
+          top: 500,
+          expand: expand,
+        );
       }
 
       final Map<String, double> priorityCounts = {};
@@ -335,7 +517,8 @@ class _MetricsPageState extends State<MetricsPage> {
 
       for (var req in rawRequests) {
         // Excluir solicitudes vinculadas a proyectos (tareas)
-        if (req['Record_UU'] != null && req['Record_UU'].toString().isNotEmpty) continue;
+        if (req['Record_UU'] != null && req['Record_UU'].toString().isNotEmpty)
+          continue;
 
         // Filtro local por Año
         if (_supportSelectedYear != null) {
@@ -352,17 +535,23 @@ class _MetricsPageState extends State<MetricsPage> {
         String rawStatusName = req['R_Status_Name'] ?? '';
 
         if (statusData != null) {
-          rawStatusName = statusData['Name'] ?? statusData['identifier'] ?? rawStatusName;
+          rawStatusName =
+              statusData['Name'] ?? statusData['identifier'] ?? rawStatusName;
         }
 
         if (rawStatusName.isEmpty && statusObj is int) {
           // Buscar en caché global si solo llega el ID entero
-          rawStatusName = GlobalCache.statuses.keys.firstWhere((k) => GlobalCache.statuses[k] == statusObj, orElse: () => 'Desconocido');
+          rawStatusName = GlobalCache.statuses.keys.firstWhere(
+            (k) => GlobalCache.statuses[k] == statusObj,
+            orElse: () => 'Desconocido',
+          );
         }
 
         if (rawStatusName.isEmpty) rawStatusName = 'Desconocido';
 
-        String cleanStatus = rawStatusName.contains('_') ? rawStatusName.split('_').last.trim() : rawStatusName.trim();
+        String cleanStatus = rawStatusName.contains('_')
+            ? rawStatusName.split('_').last.trim()
+            : rawStatusName.trim();
         String lowerStatus = rawStatusName.toLowerCase();
 
         // Excluir "Anuladas" para no ensuciar las métricas de soporte
@@ -371,7 +560,11 @@ class _MetricsPageState extends State<MetricsPage> {
         }
 
         // Prioridad robusta
-        String priorityStr = req['Priority'] is Map ? (req['Priority']['identifier'] ?? req['Priority']['Name'] ?? 'Media') : (req['Priority']?.toString() ?? '5');
+        String priorityStr = req['Priority'] is Map
+            ? (req['Priority']['identifier'] ??
+                  req['Priority']['Name'] ??
+                  'Media')
+            : (req['Priority']?.toString() ?? '5');
 
         String priority = 'Media';
         final pLower = priorityStr.toLowerCase();
@@ -394,8 +587,16 @@ class _MetricsPageState extends State<MetricsPage> {
 
       if (mounted) {
         setState(() {
-          _supportPriorityLabels = ['Urgente', 'Alta', 'Media', 'Baja', 'Menor'].where((p) => priorityCounts.containsKey(p)).toList();
-          _supportPriorityValues = _supportPriorityLabels.map((p) => priorityCounts[p]!).toList();
+          _supportPriorityLabels = [
+            'Urgente',
+            'Alta',
+            'Media',
+            'Baja',
+            'Menor',
+          ].where((p) => priorityCounts.containsKey(p)).toList();
+          _supportPriorityValues = _supportPriorityLabels
+              .map((p) => priorityCounts[p]!)
+              .toList();
           _supportStatusLabels = statusCounts.keys.toList();
           _supportStatusValues = statusCounts.values.toList();
           _isLoadingSupport = false;
@@ -429,47 +630,78 @@ class _MetricsPageState extends State<MetricsPage> {
                       decoration: InputDecoration(
                         hintText: 'Buscar tercero...',
                         prefixIcon: const Icon(Icons.search),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
-                      onChanged: (val) => setModalState(() => searchQuery = val),
+                      onChanged: (val) =>
+                          setModalState(() => searchQuery = val),
                     ),
                     const SizedBox(height: 10),
                     Expanded(
-                      child: ListView.builder(
-                        itemCount: filteredBps.length + 1,
-                        itemBuilder: (context, index) {
-                          if (index == 0) {
-                            return Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                ListTile(
-                                  title: const Text('Todos los Terceros', style: TextStyle(fontWeight: FontWeight.bold)),
+                      child: filteredBps.isEmpty
+                          ? Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(24.0),
+                                child: Text(
+                                  "no se encontraron terceros validos para mostrar graficos",
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                            )
+                          : ListView.builder(
+                              itemCount: filteredBps.length + 1,
+                              itemBuilder: (context, index) {
+                                if (index == 0) {
+                                  return Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      ListTile(
+                                        title: const Text(
+                                          'Todos los Terceros',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        onTap: () {
+                                          setState(
+                                            () => _supportSelectedBpId = null,
+                                          );
+                                          _loadSupportMetrics();
+                                          Navigator.pop(context);
+                                        },
+                                      ),
+                                      const Divider(),
+                                    ],
+                                  );
+                                }
+                                final bp = filteredBps[index - 1];
+                                return ListTile(
+                                  title: Text(bp['Name'] ?? 'Sin Nombre'),
                                   onTap: () {
-                                    setState(() => _supportSelectedBpId = null);
+                                    setState(
+                                      () => _supportSelectedBpId = bp['id'],
+                                    );
                                     _loadSupportMetrics();
                                     Navigator.pop(context);
                                   },
-                                ),
-                                const Divider(),
-                              ],
-                            );
-                          }
-                          final bp = filteredBps[index - 1];
-                          return ListTile(
-                            title: Text(bp['Name'] ?? 'Sin Nombre'),
-                            onTap: () {
-                              setState(() => _supportSelectedBpId = bp['id']);
-                              _loadSupportMetrics();
-                              Navigator.pop(context);
-                            },
-                          );
-                        },
-                      ),
+                                );
+                              },
+                            ),
                     ),
                   ],
                 ),
               ),
-              actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar'))],
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancelar'),
+                ),
+              ],
             );
           },
         );
@@ -483,48 +715,122 @@ class _MetricsPageState extends State<MetricsPage> {
       builder: (context) {
         String searchQuery = "";
         return StatefulBuilder(
-          builder: (context, setModalState) {
-            final filteredProjects = _projects.where((p) {
-              final name = (p['Name'] ?? '').toString().toLowerCase();
-              return name.contains(searchQuery.toLowerCase());
-            }).toList();
+          builder: (modalCtx, setModalState) {
+            return AnimatedBuilder(
+              animation: _projectsLoadNotifier,
+              builder: (context, child) {
+                // Escuchamos cambios del padre si es necesario (aproximación simple)
+                final bool isLoading = _isProjectsLoading;
+                final projectsList = _projects;
 
-            return CustomModal(
-              title: 'Seleccionar Proyecto',
-              width: 500,
-              content: SizedBox(
-                height: 400,
-                child: Column(
-                  children: [
-                    TextField(
-                      decoration: InputDecoration(
-                        hintText: 'Buscar proyecto...',
-                        prefixIcon: const Icon(Icons.search),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                      onChanged: (val) => setModalState(() => searchQuery = val),
+                final filteredProjects = projectsList.where((p) {
+                  final name = (p['Name'] ?? 'Sin Nombre')
+                      .toString()
+                      .toLowerCase();
+                  return name.contains(searchQuery.toLowerCase());
+                }).toList();
+
+                return CustomModal(
+                  title: 'Seleccionar Proyecto',
+                  width: 500,
+                  content: SizedBox(
+                    height: 450,
+                    child: Column(
+                      children: [
+                        TextField(
+                          decoration: InputDecoration(
+                            hintText: 'Buscar proyecto...',
+                            prefixIcon: const Icon(Icons.search),
+                            suffixIcon: isLoading
+                                ? const Padding(
+                                    padding: EdgeInsets.all(12),
+                                    child: SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                  )
+                                : null,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          onChanged: (val) =>
+                              setModalState(() => searchQuery = val),
+                        ),
+                        const SizedBox(height: 16),
+                        Expanded(
+                          child: isLoading && projectsList.isEmpty
+                              ? const Center(child: CircularProgressIndicator())
+                              : projectsList.isEmpty
+                              ? Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.folder_off_outlined,
+                                        size: 48,
+                                        color: Colors.grey.withOpacity(0.5),
+                                      ),
+                                      const SizedBox(height: 16),
+                                      const Padding(
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: 24.0,
+                                        ),
+                                        child: Text(
+                                          "no se encontro ningun proyecto relacionado a tu tercero actual",
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(color: Colors.grey),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      TextButton(
+                                        onPressed: () async {
+                                          await _loadProjects();
+                                          setModalState(
+                                            () {},
+                                          ); // Forzar rebuild del modal
+                                        },
+                                        child: const Text("Reintentar"),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : ListView.separated(
+                                  itemCount: filteredProjects.length,
+                                  separatorBuilder: (_, __) =>
+                                      const Divider(height: 1),
+                                  itemBuilder: (context, index) {
+                                    final p = filteredProjects[index];
+                                    return ListTile(
+                                      title: Text(p['Name'] ?? 'Sin Nombre'),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      onTap: () {
+                                        setState(
+                                          () => _selectedProjectId = p['id'],
+                                        );
+                                        _loadMetrics();
+                                        Navigator.pop(context);
+                                      },
+                                    );
+                                  },
+                                ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 10),
-                    Expanded(
-                      child: ListView.builder(
-                        itemCount: filteredProjects.length,
-                        itemBuilder: (context, index) {
-                          final p = filteredProjects[index];
-                          return ListTile(
-                            title: Text(p['Name'] ?? 'Sin Nombre'),
-                            onTap: () {
-                              setState(() => _selectedProjectId = p['id']);
-                              _loadMetrics();
-                              Navigator.pop(context);
-                            },
-                          );
-                        },
-                      ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancelar'),
                     ),
                   ],
-                ),
-              ),
-              actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar'))],
+                );
+              },
             );
           },
         );
@@ -532,167 +838,545 @@ class _MetricsPageState extends State<MetricsPage> {
     );
   }
 
+  Widget _buildAdminModePopupMenu() {
+    return PopupMenuButton<AdminViewMode>(
+      tooltip: 'Cambiar modo de vista',
+      onSelected: (AdminViewMode mode) {
+        _adminViewModeManager.saveMode(mode);
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.admin_panel_settings),
+            const SizedBox(width: 8),
+            Text(
+              _adminViewModeManager.currentMode == AdminViewMode.support
+                  ? 'Modo Soporte'
+                  : (_adminViewModeManager.currentMode == AdminViewMode.project
+                        ? 'Modo Proyecto'
+                        : 'Mixto'),
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const Icon(Icons.arrow_drop_down),
+          ],
+        ),
+      ),
+      itemBuilder: (BuildContext context) {
+        final current = _adminViewModeManager.currentMode;
+        final colorScheme = Theme.of(context).colorScheme;
+        PopupMenuItem<AdminViewMode> buildItem(
+          AdminViewMode mode,
+          String text,
+        ) {
+          final isSelected = current == mode;
+          return PopupMenuItem<AdminViewMode>(
+            value: mode,
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? colorScheme.primary.withOpacity(0.1)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                children: [
+                  Text(
+                    text,
+                    style: TextStyle(
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                      color: isSelected
+                          ? colorScheme.primary
+                          : colorScheme.onSurface,
+                    ),
+                  ),
+                  if (isSelected) const Spacer(),
+                  if (isSelected)
+                    Icon(Icons.check, size: 18, color: colorScheme.primary),
+                ],
+              ),
+            ),
+          );
+        }
+
+        return [
+          buildItem(AdminViewMode.mixed, 'Modo Mixto'),
+          buildItem(AdminViewMode.support, 'Modo Soporte'),
+          buildItem(AdminViewMode.project, 'Modo Proyecto'),
+        ];
+      },
+    );
+  }
+
+  Widget _buildProjectFilterPopupMenu() {
+    return PopupMenuButton<bool>(
+      tooltip: 'Filtrar proyectos',
+      onSelected: (bool viewingMine) {
+        _selectedProjectId = null;
+        _projects = [];
+        _adminViewModeManager.setViewingMine(viewingMine);
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              _adminViewModeManager.isViewingMine ? Icons.person : Icons.group,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              _adminViewModeManager.isViewingMine
+                  ? 'Mis Proyectos'
+                  : 'Todos los Proyectos',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const Icon(Icons.arrow_drop_down),
+          ],
+        ),
+      ),
+      itemBuilder: (BuildContext context) {
+        final colorScheme = Theme.of(context).colorScheme;
+        final isViewingMine = _adminViewModeManager.isViewingMine;
+        PopupMenuItem<bool> buildItem(
+          bool isMineOption,
+          String text,
+          IconData icon,
+        ) {
+          final isSelected = isViewingMine == isMineOption;
+          return PopupMenuItem<bool>(
+            value: isMineOption,
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? colorScheme.primary.withOpacity(0.1)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                children: [
+                  Icon(
+                    icon,
+                    size: 20,
+                    color: isSelected
+                        ? colorScheme.primary
+                        : colorScheme.onSurface,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    text,
+                    style: TextStyle(
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                      color: isSelected
+                          ? colorScheme.primary
+                          : colorScheme.onSurface,
+                    ),
+                  ),
+                  if (isSelected) const Spacer(),
+                  if (isSelected)
+                    Icon(Icons.check, size: 18, color: colorScheme.primary),
+                ],
+              ),
+            ),
+          );
+        }
+
+        return [
+          buildItem(true, 'Mis Proyectos', Icons.person),
+          buildItem(false, 'Todos los Proyectos', Icons.group),
+        ];
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isLargeScreen = MediaQuery.of(context).size.width >= 1100;
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('BI - Gestión iDempiere'),
+        leadingWidth: !AccessControl.isAdmin ? 180 : null,
+        leading: !AccessControl.isAdmin
+            ? const UserInfoLeading()
+            : Builder(
+                builder: (ctx) => IconButton(
+                  icon: const Icon(Icons.menu_rounded),
+                  tooltip: 'Menú Principal',
+                  onPressed: () => Scaffold.of(ctx).openDrawer(),
+                ),
+              ),
+        title: const Text('Indicadores (BI)'),
         actions: [
-          if (AccessControl.isAdmin)
-            PopupMenuButton<AdminViewMode>(
-              tooltip: 'Cambiar modo de vista',
-              onSelected: (AdminViewMode mode) {
-                _adminViewModeManager.saveMode(mode);
-              },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.admin_panel_settings),
-                    const SizedBox(width: 8),
-                    Text(_adminViewModeManager.currentMode == AdminViewMode.support ? 'Modo Soporte' : (_adminViewModeManager.currentMode == AdminViewMode.project ? 'Modo Proyecto' : 'Modo Mixto'), style: const TextStyle(fontWeight: FontWeight.bold)),
-                    const Icon(Icons.arrow_drop_down),
-                  ],
+          if (AccessControl.isAdmin) ..._buildAdminAppBarActions(context),
+          if (GlobalCache.backgroundSyncNotifier.value)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Center(
+                child: SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Theme.of(context).colorScheme.onPrimary,
+                  ),
                 ),
               ),
-              itemBuilder: (BuildContext context) {
-                final current = _adminViewModeManager.currentMode;
-                final colorScheme = Theme.of(context).colorScheme;
-                PopupMenuItem<AdminViewMode> buildItem(AdminViewMode mode, String text) {
-                  final isSelected = current == mode;
-                  return PopupMenuItem<AdminViewMode>(
-                    value: mode,
-                    child: Container(
-                      width: double.infinity,
-                      decoration: BoxDecoration(color: isSelected ? colorScheme.primary.withOpacity(0.1) : Colors.transparent, borderRadius: BorderRadius.circular(8)),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      child: Row(
-                        children: [
-                          Text(
-                            text,
-                            style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? colorScheme.primary : colorScheme.onSurface),
-                          ),
-                          if (isSelected) const Spacer(),
-                          if (isSelected) Icon(Icons.check, size: 18, color: colorScheme.primary),
-                        ],
-                      ),
-                    ),
-                  );
-                }
-
-                return [buildItem(AdminViewMode.mixed, 'Modo Mixto'), buildItem(AdminViewMode.support, 'Modo Soporte'), buildItem(AdminViewMode.project, 'Modo Proyecto')];
-              },
             ),
-          if (AccessControl.isAdmin)
-            PopupMenuButton<bool>(
-              tooltip: 'Filtrar proyectos',
-              onSelected: (bool viewingMine) {
-                _selectedProjectId = null; // Fuerza a la UI a reiniciar la selección visualmente
-                _projects = []; // Evita retener proyectos de la vista anterior
-                _adminViewModeManager.setViewingMine(viewingMine);
-              },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(_adminViewModeManager.isViewingMine ? Icons.person : Icons.group),
-                    const SizedBox(width: 8),
-                    Text(_adminViewModeManager.isViewingMine ? 'Mis Proyectos' : 'Todos los Proyectos', style: const TextStyle(fontWeight: FontWeight.bold)),
-                    const Icon(Icons.arrow_drop_down),
-                  ],
-                ),
-              ),
-              itemBuilder: (BuildContext context) {
-                final colorScheme = Theme.of(context).colorScheme;
-                final isViewingMine = _adminViewModeManager.isViewingMine;
-                PopupMenuItem<bool> buildItem(bool isMineOption, String text, IconData icon) {
-                  final isSelected = isViewingMine == isMineOption;
-                  return PopupMenuItem<bool>(
-                    value: isMineOption,
-                    child: Container(
-                      width: double.infinity,
-                      decoration: BoxDecoration(color: isSelected ? colorScheme.primary.withOpacity(0.1) : Colors.transparent, borderRadius: BorderRadius.circular(8)),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      child: Row(
-                        children: [
-                          Icon(icon, size: 20, color: isSelected ? colorScheme.primary : colorScheme.onSurface),
-                          const SizedBox(width: 8),
-                          Text(
-                            text,
-                            style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? colorScheme.primary : colorScheme.onSurface),
-                          ),
-                          if (isSelected) const Spacer(),
-                          if (isSelected) Icon(Icons.check, size: 18, color: colorScheme.primary),
-                        ],
-                      ),
-                    ),
-                  );
-                }
-
-                return [buildItem(true, 'Mis Proyectos', Icons.person), buildItem(false, 'Todos los Proyectos', Icons.group)];
-              },
+          const HelpIcon(),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () => GlobalCache.performSmartSync(context, () async {
+              if (AccessControl.canViewProjectCharts) await _loadMetrics();
+              if (AccessControl.canViewSupportCharts)
+                await _loadSupportMetrics();
+            }),
+          ),
+          if (!AccessControl.isAdmin)
+            IconButton(
+              icon: const Icon(Icons.logout_rounded, color: Colors.red),
+              tooltip: 'Cerrar Sesión',
+              onPressed: () => showLogoutConfirmation(context),
             ),
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadMetrics),
         ],
       ),
-      drawer: const CustomDrawer(),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
+      drawer: AccessControl.isAdmin
+          ? const CustomDrawer(currentRoute: '/metrics')
+          : null,
+      bottomNavigationBar:
+          (MediaQuery.of(context).size.width < 900 && !AccessControl.isAdmin)
+          ? const ProjectBottomNav(currentRoute: '/metrics')
+          : null,
+      body: SafeArea(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (AccessControl.canViewProjectCharts) ...[
-              const Padding(
-                padding: EdgeInsets.only(bottom: 20),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text('Métricas de Proyecto', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                ),
+            if (MediaQuery.of(context).size.width >= 900 &&
+                !AccessControl.isAdmin)
+            const ProjectSideBar(currentRoute: '/metrics'),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                children: [
+                  // --- SECCIÓN PROYECTOS ---
+                  if (AccessControl.canViewProjectCharts) ...[
+                    _buildSectionHeader(
+                      context,
+                      'Métricas de Proyecto',
+                      Icons.insights_rounded,
+                    ),
+                    _buildControlCenterContainer(
+                      context,
+                      child: _buildProjectFilters(),
+                    ),
+                    const SizedBox(height: 24),
+
+                    if (_selectedProjectId == null)
+                      _buildWaitingForSelection(
+                        context,
+                        'Seleccione un proyecto para visualizar sus indicadores',
+                      )
+                    else if (_isLoading)
+                      _buildSkeletonGrid()
+                    else ...[
+                      _buildProjectKPIRow(context),
+                      const SizedBox(height: 24),
+                      _buildDashboardGrid(isLargeScreen),
+                    ],
+                  ],
+
+                  if (AccessControl.canViewProjectCharts &&
+                      AccessControl.canViewSupportCharts)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 32),
+                      child: Divider(thickness: 1.5, color: Colors.black12),
+                    ),
+
+                  // --- SECCIÓN SOPORTE ---
+                  if (AccessControl.canViewSupportCharts) ...[
+                    _buildSectionHeader(
+                      context,
+                      'Métricas de Soporte',
+                      Icons.support_agent_rounded,
+                    ),
+                    _buildControlCenterContainer(
+                      context,
+                      child: _buildSupportFilters(),
+                    ),
+                    const SizedBox(height: 24),
+
+                    if (!_isLoadingSupport) _buildSupportKPIRow(context),
+                    const SizedBox(height: 24),
+
+                    _isLoadingSupport
+                        ? _buildSkeletonGrid()
+                        : _buildSupportDashboardGrid(isLargeScreen),
+                  ],
+
+                  if (!AccessControl.canViewProjectCharts &&
+                      !AccessControl.canViewSupportCharts)
+                    _buildNoDataView(context),
+                ],
               ),
-              _buildProjectFilters(),
-              const SizedBox(height: 20),
-              _isLoading
-                  ? const Center(
-                      child: Padding(padding: EdgeInsets.all(50.0), child: CircularProgressIndicator()),
-                    )
-                  : _buildDashboardGrid(isLargeScreen),
-            ] else ...[
-              const SizedBox.shrink(),
-            ],
-            if (AccessControl.canViewProjectCharts && AccessControl.canViewSupportCharts) const Padding(padding: EdgeInsets.symmetric(vertical: 20), child: Divider(thickness: 1)),
-            if (AccessControl.canViewSupportCharts) ...[
-              const Padding(
-                padding: EdgeInsets.only(bottom: 20),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text('Métricas de Soporte', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                ),
-              ),
-              _buildSupportFilters(),
-              const SizedBox(height: 20),
-              _isLoadingSupport
-                  ? const Center(
-                      child: Padding(padding: EdgeInsets.all(50.0), child: CircularProgressIndicator()),
-                    )
-                  : _buildSupportDashboardGrid(isLargeScreen),
-            ],
-            if (!AccessControl.canViewProjectCharts && !AccessControl.canViewSupportCharts)
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(50.0),
-                  child: Text("No hay métricas disponibles para la vista actual.", style: TextStyle(color: Colors.grey)),
-                ),
-              ),
-          ],
-        ),
+            ),
+          ),
+        ],
+      ),
       ),
     );
   }
 
+  Widget _buildSectionHeader(
+    BuildContext context,
+    String title,
+    IconData icon,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Row(
+        children: [
+          Icon(icon, color: colorScheme.primary, size: 28),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              title,
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: colorScheme.onSurface,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildControlCenterContainer(
+    BuildContext context, {
+    required Widget child,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.5)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+
+  Widget _buildProjectKPIRow(BuildContext context) {
+    // Calculamos el total basado en los datos de cumplimiento (mismo que el gráfico de dona)
+    final totalComp = _complianceValues.isEmpty
+        ? 0
+        : _complianceValues.reduce((a, b) => a + b).toInt();
+
+    double completedPct = 0;
+    int completedIdx = _complianceLabels.indexOf('TERMINADA');
+    if (completedIdx != -1 && totalComp > 0) {
+      completedPct = (_complianceValues[completedIdx] / totalComp) * 100;
+    }
+
+    int pendingCount = 0;
+    int pendingIdx = _complianceLabels.indexOf('PENDIENTE');
+    if (pendingIdx != -1) pendingCount = _complianceValues[pendingIdx].toInt();
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double cardWidth;
+        if (constraints.maxWidth < 480) {
+          cardWidth = constraints.maxWidth;
+        } else if (constraints.maxWidth < 750) {
+          cardWidth = (constraints.maxWidth - 16) / 2;
+        } else {
+          cardWidth = (constraints.maxWidth - 32) / 3;
+        }
+
+        return Wrap(
+          spacing: 16,
+          runSpacing: 16,
+          children: [
+            _KPICard(
+              title: 'Total Solicitudes',
+              value: totalComp.toString(),
+              icon: Icons.assignment_rounded,
+              color: Colors.blue,
+              width: cardWidth,
+            ),
+            _KPICard(
+              title: 'Cumplimiento',
+              value: '${completedPct.toStringAsFixed(1)}%',
+              icon: Icons.check_circle_outline_rounded,
+              color: ColorTheme.success,
+              width: cardWidth,
+            ),
+            _KPICard(
+              title: 'Pendientes',
+              value: pendingCount.toString(),
+              icon: Icons.pending_actions_rounded,
+              color: ColorTheme.atention,
+              width: cardWidth,
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildSupportKPIRow(BuildContext context) {
+    final total = _supportStatusValues.isEmpty
+        ? 0
+        : _supportStatusValues.reduce((a, b) => a + b).toInt();
+
+    int urgentCount = 0;
+    int urgentIdx = _supportPriorityLabels.indexOf('Urgente');
+    if (urgentIdx != -1)
+      urgentCount = _supportPriorityValues[urgentIdx].toInt();
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double cardWidth;
+        if (constraints.maxWidth < 480) {
+          cardWidth = constraints.maxWidth;
+        } else {
+          cardWidth = (constraints.maxWidth - 16) / 2;
+        }
+
+        return Wrap(
+          spacing: 16,
+          runSpacing: 16,
+          children: [
+            _KPICard(
+              title: 'Solicitudes Totales',
+              value: total.toString(),
+              icon: Icons.confirmation_number_rounded,
+              color: Colors.indigo,
+              width: cardWidth,
+            ),
+            _KPICard(
+              title: 'Tickets Críticos',
+              value: urgentCount.toString(),
+              icon: Icons.warning_amber_rounded,
+              color: Colors.red,
+              width: cardWidth,
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildSkeletonGrid() => Column(
+    children: [
+      Row(
+        children: [
+          Expanded(child: CustomSkeleton(height: 300, borderRadius: 16)),
+          const SizedBox(width: 20),
+          Expanded(child: CustomSkeleton(height: 300, borderRadius: 16)),
+        ],
+      ),
+      const SizedBox(height: 24),
+      Row(
+        children: [
+          Expanded(child: CustomSkeleton(height: 300, borderRadius: 16)),
+          const SizedBox(width: 20),
+          Expanded(child: CustomSkeleton(height: 300, borderRadius: 16)),
+        ],
+      ),
+    ],
+  );
+
+  Widget _buildNoDataView(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(64.0),
+      child: Column(
+        children: [
+          Icon(
+            Icons.bar_chart_rounded,
+            size: 64,
+            color: Colors.grey.withOpacity(0.3),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            "No hay métricas disponibles para la vista actual.",
+            style: Theme.of(
+              context,
+            ).textTheme.bodyLarge?.copyWith(color: Colors.grey),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  Widget _buildWaitingForSelection(BuildContext context, String message) =>
+      Center(
+        child: Padding(
+          padding: const EdgeInsets.all(48.0),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withOpacity(0.05),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.ads_click_rounded,
+                  size: 48,
+                  color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: Colors.grey,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+
   Widget _buildDashboardGrid(bool isLargeScreen) {
-    final List<Color> pieColors = [const Color(0xFF42A5F5), const Color(0xFF66BB6A), const Color(0xFFFFA726), const Color(0xFFAB47BC), const Color(0xFFEF5350), const Color(0xFF26A69A), const Color(0xFFEC407A), const Color(0xFFFFCA28), const Color(0xFF5C6BC0), const Color(0xFF8D6E63)];
+    final List<Color> pieColors = [
+      const Color(0xFF42A5F5),
+      const Color(0xFF66BB6A),
+      const Color(0xFFFFA726),
+      const Color(0xFFAB47BC),
+      const Color(0xFFEF5350),
+      const Color(0xFF26A69A),
+      const Color(0xFFEC407A),
+      const Color(0xFFFFCA28),
+      const Color(0xFF5C6BC0),
+      const Color(0xFF8D6E63),
+    ];
+
+    int? hoveredStackedSeriesIndex;
 
     final List<Color> mappedComplianceColors = _complianceLabels.map((l) {
       if (l == 'TERMINADA') return ColorTheme.success; // Verde
@@ -710,7 +1394,13 @@ class _MetricsPageState extends State<MetricsPage> {
               _complianceLabels,
               mappedComplianceColors,
               onSliceTapped: (label) {
-                context.push('/metric-requests', extra: {'projectId': _selectedProjectId, 'filterCompliance': label});
+                context.push(
+                  '/metric-requests',
+                  extra: {
+                    'projectId': _selectedProjectId,
+                    'filterCompliance': label,
+                  },
+                );
               },
             ),
     );
@@ -725,7 +1415,13 @@ class _MetricsPageState extends State<MetricsPage> {
               _statusLabels,
               pieColors,
               onSliceTapped: (label) {
-                context.push('/metric-requests', extra: {'projectId': _selectedProjectId, 'filterStatus': label});
+                context.push(
+                  '/metric-requests',
+                  extra: {
+                    'projectId': _selectedProjectId,
+                    'filterStatus': label,
+                  },
+                );
               },
             ),
     );
@@ -735,23 +1431,113 @@ class _MetricsPageState extends State<MetricsPage> {
       300,
       _modulePercentageValues.isEmpty
           ? _buildEmptyView()
-          : Column(
-              children: [
-                Row(mainAxisAlignment: MainAxisAlignment.center, children: [_buildLegendDot('Terminada', ColorTheme.success), const SizedBox(width: 8), _buildLegendDot('Pendiente', ColorTheme.atention), const SizedBox(width: 8), _buildLegendDot('Espera de Cliente', Colors.blue)]),
-                const SizedBox(height: 10),
-                Expanded(
-                  child: CustomStackedBarChart(
-                    labels: _moduleLabels,
-                    fullLabels: _moduleFullLabels,
-                    seriesValues: [_moduleTerminadaValues, _modulePendienteValues, _moduleEsperaValues],
-                    seriesNames: const ['Terminada', 'Pendiente', 'Espera de Cliente'],
-                    colors: const [ColorTheme.success, ColorTheme.atention, Colors.blue],
-                    onBarTapped: (category, series) {
-                      context.push('/metric-requests', extra: {'projectId': _selectedProjectId, 'filterType': category, 'filterCompliance': series.toUpperCase()});
-                    },
-                  ),
-                ),
-              ],
+          : StatefulBuilder(
+              builder: (context, setStateLegend) {
+                return Column(
+                  children: [
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: [
+                        _buildInteractiveLegendDot(
+                          context,
+                          'Terminada',
+                          ColorTheme.success,
+                          hoveredStackedSeriesIndex == 0,
+                          hoveredStackedSeriesIndex != null,
+                          () => setStateLegend(
+                            () => hoveredStackedSeriesIndex = 0,
+                          ),
+                          () => setStateLegend(
+                            () => hoveredStackedSeriesIndex = null,
+                          ),
+                          () => context.push(
+                            '/metric-requests',
+                            extra: {
+                              'projectId': _selectedProjectId,
+                              'filterCompliance': 'TERMINADA',
+                            },
+                          ),
+                        ),
+                        _buildInteractiveLegendDot(
+                          context,
+                          'Pendiente',
+                          ColorTheme.atention,
+                          hoveredStackedSeriesIndex == 1,
+                          hoveredStackedSeriesIndex != null,
+                          () => setStateLegend(
+                            () => hoveredStackedSeriesIndex = 1,
+                          ),
+                          () => setStateLegend(
+                            () => hoveredStackedSeriesIndex = null,
+                          ),
+                          () => context.push(
+                            '/metric-requests',
+                            extra: {
+                              'projectId': _selectedProjectId,
+                              'filterCompliance': 'PENDIENTE',
+                            },
+                          ),
+                        ),
+                        _buildInteractiveLegendDot(
+                          context,
+                          'Espera de Cliente',
+                          Colors.blue,
+                          hoveredStackedSeriesIndex == 2,
+                          hoveredStackedSeriesIndex != null,
+                          () => setStateLegend(
+                            () => hoveredStackedSeriesIndex = 2,
+                          ),
+                          () => setStateLegend(
+                            () => hoveredStackedSeriesIndex = null,
+                          ),
+                          () => context.push(
+                            '/metric-requests',
+                            extra: {
+                              'projectId': _selectedProjectId,
+                              'filterCompliance': 'ESPERA DE CLIENTE',
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Expanded(
+                      child: CustomStackedBarChart(
+                        labels: _moduleLabels,
+                        fullLabels: _moduleFullLabels,
+                        seriesValues: [
+                          _moduleTerminadaValues,
+                          _modulePendienteValues,
+                          _moduleEsperaValues,
+                        ],
+                        seriesNames: const [
+                          'Terminada',
+                          'Pendiente',
+                          'Espera de Cliente',
+                        ],
+                        colors: const [
+                          ColorTheme.success,
+                          ColorTheme.atention,
+                          Colors.blue,
+                        ],
+                        hoveredSeriesIndex: hoveredStackedSeriesIndex,
+                        onBarTapped: (category, series) {
+                          context.push(
+                            '/metric-requests',
+                            extra: {
+                              'projectId': _selectedProjectId,
+                              'filterType': category,
+                              'filterCompliance': series.toUpperCase(),
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
     );
 
@@ -768,7 +1554,10 @@ class _MetricsPageState extends State<MetricsPage> {
               leftAxisSuffix: '%',
               tooltipSuffix: '%',
               onBarTapped: (label) {
-                context.push('/metric-requests', extra: {'projectId': _selectedProjectId, 'filterType': label});
+                context.push(
+                  '/metric-requests',
+                  extra: {'projectId': _selectedProjectId, 'filterType': label},
+                );
               },
             ),
     );
@@ -810,9 +1599,26 @@ class _MetricsPageState extends State<MetricsPage> {
   }
 
   Widget _buildSupportDashboardGrid(bool isLargeScreen) {
-    final List<Color> donutColors2 = [const Color(0xFF5C6BC0), const Color(0xFF8D6E63), const Color(0xFFEC407A), const Color(0xFFFFCA28), const Color(0xFF29B6F6), const Color(0xFF9CCC65)];
+    final List<Color> donutColors2 = [
+      const Color(0xFF5C6BC0),
+      const Color(0xFF8D6E63),
+      const Color(0xFFEC407A),
+      const Color(0xFFFFCA28),
+      const Color(0xFF29B6F6),
+      const Color(0xFF9CCC65),
+    ];
 
-    Widget statusChart = _buildChartCard('Estado de Solicitudes', 300, _supportStatusValues.isEmpty ? _buildEmptyView() : _buildDonutWithLegend(_supportStatusValues, _supportStatusLabels, donutColors2));
+    Widget statusChart = _buildChartCard(
+      'Estado de Solicitudes',
+      300,
+      _supportStatusValues.isEmpty
+          ? _buildEmptyView()
+          : _buildDonutWithLegend(
+              _supportStatusValues,
+              _supportStatusLabels,
+              donutColors2,
+            ),
+    );
 
     final List<Color> priorityColors = _supportPriorityLabels.map((p) {
       if (p == 'Urgente') return ColorTheme.error;
@@ -822,7 +1628,18 @@ class _MetricsPageState extends State<MetricsPage> {
       return Colors.grey;
     }).toList();
 
-    Widget priorityChart = _buildChartCard('Solicitudes por Prioridad', 300, _supportPriorityValues.isEmpty ? _buildEmptyView() : CustomBarChart(labels: _supportPriorityLabels, values: _supportPriorityValues, colors: priorityColors, tooltipSuffix: 'sol.'));
+    Widget priorityChart = _buildChartCard(
+      'Solicitudes por Prioridad',
+      300,
+      _supportPriorityValues.isEmpty
+          ? _buildEmptyView()
+          : CustomBarChart(
+              labels: _supportPriorityLabels,
+              values: _supportPriorityValues,
+              colors: priorityColors,
+              tooltipSuffix: 'sol.',
+            ),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -845,66 +1662,90 @@ class _MetricsPageState extends State<MetricsPage> {
     );
   }
 
-  Widget _buildDonutWithLegend(List<double> values, List<String> labels, List<Color> colors, {String suffix = 'sol.', Function(String label)? onSliceTapped}) {
-    return Row(
-      children: [
-        Expanded(
-          flex: 5,
-          child: CustomDonutChart(values: values, labels: labels, colors: colors, onSliceTapped: onSliceTapped),
-        ),
-        Expanded(
-          flex: 6,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: List.generate(labels.length, (i) {
-                final val = values[i];
-                final total = values.reduce((a, b) => a + b);
-                final pct = total > 0 ? (val / total * 100) : 0.0;
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6.0),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 12,
-                        height: 12,
-                        decoration: BoxDecoration(color: colors[i % colors.length], shape: BoxShape.circle),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(child: Text('${labels[i]}\n${val.toInt()} $suffix (${pct.toStringAsFixed(1)}%)', style: const TextStyle(fontSize: 11, height: 1.2))),
-                    ],
-                  ),
-                );
-              }),
-            ),
-          ),
-        ),
-      ],
+  Widget _buildDonutWithLegend(
+    List<double> values,
+    List<String> labels,
+    List<Color> colors, {
+    String suffix = 'sol.',
+    Function(String label)? onSliceTapped,
+  }) {
+    return _DonutWithLegendWidget(
+      values: values,
+      labels: labels,
+      colors: colors,
+      suffix: suffix,
+      onSliceTapped: onSliceTapped,
     );
   }
 
-  Widget _buildChartCard(String title, double height, Widget child) => CustomContainer(
-    title: title,
-    child: SizedBox(height: height, child: child),
+  Widget _buildChartCard(String title, double height, Widget child) =>
+      CustomContainer(
+        title: title,
+        child: SizedBox(height: height, child: child),
+      );
+
+  Widget _buildEmptyView() => Center(
+    child: Text(
+      AccessControl.isProject
+          ? "no se encontro ningun proyecto relacionado a tu tercero actual"
+          : "Sin datos relevantes para este proyecto",
+      style: const TextStyle(color: Colors.grey),
+    ),
   );
 
-  Widget _buildEmptyView() => const Center(
-    child: Text("Sin datos relevantes para este proyecto", style: TextStyle(color: Colors.grey)),
-  );
-
-  Widget _buildLegendDot(String text, Color color) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+  Widget _buildInteractiveLegendDot(
+    BuildContext context,
+    String text,
+    Color color,
+    bool isHovered,
+    bool isAnyHovered,
+    VoidCallback onEnter,
+    VoidCallback onExit,
+    VoidCallback onTap,
+  ) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => onEnter(),
+      onExit: (_) => onExit(),
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
+          decoration: BoxDecoration(
+            color: isHovered ? color.withOpacity(0.1) : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: isHovered ? 14 : 10,
+                height: isHovered ? 14 : 10,
+                decoration: BoxDecoration(
+                  color: isAnyHovered && !isHovered
+                      ? Colors.grey.withOpacity(0.3)
+                      : color,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 6),
+              AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 200),
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: isHovered ? FontWeight.bold : FontWeight.normal,
+                  color: isAnyHovered && !isHovered
+                      ? Theme.of(context).colorScheme.onSurface.withOpacity(0.4)
+                      : Theme.of(context).colorScheme.onSurface,
+                ),
+                child: Text(text),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(width: 4),
-        Text(text, style: const TextStyle(fontSize: 10)),
-      ],
+      ),
     );
   }
 
@@ -915,17 +1756,41 @@ class _MetricsPageState extends State<MetricsPage> {
         const SizedBox(width: 15),
         Expanded(
           child: InkWell(
-            onTap: _projects.isEmpty ? null : _showProjectSearchModal,
+            onTap: _showProjectSearchModal,
             child: InputDecorator(
               decoration: InputDecoration(
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8.0),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 16,
+                ),
+                suffixIcon: _isProjectsLoading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: Padding(
+                          padding: EdgeInsets.all(12),
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                    : null,
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Expanded(
-                    child: Text(_selectedProjectId == null ? 'Seleccione un Proyecto' : (_projects.firstWhere((p) => p['id'] == _selectedProjectId, orElse: () => {'Name': 'Desconocido'})['Name'] ?? 'Sin Nombre'), overflow: TextOverflow.ellipsis),
+                    child: Text(
+                      _selectedProjectId == null
+                          ? 'Seleccione un Proyecto'
+                          : (_projects.firstWhere(
+                                  (p) => p['id'] == _selectedProjectId,
+                                  orElse: () => {'Name': 'Desconocido'},
+                                )['Name'] ??
+                                'Sin Nombre'),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                   const Icon(Icons.search, color: Colors.grey),
                 ],
@@ -945,8 +1810,16 @@ class _MetricsPageState extends State<MetricsPage> {
             label: 'Año',
             value: _supportSelectedYear,
             items: [
-              const DropdownMenuItem<int?>(value: null, child: Text('Todos los Años')),
-              ...List.generate(5, (index) => DateTime.now().year - index).map((year) => DropdownMenuItem<int?>(value: year, child: Text(year.toString()))),
+              const DropdownMenuItem<int?>(
+                value: null,
+                child: Text('Todos los Años'),
+              ),
+              ...List.generate(5, (index) => DateTime.now().year - index).map(
+                (year) => DropdownMenuItem<int?>(
+                  value: year,
+                  child: Text(year.toString()),
+                ),
+              ),
             ],
             onChanged: (val) {
               setState(() => _supportSelectedYear = val);
@@ -958,18 +1831,34 @@ class _MetricsPageState extends State<MetricsPage> {
           const SizedBox(width: 16),
           Expanded(
             child: InkWell(
-              onTap: _supportBPartners.isEmpty ? null : _showBPartnerSearchModal,
+              onTap: _supportBPartners.isEmpty
+                  ? null
+                  : _showBPartnerSearchModal,
               child: InputDecorator(
                 decoration: InputDecoration(
                   labelText: 'Tercero',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8.0),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 16,
+                  ),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Expanded(
-                      child: Text(_supportSelectedBpId == null ? 'Todos los Terceros' : (_supportBPartners.firstWhere((bp) => bp['id'] == _supportSelectedBpId, orElse: () => {'Name': 'Desconocido'})['Name'] ?? 'Sin Nombre'), overflow: TextOverflow.ellipsis),
+                      child: Text(
+                        _supportSelectedBpId == null
+                            ? 'Todos los Terceros'
+                            : (_supportBPartners.firstWhere(
+                                    (bp) => bp['id'] == _supportSelectedBpId,
+                                    orElse: () => {'Name': 'Desconocido'},
+                                  )['Name'] ??
+                                  'Sin Nombre'),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                     const Icon(Icons.search, color: Colors.grey),
                   ],
@@ -982,3 +1871,330 @@ class _MetricsPageState extends State<MetricsPage> {
     );
   }
 }
+
+class _DonutWithLegendWidget extends StatefulWidget {
+  final List<double> values;
+  final List<String> labels;
+  final List<Color> colors;
+  final String suffix;
+  final Function(String label)? onSliceTapped;
+
+  const _DonutWithLegendWidget({
+    required this.values,
+    required this.labels,
+    required this.colors,
+    this.suffix = 'sol.',
+    this.onSliceTapped,
+  });
+
+  @override
+  State<_DonutWithLegendWidget> createState() => _DonutWithLegendWidgetState();
+}
+
+class _DonutWithLegendWidgetState extends State<_DonutWithLegendWidget> {
+  int? _hoveredIndex;
+  final ScrollController _scrollController = ScrollController();
+  bool _showTopArrow = false;
+  bool _showBottomArrow = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_updateArrows);
+    // Evaluar las flechas justo después del primer renderizado
+    WidgetsBinding.instance.addPostFrameCallback((_) => _updateArrows());
+  }
+
+  @override
+  void didUpdateWidget(covariant _DonutWithLegendWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _updateArrows());
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_updateArrows);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _updateArrows() {
+    if (!mounted || !_scrollController.hasClients) return;
+    final position = _scrollController.position;
+
+    final showTop = position.pixels > 0;
+    final showBottom = position.pixels < position.maxScrollExtent;
+
+    if (_showTopArrow != showTop || _showBottomArrow != showBottom) {
+      setState(() {
+        _showTopArrow = showTop;
+        _showBottomArrow = showBottom;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 450;
+
+        final donutWidget = SizedBox(
+          height: isNarrow ? 140 : double.infinity,
+          child: CustomDonutChart(
+            values: widget.values,
+            labels: widget.labels,
+            colors: widget.colors,
+            onSliceTapped: widget.onSliceTapped,
+            hoveredIndex: _hoveredIndex,
+          ),
+        );
+
+        final legendWidget = Stack(
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: NotificationListener<ScrollUpdateNotification>(
+                onNotification: (notification) {
+                  _updateArrows();
+                  return false;
+                },
+                child: SingleChildScrollView(
+                  controller: _scrollController,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: List.generate(widget.labels.length, (i) {
+                      final val = widget.values[i];
+                      final total = widget.values.reduce((a, b) => a + b);
+                      final pct = total > 0 ? (val / total * 100) : 0.0;
+
+                      final isHovered = _hoveredIndex == i;
+                      final isAnyHovered = _hoveredIndex != null;
+                      final textLabel =
+                          '${widget.labels[i]}\n${val.toInt()} ${widget.suffix} (${pct.toStringAsFixed(1)}%)';
+
+                      return Tooltip(
+                        message: textLabel,
+                        waitDuration: const Duration(milliseconds: 500),
+                        child: MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          onEnter: (_) => setState(() => _hoveredIndex = i),
+                          onExit: (_) => setState(() => _hoveredIndex = null),
+                          child: GestureDetector(
+                            onTap: () {
+                              if (widget.onSliceTapped != null)
+                                widget.onSliceTapped!(widget.labels[i]);
+                            },
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 6.0,
+                                horizontal: 8.0,
+                              ),
+                              margin: const EdgeInsets.only(bottom: 4.0),
+                              decoration: BoxDecoration(
+                                color: isHovered
+                                    ? widget.colors[i % widget.colors.length]
+                                          .withOpacity(0.1)
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                children: [
+                                  AnimatedContainer(
+                                    duration: const Duration(milliseconds: 200),
+                                    width: isHovered ? 16 : 12,
+                                    height: isHovered ? 16 : 12,
+                                    decoration: BoxDecoration(
+                                      color: isAnyHovered && !isHovered
+                                          ? Colors.grey.withOpacity(0.3)
+                                          : widget.colors[i %
+                                                widget.colors.length],
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: AnimatedDefaultTextStyle(
+                                      duration: const Duration(
+                                        milliseconds: 200,
+                                      ),
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        height: 1.2,
+                                        fontWeight: isHovered
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
+                                        color: isAnyHovered && !isHovered
+                                            ? Theme.of(context)
+                                                  .colorScheme
+                                                  .onSurface
+                                                  .withOpacity(0.4)
+                                            : Theme.of(
+                                                context,
+                                              ).colorScheme.onSurface,
+                                      ),
+                                      child: Text(
+                                        textLabel,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
+                  ),
+                ),
+              ),
+            ),
+            if (_showTopArrow)
+              Positioned(
+                top: 0,
+                right: 10,
+                child: _buildScrollArrow(Icons.keyboard_arrow_up_rounded),
+              ),
+            if (_showBottomArrow)
+              Positioned(
+                bottom: 0,
+                right: 10,
+                child: _buildScrollArrow(Icons.keyboard_arrow_down_rounded),
+              ),
+          ],
+        );
+
+        if (isNarrow) {
+          return Column(
+            children: [
+              donutWidget,
+              const SizedBox(height: 12),
+              Expanded(
+                child: legendWidget,
+              ),
+            ],
+          );
+        }
+
+        return Row(
+          children: [
+            Expanded(
+              flex: 5,
+              child: donutWidget,
+            ),
+            Expanded(
+              flex: 6,
+              child: legendWidget,
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildScrollArrow(IconData icon) {
+    return IgnorePointer(
+      child: Container(
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface.withOpacity(0.85),
+          shape: BoxShape.circle,
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 4,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Icon(
+          icon,
+          size: 20,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+      ),
+    );
+  }
+}
+
+class _KPICard extends StatelessWidget {
+  final String title;
+  final String value;
+  final IconData icon;
+  final Color color;
+  final double width;
+
+  const _KPICard({
+    required this.title,
+    required this.value,
+    required this.icon,
+    required this.color,
+    required this.width,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      width: width,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.15)),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: color, size: 24),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.onSurface.withOpacity(0.5),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+

@@ -1,6 +1,7 @@
 // ignore_for_file: use_build_context_synchronously
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/auth_api.dart';
 import 'package:primhub/api/token.dart';
@@ -9,7 +10,9 @@ import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:universal_html/html.dart' as html;
 import 'package:primhub/api/global_cache.dart';
+import 'package:primhub/build_version.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -23,24 +26,67 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   final TextEditingController _passController = TextEditingController();
   bool _isLoading = false;
   bool _obscurePassword = true;
+  bool _isCapsLockOn = false;
+  bool _isShiftPressed = false;
+  final FocusNode _userFocus = FocusNode();
+  final FocusNode _passFocus = FocusNode();
   late AnimationController _animationController;
   late AnimationController _borderAnimationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
-  String _loadingMessage = 'Bienvenido';
+  String _loadingMessage = 'PrimHub';
+  int _logoClickCount = 0;
+  bool _showVersion = false;
+  String _buildVersion = 'v-.-.-';
 
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200));
+    
+    if (appBuildVersion != '-.-.-') {
+      _buildVersion = 'v$appBuildVersion';
+    } else {
+      const envVersion = String.fromEnvironment('APP_VERSION');
+      if (envVersion.isNotEmpty) {
+        _buildVersion = 'v$envVersion';
+      } else {
+        try {
+          final build = html.window.localStorage['app_build'];
+          if (build != null && build.isNotEmpty) {
+            _buildVersion = 'v$build';
+          }
+        } catch (e) {
+          // Ignore if not on web
+        }
+      }
+    }
 
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeOut));
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
 
-    _slideAnimation = Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic));
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+    );
+
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _animationController,
+            curve: Curves.easeOutCubic,
+          ),
+        );
 
     _animationController.forward();
 
-    _borderAnimationController = AnimationController(vsync: this, duration: const Duration(seconds: 4))..repeat();
+    _borderAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 4),
+    )..repeat();
+    RawKeyboard.instance.addListener(_handleKeyEvent);
+    _userFocus.addListener(() => setState(() {}));
+    _passFocus.addListener(() => setState(() {}));
     _loadSavedUser();
   }
 
@@ -50,7 +96,30 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     _userController.dispose();
     _passController.dispose();
     _borderAnimationController.dispose();
+    RawKeyboard.instance.removeListener(_handleKeyEvent);
+    _userFocus.dispose();
+    _passFocus.dispose();
     super.dispose();
+  }
+
+  void _handleKeyEvent(RawKeyEvent event) {
+    bool shiftPressed = event.isShiftPressed;
+    bool update = false;
+
+    if (_isShiftPressed != shiftPressed) {
+      _isShiftPressed = shiftPressed;
+      update = true;
+    }
+
+    if (event is RawKeyDownEvent &&
+        event.logicalKey == LogicalKeyboardKey.capsLock) {
+      _isCapsLockOn = !_isCapsLockOn;
+      update = true;
+    }
+
+    if (update) {
+      setState(() {});
+    }
   }
 
   Future<void> _loadSavedUser() async {
@@ -60,6 +129,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   }
 
   void _login() async {
+    TextInput.finishAutofillContext();
     setState(() {
       _isLoading = true;
     });
@@ -71,10 +141,16 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     final responseStep1 = await loginStep1(username, password);
 
     if (responseStep1.containsKey('error')) {
-      if (responseStep1['error'].toString().contains('401')) {
+      final errorMessage = responseStep1['error'].toString();
+
+      if (errorMessage.contains('401')) {
         _showError('Usuario o Contraseña Incorrectos');
+      } else if (errorMessage.contains('Failed to fetch') ||
+          errorMessage.contains('ClientException') ||
+          errorMessage.contains('SocketException')) {
+        _showError('Verifique su conexión a internet y vuelva a intentarlo');
       } else {
-        _showError(responseStep1['error']);
+        _showError(errorMessage);
       }
       return;
     }
@@ -94,7 +170,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
         return;
       }
 
-      // Lógica de auto-ingreso si hay un solo camino (1 Cliente -> 1 Rol -> 1 Org)
+      // Lógica de auto-ingreso directo si solo tiene 1 cliente y 1 rol disponible
       if (clients.length == 1) {
         final client = clients[0];
         final roles = await getRoles(client['id'], tempToken);
@@ -103,42 +179,70 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
           final role = roles[0];
           final orgs = await getOrgs(client['id'], role['id'], tempToken);
 
-          if (orgs.length == 1) {
+          if (orgs.isNotEmpty) {
             final org = orgs[0];
-            final warehouses = await getWarehouses(client['id'], role['id'], org['id'], tempToken);
+            final warehouses = await getWarehouses(
+              client['id'],
+              role['id'],
+              org['id'],
+              tempToken,
+            );
+            // Tomamos el primer almacén por defecto o nulo
+            int? warehouseId = warehouses.isNotEmpty
+                ? warehouses[0]['id']
+                : null;
 
-            // Si hay 0 o 1 almacén, podemos proceder automáticamente
-            if (warehouses.length <= 1) {
-              int? warehouseId = warehouses.isNotEmpty ? warehouses[0]['id'] : null;
+            Token.client = client['id'];
+            Token.rol = role['id'];
+            Token.organitation = org['id'];
+            Token.warehouseID = warehouseId;
+            Token.roleUU = role['role-uu'] ?? role['uuid'] ?? role['AD_Role_UU'];
 
-              Token.client = client['id'];
-              Token.rol = role['id'];
-              Token.organitation = org['id'];
-              Token.warehouseID = warehouseId;
+            Map<String, dynamic> params = {
+              "clientId": client['id'],
+              "roleId": role['id'],
+              "organizationId": org['id'],
+              "language": "es_CO",
+            };
+            if (warehouseId != null) params["warehouseId"] = warehouseId;
 
-              Map<String, dynamic> params = {"clientId": client['id'], "roleId": role['id'], "organizationId": org['id'], "language": "es_CO"};
-              if (warehouseId != null) params["warehouseId"] = warehouseId;
+            final responseFinal = await finalizeLogin(
+              username,
+              password,
+              params,
+              context,
+            );
 
-              final responseFinal = await finalizeLogin(username, password, params, context);
-
-              if (responseFinal == false) {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Credenciales Incorrectas.'), backgroundColor: Colors.red));
-              } else {
-                if (mounted) {
-                  setState(() => _isLoading = false);
-                  CurrentLogMessage.add("Login exitoso (Auto).");
-                  context.go('/splash');
-                }
+            if (responseFinal == false) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Credenciales o configuración incorrectas.'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            } else {
+              if (mounted) {
+                setState(() => _isLoading = false);
+                CurrentLogMessage.add("Login exitoso (Auto - Ruta Única).");
+                context.go('/splash');
               }
-              return;
             }
+            return; // Evita ir a la pantalla de selección
           }
         }
       }
 
       if (mounted) {
         setState(() => _isLoading = false);
-        context.push('/login-selection', extra: {'token': tempToken, 'clients': clients, 'username': username, 'password': password});
+        context.push(
+          '/login-selection',
+          extra: {
+            'token': tempToken,
+            'clients': clients,
+            'username': username,
+            'password': password,
+          },
+        );
       }
       return;
     } else {
@@ -159,12 +263,16 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   void _showError(String message) {
     if (mounted) {
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
+      );
     }
   }
 
   void _showChangeUrlDialog() {
-    final TextEditingController urlController = TextEditingController(text: Endpoint.baseUrl);
+    final TextEditingController urlController = TextEditingController(
+      text: Endpoint.baseUrl,
+    );
 
     showDialog(
       context: context,
@@ -173,13 +281,24 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Ingrese la URL base del servidor (ej. https://api.midominio.com)'),
+            const Text(
+              'Ingrese la URL base del servidor (ej. https://api.midominio.com)',
+            ),
             const SizedBox(height: 16),
-            CustomTextField(controller: urlController, label: 'Base URL', hintText: 'https://...'),
+            CustomTextField(
+              controller: urlController,
+              label: 'Base URL',
+              hintText: 'https://...',
+            ),
+            const SizedBox(height: 16),
+            Text('Versión de Compilación: $_buildVersion', style: const TextStyle(color: Colors.grey, fontSize: 12)),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
           CustomButton(
             text: 'Guardar',
             onPressed: () async {
@@ -192,7 +311,11 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                 });
                 if (mounted) {
                   Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('URL actualizada correctamente')));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('URL actualizada correctamente'),
+                    ),
+                  );
                 }
               }
             },
@@ -210,16 +333,30 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
       floatingActionButton: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
-            'v1.4.0',
-            style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
-          ),
-          if (!Envirioment.isProduction) ...[const SizedBox(width: 8), FloatingActionButton(onPressed: _showChangeUrlDialog, child: const Icon(Icons.settings))],
+          if (_showVersion)
+            Text(
+              _buildVersion,
+              style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+            ),
+          if (!Envirioment.isProduction) ...[
+            const SizedBox(width: 8),
+            FloatingActionButton(
+              onPressed: _showChangeUrlDialog,
+              child: const Icon(Icons.settings),
+            ),
+          ],
         ],
       ),
       body: Container(
         decoration: BoxDecoration(
-          gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [theme.colorScheme.surface, theme.colorScheme.surfaceContainerLow]),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              theme.colorScheme.surface,
+              theme.colorScheme.surfaceContainerLow,
+            ],
+          ),
         ),
         child: Center(
           child: SingleChildScrollView(
@@ -232,7 +369,13 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                   constraints: const BoxConstraints(maxWidth: 400),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(24),
-                    boxShadow: [BoxShadow(color: theme.colorScheme.primary.withOpacity(0.2), blurRadius: 20, offset: const Offset(0, 10))],
+                    boxShadow: [
+                      BoxShadow(
+                        color: theme.colorScheme.primary.withOpacity(0.2),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(24),
@@ -245,7 +388,28 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                             builder: (context, child) {
                               return Container(
                                 decoration: BoxDecoration(
-                                  gradient: SweepGradient(center: Alignment.center, colors: [theme.colorScheme.primary.withOpacity(0.0), theme.colorScheme.primary.withOpacity(0.8), theme.colorScheme.primaryContainer.withOpacity(0.8), theme.colorScheme.primary.withOpacity(0.0)], stops: const [0.0, 0.4, 0.6, 1.0], transform: GradientRotation(_borderAnimationController.value * 2 * 3.14159)),
+                                  gradient: SweepGradient(
+                                    center: Alignment.center,
+                                    colors: [
+                                      theme.colorScheme.primary.withOpacity(
+                                        0.0,
+                                      ),
+                                      theme.colorScheme.primary.withOpacity(
+                                        0.8,
+                                      ),
+                                      theme.colorScheme.primaryContainer
+                                          .withOpacity(0.8),
+                                      theme.colorScheme.primary.withOpacity(
+                                        0.0,
+                                      ),
+                                    ],
+                                    stops: const [0.0, 0.4, 0.6, 1.0],
+                                    transform: GradientRotation(
+                                      _borderAnimationController.value *
+                                          2 *
+                                          3.14159,
+                                    ),
+                                  ),
                                 ),
                               );
                             },
@@ -255,86 +419,191 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                         Container(
                           margin: const EdgeInsets.all(3),
                           padding: const EdgeInsets.all(29),
-                          decoration: BoxDecoration(color: theme.cardColor, borderRadius: BorderRadius.circular(21)),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Container(
-                                height: 130,
-                                width: 130,
-                                decoration: BoxDecoration(color: theme.colorScheme.primary.withOpacity(0.1), shape: BoxShape.circle),
-                                child: Padding(padding: const EdgeInsets.all(12.0), child: Image.asset('assets/LogoPrimHub.png')),
-                              ),
-                              const SizedBox(height: 24),
-                              Text(
-                                'Bienvenido',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Inicia sesión en PrimHub',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(fontSize: 16, color: theme.colorScheme.onSurfaceVariant),
-                              ),
-                              const SizedBox(height: 32),
-                              TextFormField(
-                                controller: _userController,
-                                textInputAction: TextInputAction.next,
-                                decoration: InputDecoration(
-                                  labelText: 'Usuario',
-                                  hintText: 'Ingrese su usuario',
-                                  prefixIcon: const Icon(Icons.person_outline),
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              TextFormField(
-                                controller: _passController,
-                                obscureText: _obscurePassword,
-                                textInputAction: TextInputAction.done,
-                                onFieldSubmitted: (_) => _login(),
-                                decoration: InputDecoration(
-                                  labelText: 'Contraseña',
-                                  hintText: 'Ingrese su contraseña',
-                                  prefixIcon: const Icon(Icons.lock_outline),
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                                  suffixIcon: IconButton(
-                                    icon: Icon(_obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                                    onPressed: () {
-                                      setState(() => _obscurePassword = !_obscurePassword);
-                                    },
+                          decoration: BoxDecoration(
+                            color: theme.cardColor,
+                            borderRadius: BorderRadius.circular(21),
+                          ),
+                          child: AutofillGroup(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Container(
+                                  height: 130,
+                                  width: 130,
+                                  decoration: BoxDecoration(
+                                    color: theme.colorScheme.primary
+                                        .withOpacity(0.1),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(12.0),
+                                    child: GestureDetector(
+                                      onTap: () {
+                                        _logoClickCount++;
+                                        if (_logoClickCount >= 7) {
+                                          setState(() => _showVersion = true);
+                                          _logoClickCount = 0;
+                                        }
+                                      },
+                                      child: Image.asset(
+                                        'assets/LogoPrimHub.png',
+                                      ),
+                                    ),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(height: 24),
-                              AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 500),
-                                switchInCurve: Curves.elasticOut,
-                                switchOutCurve: Curves.easeIn,
-                                transitionBuilder: (child, animation) => ScaleTransition(scale: animation, child: child),
-                                child: _isLoading
-                                    ? Container(
-                                        key: const ValueKey('loading'),
-                                        width: double.infinity,
-                                        padding: const EdgeInsets.symmetric(vertical: 16),
-                                        decoration: BoxDecoration(color: theme.colorScheme.primary, borderRadius: BorderRadius.circular(12)),
-                                        child: Row(
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          children: [
-                                            Text(
-                                              _loadingMessage,
-                                              style: TextStyle(color: theme.colorScheme.onPrimary, fontWeight: FontWeight.bold, fontSize: 16),
+                                const SizedBox(height: 24),
+                                Text(
+                                  'PrimHub',
+                                  textAlign: TextAlign.center,
+                                  style: theme.textTheme.titleLarge?.copyWith(
+                                    color: theme.colorScheme.onSurface,
+                                  ),
+                                ),
+                                const SizedBox(height: 32),
+                                TextFormField(
+                                  controller: _userController,
+                                  textInputAction: TextInputAction.next,
+                                  focusNode: _userFocus,
+                                  autofillHints: const [AutofillHints.username],
+                                  keyboardType: TextInputType
+                                      .emailAddress, // Sugerencia para gestores de contraseñas
+                                  decoration: InputDecoration(
+                                    labelText: 'Usuario',
+                                    hintText: 'Ingrese su usuario',
+                                    prefixIcon: const Icon(
+                                      Icons.person_rounded,
+                                    ),
+                                    suffixIcon:
+                                        (_userFocus.hasFocus &&
+                                            (_isCapsLockOn != _isShiftPressed))
+                                        ? const Tooltip(
+                                            message: 'Mayúsculas activadas',
+                                            child: Icon(
+                                              Icons.keyboard_capslock_rounded,
+                                              color: Colors.orange,
                                             ),
-                                            const SizedBox(width: 12),
-                                            SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: theme.colorScheme.onPrimary, strokeWidth: 2)),
-                                          ],
+                                          )
+                                        : null,
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                TextFormField(
+                                  controller: _passController,
+                                  obscureText: _obscurePassword,
+                                  textInputAction: TextInputAction.done,
+                                  onFieldSubmitted: (_) => _login(),
+                                  focusNode: _passFocus,
+                                  keyboardType: TextInputType
+                                      .visiblePassword, // Sugerencia para gestores de contraseñas
+                                  autofillHints: const [AutofillHints.password],
+                                  onEditingComplete:
+                                      _login, // Para que el autocompletado funcione mejor
+                                  decoration: InputDecoration(
+                                    labelText: 'Contraseña',
+                                    hintText: 'Ingrese su contraseña',
+                                    prefixIcon: const Icon(Icons.lock_rounded),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    suffixIcon: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (_passFocus.hasFocus &&
+                                            (_isCapsLockOn != _isShiftPressed))
+                                          const Tooltip(
+                                            message: 'Mayúsculas activadas',
+                                            child: Icon(
+                                              Icons.keyboard_capslock_rounded,
+                                              color: Colors.orange,
+                                            ),
+                                          ),
+                                        IconButton(
+                                          icon: Icon(
+                                            _obscurePassword
+                                                ? Icons.visibility_rounded
+                                                : Icons.visibility_off_rounded,
+                                          ),
+                                          onPressed: () {
+                                            setState(
+                                              () => _obscurePassword =
+                                                  !_obscurePassword,
+                                            );
+                                          },
                                         ),
-                                      )
-                                    : CustomButton(key: const ValueKey('button'), text: 'Ingresar', onPressed: _login, isLoading: false, width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 16), borderRadius: 12),
-                              ),
-                            ],
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 24),
+                                AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 500),
+                                  switchInCurve: Curves.elasticOut,
+                                  switchOutCurve: Curves.easeIn,
+                                  transitionBuilder: (child, animation) =>
+                                      ScaleTransition(
+                                        scale: animation,
+                                        child: child,
+                                      ),
+                                  child: _isLoading
+                                      ? Container(
+                                          key: const ValueKey('loading'),
+                                          width: double.infinity,
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 16,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: theme.colorScheme.primary,
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                          child: Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              Text(
+                                                _loadingMessage,
+                                                style: TextStyle(
+                                                  color: theme
+                                                      .colorScheme
+                                                      .onPrimary,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 16,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              SizedBox(
+                                                width: 20,
+                                                height: 20,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      color: theme
+                                                          .colorScheme
+                                                          .onPrimary,
+                                                      strokeWidth: 2,
+                                                    ),
+                                              ),
+                                            ],
+                                          ),
+                                        )
+                                      : CustomButton(
+                                          key: const ValueKey('button'),
+                                          text: 'Ingresar',
+                                          onPressed: _login,
+                                          isLoading: false,
+                                          width: double.infinity,
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 16,
+                                          ),
+                                          borderRadius: 12,
+                                        ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ],

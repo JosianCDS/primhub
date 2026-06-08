@@ -1,270 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:primhub/ui/Shared_Custom/cardcustom.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
-import 'package:primhub/ui/pages/Projects/dialogs/project_calendar_dialog.dart';
-import 'package:primhub/api/access_control.dart';
-import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
-import 'package:primhub/api/token.dart';
-
-class ProjectDurationCard extends StatelessWidget {
-  final Map<String, dynamic> project;
-  final Color textColor;
-  final bool hasMetrics;
-
-  const ProjectDurationCard({super.key, required this.project, required this.textColor, this.hasMetrics = false});
-
-  DateTime? _parseDateSafely(String? dateStr) {
-    if (dateStr == null || dateStr.isEmpty) return null;
-    if (dateStr.length >= 10) {
-      String datePart = dateStr.substring(0, 10);
-      if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(datePart)) {
-        return DateTime.tryParse(datePart);
-      }
-    }
-    return DateTime.tryParse(dateStr.replaceAll(' ', 'T'));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    String title = 'Días Transcurridos';
-    String value = '0';
-    String subtitle = 'Sin fecha de contrato';
-    String projectName = project['Name'] ?? 'Proyecto';
-    String? dateContract = project['DateContract'];
-    String? dateFinish = project['DateFinish'];
-
-    if (dateContract != null) {
-      DateTime? start = _parseDateSafely(dateContract);
-      if (start != null) {
-        DateTime startDay = DateTime(start.year, start.month, start.day);
-        DateTime now = DateTime.now();
-        DateTime today = DateTime(now.year, now.month, now.day);
-        DateTime? endDay;
-
-        if (dateFinish != null && dateFinish.isNotEmpty) {
-          DateTime? end = _parseDateSafely(dateFinish);
-          if (end != null) endDay = DateTime(end.year, end.month, end.day);
-        }
-
-        if (today.isBefore(startDay)) {
-          title = 'Proyecto Planificado';
-          value = '0';
-          if (endDay != null) {
-            subtitle = 'Del ${startDay.day}/${startDay.month}/${startDay.year} al ${endDay.day}/${endDay.month}/${endDay.year}';
-          } else {
-            subtitle = 'Inicia el ${startDay.day}/${startDay.month}/${startDay.year}';
-          }
-        } else if (endDay != null) {
-          if (today.isBefore(endDay)) {
-            title = 'Proyecto En Curso';
-            value = today.difference(startDay).inDays.toString();
-            subtitle = 'Del ${startDay.day}/${startDay.month}/${startDay.year} al ${endDay.day}/${endDay.month}/${endDay.year}';
-          } else {
-            title = 'Proyecto Cerrado';
-            value = endDay.difference(startDay).inDays.toString();
-            subtitle = 'Del ${startDay.day}/${startDay.month}/${startDay.year} al ${endDay.day}/${endDay.month}/${endDay.year}';
-          }
-        } else {
-          title = 'Proyecto En Curso';
-          value = today.difference(startDay).inDays.toString();
-          subtitle = 'Desde ${start.day}/${start.month}/${start.year}';
-        }
-      }
-    }
-
-    return InkWell(
-      onTap: () {
-        showDialog(
-          context: context,
-          builder: (context) => ProjectCalendarDialog(project: project),
-        );
-      },
-      borderRadius: BorderRadius.circular(12),
-      child: CardCustom(
-        hover: true,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            SizedBox(
-              width: double.infinity,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: const BoxDecoration(color: Color.fromRGBO(223, 231, 255, 1), shape: BoxShape.circle),
-                    child: const Icon(Icons.calendar_today, color: Color.fromRGBO(79, 71, 229, 1), size: 36),
-                  ),
-                  const SizedBox(height: 16),
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                        child: Text(
-                          projectName,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: textColor.withOpacity(0.7)),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        title,
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor),
-                      ),
-                      Text(
-                        value,
-                        style: Theme.of(context).textTheme.displayMedium?.copyWith(color: const Color(0xff4F47E5), fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    subtitle,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: textColor, fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-            ),
-            if (hasMetrics)
-              Positioned(
-                top: 0,
-                right: 0,
-                child: Tooltip(
-                  message: 'Este proyecto tiene métricas disponibles',
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(20),
-                    onTap: () {
-                      context.push('/metrics', extra: {'projectId': project['id']});
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Icon(Icons.bar_chart, color: Theme.of(context).colorScheme.primary, size: 28),
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class ProjectDeliverablesCard extends StatelessWidget {
-  final int projectId;
-  final Map<String, dynamic> stats;
-  final Color textColor;
-
-  const ProjectDeliverablesCard({super.key, required this.projectId, required this.stats, required this.textColor});
-
-  @override
-  Widget build(BuildContext context) {
-    final et = stats['et'] ?? 0;
-    final sg = stats['sg'] ?? 0;
-    final gn = stats['gn'] ?? 0;
-    // final bool pendingEt = stats['pendingEt'] ?? false;
-    // final bool pendingSg = stats['pendingSg'] ?? false;
-    // final bool pendingGn = stats['pendingGn'] ?? false;
-
-    return CardCustom(
-      hover: true,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(color: Color.fromRGBO(254, 244, 199, 1), shape: BoxShape.circle),
-            child: const Icon(Icons.folder_special, color: Color.fromRGBO(217, 119, 8, 1), size: 36),
-          ),
-          const SizedBox(height: 16),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Text(
-                'Documentos',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textColor),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  InkWell(
-                    onTap: () => context.push('/deliverables', extra: {'projectId': projectId, 'view': 'Entregables'}),
-                    borderRadius: BorderRadius.circular(8),
-                    child: Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Column(children: [_buildStatItem(context, et, 'Entregables' /*, pendingEt*/)]),
-                    ),
-                  ),
-                  Container(height: 30, width: 1, color: Colors.grey.withOpacity(0.3)),
-                  InkWell(
-                    onTap: () => context.push('/deliverables', extra: {'projectId': projectId, 'view': 'Seguimiento'}),
-                    borderRadius: BorderRadius.circular(8),
-                    child: Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Column(children: [_buildStatItem(context, sg, 'Seguimiento' /*, pendingSg*/)]),
-                    ),
-                  ),
-                  Container(height: 30, width: 1, color: Colors.grey.withOpacity(0.3)),
-                  InkWell(
-                    onTap: () => context.push('/deliverables', extra: {'projectId': projectId, 'view': 'General'}),
-                    borderRadius: BorderRadius.circular(8),
-                    child: Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Column(children: [_buildStatItem(context, gn, 'General' /*, pendingGn*/)]),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'Documentos del proyecto.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: textColor, fontWeight: FontWeight.bold),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatItem(BuildContext context, int count, String label /*, bool hasPending*/) {
-    return Column(
-      children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              count.toString(),
-              style: Theme.of(context).textTheme.displayMedium?.copyWith(color: const Color(0xffD97708), fontWeight: FontWeight.bold, fontSize: 24),
-            ),
-            // if (count > 0)
-            //   Container(
-            //     margin: const EdgeInsets.only(top: 4, left: 2),
-            //     width: 8,
-            //     height: 8,
-            //     decoration: BoxDecoration(color: hasPending ? Colors.red : Colors.green, shape: BoxShape.circle),
-            //   ),
-          ],
-        ),
-        Text(
-          label,
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: textColor),
-        ),
-      ],
-    );
-  }
-}
 
 class ProjectSelector extends StatelessWidget {
   final List<int> selectedProjectIds;
@@ -282,7 +19,7 @@ class ProjectSelector extends StatelessWidget {
       context: context,
       builder: (BuildContext context) {
         return CustomModal(
-          title: 'Seleccionar Proyectos',
+          title: 'Proyectos',
           width: 500,
           content: StatefulBuilder(
             builder: (BuildContext context, StateSetter setState) {
@@ -291,27 +28,31 @@ class ProjectSelector extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        TextButton(
-                          onPressed: () {
+                    Builder(
+                      builder: (context) {
+                        bool? isAllSelected;
+                        if (tempSelectedProjectIds.length == sortedProjects.length && sortedProjects.isNotEmpty) {
+                          isAllSelected = true;
+                        } else if (tempSelectedProjectIds.isEmpty) {
+                          isAllSelected = false;
+                        }
+
+                        return CheckboxListTile(
+                          title: const Text('Todos los proyectos', style: TextStyle(fontWeight: FontWeight.bold)),
+                          tristate: true,
+                          value: isAllSelected,
+                          onChanged: (bool? value) {
                             setState(() {
-                              tempSelectedProjectIds.clear();
-                              tempSelectedProjectIds.addAll(sortedProjects.map<int>((p) => p['id'] as int));
+                              if (isAllSelected == true) {
+                                tempSelectedProjectIds.clear();
+                              } else {
+                                tempSelectedProjectIds.clear();
+                                tempSelectedProjectIds.addAll(sortedProjects.map<int>((p) => p['id'] as int));
+                              }
                             });
                           },
-                          child: const Text('Seleccionar Todos'),
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            setState(() {
-                              tempSelectedProjectIds.clear();
-                            });
-                          },
-                          child: const Text('Deseleccionar Todos', style: TextStyle(color: Colors.red)),
-                        ),
-                      ],
+                        );
+                      },
                     ),
                     const Divider(),
                     Expanded(
@@ -344,7 +85,7 @@ class ProjectSelector extends StatelessWidget {
           actions: <Widget>[
             TextButton(child: const Text('Cancelar'), onPressed: () => Navigator.of(context).pop()),
             CustomButton(
-              text: 'Aceptar',
+              text: 'Filtrar',
               onPressed: () {
                 onSelectionChanged(tempSelectedProjectIds);
                 Navigator.of(context).pop();
@@ -358,37 +99,344 @@ class ProjectSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    String displayText;
-    if (selectedProjectIds.isEmpty) {
-      if (projects.isEmpty) return const SizedBox.shrink();
-      displayText = 'Ningún proyecto seleccionado';
-    } else if (selectedProjectIds.length == 1) {
-      final project = projects.firstWhere((p) => p['id'] == selectedProjectIds.first, orElse: () => {'Name': 'Proyecto no encontrado'});
-      displayText = project['Name'] ?? 'Proyecto sin nombre';
-    } else {
-      displayText = '${selectedProjectIds.length} proyectos seleccionados';
-    }
+    final color = Theme.of(context).colorScheme.primary;
+    final colorScheme = Theme.of(context).colorScheme;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Wrap(
+      spacing: 8.0,
+      runSpacing: 8.0,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         InkWell(
           onTap: projects.length > 1 ? () => _showMultiSelectProjects(context) : null,
-          child: InputDecorator(
-            decoration: InputDecoration(
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0)),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-            ),
+          borderRadius: BorderRadius.circular(8.0),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: <Widget>[
-                Expanded(child: Text(displayText, overflow: TextOverflow.ellipsis)),
-                const Icon(Icons.arrow_drop_down, color: Colors.grey),
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.filter_list_alt, size: 20, color: color),
+                const SizedBox(width: 8.0),
+                Text(
+                  'Filtrar Proyectos',
+                  style: TextStyle(fontSize: 16, color: color, fontWeight: FontWeight.w500),
+                ),
               ],
             ),
           ),
         ),
+        if (selectedProjectIds.isEmpty && projects.isNotEmpty) const Text('Ningún proyecto seleccionado', style: TextStyle(color: Colors.grey)),
+        ...selectedProjectIds.map((id) {
+          final project = projects.firstWhere((p) => p['id'] == id, orElse: () => {'Name': 'Proyecto no encontrado'});
+          final String projName = project['Name'] ?? 'Proyecto sin nombre';
+          return InputChip(
+            label: Text(projName, style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13)),
+            backgroundColor: colorScheme.surfaceContainerHighest.withOpacity(0.5),
+            deleteIconColor: colorScheme.onSurfaceVariant,
+            deleteButtonTooltipMessage: 'Quitar',
+            onDeleted: () {
+              final newSelection = List<int>.from(selectedProjectIds)..remove(id);
+              onSelectionChanged(newSelection);
+            },
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            side: BorderSide(color: colorScheme.outline.withOpacity(0.2)),
+          );
+        }),
       ],
+    );
+  }
+}
+
+class ProjectFullCard extends StatelessWidget {
+  final Map<String, dynamic> project;
+  final Map<String, dynamic> stats;
+  final VoidCallback onCalendarTap;
+  final VoidCallback onMetricsTap;
+  final bool hasMetrics;
+
+  const ProjectFullCard({super.key, required this.project, required this.stats, required this.onCalendarTap, required this.onMetricsTap, this.hasMetrics = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final String projectName = project['Name'] ?? 'Sin Nombre';
+    final bool isComplete = project['IsComplete'] == true || project['IsComplete'] == 'Y';
+    final String status = isComplete ? 'Cerrado' : 'En Curso';
+
+    String dateRange = 'Fechas no definidas';
+    String durationText = '0 días';
+    String durationSubtitle = 'Sin definir';
+
+    if (project['DateContract'] != null) {
+      final start = DateTime.tryParse(project['DateContract'])?.toLocal();
+      if (start != null) {
+        final startDay = DateTime(start.year, start.month, start.day);
+        final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+        DateTime? endDay;
+
+        if (project['DateFinish'] != null) {
+          final end = DateTime.tryParse(project['DateFinish'])?.toLocal();
+          if (end != null) endDay = DateTime(end.year, end.month, end.day);
+        }
+
+        if (endDay != null) {
+          dateRange = '${startDay.day}/${startDay.month}/${startDay.year} - ${endDay.day}/${endDay.month}/${endDay.year}';
+        } else {
+          dateRange = 'Desde ${startDay.day}/${startDay.month}/${startDay.year}';
+        }
+
+        if (today.isBefore(startDay)) {
+          durationText = '0 días';
+          durationSubtitle = 'Planificado';
+        } else if (endDay != null) {
+          if (isComplete || !today.isBefore(endDay)) {
+            durationText = '${endDay.difference(startDay).inDays} días';
+            durationSubtitle = 'Duración total';
+          } else {
+            durationText = '${today.difference(startDay).inDays} días';
+            durationSubtitle = 'En progreso';
+          }
+        } else {
+          durationText = '${today.difference(startDay).inDays} días';
+          durationSubtitle = 'En progreso';
+        }
+      }
+    }
+
+    const Color lightPurpleBg = Color(0xFFEEF2FF);
+    const Color darkPurpleIcon = Color(0xFF4F46E5);
+    const Color statusGreenBg = Color(0xFFDCFCE7);
+    const Color statusGreenText = Color(0xFF166534);
+    const Color statusGrayBg = Color(0xFFF3F4F6);
+    const Color statusGrayText = Color(0xFF4B5563);
+    const Color docIconColor = Color(0xFFD97708);
+
+    bool isClosed = status.toLowerCase() == 'cerrado';
+    final int projId = project['id'] is int ? project['id'] as int : int.tryParse(project['id'].toString()) ?? 0;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Stack(
+              children: [
+                // AJUSTE: Altura de 140 para dar aire al título y evitar overflow
+                SizedBox(
+                  width: double.infinity,
+                  height: 140,
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 95.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(color: lightPurpleBg, borderRadius: BorderRadius.circular(8)),
+                          child: const Icon(Icons.business_center_outlined, color: darkPurpleIcon, size: 20),
+                        ),
+                        const SizedBox(height: 9),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(color: isClosed ? statusGrayBg : statusGreenBg, borderRadius: BorderRadius.circular(20)),
+                          child: Text(
+                            status,
+                            style: TextStyle(color: isClosed ? statusGrayText : statusGreenText, fontSize: 11, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          projectName,
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1F2937), height: 1.2),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          dateRange,
+                          style: const TextStyle(fontSize: 12, color: Colors.grey),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(color: const Color(0xFFDBEAFE), borderRadius: BorderRadius.circular(20)),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.access_time, size: 14, color: darkPurpleIcon),
+                            const SizedBox(width: 4),
+                            Text(
+                              durationText,
+                              style: const TextStyle(color: darkPurpleIcon, fontWeight: FontWeight.bold, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        durationSubtitle,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // SECCIÓN DE DOCUMENTOS
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
+            decoration: const BoxDecoration(color: Color.fromARGB(255, 252, 248, 230)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: const [
+                    Icon(Icons.description_outlined, color: docIconColor, size: 18),
+                    SizedBox(width: 8),
+                    Text(
+                      'Documentos del Proyecto',
+                      style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF92400E), fontSize: 13),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    _buildStat(context, stats['et']?.toString() ?? '0', 'Entregables', () => context.push('/deliverables', extra: {'projectId': projId, 'view': 'Entregables'})),
+                    _buildStat(context, stats['sg']?.toString() ?? '0', 'Seguimiento', () => context.push('/deliverables', extra: {'projectId': projId, 'view': 'Seguimiento'})),
+                    _buildStat(context, stats['gn']?.toString() ?? '0', 'General', () => context.push('/deliverables', extra: {'projectId': projId, 'view': 'General'})),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          // BOTONES
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: onCalendarTap,
+                    icon: const Icon(Icons.format_list_bulleted, size: 16, color: Colors.white),
+                    label: const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text('Calendario/Gantt', style: TextStyle(color: Colors.white, fontSize: 11)),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF4F46E5),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      elevation: 0,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: hasMetrics ? onMetricsTap : null,
+                    icon: const Icon(Icons.bar_chart, size: 16, color: Colors.white),
+                    label: const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text('Gráficos', style: TextStyle(color: Colors.white, fontSize: 11)),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: hasMetrics ? const Color(0xFFA855F7) : Colors.grey.shade400,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      elevation: 0,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // El método _buildStat se mantiene igual que en tu código anterior
+  Widget _buildStat(BuildContext context, String value, String label, VoidCallback onTap) {
+    return Expanded(
+      child: _HoverStatCard(value: value, label: label, onTap: onTap),
+    );
+  }
+}
+
+class _HoverStatCard extends StatefulWidget {
+  final String value;
+  final String label;
+  final VoidCallback onTap;
+
+  const _HoverStatCard({required this.value, required this.label, required this.onTap});
+
+  @override
+  State<_HoverStatCard> createState() => _HoverStatCardState();
+}
+
+class _HoverStatCardState extends State<_HoverStatCard> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: _isHovered ? const Color(0xFFFEF3C7) : Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: _isHovered ? const Color(0xFFD97708) : const Color.fromARGB(255, 230, 220, 180), width: 1.5),
+            boxShadow: _isHovered ? [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))] : [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 2, offset: const Offset(0, 1))],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                widget.value,
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFFD97708)),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    widget.label,
+                    style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

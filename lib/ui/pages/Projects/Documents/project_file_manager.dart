@@ -28,6 +28,7 @@ class ProjectFileManager extends StatefulWidget {
 
 class ProjectFileManagerState extends State<ProjectFileManager> {
   List<String> _currentPath = [];
+  List<int> _currentPathIds = []; // IDs de las carpetas en el path (empezando desde el nivel 3)
   List<dynamic> _documents = [];
   bool _isLoadingDocuments = false;
   bool _isDragging = false;
@@ -58,6 +59,7 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
     if (_currentPath.length > 3) {
       setState(() {
         _currentPath.removeLast();
+        if (_currentPathIds.isNotEmpty) _currentPathIds.removeLast();
         _notifyRootChanged();
       });
       return true;
@@ -149,6 +151,8 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
   /// Mueve archivos mediante Drag and Drop
   Future<void> _moveFile(Map<String, dynamic> doc, String currentTableName, int? targetFolderId) async {
     final int docId = doc['id'];
+    final String docName = doc['Name'] ?? 'Archivo';
+// [Mantenimiento] Log removido:     debugPrint("MOVING DOCUMENT: $docName (ID: $docId) TO FOLDER: $targetFolderId");
     if (_movingFiles.contains(docId)) return; // Ignorar si ya se está moviendo
 
     // Validar si ya está en la carpeta de destino para no hacer peticiones fantasma
@@ -379,12 +383,10 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
             Expanded(
               child: Builder(
                 builder: (context) {
-                  // Usamos MediaQuery en lugar de LayoutBuilder para aislar el árbol de renderizado
-                  // y evitar mutaciones durante los cálculos nativos del Drag and Drop.
                   double availableWidth = MediaQuery.of(context).size.width;
-                  if (availableWidth > 800) availableWidth -= 250; // Compensación visual aproximada del Drawer lateral
+                  if (availableWidth > 800) availableWidth -= 250; 
 
-                  int dynamicColumns = (availableWidth / 160).floor().clamp(3, 6);
+                  int dynamicColumns = (availableWidth / 160).floor().clamp(2, 6);
 
                   return SingleChildScrollView(
                     padding: const EdgeInsets.all(16.0),
@@ -405,11 +407,27 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
                                             ? widget.onExit()
                                             : setState(() {
                                                 _currentPath = _currentPath.sublist(0, i + 1);
+                                                if (i >= 3) {
+                                                  _currentPathIds = _currentPathIds.sublist(0, i - 2);
+                                                } else {
+                                                  _currentPathIds.clear();
+                                                }
                                                 _notifyRootChanged();
                                               }),
-                                        onDropToRoot: (data) {
+                                        onDropToRoot: (index, data) {
+                                          // Si el index es 2, el target es null (la raíz). Si es mayor, necesitamos el ID de ese nivel.
+                                          int? targetFolderId;
+                                          if (index > 2) {
+                                            // Necesitamos el ID de la carpeta en el nivel 'index'
+                                            // El index 3 corresponde al primer ID en _currentPathIds
+                                            int idIdx = index - 3;
+                                            if (idIdx >= 0 && idIdx < _currentPathIds.length) {
+                                              targetFolderId = _currentPathIds[idIdx];
+                                            }
+                                          }
+
                                           if (data['doc'] != null) {
-                                            _moveFile(data['doc'], data['tableName'], null);
+                                            _moveFile(data['doc'], data['tableName'], targetFolderId);
                                           }
                                         },
                                       ),
@@ -473,6 +491,9 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
             onTap: () {
               setState(() {
                 _currentPath = path;
+                _currentPathIds.clear(); // Reset IDs and potentially rebuild path if we had them
+                // Note: Search results don't easily provide all parent IDs currently.
+                // But typically search results are used for navigation, and IDs are filled as we browse.
                 _searchController.clear();
                 _notifyRootChanged();
               });
@@ -514,7 +535,7 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
       );
 
     // Relación de aspecto dinámica ajustada para dar más altura a las tarjetas
-    double aspect = crossAxisCount >= 6 ? 0.8 : (crossAxisCount >= 4 ? 0.85 : 0.95);
+    double aspect = crossAxisCount >= 6 ? 0.8 : (crossAxisCount >= 4 ? 0.85 : 0.78);
     double spacing = crossAxisCount >= 6 ? 8.0 : 16.0;
 
     return GridView.builder(
@@ -546,6 +567,7 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
           onTap: () => isFolder
               ? setState(() {
                   _currentPath.add(name);
+                  _currentPathIds.add(item['id']);
                   _notifyRootChanged();
                 })
               : FilePreviewManager.showPreview(context, item, tableName, name, () => _deleteFile(item['id'], tableName, name), () {
@@ -706,3 +728,4 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
     );
   }
 }
+

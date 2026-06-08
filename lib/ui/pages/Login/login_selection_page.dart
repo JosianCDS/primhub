@@ -5,6 +5,7 @@ import 'package:primhub/api/token.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/api/global_cache.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginSelectionPage extends StatefulWidget {
   const LoginSelectionPage({super.key});
@@ -44,6 +45,28 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
         Token.preAuth = _tempToken;
       }
       _isInit = false;
+      _autoSelectLastConfiguration();
+    }
+  }
+
+  Future<void> _autoSelectLastConfiguration() async {
+    if (_clients.isEmpty) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final lastClientId = prefs.getInt('last_login_client_id');
+    final lastRoleId = prefs.getInt('last_login_role_id');
+    final lastOrgId = prefs.getInt('last_login_org_id');
+
+    if (lastClientId != null && _clients.any((c) => c['id'] == lastClientId)) {
+      await _onClientChanged(lastClientId);
+
+      if (lastRoleId != null && _roles.any((r) => r['id'] == lastRoleId)) {
+        await _onRoleChanged(lastRoleId);
+
+        if (lastOrgId != null && _orgs.any((o) => o['id'] == lastOrgId)) {
+          await _onOrgChanged(lastOrgId);
+        }
+      }
     }
   }
 
@@ -112,6 +135,9 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
     if (mounted) {
       setState(() {
         _warehouses = warehouses;
+        if (_warehouses.isNotEmpty) {
+          _selectedWarehouseId = _warehouses.first['id'];
+        }
         _isLoading = false;
       });
     }
@@ -135,6 +161,22 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
     Token.organitation = _selectedOrgId;
     Token.warehouseID = _selectedWarehouseId;
 
+    // Capturar el AD_Role_UU del rol seleccionado
+    try {
+      final selectedRole = _roles.firstWhere(
+        (r) => r['id'] == _selectedRoleId,
+        orElse: () => null,
+      );
+      if (selectedRole != null) {
+        Token.roleUU = selectedRole['role-uu'] ?? 
+                      selectedRole['uuid'] ?? 
+                      selectedRole['AD_Role_UU'];
+        CurrentLogMessage.add("Rol seleccionado UUID: ${Token.roleUU}");
+      }
+    } catch (e) {
+      CurrentLogMessage.add("Error capturando UUID del rol: $e");
+    }
+
     Map<String, dynamic> params = {"clientId": _selectedClientId, "roleId": _selectedRoleId, "organizationId": _selectedOrgId, "language": "es_CO"};
     if (_selectedWarehouseId != null) {
       params["warehouseId"] = _selectedWarehouseId;
@@ -147,6 +189,12 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Credenciales Incorrectas.'), backgroundColor: Colors.red));
       } else {
+        // Save preferences before navigating
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt('last_login_client_id', _selectedClientId!);
+        await prefs.setInt('last_login_role_id', _selectedRoleId!);
+        await prefs.setInt('last_login_org_id', _selectedOrgId!);
+        
         setState(() => _isLoading = false);
         CurrentLogMessage.add("Login exitoso. Token guardado.");
 
@@ -169,67 +217,59 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
           onPressed: () => context.pop(),
         ),
       ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [theme.colorScheme.surface, theme.colorScheme.surfaceContainerLow]),
-        ),
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 400),
-              padding: const EdgeInsets.all(29),
-              decoration: BoxDecoration(
-                color: theme.cardColor,
-                borderRadius: BorderRadius.circular(21),
-                boxShadow: [BoxShadow(color: theme.colorScheme.primary.withOpacity(0.2), blurRadius: 20, offset: const Offset(0, 10))],
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'Selección de Contexto',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface),
-                  ),
-                  const SizedBox(height: 24),
-                  CustomDropdown<int>(
-                    value: _selectedClientId,
-                    label: 'Empresa',
-                    hintText: 'Seleccione Empresa',
-                    items: _clients.map((c) => DropdownMenuItem<int>(value: c['id'], child: Text(_getName(c)))).toList(),
-                    onChanged: _onClientChanged,
-                  ),
-                  const SizedBox(height: 16),
-                  CustomDropdown<int>(
-                    value: _selectedRoleId,
-                    label: 'Rol',
-                    hintText: 'Seleccione Rol',
-                    items: _roles.map((r) => DropdownMenuItem<int>(value: r['id'], child: Text(_getName(r)))).toList(),
-                    onChanged: _selectedClientId == null ? null : _onRoleChanged,
-                  ),
-                  const SizedBox(height: 16),
-                  CustomDropdown<int>(
-                    value: _selectedOrgId,
-                    label: 'Organización',
-                    hintText: 'Seleccione Organización',
-                    items: _orgs.map((o) => DropdownMenuItem<int>(value: o['id'], child: Text(_getName(o)))).toList(),
-                    onChanged: _selectedRoleId == null ? null : _onOrgChanged,
-                  ),
-                  const SizedBox(height: 16),
-                  if (_warehouses.isNotEmpty)
-                    CustomDropdown<int>(
-                      value: _selectedWarehouseId,
-                      label: 'Almacén (Opcional)',
-                      hintText: 'Seleccione Almacén',
-                      items: _warehouses.map((w) => DropdownMenuItem<int>(value: w['id'], child: Text(_getName(w)))).toList(),
-                      onChanged: (val) => setState(() => _selectedWarehouseId = val),
+      body: SafeArea(
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [theme.colorScheme.surface, theme.colorScheme.surfaceContainerLow]),
+          ),
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24.0),
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 400),
+                padding: const EdgeInsets.all(29),
+                decoration: BoxDecoration(
+                  color: theme.cardColor,
+                  borderRadius: BorderRadius.circular(21),
+                  boxShadow: [BoxShadow(color: theme.colorScheme.primary.withOpacity(0.2), blurRadius: 20, offset: const Offset(0, 10))],
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      '¿Como deseas ingresar?',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface),
                     ),
-                  if (_warehouses.isNotEmpty) const SizedBox(height: 24),
-                  const SizedBox(height: 24),
-                  CustomButton(text: 'Ingresar', onPressed: _finalizeLogin, isLoading: _isLoading, width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 16), borderRadius: 12),
-                ],
+                    const SizedBox(height: 24),
+                    CustomDropdown<int>(
+                      value: _selectedClientId,
+                      label: 'Empresa',
+                      hintText: 'Seleccione Empresa',
+                      items: _clients.map((c) => DropdownMenuItem<int>(value: c['id'], child: Text(_getName(c)))).toList(),
+                      onChanged: _onClientChanged,
+                    ),
+                    const SizedBox(height: 16),
+                    CustomDropdown<int>(
+                      value: _selectedRoleId,
+                      label: 'Rol',
+                      hintText: 'Seleccione Rol',
+                      items: _roles.map((r) => DropdownMenuItem<int>(value: r['id'], child: Text(_getName(r)))).toList(),
+                      onChanged: _selectedClientId == null ? null : _onRoleChanged,
+                    ),
+                    const SizedBox(height: 16),
+                    CustomDropdown<int>(
+                      value: _selectedOrgId,
+                      label: 'Organización',
+                      hintText: 'Seleccione Organización',
+                      items: _orgs.map((o) => DropdownMenuItem<int>(value: o['id'], child: Text(_getName(o)))).toList(),
+                      onChanged: _selectedRoleId == null ? null : _onOrgChanged,
+                    ),
+                    const SizedBox(height: 24),
+                    CustomButton(text: 'Ingresar', onPressed: (_selectedClientId != null && _selectedRoleId != null && _selectedOrgId != null) ? _finalizeLogin : null, isLoading: _isLoading, width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 16), borderRadius: 12),
+                  ],
+                ),
               ),
             ),
           ),
