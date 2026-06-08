@@ -594,7 +594,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
     String? startDateToSend;
     String? closeDateToSend;
 
-    final bool isClosing = _currentStatus == '9_Final Close' || _currentStatus == 'Final Close' || (statusIdToSend != null && (statusIdToSend == 103 || statusIdToSend == 1000019));
+    final bool isClosing = _currentStatus == '9_Final Close' || _currentStatus == 'Final Close' || (statusIdToSend != null && (statusIdToSend == 103 || statusIdToSend == 1000019 || statusIdToSend == 1000001)) || _currentStatus.toLowerCase().contains('por entregar');
 
     if (isClosing) {
       if (_dateStartController.text.isNotEmpty) {

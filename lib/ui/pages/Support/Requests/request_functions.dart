@@ -525,10 +525,12 @@ Future<Map<String, dynamic>> processRequests(List<dynamic> requests, Map<String,
     isClosedStatus = statusIdFromReq == 1000019 || // Archivada
                      statusIdFromReq == 1000015 || // Anulada
                      statusIdFromReq == 1000018 || // Implementada en produccion
+                     statusIdFromReq == 1000001 || // Por entregar
                      statusName.toLowerCase().contains('archivada') || 
                      statusName.toLowerCase().contains('anulada') ||
                      statusName.toLowerCase().contains('implementada en produccion') ||
                      statusName.toLowerCase().contains('implementada en producción') ||
+                     statusName.toLowerCase().contains('por entregar') ||
                      statusIdFromReq == 103 || 
                      statusName.toLowerCase().contains('final close') ||
                      statusName.toLowerCase().contains('cerrada');
