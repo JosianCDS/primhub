@@ -36,6 +36,7 @@ class SupportDashboardPage extends StatefulWidget {
 class _SupportDashboardPageState extends State<SupportDashboardPage> {
   List<Map<String, dynamic>> _supportRecords = [];
   bool _isLoading = true;
+  bool _isLoadingBPartners = false;
   double _totalConsumedHours = 0.0;
   double? _contractedHours;
   double _inProgressHours = 0.0;
@@ -132,53 +133,69 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
   }
 
   Future<void> _initData() async {
-    // Forzar sincronización de GlobalCache para tener los últimos datos (ej. renombramientos de fichas)
-    await GlobalCache.syncData(force: true);
-
     if (AccessControl.isAdmin && _bPartners.isEmpty) {
-      // Obtenemos la lista cruda de la API
-      // Fetch all BPs with their flags to apply consistent filtering
-      final allBps = await ProjectsLogic().fetchBPartners();
+      setState(() {
+        _isLoadingBPartners = true;
+      });
+    }
 
+    try {
+      // Forzar sincronización de GlobalCache para tener los últimos datos (ej. renombramientos de fichas)
+      await GlobalCache.syncData(force: true);
+
+      if (AccessControl.isAdmin && _bPartners.isEmpty) {
+        // Obtenemos la lista cruda de la API
+        // Fetch all BPs with their flags to apply consistent filtering
+        final allBps = await ProjectsLogic().fetchBPartners();
+
+        if (mounted) {
+          setState(() {
+            // Aplicamos el filtro para que sean solo clientes activos y no proveedores
+            _bPartners = allBps
+                .where((bp) {
+                  final name = bp['Name']?.toString() ?? '';
+
+                  final rawVendor = bp['IsVendor'] ?? bp['isVendor'];
+                  final isVendorStr = rawVendor?.toString().trim().toLowerCase();
+                  bool isVendor = isVendorStr == 'true' || isVendorStr == 'y';
+
+                  final rawCustomer = bp['IsCustomer'] ?? bp['isCustomer'];
+                  final isCustomerStr = rawCustomer
+                      ?.toString()
+                      .trim()
+                      .toLowerCase();
+                  bool isCustomer =
+                      isCustomerStr == 'true' || isCustomerStr == 'y';
+                  if (rawCustomer == null) isCustomer = true;
+
+                  // REGLA: No debe empezar con "~" y debe ser Cliente
+                  return !name.startsWith('~') &&
+                      isCustomer &&
+                      !isVendor; // Excluir proveedores
+                })
+                .map((bp) => Map<String, dynamic>.from(bp as Map))
+                .toList();
+
+            // Si el tercero seleccionado previamente ya no está en la lista filtrada, lo limpiamos
+            if (_selectedBpId != null &&
+                !_bPartners.any((bp) => bp['id'] == _selectedBpId)) {
+              _selectedBpId = null;
+            }
+          });
+        }
+      }
+      await _fetchProductChips(); // Cargar fichas para el BP seleccionado
+      _statusIdMap = await fetchStatuses();
+      await _refreshData();
+    } catch (_) {
+      // Manejar excepciones de forma silenciosa o relanzar
+    } finally {
       if (mounted) {
         setState(() {
-          // Aplicamos el filtro para que sean solo clientes activos y no proveedores
-          _bPartners = allBps
-              .where((bp) {
-                final name = bp['Name']?.toString() ?? '';
-
-                final rawVendor = bp['IsVendor'] ?? bp['isVendor'];
-                final isVendorStr = rawVendor?.toString().trim().toLowerCase();
-                bool isVendor = isVendorStr == 'true' || isVendorStr == 'y';
-
-                final rawCustomer = bp['IsCustomer'] ?? bp['isCustomer'];
-                final isCustomerStr = rawCustomer
-                    ?.toString()
-                    .trim()
-                    .toLowerCase();
-                bool isCustomer =
-                    isCustomerStr == 'true' || isCustomerStr == 'y';
-                if (rawCustomer == null) isCustomer = true;
-
-                // REGLA: No debe empezar con "~" y debe ser Cliente
-                return !name.startsWith('~') &&
-                    isCustomer &&
-                    !isVendor; // Excluir proveedores
-              })
-              .map((bp) => Map<String, dynamic>.from(bp as Map))
-              .toList();
-
-          // Si el tercero seleccionado previamente ya no está en la lista filtrada, lo limpiamos
-          if (_selectedBpId != null &&
-              !_bPartners.any((bp) => bp['id'] == _selectedBpId)) {
-            _selectedBpId = null;
-          }
+          _isLoadingBPartners = false;
         });
       }
     }
-    await _fetchProductChips(); // Cargar fichas para el BP seleccionado
-    _statusIdMap = await fetchStatuses();
-    await _refreshData();
   }
 
   Future<void> _refreshData() async {
@@ -1016,122 +1033,149 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: 20),
                     if (AccessControl.isAdmin)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 24.0),
-                        child: InkWell(
-                          onTap:
-                              (_bPartners.isEmpty || !GlobalCache.isDataLoaded)
-                              ? null
-                              : _showBPartnerFilterModal,
+                        child: ClipRRect(
                           borderRadius: BorderRadius.circular(12),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 16,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .surfaceContainerHighest
-                                  .withOpacity(
-                                    (_bPartners.isEmpty ||
-                                            !GlobalCache.isDataLoaded)
-                                        ? 0.1
-                                        : 0.3,
+                          child: Stack(
+                            children: [
+                              InkWell(
+                                onTap:
+                                    (_bPartners.isEmpty || !GlobalCache.isDataLoaded || _isLoadingBPartners)
+                                    ? null
+                                    : _showBPartnerFilterModal,
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 16,
                                   ),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.outline.withOpacity(0.5),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.business_outlined,
-                                  color:
-                                      (_bPartners.isEmpty ||
-                                          !GlobalCache.isDataLoaded)
-                                      ? Colors.grey
-                                      : Theme.of(context).colorScheme.primary,
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .surfaceContainerHighest
+                                        .withOpacity(
+                                          (_bPartners.isEmpty ||
+                                                  !GlobalCache.isDataLoaded ||
+                                                  _isLoadingBPartners)
+                                              ? 0.15
+                                              : 0.35,
+                                        ),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.outline.withOpacity(0.3),
+                                    ),
+                                  ),
+                                  child: Row(
                                     children: [
-                                      Text(
-                                        'Tercero a Consultar',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .labelSmall
-                                            ?.copyWith(
-                                              color: Theme.of(
-                                                context,
-                                              ).colorScheme.onSurfaceVariant,
-                                            ),
+                                      Icon(
+                                        Icons.business_outlined,
+                                        color:
+                                            (_bPartners.isEmpty ||
+                                                !GlobalCache.isDataLoaded ||
+                                                _isLoadingBPartners)
+                                            ? Theme.of(context).colorScheme.primary.withOpacity(0.5)
+                                            : Theme.of(context).colorScheme.primary,
                                       ),
-                                      const SizedBox(height: 2),
-                                      Row(
-                                        children: [
-                                          Expanded(
-                                            child: Text(
-                                              !GlobalCache.isDataLoaded
-                                                  ? 'Sincronizando información...'
-                                                  : (_selectedBpId == null
-                                                        ? 'Selecciona un tercero para ver sus fichas'
-                                                        : (_bPartners.firstWhere(
-                                                                (bp) =>
-                                                                    bp['id'] ==
-                                                                    _selectedBpId,
-                                                                orElse: () => {
-                                                                  'Name':
-                                                                      'Tercero Seleccionado',
-                                                                },
-                                                              )['Name'] ??
-                                                              'Tercero ${_selectedBpId}')),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'Tercero a Consultar',
                                               style: Theme.of(context)
                                                   .textTheme
-                                                  .bodyLarge
+                                                  .labelSmall
                                                   ?.copyWith(
-                                                    fontWeight: FontWeight.w500,
-                                                    color:
-                                                        !GlobalCache
-                                                            .isDataLoaded
-                                                        ? Colors.grey
-                                                        : null,
+                                                    color: Theme.of(
+                                                      context,
+                                                    ).colorScheme.onSurfaceVariant,
                                                   ),
-                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Row(
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    !GlobalCache.isDataLoaded
+                                                        ? 'Sincronizando información...'
+                                                        : (_isLoadingBPartners
+                                                            ? 'Cargando terceros...'
+                                                            : (_selectedBpId == null
+                                                                  ? 'Selecciona un tercero para ver sus fichas'
+                                                                  : (_bPartners.firstWhere(
+                                                                          (bp) =>
+                                                                              bp['id'] ==
+                                                                              _selectedBpId,
+                                                                          orElse: () => {
+                                                                            'Name':
+                                                                                'Tercero Seleccionado',
+                                                                          },
+                                                                        )['Name'] ??
+                                                                        'Tercero $_selectedBpId'))),
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .bodyLarge
+                                                        ?.copyWith(
+                                                          fontWeight: FontWeight.w500,
+                                                          color:
+                                                              (!GlobalCache.isDataLoaded || _isLoadingBPartners)
+                                                              ? Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.5)
+                                                              : null,
+                                                        ),
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      if (GlobalCache.isDataLoaded && !_isLoadingBPartners)
+                                        Icon(
+                                          Icons.search,
+                                          color: (_bPartners.isEmpty)
+                                              ? Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.5)
+                                              : Theme.of(
+                                                  context,
+                                                ).colorScheme.onSurfaceVariant,
+                                        )
+                                      else
+                                        SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor: AlwaysStoppedAnimation<Color>(
+                                              Theme.of(context).colorScheme.primary,
                                             ),
                                           ),
-                                        ],
-                                      ),
+                                        ),
                                     ],
                                   ),
                                 ),
-                                if (GlobalCache.isDataLoaded)
-                                  Icon(
-                                    Icons.search,
-                                    color: (_bPartners.isEmpty)
-                                        ? Colors.grey
-                                        : Theme.of(
-                                            context,
-                                          ).colorScheme.onSurfaceVariant,
-                                  )
-                                else
-                                  const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
+                              ),
+                              if (_isLoadingBPartners || !GlobalCache.isDataLoaded)
+                                Positioned(
+                                  left: 0,
+                                  right: 0,
+                                  bottom: 0,
+                                  child: SizedBox(
+                                    height: 3,
+                                    child: LinearProgressIndicator(
+                                      backgroundColor: Colors.transparent,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        Theme.of(context).colorScheme.primary,
+                                      ),
                                     ),
                                   ),
-                              ],
-                            ),
+                                ),
+                            ],
                           ),
                         ),
                       ),

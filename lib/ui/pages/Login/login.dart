@@ -10,7 +10,9 @@ import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:universal_html/html.dart' as html;
 import 'package:primhub/api/global_cache.dart';
+import 'package:primhub/build_version.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -33,10 +35,32 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
   String _loadingMessage = 'PrimHub';
+  int _logoClickCount = 0;
+  bool _showVersion = false;
+  String _buildVersion = 'v-.-.-';
 
   @override
   void initState() {
     super.initState();
+    
+    if (appBuildVersion != '-.-.-') {
+      _buildVersion = 'v$appBuildVersion';
+    } else {
+      const envVersion = String.fromEnvironment('APP_VERSION');
+      if (envVersion.isNotEmpty) {
+        _buildVersion = 'v$envVersion';
+      } else {
+        try {
+          final build = html.window.localStorage['app_build'];
+          if (build != null && build.isNotEmpty) {
+            _buildVersion = 'v$build';
+          }
+        } catch (e) {
+          // Ignore if not on web
+        }
+      }
+    }
+
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
@@ -266,6 +290,8 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
               label: 'Base URL',
               hintText: 'https://...',
             ),
+            const SizedBox(height: 16),
+            Text('Versión de Compilación: $_buildVersion', style: const TextStyle(color: Colors.grey, fontSize: 12)),
           ],
         ),
         actions: [
@@ -307,10 +333,11 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
       floatingActionButton: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
-            'v1.9.3',
-            style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
-          ),
+          if (_showVersion)
+            Text(
+              _buildVersion,
+              style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+            ),
           if (!Envirioment.isProduction) ...[
             const SizedBox(width: 8),
             FloatingActionButton(
@@ -411,8 +438,17 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                   ),
                                   child: Padding(
                                     padding: const EdgeInsets.all(12.0),
-                                    child: Image.asset(
-                                      'assets/LogoPrimHub.png',
+                                    child: GestureDetector(
+                                      onTap: () {
+                                        _logoClickCount++;
+                                        if (_logoClickCount >= 7) {
+                                          setState(() => _showVersion = true);
+                                          _logoClickCount = 0;
+                                        }
+                                      },
+                                      child: Image.asset(
+                                        'assets/LogoPrimHub.png',
+                                      ),
                                     ),
                                   ),
                                 ),

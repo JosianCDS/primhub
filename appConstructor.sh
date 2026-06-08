@@ -11,7 +11,8 @@ echo "Limpiando proyecto..."
 flutter clean
 
 echo "🏗️  Compilando con versión: $VERSION..."
-flutter build web --release --pwa-strategy=none
+echo "const String appBuildVersion = '$VERSION';" > lib/build_version.dart
+flutter build web --release --pwa-strategy=none --dart-define=APP_VERSION=$VERSION
 
 if [ ! -f "$INDEX_FILE" ]; then
   echo "Error: No se encontró $INDEX_FILE"
@@ -26,6 +27,9 @@ awk -v ver="$VERSION" '{
   print
 }' "$INDEX_FILE" > "$TMP_FILE" && mv "$TMP_FILE" "$INDEX_FILE"
 
+echo "Aplicando versión a main.dart.js dentro de flutter_bootstrap.js..."
+sed -i "s/main\.dart\.js/main.dart.js?v=$VERSION/g" "$BUILD_DIR/flutter_bootstrap.js"
+
 echo "Eliminando bloque previo de versión (si existiera)..."
 # Borra el bloque entre marcadores (multilínea) si existía
 perl -0777 -pe 's/<!-- BUILD_VERSION_START -->.*?<!-- BUILD_VERSION_END -->\n?//s' \
@@ -37,50 +41,41 @@ cat > "$SNIPPET_FILE" <<EOF
 <script>
 (function () {
   var currentVersion = "$VERSION";
+  var prev = localStorage.getItem('app_build');
+  var alreadyReloaded = sessionStorage.getItem('__app_auto_reloaded__') === '1';
 
-
-  if ('serviceWorker' in navigator) {
-    try {
-      navigator.serviceWorker.getRegistrations()
-        .then(function (regs) { return Promise.all(regs.map(function (r){ return r.update(); })); })
-        .catch(function(){});
-    } catch(e) {}
-
-z
-    (function(){
-      var reloaded = false;
-      navigator.serviceWorker.addEventListener('controllerchange', function () {
-        if (!reloaded) {
-          reloaded = true;
-          try { localStorage.setItem('app_build', currentVersion); } catch(e) {}
-          location.reload();
+  function unregisterAllAndReload() {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(regs) {
+        for (var i = 0; i < regs.length; i++) {
+          regs[i].unregister();
         }
-      });
-    })();
+      }).catch(function() {});
+    }
+    
+    if (!alreadyReloaded) {
+      sessionStorage.setItem('__app_auto_reloaded__', '1');
+      window.location.reload(true);
+    }
   }
 
-  // 3) Persistimos versión y recarga "fallback" si NO hay SW
-  try {
-    var prev = localStorage.getItem('app_build');
-
-    var alreadyReloaded = sessionStorage.getItem('__app_auto_reloaded__') === '1';
-
-    if (!prev) {
-      localStorage.setItem('app_build', currentVersion);
-    } else if (prev !== currentVersion) {
-      localStorage.setItem('app_build', currentVersion);
-
-
-      if (!('serviceWorker' in navigator)) {
-        if (!alreadyReloaded) {
-          sessionStorage.setItem('__app_auto_reloaded__', '1');
-          location.reload();
-        }
-      } else {
-        
-      }
+  if (!prev) {
+    localStorage.setItem('app_build', currentVersion);
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(regs) {
+        for (var i = 0; i < regs.length; i++) { regs[i].unregister(); }
+      });
     }
-  } catch(e) {}
+  } else if (prev !== currentVersion) {
+    localStorage.setItem('app_build', currentVersion);
+    unregisterAllAndReload();
+  } else {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(regs) {
+        for (var i = 0; i < regs.length; i++) { regs[i].unregister(); }
+      });
+    }
+  }
 })();
 </script>
 <!-- BUILD_VERSION_END -->

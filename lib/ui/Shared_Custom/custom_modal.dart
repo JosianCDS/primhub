@@ -48,7 +48,7 @@ class CustomModal extends StatelessWidget {
               Flexible(
                 child: scrollable
                     ? SingleChildScrollView(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        padding: const EdgeInsets.only(left: 24, right: 24, top: 16),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -68,7 +68,7 @@ class CustomModal extends StatelessWidget {
                         ),
                       )
                     : Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        padding: const EdgeInsets.only(left: 24, right: 24, top: 16),
                         child: content!,
                       ),
               ),

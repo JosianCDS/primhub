@@ -5,6 +5,7 @@ import 'package:primhub/api/token.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/api/global_cache.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginSelectionPage extends StatefulWidget {
   const LoginSelectionPage({super.key});
@@ -44,6 +45,28 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
         Token.preAuth = _tempToken;
       }
       _isInit = false;
+      _autoSelectLastConfiguration();
+    }
+  }
+
+  Future<void> _autoSelectLastConfiguration() async {
+    if (_clients.isEmpty) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final lastClientId = prefs.getInt('last_login_client_id');
+    final lastRoleId = prefs.getInt('last_login_role_id');
+    final lastOrgId = prefs.getInt('last_login_org_id');
+
+    if (lastClientId != null && _clients.any((c) => c['id'] == lastClientId)) {
+      await _onClientChanged(lastClientId);
+
+      if (lastRoleId != null && _roles.any((r) => r['id'] == lastRoleId)) {
+        await _onRoleChanged(lastRoleId);
+
+        if (lastOrgId != null && _orgs.any((o) => o['id'] == lastOrgId)) {
+          await _onOrgChanged(lastOrgId);
+        }
+      }
     }
   }
 
@@ -166,6 +189,12 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Credenciales Incorrectas.'), backgroundColor: Colors.red));
       } else {
+        // Save preferences before navigating
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt('last_login_client_id', _selectedClientId!);
+        await prefs.setInt('last_login_role_id', _selectedRoleId!);
+        await prefs.setInt('last_login_org_id', _selectedOrgId!);
+        
         setState(() => _isLoading = false);
         CurrentLogMessage.add("Login exitoso. Token guardado.");
 

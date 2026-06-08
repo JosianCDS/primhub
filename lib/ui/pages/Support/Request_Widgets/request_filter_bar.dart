@@ -49,18 +49,19 @@ class RequestFilterBar extends StatelessWidget {
       runSpacing: 8.0,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        CustomButton(
-          text: showCalendar ? 'Ver Lista' : 'Calendario/Gantt',
-          onPressed: onShowCalendar,
-          icon: showCalendar ? Icons.list_alt : Icons.calendar_month,
-          backgroundColor: Theme.of(context).colorScheme.tertiary,
-          textColor: Theme.of(context).colorScheme.onTertiary,
-        ),
+        if (!AccessControl.isRealSupport)
+          CustomButton(
+            text: showCalendar ? 'Ver Lista' : 'Calendario/Gantt',
+            onPressed: isLoading ? null : onShowCalendar,
+            icon: showCalendar ? Icons.list_alt : Icons.calendar_month,
+            backgroundColor: Theme.of(context).colorScheme.tertiary,
+            textColor: Theme.of(context).colorScheme.onTertiary,
+          ),
         if (AccessControl.canCreateRequests)
           CustomButton(text: 'Crear Solicitud', onPressed: isLoading ? null : onAddRequest, icon: Icons.add),
         CustomButton(
           text: showHistory ? 'Ver Activas' : 'Ver Bitácora',
-          onPressed: onToggleHistory,
+          onPressed: isLoading ? null : onToggleHistory,
           icon: showHistory ? Icons.list : Icons.history,
           backgroundColor: Theme.of(context).colorScheme.secondary,
           textColor: Theme.of(context).colorScheme.onSecondary,

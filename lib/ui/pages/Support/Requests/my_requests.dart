@@ -749,17 +749,15 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
         }
 
         // B. Filtrado de Soporte vs Proyecto
-        if (_adminViewModeManager.currentMode != AdminViewMode.mixed) {
-          final recordUU = req['Record_UU'];
-          bool isSupport =
-              recordUU == null || recordUU.toString().trim().isEmpty;
+        final recordUU = req['Record_UU'];
+        bool isSupport = recordUU == null || recordUU.toString().trim().isEmpty;
 
-          if (_adminViewModeManager.currentMode == AdminViewMode.support) {
-            if (!isSupport) return false;
-            // Eliminamos el filtro estricto de requestTypeId == '1000006' para incluir otros tipos de soporte (ej. RFQ)
-          } else {
-            if (isSupport) return false;
-          }
+        if (AccessControl.isSupport && !AccessControl.isProject) {
+          // Modo soporte o usuario soporte real
+          if (!isSupport) return false;
+        } else if (!AccessControl.isSupport && AccessControl.isProject) {
+          // Modo proyecto o usuario proyecto real
+          if (isSupport) return false;
         }
 
         // C. Filtrado de Archivadas

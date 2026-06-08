@@ -7,6 +7,7 @@ import 'package:primhub/ui/pages/Support/Requests/request_functions.dart'; // Pa
 import 'package:primhub/ui/widgets/duration_formatter.dart'; // Importar DurationFormatter
 import 'package:primhub/api/global_cache.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
+import 'package:primhub/api/token.dart';
 
 /// Data class to hold filter state for requests.
 class RequestFilterModel {
@@ -320,7 +321,7 @@ class _RequestFilterModalState extends State<RequestFilterModal> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (AccessControl.isAdmin || AccessControl.isRealSupport) ...[
+            if (AccessControl.isAdmin) ...[
               _buildMultiSearchableField(
                 label: 'Tercero',
                 hintText: _bPartners.isEmpty ? 'Cargando terceros...' : 'Todos los Terceros',
@@ -395,45 +396,48 @@ class _RequestFilterModalState extends State<RequestFilterModal> {
             const SizedBox(height: 16),
             Row(
               children: [
-                Expanded(
-                  child: _buildMultiSearchableField(
-                    label: 'Tipo de solicitud',
-                    hintText: 'Todos',
-                    values: GlobalCache.requestTypes.entries
-                        .where((e) => _tempFilter.requestTypeIds.contains(e.value))
-                        .map((e) => e.key)
-                        .toList(),
-                    isLoading: _isLoadingMetadata,
-                    isDisabled: false,
-                    onTap: () => _openMultiSelectSearchModal(
-                      title: 'Tipo de solicitud',
-                      items: GlobalCache.requestTypes.entries.toList(),
-                      currentValues: _tempFilter.requestTypeIds.map((id) => id.toString()).toList(),
-                      getTitle: (item) => (item as MapEntry<String, int>).key,
-                      getValue: (item) => (item as MapEntry<String, int>).value.toString(),
-                      onSelected: (vals) => setState(() => _tempFilter = _tempFilter.copyWith(
-                        requestTypeIds: vals.map((v) => int.parse(v)).toList()
-                      )),
+                if (AccessControl.isAdmin) ...[
+                  Expanded(
+                    child: _buildMultiSearchableField(
+                      label: 'Tipo de solicitud',
+                      hintText: 'Todos',
+                      values: GlobalCache.requestTypes.entries
+                          .where((e) => _tempFilter.requestTypeIds.contains(e.value))
+                          .map((e) => e.key)
+                          .toList(),
+                      isLoading: _isLoadingMetadata,
+                      isDisabled: false,
+                      onTap: () => _openMultiSelectSearchModal(
+                        title: 'Tipo de solicitud',
+                        items: GlobalCache.requestTypes.entries.toList(),
+                        currentValues: _tempFilter.requestTypeIds.map((id) => id.toString()).toList(),
+                        getTitle: (item) => (item as MapEntry<String, int>).key,
+                        getValue: (item) => (item as MapEntry<String, int>).value.toString(),
+                        onSelected: (vals) => setState(() => _tempFilter = _tempFilter.copyWith(
+                          requestTypeIds: vals.map((v) => int.parse(v)).toList()
+                        )),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 16),
+                  const SizedBox(width: 16),
+                ],
                 Expanded(
                   child: _buildMultiSearchableField(
                     label: 'Categoría',
                     hintText: 'Todos',
-                    values: GlobalCache.categories.entries
-                        .where((e) => _tempFilter.categoryIds.contains(e.value))
-                        .map((e) => e.key)
+                    values: GlobalCache.rawCategories
+                        .where((c) => c['showinprimhub'] == true)
+                        .where((c) => _tempFilter.categoryIds.contains((c['id'] as num?)?.toInt()))
+                        .map((c) => (c['Name'] ?? '').toString())
                         .toList(),
                     isLoading: _isLoadingMetadata,
                     isDisabled: false,
                     onTap: () => _openMultiSelectSearchModal(
                       title: 'Categoría',
-                      items: GlobalCache.categories.entries.toList(),
+                      items: GlobalCache.rawCategories.where((c) => c['showinprimhub'] == true).toList(),
                       currentValues: _tempFilter.categoryIds.map((id) => id.toString()).toList(),
-                      getTitle: (item) => (item as MapEntry<String, int>).key,
-                      getValue: (item) => (item as MapEntry<String, int>).value.toString(),
+                      getTitle: (item) => (item['Name'] ?? '').toString(),
+                      getValue: (item) => ((item['id'] as num?)?.toInt()).toString(),
                       onSelected: (vals) => setState(() => _tempFilter = _tempFilter.copyWith(
                         categoryIds: vals.map((v) => int.parse(v)).toList()
                       )),
@@ -488,15 +492,15 @@ class _RequestFilterModalState extends State<RequestFilterModal> {
             const SizedBox(height: 16),
             _buildMultiSearchableField(
               label: 'Ficha de Producto',
-              hintText: _tempFilter.bpIds.isEmpty ? 'Seleccione primero un Tercero' : 'Todas las Fichas',
+              hintText: (!AccessControl.isAdmin) ? 'Todas las Fichas' : (_tempFilter.bpIds.isEmpty ? 'Seleccione primero un Tercero' : 'Todas las Fichas'),
               values: GlobalCache.productChips
                   .where((c) => _tempFilter.productChipIds.contains((c['id'] as num?)?.toInt()))
                   .map((c) => (c['Description'] ?? 'Ficha ${c['id']}').toString())
                   .toList(),
               isLoading: false,
-              isDisabled: _tempFilter.bpIds.isEmpty,
+              isDisabled: AccessControl.isAdmin && _tempFilter.bpIds.isEmpty,
               onTap: () {
-                if (_tempFilter.bpIds.isEmpty) {
+                if (AccessControl.isAdmin && _tempFilter.bpIds.isEmpty) {
                   ToastMessage.show(
                     context: context,
                     message: 'Debe seleccionar al menos un Tercero primero',
@@ -505,11 +509,15 @@ class _RequestFilterModalState extends State<RequestFilterModal> {
                   return;
                 }
 
-                // Filtrar fichas según los terceros seleccionados en el filtro
+                // Filtrar fichas según los terceros seleccionados en el filtro o por el usuario
                 List<Map<String, dynamic>> filteredChips = GlobalCache.productChips.where((chip) {
                   final rawBp = chip['C_BPartner_ID'];
                   final chipBpId = rawBp is Map ? (rawBp['id'] as num?)?.toInt() : (rawBp as num?)?.toInt();
-                  return _tempFilter.bpIds.contains(chipBpId);
+                  if (AccessControl.isAdmin) {
+                    return _tempFilter.bpIds.contains(chipBpId);
+                  } else {
+                    return chipBpId == User.cBPartnerID;
+                  }
                 }).toList();
 
 // [Mantenimiento] Log removido:                 debugPrint("DEBUG MODAL: Abriendo selección de chips. Fichas filtradas por BP: ${filteredChips.length}");

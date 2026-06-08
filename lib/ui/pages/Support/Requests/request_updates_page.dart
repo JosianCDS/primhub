@@ -153,7 +153,7 @@ class _RequestUpdatesPageState extends State<RequestUpdatesPage> {
         currentStatusId: _requestDetails?['R_Status_ID'] is Map 
             ? (_requestDetails!['R_Status_ID']['id'] as num?)?.toInt() 
             : (_requestDetails?['R_Status_ID'] as num?)?.toInt(),
-        summary: (_requestDetails?['Summary'] ?? _requestDetails?['summary'] ?? widget.docNo).toString(),
+        summary: stripHtmlTags((_requestDetails?['Summary'] ?? _requestDetails?['summary'] ?? widget.docNo).toString()),
         description: _memoizedDescription ?? 'Cargando...',
       ),
     );
@@ -777,56 +777,118 @@ class _RequestSummaryHeader extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest.withOpacity(0.3),
-        border: Border(bottom: BorderSide(color: colorScheme.outlineVariant)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Stack(
+        alignment: Alignment.topRight,
         children: [
-          Text(
-            'RESUMEN DE LA SOLICITUD',
-            style: textTheme.labelSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: colorScheme.primary.withOpacity(0.8),
-              letterSpacing: 1.2,
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
+              ),
+              borderRadius: BorderRadius.circular(8),
             ),
-          ),
-          const SizedBox(height: 8),
-          ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(context).size.height * 0.25,
-            ),
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    (details['Summary'] ?? details['summary'] ?? 'Sin resumen').toString(),
-                    style: textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: colorScheme.onSurface,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'RESUMEN DE LA SOLICITUD',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                      ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  stripHtmlTags((details['Summary'] ?? details['summary'] ?? 'Sin resumen').toString()),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.25,
+                  ),
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    child: Html(
+                      data: description.replaceAll('&lt;', '<').replaceAll('&gt;', '>'),
+                      style: {
+                        "body": Style(
+                          margin: Margins.zero,
+                          padding: HtmlPaddings.zero,
+                          fontSize: FontSize(14),
+                          color: colorScheme.onSurfaceVariant,
+                          height: Height(1.5),
+                        )
+                      },
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Html(
-                    data: description,
-                    style: {
-                      "body": Style(
-                        margin: Margins.zero,
-                        padding: HtmlPaddings.zero,
-                        fontSize: FontSize(14),
-                        color: colorScheme.onSurfaceVariant,
-                        height: Height(1.5),
-                      )
-                    },
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 4.0, right: 4.0),
+            child: IconButton(
+              icon: const Icon(Icons.zoom_out_map),
+              tooltip: 'Ver descripción completa',
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (BuildContext dialogContext) => CustomModal(
+                    title: 'Descripción Completa',
+                    width: 600,
+                    content: SizedBox(
+                      height: 400,
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Html(
+                              data: (details['Summary'] ?? details['summary'] ?? '').toString().replaceAll('&lt;', '<').replaceAll('&gt;', '>'),
+                              style: {
+                                "body": Style(
+                                  margin: Margins.zero,
+                                  padding: HtmlPaddings.zero,
+                                ),
+                              },
+                            ),
+                            if (description != 'Sin descripción adicional.') ...[
+                              const SizedBox(height: 16),
+                              const Divider(),
+                              const SizedBox(height: 16),
+                              Html(
+                                data: description.replaceAll('&lt;', '<').replaceAll('&gt;', '>'),
+                                style: {
+                                  "body": Style(
+                                    margin: Margins.zero,
+                                    padding: HtmlPaddings.zero,
+                                  ),
+                                },
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(dialogContext).pop(),
+                        child: const Text('Cerrar'),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                );
+              },
             ),
           ),
         ],

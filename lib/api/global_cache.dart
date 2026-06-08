@@ -213,7 +213,7 @@ class GlobalCache {
       if (isProject) {
         initialFilter += " and C_Project_ID gt 0";
       } else if (isSupport) {
-        initialFilter += " and C_Project_ID eq null";
+        initialFilter += " and Record_UU eq null";
       }
     }
 
@@ -290,7 +290,7 @@ class GlobalCache {
           if (isProject) {
             filter += " and C_Project_ID gt 0";
           } else if (isSupport) {
-            filter += " and C_Project_ID eq null";
+            filter += " and Record_UU eq null";
           }
         }
 
@@ -386,7 +386,7 @@ class GlobalCache {
         if (AccessControl.isRealProject) {
           reqFilter += " and C_Project_ID gt 0";
         } else if (AccessControl.isRealSupport) {
-          reqFilter += " and C_Project_ID eq null";
+          reqFilter += " and Record_UU eq null";
         }
       }
       final reqUri = Uri.parse(
