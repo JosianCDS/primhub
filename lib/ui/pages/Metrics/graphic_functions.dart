@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'package:primhub/api/api_http.dart' as http;
 import 'package:primhub/api/token.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/api/global_cache.dart';

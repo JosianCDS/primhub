@@ -439,17 +439,6 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
     final isMobile = MediaQuery.of(context).size.width < 800;
 
     final List<Widget> commonActions = [
-      if (GlobalCache.backgroundSyncNotifier.value)
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16.0),
-          child: Center(
-            child: SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          ),
-        ),
       const HelpIcon(),
       IconButton(
         icon: const Icon(Icons.refresh),

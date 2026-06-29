@@ -59,11 +59,7 @@ class _HoverListTileState extends State<HoverListTile> {
           if (mounted) setState(() => _isHovered = false);
         });
       },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        color: _isHovered ? Colors.blue.withOpacity(0.1) : Colors.transparent,
-        child: widget.builder(_isHovered),
-      ),
+      child: widget.builder(_isHovered),
     );
   }
 }

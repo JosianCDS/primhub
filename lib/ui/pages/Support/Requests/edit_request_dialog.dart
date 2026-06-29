@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter/services.dart'; // Para FilteringTextInputFormatter
-import 'package:http/http.dart' as http;
+import 'package:primhub/api/api_http.dart' as http;
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
 import 'package:primhub/api/validation_manager.dart';
@@ -82,10 +82,16 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
   void initState() {
     super.initState();
     _statusIdMap = widget.statusIdMap;
-    _currentPriority = widget.request['level'];
-    _currentStatus = widget.request['status'];
+    _currentPriority = widget.request['level'] ?? 'Media';
+    _currentStatus = widget.request['status'] ?? '';
     _statusId = widget.request['statusId'];
-    _isReadOnly = widget.request['isClosed'] == true || _currentStatus == '9_Final Close' || _statusId == 103;
+    
+    final String statusNameLower = _currentStatus.toLowerCase();
+    _isReadOnly = statusNameLower.contains('archivada') || 
+                  statusNameLower.contains('anulada') || 
+                  _statusId == 1000019 || 
+                  _statusId == 1000018 || 
+                  _statusId == 1000015;
 
     _resultController = TextEditingController(text: widget.request['result']);
     _newUpdateController = TextEditingController();
@@ -848,8 +854,8 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                             value: _selectedProductChipId,
                             isLoading: _isLoadingProducts,
                             isDisabled: (() {
-                              final bool d = _isReadOnly || _isLoadingProducts || _selectedBpId == null;
-// [Mantenimiento] Log removido:                               debugPrint("DEBUG EDIT CHIP: disabled=$d (ReadOnly=$_isReadOnly, Loading=$_isLoadingProducts, BP=$_selectedBpId)");
+                              final bool d = _isLoadingProducts || _selectedBpId == null;
+// [Mantenimiento] Log removido:                               debugPrint("DEBUG EDIT CHIP: disabled=$d (Loading=$_isLoadingProducts, BP=$_selectedBpId)");
                               return d;
                             })(),
                             displayText: _selectedProductChipId != null && _productChips.any((c) => c['id'] == _selectedProductChipId) 
@@ -1015,7 +1021,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                           hintText: 'Seleccione Estado',
                           value: _currentStatus,
                           isLoading: false,
-                          isDisabled: _isReadOnly,
+                          isDisabled: false, // Siempre editable para permitir reabrir
                           displayText: cleanStatusName(_currentStatus),
                           onTap: () => _openSearchModal<String>(
                             title: 'Estado',
@@ -1128,8 +1134,8 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
             foregroundColor: Theme.of(context).colorScheme.primary,
           ),
         ),
-        TextButton(onPressed: _isSaving ? null : () => Navigator.pop(context), child: Text(_isReadOnly ? 'Cerrar' : 'Cancelar')),
-        if (!_isReadOnly) CustomButton(text: 'Guardar', isLoading: _isSaving, onPressed: _handleSave),
+        TextButton(onPressed: _isSaving ? null : () => Navigator.pop(context), child: const Text('Cancelar')),
+        CustomButton(text: 'Guardar', isLoading: _isSaving, onPressed: _handleSave),
       ],
     );
   }

@@ -47,8 +47,8 @@ class UnifiedSupportCard extends StatelessWidget {
     final colorScheme = theme.colorScheme;
 
     final double availableHours =
-        acquiredHours - consumedHours; // Según requerimiento: Estimadas no se restan de disponibles
-    final bool isInsufficient = availableHours <= 0;
+        acquiredHours - consumedHours - inProgressHours; // Actualizado: restar estimadas para reflejar el saldo real disponible
+    final bool isInsufficient = availableHours < 0;
 
     const Color headerIconColor = Color(0xFF4F46E5);
     const Color headerIconBgColor = Color(0xFFEEF2FF);

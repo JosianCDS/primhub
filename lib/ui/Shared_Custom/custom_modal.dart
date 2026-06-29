@@ -21,18 +21,18 @@ class CustomModal extends StatelessWidget {
       elevation: 8,
       insetAnimationDuration: Duration.zero, // Elimina la animación costosa de layout al abrir el teclado
       backgroundColor: Colors.transparent, // El fondo lo maneja el Container con decoración
-      child: Container(
-        width: width ?? 400,
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width - 32,
-        ),
-        height: height,
-        decoration: BoxDecoration(
-          color: theme.dialogBackgroundColor,
-          borderRadius: BorderRadius.circular(12.0),
-        ),
+      child: Material(
+        type: MaterialType.card,
+        color: theme.dialogBackgroundColor,
+        borderRadius: BorderRadius.circular(12.0),
         clipBehavior: Clip.hardEdge, // hardEdge es mucho más eficiente que antiAlias durante redibujados
-        child: Column(
+        child: Container(
+          width: width ?? 400,
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width - 32,
+          ),
+          height: height,
+          child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -87,6 +87,6 @@ class CustomModal extends StatelessWidget {
           ],
         ),
       ),
-    );
+    ));
   }
 }

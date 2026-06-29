@@ -3,7 +3,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
-import 'package:http/http.dart' as http;
+import 'package:primhub/api/api_http.dart' as http;
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
@@ -85,7 +85,7 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
       const ResponsiveDataColumn(label: 'Ticket'),
       if (!isLaptop) ...[
         const ResponsiveDataColumn(label: 'Estado'),
-        const ResponsiveDataColumn(label: 'Tipo de Solicitud'),
+        if (AccessControl.isAdmin || AccessControl.isSupport) const ResponsiveDataColumn(label: 'Tipo de Solicitud'),
       ],
     ];
 
@@ -133,7 +133,7 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
         ),
         if (!isLaptop) ...[
           DataCell(Text(DocumentsLogic.cleanStatusName(alert['status']?.toString() ?? 'Sin Estado'))),
-          DataCell(Text(alert['situation']?.toString() ?? 'Sin tipo')),
+          if (AccessControl.isAdmin || AccessControl.isSupport) DataCell(Text(alert['situation']?.toString() ?? 'Sin tipo')),
         ],
       ];
     }
@@ -141,27 +141,76 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
     final scrollableCols = [
       if (isLaptop) ...[
         const ResponsiveDataColumn(label: 'Estado'),
-        const ResponsiveDataColumn(label: 'Tipo de Solicitud'),
+        if (AccessControl.isAdmin || AccessControl.isSupport) const ResponsiveDataColumn(label: 'Tipo de Solicitud'),
       ],
-      const ResponsiveDataColumn(label: 'Asunto'),
       const ResponsiveDataColumn(label: 'Categoría'),
+      const ResponsiveDataColumn(label: 'Asunto'),
       const ResponsiveDataColumn(label: 'Prioridad'),
       if (widget.showProjectContext) const ResponsiveDataColumn(label: 'Fase'),
       if (widget.showProjectContext) const ResponsiveDataColumn(label: 'Tarea'),
-      if (AccessControl.isAdmin) const ResponsiveDataColumn(label: 'Tercero'),
-      if (AccessControl.isAdmin) const ResponsiveDataColumn(label: 'Usuario'),
-      if (AccessControl.isAdmin) const ResponsiveDataColumn(label: 'Rep. Comercial'),
+      const ResponsiveDataColumn(label: 'Tercero'),
+      const ResponsiveDataColumn(label: 'Usuario'),
+      if (AccessControl.isAdmin || AccessControl.isSupport) const ResponsiveDataColumn(label: 'Rep. Comercial'),
       const ResponsiveDataColumn(label: 'Descripción'),
       const ResponsiveDataColumn(label: 'Horas Consumidas'),
       if (!widget.showProjectContext) const ResponsiveDataColumn(label: 'Ficha de Producto'),
     ];
 
     List<DataCell> buildScrollableCells(Map<String, dynamic> alert) {
+      final original = alert['original'] as Map<String, dynamic>? ?? {};
+
+      final catData = original['R_Category_ID'];
+      String catName = '';
+      int? catId;
+      if (catData is Map) {
+        catId = (catData['id'] as num?)?.toInt();
+      } else if (catData is num) {
+        catId = catData.toInt();
+      }
+
+      if (catId != null) {
+        final catInCache = GlobalCache.rawCategories.firstWhere(
+          (c) => (c['id'] as num?)?.toInt() == catId, 
+          orElse: () => <String, dynamic>{},
+        );
+        if (catInCache.isNotEmpty && catInCache['showinprimhub'] == true) {
+          catName = catInCache['Name']?.toString() ?? catInCache['identifier']?.toString() ?? '';
+        }
+      }
+      
+      final String finalCatName = catName.isNotEmpty ? catName : 'Sin Categoría';
+
+      final asunto = alert['emailSubject']?.toString() ?? original['Summary']?.toString() ?? '';
+
+      final repData = original['SalesRep_ID'];
+      final repName = repData is Map ? (repData['Name'] ?? repData['identifier'] ?? '') : '';
+
+      final chipId = alert['productChipId'] ?? (original['C_BPartner_Product_Chip_ID'] is Map ? original['C_BPartner_Product_Chip_ID']['id'] : original['C_BPartner_Product_Chip_ID']);
+      String chipDesc = 'N/A';
+      if (chipId != null) {
+        final cIdNum = (chipId as num?)?.toInt();
+        if (cIdNum != null) {
+          final found = GlobalCache.productChips.firstWhere(
+            (c) {
+              final cId = int.tryParse(c['id']?.toString() ?? '') ?? int.tryParse(c['C_BPartner_Product_Chip_ID']?.toString() ?? '');
+              return cId == cIdNum;
+            },
+            orElse: () => <String, dynamic>{},
+          );
+          if (found.isNotEmpty) {
+            chipDesc = found['Description']?.toString() ?? found['Name']?.toString() ?? 'Ficha $cIdNum';
+          } else {
+             chipDesc = alert['productChipName']?.toString() ?? 'Ficha $cIdNum';
+          }
+        }
+      }
+
       return [
         if (isLaptop) ...[
           DataCell(Text(DocumentsLogic.cleanStatusName(alert['status']?.toString() ?? 'Sin Estado'))),
-          DataCell(Text(alert['situation']?.toString() ?? 'Sin tipo')),
+          if (AccessControl.isAdmin || AccessControl.isSupport) DataCell(Text(alert['situation']?.toString() ?? 'Sin tipo')),
         ],
+        DataCell(Text(finalCatName)),
         DataCell(
           Tooltip(
             message: alert['emailSubject']?.toString() ?? '',
@@ -170,7 +219,6 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
             child: Text((alert['emailSubject']?.toString() ?? '').length > 25 ? '${(alert['emailSubject']?.toString() ?? '').substring(0, 25)}...' : (alert['emailSubject']?.toString() ?? '')),
           ),
         ),
-        DataCell(Text(alert['category']?.toString() ?? 'Sin categoría')),
         DataCell(
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -180,9 +228,9 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
         ),
         if (widget.showProjectContext) DataCell(Text(alert['phaseName']?.toString() ?? '-')),
         if (widget.showProjectContext) DataCell(Text(alert['taskName']?.toString() ?? '-')),
-        if (AccessControl.isAdmin) DataCell(Text(alert['bpName']?.toString() ?? '')),
-        if (AccessControl.isAdmin) DataCell(Text(alert['userName']?.toString() ?? '')),
-        if (AccessControl.isAdmin) DataCell(Text(alert['salesRepName']?.toString() ?? '')),
+        DataCell(Text(alert['bpName']?.toString() ?? '')),
+        DataCell(Text(alert['userName']?.toString() ?? '')),
+        if (AccessControl.isAdmin || AccessControl.isSupport) DataCell(Text(repName.toString().isEmpty ? (alert['salesRepName']?.toString() ?? '') : repName.toString())),
         DataCell(
           Tooltip(
             message: alert['descriptionClean'] ?? '',
@@ -195,7 +243,7 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
           ),
         ),
         DataCell(Text(DurationFormatter.format((alert['qtySpent'] as num?)?.toDouble() ?? 0.0))),
-        if (!widget.showProjectContext) DataCell(Text(alert['productChipName'] ?? 'N/A')),
+        if (!widget.showProjectContext) DataCell(Text(chipDesc)),
       ];
     }
 

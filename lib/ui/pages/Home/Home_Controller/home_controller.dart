@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'package:primhub/api/api_http.dart' as http;
 import 'package:primhub/api/api_utils.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/api/admin_view_mode.dart';
@@ -54,13 +54,11 @@ class HomeController extends ChangeNotifier {
     super.dispose();
   }
 
-  bool get isSyncingBackground => GlobalCache.backgroundSyncNotifier.value;
+  bool get isSyncingBackground => isLoading;
 
   void _onBackgroundSyncChanged() async {
-    if (!GlobalCache.backgroundSyncNotifier.value) {
-      await loadRecentRequests();
-      await loadSupportProductChips();
-    }
+    await loadRecentRequests();
+    await loadSupportProductChips();
     notifyListeners();
   }
 
@@ -82,7 +80,8 @@ class HomeController extends ChangeNotifier {
   Future<void> initData({bool forceRefresh = false}) async {
     final startTime = DateTime.now();
 
-    if (GlobalCache.isDataLoaded && !forceRefresh) {
+    // Fast path: Data is loaded, not forcing refresh, and background sync (Phase 2) is complete.
+    if (GlobalCache.isDataLoaded && !forceRefresh && !GlobalCache.backgroundSyncNotifier.value) {
       validationLoading = false;
       isLoading = false;
       await loadValidationData();
@@ -120,14 +119,13 @@ class HomeController extends ChangeNotifier {
       if (isAdmin || isProject) {
         await loadDocumentStats();
       }
-
-      validationLoading = false;
-      notifyListeners();
       
       if (isAdmin || isSupport) {
         await loadRecentRequests();
         await loadSupportProductChips();
       }
+
+      validationLoading = false;
       notifyListeners();
 
     } catch (e) {
@@ -146,9 +144,6 @@ class HomeController extends ChangeNotifier {
   }
 
   Future<void> loadValidationData() async {
-    validationLoading = true;
-    notifyListeners();
-
     final prefs = await SharedPreferences.getInstance();
     final bool isAdmin = AccessControl.isAdmin;
 
@@ -184,13 +179,6 @@ class HomeController extends ChangeNotifier {
 
           final validProjectIds = projects.map<int>((p) => p['id'] is int ? p['id'] as int : int.tryParse(p['id'].toString()) ?? 0).toSet();
           selectedProjectIds = selectedProjectIds.where((id) => validProjectIds.contains(id)).toList();
-
-          // Ya no seleccionamos todos por defecto si la lista está vacía.
-          // El usuario debe elegir cuáles visualizar manualmente.
-          // if (selectedProjectIds.isEmpty && projects.isNotEmpty) {
-          //   selectedProjectIds = projects.map<int>((p) => p['id'] is int ? p['id'] as int : int.tryParse(p['id'].toString()) ?? 0).toList();
-          //   savedSelectedProjectIds = List.from(selectedProjectIds);
-          // }
         }
       } catch (e) {}
     }
@@ -199,8 +187,6 @@ class HomeController extends ChangeNotifier {
     cBPartnerID = partnerID;
     partnerName = pName;
     projectPartnerName = projPName;
-    validationLoading = false;
-    notifyListeners();
   }
 
   Future<void> loadRecentRequests() async {
@@ -266,24 +252,32 @@ class HomeController extends ChangeNotifier {
       }
     }
 
-    final nonClosedRequests = allBPartnerRequests.where((r) {
-      final statusId = r['R_Status_ID'] is Map ? r['R_Status_ID']['id'] : r['R_Status_ID'];
-      final statusIdentifier = r['R_Status_ID'] is Map ? (r['R_Status_ID']['identifier'] ?? '').toString() : '';
-      final statusNameLower = (r['R_Status_Name'] ?? '').toLowerCase();
+    final filteredRequests = allBPartnerRequests.where((r) {
       final recordUU = r['Record_UU'];
+      bool isBitacora = recordUU != null && recordUU.toString().trim().isNotEmpty;
+      if (isBitacora) return false;
 
-      bool isArchived = statusId == 103 || statusId == 1000019 || statusIdentifier == '100_Archivada' || statusIdentifier == '90_Anulada' || statusNameLower.contains('archivada');
+      final statusId = r['R_Status_ID'] is Map ? r['R_Status_ID']['id'] : r['R_Status_ID'];
+      final statusIdentifier = r['R_Status_ID'] is Map ? r['R_Status_ID']['identifier'] : '';
+      final statusNameLower = (r['R_Status_Name'] ?? '').toLowerCase();
 
-      return !isArchived && (recordUU == null || recordUU.toString().isEmpty);
+      bool isArchived = statusId == 1000019 || statusId == 1000015 || statusId == 1000018 ||
+                      statusId == 103 ||
+                      statusIdentifier == '100_Archivada' || statusIdentifier == '90_Anulada' || 
+                      statusNameLower.contains('archivada') || statusNameLower.contains('anulada') || 
+                      statusNameLower.contains('implementada en produccion') || statusNameLower.contains('implementada en producción') ||
+                      statusNameLower == '9_final close';
+
+      return !isArchived;
     }).toList();
 
-    nonClosedRequests.sort((a, b) {
+    filteredRequests.sort((a, b) {
       final dateA = DateTime.tryParse(a['Created'] ?? '') ?? DateTime(0);
       final dateB = DateTime.tryParse(b['Created'] ?? '') ?? DateTime(0);
       return dateB.compareTo(dateA);
     });
 
-    allRequests = nonClosedRequests;
+    allRequests = filteredRequests;
 
     _applyFilters();
     isLoading = false;
@@ -399,6 +393,7 @@ class HomeController extends ChangeNotifier {
         'bpName': bpName,
         'userName': userName,
         'productChipId': extractProductChipId(r),
+        'qtySpent': r['QtySpent'],
         'original': r,
       };
     }).toList();
@@ -437,10 +432,18 @@ class HomeController extends ChangeNotifier {
       return bpIdsForQuery!.contains(chipBpId) && isActive;
     }).toList();
 
-    // Ordenar por fecha de creación (FIFO) para distribuir horas
+    // Ordenar por fecha de inicio de servicio (y si no existe, fecha de creación) (FIFO) para distribuir horas y orden visual
     allFetchedChips.sort((a, b) {
-      final dateA = DateTime.tryParse(a['Created'] ?? '') ?? DateTime(0);
-      final dateB = DateTime.tryParse(b['Created'] ?? '') ?? DateTime(0);
+      final dateAStr = (a['service_start_date']?.toString().isNotEmpty == true) 
+          ? a['service_start_date'].toString() 
+          : (a['Created']?.toString() ?? '');
+          
+      final dateBStr = (b['service_start_date']?.toString().isNotEmpty == true) 
+          ? b['service_start_date'].toString() 
+          : (b['Created']?.toString() ?? '');
+
+      final dateA = DateTime.tryParse(dateAStr) ?? DateTime(0);
+      final dateB = DateTime.tryParse(dateBStr) ?? DateTime(0);
       return dateA.compareTo(dateB);
     });
 
@@ -632,10 +635,21 @@ class HomeController extends ChangeNotifier {
   }
 
   void updateSelectedSupportBps(List<int> ids) async {
+    validationLoading = true;
+    notifyListeners();
     selectedSupportBpIds = ids;
     savedSelectedSupportBpIds = List.from(ids);
+    
+    // Cargar historial específico desde el servidor para cada tercero seleccionado
+    List<Future> fetches = [];
+    for (var id in ids) {
+      fetches.add(GlobalCache.loadSupportBpRequestsInBackground(id));
+    }
+    if (fetches.isNotEmpty) await Future.wait(fetches);
+
     await loadRecentRequests();
     await loadSupportProductChips();
+    validationLoading = false;
     notifyListeners();
   }
 

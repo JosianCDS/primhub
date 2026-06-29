@@ -31,7 +31,7 @@ class SessionManager {
     _isDialogShowing = true;
 
     // 1. Limpiar credenciales y caché inmediatamente para invalidar accesos
-    Token.clear();
+    Token.clear(); // Se ejecuta de forma asíncrona pero las variables en RAM se limpian síncronamente
     GlobalCache.clear();
 
     // 2. Redirigir de inmediato al login para bloquear la vista de datos

@@ -45,7 +45,7 @@ Future<void> showLogoutConfirmation(BuildContext context) async {
   );
   if (shouldLogout == true) {
     // 1. Limpiar el token y la caché INMEDIATAMENTE.
-    Token.clear();
+    await Token.clear();
     GlobalCache.clear();
     // 2. Navegar al login. Ahora el router verá que no hay sesión y permitirá ir al login.
     // Usamos navigatorKey para obtener un contexto global y asegurar la navegación.

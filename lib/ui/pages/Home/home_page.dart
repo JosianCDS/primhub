@@ -710,38 +710,6 @@ class _HomePageState extends State<HomePage> {
                 child: AnimatedBuilder(
                   animation: _controller,
                   builder: (context, child) {
-                    // Muestra el esqueleto si el controlador está cargando O si el retardo forzado está activo.
-                    if (_controller.validationLoading ||
-                        _isEnforcedDelayActive) {
-                      return SingleChildScrollView(
-                        padding: const EdgeInsets.all(20.0),
-                        child: Column(
-                          children: [
-                            const CustomSkeleton(
-                              height: 40,
-                              width: 250,
-                              borderRadius: 8,
-                            ),
-                            const SizedBox(height: 40),
-                            Wrap(
-                              spacing: 20,
-                              runSpacing: 20,
-                              alignment: WrapAlignment.center,
-                              children: List.generate(
-                                3,
-                                (index) => const CustomSkeleton(
-                                  height: 180,
-                                  width: 350,
-                                  borderRadius: 16,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 40),
-                            const SkeletonTable(),
-                          ],
-                        ),
-                      );
-                    }
                     return SingleChildScrollView(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.center,
@@ -765,7 +733,9 @@ class _HomePageState extends State<HomePage> {
 
                               if (!hasProjectsContent &&
                                   !hasSupportContent &&
-                                  !_controller.isLoading) {
+                                  !_controller.isLoading && 
+                                  !_controller.validationLoading && 
+                                  !_isEnforcedDelayActive) {
                                 return Padding(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 24.0,
@@ -1035,17 +1005,38 @@ class _HomePageState extends State<HomePage> {
                             ),
                           const SizedBox(height: 20),
                           if (AccessControl.isSupport) ...[
-                            Builder(
-                              builder: (context) {
-                                final bpsToRender = AccessControl.isAdmin
-                                    ? _controller.selectedSupportBpIds
-                                    : (User.cBPartnerID != null
-                                          ? [User.cBPartnerID!]
-                                          : <int>[]);
+                            if (_controller.validationLoading || _isEnforcedDelayActive)
+                              Column(
+                                children: [
+                                  Wrap(
+                                    spacing: 20,
+                                    runSpacing: 20,
+                                    alignment: WrapAlignment.center,
+                                    children: List.generate(
+                                      3,
+                                      (index) => const CustomSkeleton(
+                                        height: 180,
+                                        width: 350,
+                                        borderRadius: 16,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 40),
+                                  const SkeletonTable(),
+                                ],
+                              )
+                            else
+                              Builder(
+                                builder: (context) {
+                                  final bpsToRender = AccessControl.isAdmin
+                                      ? _controller.selectedSupportBpIds
+                                      : (User.cBPartnerID != null
+                                            ? [User.cBPartnerID!]
+                                            : <int>[]);
 
-                                if (AccessControl.isAdmin &&
-                                    bpsToRender.isEmpty &&
-                                    !_controller.isLoading) {
+                                  if (AccessControl.isAdmin &&
+                                      bpsToRender.isEmpty &&
+                                      !_controller.isLoading) {
                                   return Center(
                                     child: Padding(
                                       padding: const EdgeInsets.symmetric(
@@ -1207,11 +1198,9 @@ class _HomePageState extends State<HomePage> {
                           ],
                           if (AccessControl.isSupport &&
                               (!AccessControl.isAdmin ||
-                                  _controller.selectedSupportBpIds.isNotEmpty))
+                                  _controller.selectedSupportBpIds.isNotEmpty) && 
+                              !(_controller.validationLoading || _isEnforcedDelayActive)) ...[
                             const SizedBox(height: 30),
-                          if (AccessControl.isSupport &&
-                              (!AccessControl.isAdmin ||
-                                  _controller.selectedSupportBpIds.isNotEmpty))
                             Padding(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 16.0,
@@ -1222,6 +1211,7 @@ class _HomePageState extends State<HomePage> {
                                 onEdit: _showRequestDetails,
                               ),
                             ),
+                          ],
                           const SizedBox(height: 100),
                         ],
                       ),

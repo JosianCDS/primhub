@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
-import 'package:http/http.dart';
+import 'package:primhub/api/api_http.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/contract_api.dart';
@@ -91,8 +91,7 @@ Future<bool> finalizeLogin(String username, String password, Map<String, dynamic
         Token.primConfigId = null;
         Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const LoginPage()));
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('El Rol no tiene configuración.'), backgroundColor: Colors.red));
-        Token.auth = null;
-        Token.refreshToken = null;
+        Token.clear();
         User.userID = null;
         User.cBPartnerID = null;
 
@@ -122,6 +121,21 @@ Future<bool> finalizeLogin(String username, String password, Map<String, dynamic
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('has_support', hasSupport);
       await prefs.setBool('has_project', hasProject);
+      
+      // Guardar datos de sesión para refrescar página
+      await prefs.setString('auth_token', Token.auth ?? '');
+      await prefs.setString('refresh_token', Token.refreshToken ?? '');
+      await prefs.setInt('user_id', User.userID ?? 0);
+      await prefs.setInt('cbpartner_id', User.cBPartnerID ?? 0);
+      await prefs.setString('user_name', User.name ?? '');
+      await prefs.setInt('token_rol', Token.rol ?? 0);
+      await prefs.setInt('token_client', Token.client ?? 0);
+      await prefs.setString('token_role_uu', Token.roleUU ?? '');
+      await prefs.setInt('token_organitation', Token.organitation ?? 0);
+      await prefs.setInt('token_warehouse', Token.warehouseID ?? 0);
+      if (Token.primConfig != null) await prefs.setString('token_primconfig', Token.primConfig!);
+      if (Token.primConfigId != null) await prefs.setInt('token_primconfig_id', Token.primConfigId!);
+
       // Éxito, el token y datos de usuario ya se guardaron.
       return true;
     }
@@ -134,7 +148,17 @@ Future<Map<String, dynamic>> refreshToken(String refreshToken) async {
   try {
     final response = await put(Uri.parse(Endpoint.authTokens), headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $refreshToken'});
     if (response.statusCode == 200) {
-      return jsonDecode(response.body);
+      final data = jsonDecode(response.body);
+      Token.auth = data['token'];
+      if (data.containsKey('refresh_token')) {
+        Token.refreshToken = data['refresh_token'];
+      }
+      // Actualizar SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('auth_token', Token.auth ?? '');
+      await prefs.setString('refresh_token', Token.refreshToken ?? '');
+      
+      return data;
     }
     if (response.body.toLowerCase().contains('<html')) {
       return {'error': 'Error ${response.statusCode}: Servicio no disponible.'};

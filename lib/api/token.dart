@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class Token {
   static String? preAuth;
@@ -13,7 +14,7 @@ class Token {
   static int? organitation;
   static int? warehouseID;
 
-  static void clear() {
+  static Future<void> clear() async {
     preAuth = null;
     auth = null;
     refreshToken = null;
@@ -24,6 +25,22 @@ class Token {
     primConfigId = null;
     organitation = null;
     warehouseID = null;
+    
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('auth_token');
+      await prefs.remove('refresh_token');
+      await prefs.remove('user_id');
+      await prefs.remove('cbpartner_id');
+      await prefs.remove('user_name');
+      await prefs.remove('token_rol');
+      await prefs.remove('token_client');
+      await prefs.remove('token_role_uu');
+      await prefs.remove('token_organitation');
+      await prefs.remove('token_warehouse');
+      await prefs.remove('token_primconfig');
+      await prefs.remove('token_primconfig_id');
+    } catch (_) {}
   }
 
   static String tokenType = 'Bearer';

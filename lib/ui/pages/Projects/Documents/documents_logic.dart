@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:http/http.dart' as http;
+import 'package:primhub/api/api_http.dart' as http;
 import 'package:primhub/ImagesManagment/postAttachments.dart';
 import 'package:primhub/ImagesManagment/fecthAttachments.dart';
 import 'package:primhub/api/api_utils.dart';

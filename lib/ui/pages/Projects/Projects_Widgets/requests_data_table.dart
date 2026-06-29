@@ -14,7 +14,7 @@ import 'package:primhub/ImagesManagment/fecthAttachments.dart';
 import 'package:primhub/ImagesManagment/postAttachments.dart';
 import 'package:primhub/ImagesManagment/downloadAttachments.dart';
 import 'package:primhub/endpoint/endpoint.dart';
-import 'package:http/http.dart' as http;
+import 'package:primhub/api/api_http.dart' as http;
 import 'package:primhub/api/token.dart';
 import 'package:primhub/ui/pages/Projects/Projects_Widgets/file_preview_manager.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';

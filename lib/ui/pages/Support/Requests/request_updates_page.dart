@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'package:primhub/api/api_http.dart' as http;
 import 'package:file_picker/file_picker.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/endpoint/endpoint.dart';

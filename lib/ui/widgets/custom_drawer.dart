@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:http/http.dart' as http;
+import 'package:primhub/api/api_http.dart' as http;
 import 'package:primhub/api/token.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 import '../../api/access_control.dart';
@@ -190,19 +190,19 @@ class _CustomDrawerState extends State<CustomDrawer> {
                     HoverListTile(
                       builder: (isHovered) {
                         bool isSelected = widget.currentRoute == '/';
-                        return Container(
-                          color: isSelected ? colorScheme.primary.withOpacity(0.2) : Colors.transparent,
-                          child: ListTile(
-                            leading: Icon(Icons.home_rounded, color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant),
-                            title: Text(
-                              'Dashboard',
-                              style: TextStyle(color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurface, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal),
-                            ),
-                            onTap: () {
-                              Navigator.pop(context);
-                              context.push('/');
-                            },
+                        return ListTile(
+                          selected: isSelected,
+                          selectedTileColor: colorScheme.primary.withOpacity(0.2),
+                          tileColor: isHovered ? Colors.blue.withOpacity(0.1) : Colors.transparent,
+                          leading: Icon(Icons.home_rounded, color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant),
+                          title: Text(
+                            'Dashboard',
+                            style: TextStyle(color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurface, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal),
                           ),
+                          onTap: () {
+                            Navigator.pop(context);
+                            context.push('/');
+                          },
                         );
                       },
                     ),
@@ -210,19 +210,19 @@ class _CustomDrawerState extends State<CustomDrawer> {
                     HoverListTile(
                       builder: (isHovered) {
                         bool isSelected = widget.currentRoute == '/support';
-                        return Container(
-                          color: isSelected ? colorScheme.primary.withOpacity(0.2) : Colors.transparent,
-                          child: ListTile(
-                            leading: Icon(Icons.schedule_rounded, color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant),
-                            title: Text(
-                              'Dashboard de Horas',
-                              style: TextStyle(color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurface, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal),
-                            ),
-                            onTap: () {
-                              Navigator.pop(context);
-                              context.push('/support');
-                            },
+                        return ListTile(
+                          selected: isSelected,
+                          selectedTileColor: colorScheme.primary.withOpacity(0.2),
+                          tileColor: isHovered ? Colors.blue.withOpacity(0.1) : Colors.transparent,
+                          leading: Icon(Icons.schedule_rounded, color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant),
+                          title: Text(
+                            'Dashboard de Horas',
+                            style: TextStyle(color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurface, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal),
                           ),
+                          onTap: () {
+                            Navigator.pop(context);
+                            context.push('/support');
+                          },
                         );
                       },
                     ),
@@ -230,19 +230,19 @@ class _CustomDrawerState extends State<CustomDrawer> {
                     HoverListTile(
                       builder: (isHovered) {
                         bool isSelected = widget.currentRoute == '/my-requests';
-                        return Container(
-                          color: isSelected ? colorScheme.primary.withOpacity(0.2) : Colors.transparent,
-                          child: ListTile(
-                            leading: Icon(Icons.table_chart_rounded, color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant),
-                            title: Text(
-                              'Mis Solicitudes',
-                              style: TextStyle(color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurface, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal),
-                            ),
-                            onTap: () {
-                              Navigator.pop(context);
-                              context.push('/my-requests');
-                            },
+                        return ListTile(
+                          selected: isSelected,
+                          selectedTileColor: colorScheme.primary.withOpacity(0.2),
+                          tileColor: isHovered ? Colors.blue.withOpacity(0.1) : Colors.transparent,
+                          leading: Icon(Icons.table_chart_rounded, color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant),
+                          title: Text(
+                            'Mis Solicitudes',
+                            style: TextStyle(color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurface, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal),
                           ),
+                          onTap: () {
+                            Navigator.pop(context);
+                            context.push('/my-requests');
+                          },
                         );
                       },
                     ),
@@ -251,19 +251,19 @@ class _CustomDrawerState extends State<CustomDrawer> {
                     HoverListTile(
                       builder: (isHovered) {
                         bool isSelected = widget.currentRoute == '/deliverables';
-                        return Container(
-                          color: isSelected ? colorScheme.primary.withOpacity(0.2) : Colors.transparent,
-                          child: ListTile(
-                            leading: Icon(Icons.folder_rounded, color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant),
-                            title: Text(
-                              'Mis Proyectos',
-                              style: TextStyle(color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurface, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal),
-                            ),
-                            onTap: () {
-                              Navigator.pop(context);
-                              context.push('/deliverables');
-                            },
+                        return ListTile(
+                          selected: isSelected,
+                          selectedTileColor: colorScheme.primary.withOpacity(0.2),
+                          tileColor: isHovered ? Colors.blue.withOpacity(0.1) : Colors.transparent,
+                          leading: Icon(Icons.folder_rounded, color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant),
+                          title: Text(
+                            'Mis Proyectos',
+                            style: TextStyle(color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurface, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal),
                           ),
+                          onTap: () {
+                            Navigator.pop(context);
+                            context.push('/deliverables');
+                          },
                         );
                       },
                     ),
@@ -271,19 +271,19 @@ class _CustomDrawerState extends State<CustomDrawer> {
                   HoverListTile(
                     builder: (isHovered) {
                       bool isSelected = widget.currentRoute == '/metrics';
-                      return Container(
-                        color: isSelected ? colorScheme.primary.withOpacity(0.2) : Colors.transparent,
-                        child: ListTile(
-                          leading: Icon(Icons.bar_chart_rounded, color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant),
-                          title: Text(
-                            'Indicadores (BI)',
-                            style: TextStyle(color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurface, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal),
-                          ),
-                          onTap: () {
-                            Navigator.pop(context);
-                            context.push('/metrics');
-                          },
+                      return ListTile(
+                        selected: isSelected,
+                        selectedTileColor: colorScheme.primary.withOpacity(0.2),
+                        tileColor: isHovered ? Colors.blue.withOpacity(0.1) : Colors.transparent,
+                        leading: Icon(Icons.bar_chart_rounded, color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant),
+                        title: Text(
+                          'Indicadores (BI)',
+                          style: TextStyle(color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurface, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal),
                         ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          context.push('/metrics');
+                        },
                       );
                     },
                   ),
@@ -293,6 +293,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
             const Divider(),
             HoverListTile(
               builder: (isHovered) => ListTile(
+                tileColor: isHovered ? Colors.red.withOpacity(0.05) : Colors.transparent,
                 leading: Icon(Icons.logout_rounded, color: isHovered ? colorScheme.error : colorScheme.onSurfaceVariant),
                 title: Text('Cerrar sesión', style: TextStyle(color: isHovered ? colorScheme.error : colorScheme.onSurface)),
                 onTap: () {

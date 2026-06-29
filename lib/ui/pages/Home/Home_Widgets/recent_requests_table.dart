@@ -63,16 +63,18 @@ class _DesktopRequestTable extends StatelessWidget {
       const ResponsiveDataColumn(label: 'Acciones'),
       const ResponsiveDataColumn(label: 'Ticket'),
       const ResponsiveDataColumn(label: 'Estado'),
-      const ResponsiveDataColumn(label: 'Tipo de Solicitud'),
+      if (AccessControl.isAdmin || AccessControl.isSupport) const ResponsiveDataColumn(label: 'Tipo de Solicitud'),
     ];
 
     final List<ResponsiveDataColumn> scrollableColumns = [
-      if (AccessControl.isAdmin) const ResponsiveDataColumn(label: 'Tercero'),
-      if (AccessControl.isAdmin) const ResponsiveDataColumn(label: 'Usuario'),
-      if (AccessControl.isAdmin) const ResponsiveDataColumn(label: 'Rep. Comercial'),
+      const ResponsiveDataColumn(label: 'Categoría'),
+      const ResponsiveDataColumn(label: 'Asunto'),
       const ResponsiveDataColumn(label: 'Prioridad'),
+      const ResponsiveDataColumn(label: 'Tercero'),
+      const ResponsiveDataColumn(label: 'Usuario'),
+      if (AccessControl.isAdmin || AccessControl.isSupport) const ResponsiveDataColumn(label: 'Rep. Comercial'),
       const ResponsiveDataColumn(label: 'Descripción'),
-      const ResponsiveDataColumn(label: 'Horas Consumidas'),
+      const ResponsiveDataColumn(label: 'Horas'),
       const ResponsiveDataColumn(label: 'Ficha de Producto'),
     ];
 
@@ -87,6 +89,11 @@ class _DesktopRequestTable extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
+              IconButton(
+                tooltip: 'Ir a Mis Solicitudes',
+                icon: const Icon(Icons.arrow_forward),
+                onPressed: () => context.push('/my-requests', extra: {'search': alert['code']}),
+              ),
               IconButton(
                 icon: Icon(AccessControl.canAddUpdates ? Icons.reply : Icons.forum),
                 onPressed: () => GoRouter.of(context).push('/request-updates/${Uri.encodeComponent((alert['realId'] ?? alert['original']['id']).toString())}', extra: {'docNo': alert['code']}),
@@ -124,45 +131,78 @@ class _DesktopRequestTable extends StatelessWidget {
           ),
         ),
         DataCell(Text(DocumentsLogic.cleanStatusName(alert['status']?.toString() ?? 'Sin Estado'))),
-        DataCell(Text(alert['situation']?.toString() ?? 'Sin tipo')),
+        if (AccessControl.isAdmin || AccessControl.isSupport) DataCell(Text(alert['situation']?.toString() ?? 'Sin tipo')),
       ],
-      scrollableCellBuilder: (alert) => [
-        if (AccessControl.isAdmin) DataCell(Text(alert['bpName']?.toString() ?? '')),
-        if (AccessControl.isAdmin) DataCell(Text(alert['userName']?.toString() ?? '')),
-        if (AccessControl.isAdmin) DataCell(Text(alert['salesRepName']?.toString() ?? '')),
-        DataCell(
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: alert['levelBgColor'] ?? Colors.grey.shade200,
-              borderRadius: BorderRadius.circular(30),
-            ),
-            child: Text(
-              alert['level']?.toString() ?? 'N/A',
-              style: TextStyle(
-                color: alert['levelColor'] ?? Colors.black,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ),
-        DataCell(Text(DocumentsLogic.stripHtmlTags(alert['descriptionClean'] ?? alert['description'] ?? '').length > 50 ? '${DocumentsLogic.stripHtmlTags(alert['descriptionClean'] ?? alert['description'] ?? '').substring(0, 50)}...' : DocumentsLogic.stripHtmlTags(alert['descriptionClean'] ?? alert['description'] ?? ''))),
-        DataCell(Text(DurationFormatter.format((alert['qtySpent'] as num?)?.toDouble() ?? 0.0))),
-        DataCell(Text(() {
-          final chipId = alert['productChipId'];
-          if (chipId == null) return 'N/A';
+      scrollableCellBuilder: (alert) {
+        final original = alert['original'] as Map<String, dynamic>? ?? {};
+
+        final catData = original['R_Category_ID'];
+        String catName = '';
+        int? catId;
+        if (catData is Map) {
+          catId = (catData['id'] as num?)?.toInt();
+        } else if (catData is num) {
+          catId = catData.toInt();
+        }
+
+        if (catId != null) {
+          final catInCache = GlobalCache.rawCategories.firstWhere(
+            (c) => (c['id'] as num?)?.toInt() == catId, 
+            orElse: () => <String, dynamic>{},
+          );
+          if (catInCache.isNotEmpty && catInCache['showinprimhub'] == true) {
+            catName = catInCache['Name']?.toString() ?? catInCache['identifier']?.toString() ?? '';
+          }
+        }
+        
+        final String finalCatName = catName.isNotEmpty ? catName : 'Sin Categoría';
+        final asunto = alert['emailSubject']?.toString() ?? original['Summary']?.toString() ?? '';
+
+        final repData = original['SalesRep_ID'];
+        final repName = repData is Map ? (repData['Name'] ?? repData['identifier'] ?? '') : '';
+
+        final chipId = alert['productChipId'];
+        String chipDesc = 'N/A';
+        if (chipId != null) {
           final found = GlobalCache.productChips.firstWhere(
             (c) {
               final cId = int.tryParse(c['id']?.toString() ?? '') ?? int.tryParse(c['C_BPartner_Product_Chip_ID']?.toString() ?? '');
-              final targetId = int.tryParse(chipId?.toString() ?? '');
-              return cId != null && targetId != null && cId == targetId;
+              return cId == chipId;
             },
-            orElse: () => {},
+            orElse: () => <String, dynamic>{},
           );
-          if (found.isEmpty) return '#$chipId';
-          return found['Description'] ?? found['Name'] ?? '#$chipId';
-        }())),
-      ],
+          if (found.isNotEmpty) {
+            chipDesc = found['Description']?.toString() ?? found['Name']?.toString() ?? 'Ficha $chipId';
+          }
+        }
+
+        return [
+          DataCell(Text(finalCatName)),
+          DataCell(Text(asunto.toString())),
+          DataCell(
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: alert['levelBgColor'] ?? Colors.grey.shade200,
+                borderRadius: BorderRadius.circular(30),
+              ),
+              child: Text(
+                alert['level']?.toString() ?? 'N/A',
+                style: TextStyle(
+                  color: alert['levelColor'] ?? Colors.black,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+          DataCell(Text(alert['bpName']?.toString() ?? '')),
+          DataCell(Text(alert['userName']?.toString() ?? '')),
+          if (AccessControl.isAdmin || AccessControl.isSupport) DataCell(Text(repName.toString())),
+          DataCell(Text(DocumentsLogic.stripHtmlTags(alert['descriptionClean'] ?? alert['description'] ?? '').length > 50 ? '${DocumentsLogic.stripHtmlTags(alert['descriptionClean'] ?? alert['description'] ?? '').substring(0, 50)}...' : DocumentsLogic.stripHtmlTags(alert['descriptionClean'] ?? alert['description'] ?? ''))),
+          DataCell(Text(DurationFormatter.format((alert['qtySpent'] as num?)?.toDouble() ?? 0.0))),
+          DataCell(Text(chipDesc)),
+        ];
+      },
       mobileCardBuilder: (req) => _RecentRequestCard(request: req, onEdit: onEdit),
     );
   }
@@ -269,9 +309,16 @@ class _RecentRequestCard extends StatelessWidget {
                           builder: (context) => DocumentsLogic.RequestAttachmentsDialog(requestId: request['realId'] ?? request['original']['id'], documentNo: request['code'] ?? ''),
                         );
                       }
+                      if (value == 'go') {
+                        GoRouter.of(context).push('/my-requests', extra: {'search': request['code']});
+                      }
                       if (value == 'edit') onEdit(request);
                     },
                     itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                      const PopupMenuItem<String>(
+                        value: 'go',
+                        child: ListTile(leading: Icon(Icons.arrow_forward), title: Text('Ir a Mis Solicitudes')),
+                      ),
                       PopupMenuItem<String>(
                         value: 'updates',
                         child: ListTile(leading: Icon(AccessControl.canAddUpdates ? Icons.reply : Icons.forum), title: Text(AccessControl.canAddUpdates ? 'Responder' : 'Ver Actualizaciones')),

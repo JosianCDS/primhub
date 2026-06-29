@@ -20,8 +20,8 @@ class RequestStatsCard extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final bool isMobile = MediaQuery.of(context).size.width < 600;
 
-    double availableHours = safeContracted - consumedHours;
-    bool isInsufficient = (estimatedHours > availableHours) && safeContracted > 0;
+    double availableHours = safeContracted - consumedHours - estimatedHours;
+    bool isInsufficient = availableHours < 0 && safeContracted > 0;
 
     double maxHours = safeContracted;
     if (maxHours <= 0) maxHours = 1.0;
@@ -94,18 +94,23 @@ class RequestStatsCard extends StatelessWidget {
               color: colorScheme.surfaceContainerHighest,
               child: isInsufficient
                   ? Container(color: colorScheme.error)
-                  : Stack(
+                  : Row(
                       children: [
-                        // Capa de Estimadas (debajo)
-                        FractionallySizedBox(
-                          widthFactor: (consumedPct + estimatedPct).clamp(0.0, 1.0),
-                          child: Container(color: colorScheme.tertiary.withOpacity(0.7)),
-                        ),
-                        // Capa de Consumidas (encima)
-                        FractionallySizedBox(
-                          widthFactor: consumedPct,
-                          child: Container(color: colorScheme.error),
-                        ),
+                        if (consumedPct > 0)
+                          Expanded(
+                            flex: (consumedPct * 1000).toInt(),
+                            child: Container(color: colorScheme.error),
+                          ),
+                        if (estimatedPct > 0)
+                          Expanded(
+                            flex: (estimatedPct * 1000).toInt(),
+                            child: Container(color: colorScheme.tertiary.withOpacity(0.7)),
+                          ),
+                        if (1.0 - consumedPct - estimatedPct > 0)
+                          Expanded(
+                            flex: ((1.0 - consumedPct - estimatedPct) * 1000).toInt(),
+                            child: Container(color: colorScheme.primary.withOpacity(0.15)),
+                          ),
                       ],
                     ),
             ),

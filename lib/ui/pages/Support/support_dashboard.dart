@@ -983,20 +983,6 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
         title: const Text('Dashboard De Horas De Soporte'),
         actions: [
           if (AccessControl.isAdmin) ..._buildAdminAppBarActions(context),
-          if (GlobalCache.backgroundSyncNotifier.value)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: Center(
-                child: SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Theme.of(context).colorScheme.onPrimary,
-                  ),
-                ),
-              ),
-            ),
           const HelpIcon(),
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -1203,7 +1189,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                                 (chip['available'] as num?)?.toDouble() ?? 0.0;
                           }
                         } else {
-                          available = contracted - consumed;
+                          available = contracted - consumed - inProgress;
                         }
 
                         return SupportSummaryPremium(

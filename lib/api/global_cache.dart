@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:async';
-import 'package:http/http.dart' as http;
+import 'package:primhub/api/api_http.dart' as http;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:primhub/api/contract_api.dart';
@@ -276,13 +276,8 @@ class GlobalCache {
       final bool isProject = AccessControl.isRealProject;
       final bool isSupport = AccessControl.isRealSupport;
 
-      final List<Future<List<Map<String, dynamic>>>> futures = [];
-      final List<int> years = [];
-
-      for (var year = currentYear; year >= currentYear - 3; year--) {
+      String getFilterForYear(int year) {
         String filter = "Created ge '$year-01-01T00:00:00Z' and Created le '$year-12-31T23:59:59Z'";
-        
-        // Optimización por Rol: Solo traer lo que le compete al usuario
         if (!isAdmin) {
           if (User.cBPartnerID != null) {
             filter += " and C_BPartner_ID eq ${User.cBPartnerID}";
@@ -293,17 +288,43 @@ class GlobalCache {
             filter += " and Record_UU eq null";
           }
         }
+        return filter;
+      }
 
+      // 1. Cargar el año actual PRIMERO y desbloquear la UI (Fase 2a)
+      final currentYearReqs = await fetchRequest(
+        filter: getFilterForYear(currentYear),
+        expand: 'C_Order_ID(\$select=DocumentNo),C_BPartner_ID(\$select=Name,Description)',
+      );
+
+      if (currentYearReqs.isNotEmpty) {
+        final existingIds = requests.map((r) => r['id']).toSet();
+        for (var r in currentYearReqs) {
+          if (!existingIds.contains(r['id'])) {
+            requests.add(Map<String, dynamic>.from(r));
+          }
+        }
+        _archivedYearsLoaded.add(currentYear);
+      }
+
+      // Desbloquear la UI de Mis Solicitudes ahora que el año actual está listo
+      if (!(_phase2Completer?.isCompleted ?? true)) _phase2Completer?.complete();
+
+      // 2. Cargar el historial (últimos 3 años) en background real (Fase 2b)
+      final List<Future<List<Map<String, dynamic>>>> futures = [];
+      final List<int> years = [];
+
+      for (var year = currentYear - 1; year >= currentYear - 3; year--) {
         years.add(year);
         futures.add(fetchRequest(
-          filter: filter,
+          filter: getFilterForYear(year),
           expand: 'C_Order_ID(\$select=DocumentNo),C_BPartner_ID(\$select=Name,Description)',
         ));
       }
 
-      // Ejecutar todas las peticiones de los 6 años en paralelo
       final List<List<Map<String, dynamic>>> results = await Future.wait(futures);
 
+      bool newHistoryAdded = false;
       for (int i = 0; i < results.length; i++) {
         final year = years[i];
         final yearReqs = results[i];
@@ -313,17 +334,19 @@ class GlobalCache {
           for (var r in yearReqs) {
             if (!existingIds.contains(r['id'])) {
               requests.add(Map<String, dynamic>.from(r));
+              newHistoryAdded = true;
             }
           }
           _archivedYearsLoaded.add(year);
-// [Mantenimiento] Log removido:           debugPrint("CACHE: Fase 2 - Procesadas ${yearReqs.length} solicitudes del año $year en paralelo.");
         }
       }
 
       isFullyLoaded = true;
-      if (!(_phase2Completer?.isCompleted ?? true)) _phase2Completer?.complete();
+      if (newHistoryAdded) {
+        backgroundSyncNotifier.value = !backgroundSyncNotifier.value;
+      }
+
     } catch (e) {
-// [Mantenimiento] Log removido:       debugPrint("CACHE ERROR Fase 2: $e");
       if (!(_phase2Completer?.isCompleted ?? true)) _phase2Completer?.completeError(e);
     }
   }
@@ -523,6 +546,60 @@ class GlobalCache {
     }
     
     projectRequestsCache[projectId] = map.values.toList();
+  }
+
+  static Map<int, Completer<void>> _activeSupportBpCompleters = {};
+
+  static Future<void> loadSupportBpRequestsInBackground(int bpId) async {
+    if (_activeSupportBpCompleters.containsKey(bpId)) {
+      return _activeSupportBpCompleters[bpId]!.future;
+    }
+
+    final completer = Completer<void>();
+    _activeSupportBpCompleters[bpId] = completer;
+
+    try {
+      final currentYear = DateTime.now().year;
+      final threeYearsAgo = currentYear - 3;
+      
+      final filterCurrent = "C_BPartner_ID eq $bpId and Created ge '$currentYear-01-01T00:00:00Z' and Record_UU eq null";
+      final reqsCurrent = await fetchRequest(
+        filter: filterCurrent,
+        expand: 'C_Order_ID(\$select=DocumentNo),C_BPartner_ID(\$select=Name,Description)'
+      );
+      
+      if (reqsCurrent.isNotEmpty) {
+        _mergeSupportRequests(reqsCurrent);
+      }
+
+      final filterHistory = "C_BPartner_ID eq $bpId and Created ge '$threeYearsAgo-01-01T00:00:00Z' and Created lt '$currentYear-01-01T00:00:00Z' and Record_UU eq null";
+      final reqsHistory = await fetchRequest(
+        filter: filterHistory,
+        expand: 'C_Order_ID(\$select=DocumentNo),C_BPartner_ID(\$select=Name,Description)'
+      );
+
+      if (reqsHistory.isNotEmpty) {
+        _mergeSupportRequests(reqsHistory);
+      }
+    } catch (e) {
+    } finally {
+      _activeSupportBpCompleters.remove(bpId);
+      if (!completer.isCompleted) completer.complete();
+    }
+  }
+
+  static void _mergeSupportRequests(List<Map<String, dynamic>> newReqs) {
+    final existingIds = requests.map((r) => r['id']).toSet();
+    for (var r in newReqs) {
+      if (!existingIds.contains(r['id'])) {
+        requests.add(Map<String, dynamic>.from(r));
+      } else {
+        final index = requests.indexWhere((req) => req['id'] == r['id']);
+        if (index != -1) {
+          requests[index] = Map<String, dynamic>.from(r);
+        }
+      }
+    }
   }
 
   static Future<Map<String, dynamic>?> _fetchAdminCompany() async {

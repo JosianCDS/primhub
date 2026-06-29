@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'package:primhub/api/api_http.dart' as http;
 import 'package:file_picker/file_picker.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:go_router/go_router.dart';
@@ -1003,10 +1003,8 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     // 3. Calcular Consumidas y En Progreso por ficha vinculada
     final Map<int, double> chipConsumedMap = {};
     final Map<int, double> chipEstimatedMap = {};
-    consumedForStats = 0.0;
-    inProgressForStats = 0.0;
 
-    for (var r in _rawRequests) {
+    for (var r in GlobalCache.requests) {
       final double qtySpent = (r['QtySpent'] as num?)?.toDouble() ?? 0.0;
       final statusData = r['R_Status_ID'];
       int? sId = statusData is Map ? statusData['id'] : statusData;
@@ -1032,21 +1030,26 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       if (chipId != null) {
         if (isClosed) {
           chipConsumedMap[chipId] = (chipConsumedMap[chipId] ?? 0.0) + qtySpent;
-          consumedForStats += qtySpent;
         } else {
           chipEstimatedMap[chipId] =
               (chipEstimatedMap[chipId] ?? 0.0) + qtySpent;
-          inProgressForStats += qtySpent;
         }
       }
     }
 
+    consumedForStats = 0.0;
+    inProgressForStats = 0.0;
     List<Map<String, dynamic>> processed = [];
+    
     for (var chip in relevantChips) {
       final int chipId = (chip['id'] as num).toInt();
       double totalQty = (chip['Qty'] as num?)?.toDouble() ?? 0.0;
       double consumed = chipConsumedMap[chipId] ?? 0.0;
       double estimated = chipEstimatedMap[chipId] ?? 0.0;
+
+      // Sumar solo de las fichas relevantes para este cliente/vista
+      consumedForStats += consumed;
+      inProgressForStats += estimated;
 
       processed.add({
         ...chip,
@@ -1521,20 +1524,6 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   Widget build(BuildContext context) {
     final appBarActions = [
       if (AccessControl.isAdmin) ..._buildAdminAppBarActions(context),
-      if (GlobalCache.backgroundSyncNotifier.value)
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-          child: Center(
-            child: SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: Theme.of(context).colorScheme.onPrimary,
-              ),
-            ),
-          ),
-        ),
       const HelpIcon(),
       Padding(
         padding: const EdgeInsets.only(right: 8.0),

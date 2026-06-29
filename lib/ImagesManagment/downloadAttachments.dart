@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
-import 'package:http/http.dart';
+import 'package:primhub/api/api_http.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/endpoint/endpoint.dart';

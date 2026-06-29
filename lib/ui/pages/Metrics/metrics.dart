@@ -1018,20 +1018,6 @@ class _MetricsPageState extends State<MetricsPage> {
         title: const Text('Indicadores (BI)'),
         actions: [
           if (AccessControl.isAdmin) ..._buildAdminAppBarActions(context),
-          if (GlobalCache.backgroundSyncNotifier.value)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: Center(
-                child: SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Theme.of(context).colorScheme.onPrimary,
-                  ),
-                ),
-              ),
-            ),
           const HelpIcon(),
           IconButton(
             icon: const Icon(Icons.refresh),

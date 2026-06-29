@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // Para FilteringTextInputFormatter
-import 'package:http/http.dart' as http;
+import 'package:primhub/api/api_http.dart' as http;
 import 'package:file_picker/file_picker.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';

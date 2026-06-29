@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:primhub/api/auth_api.dart';
-import 'package:http/http.dart' as http;
+import 'package:primhub/api/api_http.dart' as http;
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/api_utils.dart';
 import 'package:primhub/api/token.dart';
@@ -123,7 +123,7 @@ class ContractApi {
     // Filtro de Ficha: Activo y Producto Soporte por UUID
     // También exigimos que el Tercero esté activo (IsActive eq true)
     String prodFilter = _validProductIds!.map((id) => "M_Product_ID eq $id").join(' or ');
-    final String baseUrl = "$endpoint?\$filter=(IsActive eq 'Y' or IsActive eq true) and ($prodFilter)&\$expand=C_BPartner_ID(\$select=Name,IsActive;\$filter=IsActive eq true)";
+    final String baseUrl = "$endpoint?\$filter=(IsActive eq 'Y' or IsActive eq true) and ($prodFilter)&\$expand=C_BPartner_ID(\$select=Name,IsActive)";
 
     try {
       final records = await _fetchPaginated(baseUrl);
@@ -132,6 +132,10 @@ class ContractApi {
       for (var record in records) {
         final bpInfo = record['C_BPartner_ID'];
         if (bpInfo != null && bpInfo['id'] != null) {
+          // Check if IsActive is false directly in Dart to avoid backend errors
+          final isActive = bpInfo['IsActive'] == true || bpInfo['IsActive'] == 'Y';
+          if (!isActive) continue;
+
           final bpId = bpInfo['id'];
           bPartners[bpId] = {
             'id': bpId, 

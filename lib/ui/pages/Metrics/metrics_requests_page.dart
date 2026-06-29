@@ -302,13 +302,6 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
       appBar: AppBar(
         title: Text('Solicitudes: ${_filterType ?? _filterStatus ?? _filterCompliance ?? "Detalle"}'),
         actions: [
-          if (GlobalCache.backgroundSyncNotifier.value)
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16.0),
-              child: Center(
-                child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-              ),
-            ),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Refrescar',
