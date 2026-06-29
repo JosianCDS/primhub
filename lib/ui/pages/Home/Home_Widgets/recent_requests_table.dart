@@ -177,7 +177,7 @@ class _DesktopRequestTable extends StatelessWidget {
         }
 
         return [
-          DataCell(Text(finalCatName)),
+          DataCell(Text(catName.toString())),
           DataCell(Text(asunto.toString())),
           DataCell(
             Container(

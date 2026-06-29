@@ -33,6 +33,8 @@ class ResponsiveDataTable<T> extends StatefulWidget {
 
 class _ResponsiveDataTableState<T> extends State<ResponsiveDataTable<T>> {
   final ScrollController _horizontalScrollController = ScrollController();
+  final ScrollController _fixedVerticalController = ScrollController();
+  final ScrollController _scrollableVerticalController = ScrollController();
   
   List<DataRow>? _cachedFixedRows;
   List<DataRow>? _cachedScrollableRows;
@@ -43,8 +45,25 @@ class _ResponsiveDataTableState<T> extends State<ResponsiveDataTable<T>> {
   int? _lastScrollableColumnsLength;
 
   @override
+  void initState() {
+    super.initState();
+    _fixedVerticalController.addListener(() {
+      if (_scrollableVerticalController.hasClients && _fixedVerticalController.offset != _scrollableVerticalController.offset) {
+        _scrollableVerticalController.jumpTo(_fixedVerticalController.offset);
+      }
+    });
+    _scrollableVerticalController.addListener(() {
+      if (_fixedVerticalController.hasClients && _scrollableVerticalController.offset != _fixedVerticalController.offset) {
+        _fixedVerticalController.jumpTo(_scrollableVerticalController.offset);
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _horizontalScrollController.dispose();
+    _fixedVerticalController.dispose();
+    _scrollableVerticalController.dispose();
     super.dispose();
   }
 
@@ -203,47 +222,72 @@ class _ResponsiveDataTableState<T> extends State<ResponsiveDataTable<T>> {
     return Card(
       elevation: 4,
       clipBehavior: Clip.hardEdge,
-      child: SingleChildScrollView(
-        controller: PrimaryScrollController.maybeOf(context),
-        physics: const ClampingScrollPhysics(),
-        scrollDirection: Axis.vertical,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // --- Fixed Part ---
-            RepaintBoundary(
-              child: DataTableTheme(
-                data: fixedDataTableTheme,
-                child: DataTable(
-                  showCheckboxColumn: false, // Handled manually
-                  columns: allFixedColumns,
-                  rows: fixedRows,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // --- Fixed Part ---
+          ScrollConfiguration(
+            behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+            child: SingleChildScrollView(
+              controller: _fixedVerticalController,
+              physics: const ClampingScrollPhysics(),
+              scrollDirection: Axis.vertical,
+              child: RepaintBoundary(
+                child: DataTableTheme(
+                  data: fixedDataTableTheme,
+                  child: DataTable(
+                    showCheckboxColumn: false, // Handled manually
+                    columns: allFixedColumns,
+                    rows: fixedRows,
+                  ),
                 ),
               ),
             ),
-            // --- Scrollable Part ---
-            Expanded(
+          ),
+          // --- Scrollable Part ---
+          Expanded(
+            child: ScrollbarTheme(
+              data: ScrollbarThemeData(
+                thumbColor: WidgetStateProperty.all(theme.colorScheme.onSurface.withOpacity(0.4)),
+                trackColor: WidgetStateProperty.all(theme.colorScheme.surfaceContainerHighest),
+                trackBorderColor: WidgetStateProperty.all(theme.colorScheme.outline.withOpacity(0.2)),
+                thickness: WidgetStateProperty.all(10.0),
+                trackVisibility: WidgetStateProperty.all(true),
+                radius: const Radius.circular(5.0),
+              ),
               child: Scrollbar(
-                controller: _horizontalScrollController,
+                controller: _scrollableVerticalController,
                 thumbVisibility: true,
-                child: SingleChildScrollView(
+                child: Scrollbar(
                   controller: _horizontalScrollController,
-                  physics: const ClampingScrollPhysics(),
-                  scrollDirection: Axis.horizontal,
-                  child: RepaintBoundary(
-                    child: DataTableTheme(
-                      data: scrollableDataTableTheme,
-                      child: DataTable(
-                          showCheckboxColumn: false,
-                          columns: allScrollableColumns,
-                          rows: scrollableRows),
+                  thumbVisibility: true,
+                  child: ScrollConfiguration(
+                    behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+                    child: SingleChildScrollView(
+                      controller: _horizontalScrollController,
+                      physics: const ClampingScrollPhysics(),
+                      scrollDirection: Axis.horizontal,
+                      child: SingleChildScrollView(
+                        controller: _scrollableVerticalController,
+                        physics: const ClampingScrollPhysics(),
+                        scrollDirection: Axis.vertical,
+                        child: RepaintBoundary(
+                          child: DataTableTheme(
+                            data: scrollableDataTableTheme,
+                            child: DataTable(
+                                showCheckboxColumn: false,
+                                columns: allScrollableColumns,
+                                rows: scrollableRows),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

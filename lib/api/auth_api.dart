@@ -99,20 +99,14 @@ Future<bool> finalizeLogin(String username, String password, Map<String, dynamic
       }
 
       if (AccessControl.isAdmin || AccessControl.isRealSupport) {
-        // For Admin or Support users, we assume they can see support features.
-        // Set the product ID so subsequent API calls work.
-        ProductChip.mProductID = 1000816;
-        hasSupport = true; // Let's assume true, the home controller will load the actual data.
+        // Admin/Soporte: detectar dinámicamente si hay fichas de soporte
+        final chips = await ContractApi.getSupportProductChips();
+        hasSupport = chips.isNotEmpty;
         hasProject = true;
       } else if (User.cBPartnerID != null) {
-        // For other users (like Project users)
-        await getProductChip();
-        if (ProductChip.mProductID != null) {
-          final chips = await ContractApi.getSupportProductChips(bPartnerId: User.cBPartnerID);
-          hasSupport = chips.isNotEmpty;
-        } else {
-          hasSupport = false;
-        }
+        // Para otros usuarios (como Proyecto)
+        final chips = await ContractApi.getSupportProductChips(bPartnerId: User.cBPartnerID);
+        hasSupport = chips.isNotEmpty;
         hasProject = await checkProjects();
       } else {
         hasSupport = false;

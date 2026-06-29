@@ -7,29 +7,9 @@ class AccessControl {
   static int? get cBPartnerID => User.cBPartnerID;
   static int? get userID => User.userID;
 
-  // Listas de UUIDs oficiales para cada rol
-  static const List<String> adminUUIDs = [
-    '7540bc88-7f9c-4a42-b755-28a6129f00b3',
-    'cb3e6b57-0114-4e35-a147-71c51140823b'
-  ];
-  static const List<String> projectUUIDs = [
-    '03d91fb2-5427-4788-b2ca-1beeb16f7b09',
-    '1ccc4784-8228-40f4-80ba-0dd6f0e65bc9'
-  ];
-  static const List<String> supportUUIDs = [
-    '2d24dcaf-d652-4acf-8e61-87e4294b266f',
-    '068df55c-f80b-4d88-88c8-ad9a80af19c8'
-  ];
-
   // Verifica si el rol tiene configuración válida (usado en Login)
   static bool hasHardcodedRole(int? roleId) {
-    // Verificación estricta por UUID
-    if (Token.roleUU != null) {
-      if (adminUUIDs.contains(Token.roleUU)) return true;
-      if (supportUUIDs.contains(Token.roleUU)) return true;
-      if (projectUUIDs.contains(Token.roleUU)) return true;
-    }
-    return false;
+    return false; // Ya no validamos por UUID, solo confiamos en la configuración
   }
 
   static bool get hasAnyConfig => Token.primConfig != null;
@@ -38,20 +18,12 @@ class AccessControl {
   static bool get _hasSupportConfig => Token.primConfig?.toLowerCase() == 'sp';
   static bool get _hasProjectConfig => Token.primConfig?.toLowerCase() == 'py';
 
-  // Roles reales basados PRINCIPALMENTE en UUID y nivel de configuración
-  static bool get isRealAdmin => 
-    (Token.roleUU != null && adminUUIDs.contains(Token.roleUU)) ||
-    _hasAdminConfig;
+  // Roles reales basados ÚNICAMENTE en el nivel de configuración
+  static bool get isRealAdmin => _hasAdminConfig;
 
-  static bool get isRealSupport => !isRealAdmin && (
-    (Token.roleUU != null && supportUUIDs.contains(Token.roleUU)) ||
-    _hasSupportConfig
-  );
+  static bool get isRealSupport => !isRealAdmin && _hasSupportConfig;
 
-  static bool get isRealProject => !isRealAdmin && (
-    (Token.roleUU != null && projectUUIDs.contains(Token.roleUU)) ||
-    _hasProjectConfig
-  );
+  static bool get isRealProject => !isRealAdmin && _hasProjectConfig;
 
   static bool get isAdmin => isRealAdmin;
 

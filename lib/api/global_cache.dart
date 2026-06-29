@@ -365,6 +365,7 @@ class GlobalCache {
     requestTypes.clear();
     categories.clear();
     groups.clear();
+    
     isDataLoaded = false;
     isFullyLoaded = false;
     _archivedYearsLoaded.clear();
