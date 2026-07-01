@@ -344,56 +344,58 @@ class _RequestFilterModalState extends State<RequestFilterModal> {
               ),
               const SizedBox(height: 16),
             ],
-            Row(
-              children: [
-                Expanded(
-                  child: _buildMultiSearchableField(
-                    label: 'Rep. Comercial',
-                    hintText: 'Todos',
-                    values: GlobalCache.salesReps
-                        .where((rep) => _tempFilter.salesRepIds.contains(((rep['AD_User_ID'] ?? rep['id']) as num?)?.toInt()))
-                        .map((rep) => (rep['Name'] ?? '').toString())
-                        .toList(),
-                    isLoading: false,
-                    isDisabled: false,
-                    onTap: () => _openMultiSelectSearchModal(
-                      title: 'Representante Comercial',
-                      items: GlobalCache.salesReps,
-                      currentValues: _tempFilter.salesRepIds.map((id) => id.toString()).toList(),
-                      getTitle: (item) => (item['Name'] ?? '').toString(),
-                      getValue: (item) => ((item['AD_User_ID'] ?? item['id']) as num).toInt().toString(),
-                      onSelected: (vals) => setState(() => _tempFilter = _tempFilter.copyWith(
-                        salesRepIds: vals.map((v) => int.parse(v)).toList()
-                      )),
+            if (!AccessControl.isSupport) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildMultiSearchableField(
+                      label: 'Rep. Comercial',
+                      hintText: 'Todos',
+                      values: GlobalCache.salesReps
+                          .where((rep) => _tempFilter.salesRepIds.contains(((rep['AD_User_ID'] ?? rep['id']) as num?)?.toInt()))
+                          .map((rep) => (rep['Name'] ?? '').toString())
+                          .toList(),
+                      isLoading: false,
+                      isDisabled: false,
+                      onTap: () => _openMultiSelectSearchModal(
+                        title: 'Representante Comercial',
+                        items: GlobalCache.salesReps,
+                        currentValues: _tempFilter.salesRepIds.map((id) => id.toString()).toList(),
+                        getTitle: (item) => (item['Name'] ?? '').toString(),
+                        getValue: (item) => ((item['AD_User_ID'] ?? item['id']) as num).toInt().toString(),
+                        onSelected: (vals) => setState(() => _tempFilter = _tempFilter.copyWith(
+                          salesRepIds: vals.map((v) => int.parse(v)).toList()
+                        )),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildMultiSearchableField(
-                    label: 'Usuario',
-                    hintText: _users.isEmpty ? 'Cargando...' : 'Todos',
-                    values: modalUsers
-                        .where((u) => _tempFilter.userIds.contains(((u['AD_User_ID'] ?? u['id']) as num?)?.toInt()))
-                        .map((u) => (u['Name'] ?? '').toString())
-                        .toList(),
-                    isLoading: _isLoadingMetadata && _users.isEmpty,
-                    isDisabled: false,
-                    onTap: () => _openMultiSelectSearchModal(
-                      title: 'Usuario',
-                      items: modalUsers,
-                      currentValues: _tempFilter.userIds.map((id) => id.toString()).toList(),
-                      getTitle: (item) => (item['Name'] ?? '').toString(),
-                      getValue: (item) => ((item['AD_User_ID'] ?? item['id']) as num).toInt().toString(),
-                      onSelected: (vals) => setState(() => _tempFilter = _tempFilter.copyWith(
-                        userIds: vals.map((v) => int.parse(v)).toList()
-                      )),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildMultiSearchableField(
+                      label: 'Usuario',
+                      hintText: _users.isEmpty ? 'Cargando...' : 'Todos',
+                      values: modalUsers
+                          .where((u) => _tempFilter.userIds.contains(((u['AD_User_ID'] ?? u['id']) as num?)?.toInt()))
+                          .map((u) => (u['Name'] ?? '').toString())
+                          .toList(),
+                      isLoading: _isLoadingMetadata && _users.isEmpty,
+                      isDisabled: false,
+                      onTap: () => _openMultiSelectSearchModal(
+                        title: 'Usuario',
+                        items: modalUsers,
+                        currentValues: _tempFilter.userIds.map((id) => id.toString()).toList(),
+                        getTitle: (item) => (item['Name'] ?? '').toString(),
+                        getValue: (item) => ((item['AD_User_ID'] ?? item['id']) as num).toInt().toString(),
+                        onSelected: (vals) => setState(() => _tempFilter = _tempFilter.copyWith(
+                          userIds: vals.map((v) => int.parse(v)).toList()
+                        )),
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
+                ],
+              ),
+              const SizedBox(height: 16),
+            ],
             Row(
               children: [
                 if (AccessControl.isAdmin) ...[
@@ -511,6 +513,9 @@ class _RequestFilterModalState extends State<RequestFilterModal> {
 
                 // Filtrar fichas según los terceros seleccionados en el filtro o por el usuario
                 List<Map<String, dynamic>> filteredChips = GlobalCache.productChips.where((chip) {
+                  final isActive = chip['IsActive'];
+                  if (isActive == false || isActive == 'N') return false;
+
                   final rawBp = chip['C_BPartner_ID'];
                   final chipBpId = rawBp is Map ? (rawBp['id'] as num?)?.toInt() : (rawBp as num?)?.toInt();
                   if (AccessControl.isAdmin) {

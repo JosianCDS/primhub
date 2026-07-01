@@ -134,6 +134,17 @@ class _RequestUpdatesPageState extends State<RequestUpdatesPage> {
     final targetId = id ?? widget.requestId;
     setState(() {
       _updatesFuture = fetchRequestUpdates(targetId).then((list) {
+        // Filtrar actualizaciones de transferencia interna para clientes
+        if (!AccessControl.isAdmin) {
+          list = list.where((update) {
+            final result = update['Result']?.toString() ?? '';
+            if (result.contains('Solicitud ${widget.docNo} fue transferida')) {
+              return false;
+            }
+            return true;
+          }).toList();
+        }
+
         // Ordenar por fecha de creación descendente (más recientes arriba)
         list.sort((a, b) {
           final dateA = DateTime.tryParse(a['Created'] ?? '') ?? DateTime(1900);

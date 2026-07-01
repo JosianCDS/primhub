@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
 import 'package:primhub/api/api_http.dart';
+import 'package:primhub/api/session_manager.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/contract_api.dart';
@@ -129,6 +130,8 @@ Future<bool> finalizeLogin(String username, String password, Map<String, dynamic
       await prefs.setInt('token_warehouse', Token.warehouseID ?? 0);
       if (Token.primConfig != null) await prefs.setString('token_primconfig', Token.primConfig!);
       if (Token.primConfigId != null) await prefs.setInt('token_primconfig_id', Token.primConfigId!);
+
+      SessionManager().startKeepAliveTimer();
 
       // Éxito, el token y datos de usuario ya se guardaron.
       return true;

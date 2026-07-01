@@ -49,6 +49,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   bool _isLoading = true;
   bool _isAscending = false;
   bool _showHistory = false;
+  bool _showWithoutChipOnly = false;
   bool _isInit = true;
   double? _contractedHours;
   double _consumedHours = 0.0;
@@ -870,6 +871,13 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
         }
 
         // --- FILTRO DE FICHAS DE PRODUCTO ---
+        if (AccessControl.isAdmin && _showWithoutChipOnly) {
+          final int? parsedChipId = extractProductChipId(req);
+          if (parsedChipId != null) {
+            return false;
+          }
+        }
+
         if (_filters.productChipIds.isNotEmpty) {
           final int? parsedChipId = extractProductChipId(req);
           final String? chipName = extractProductChipName(
@@ -915,6 +923,24 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
         return true;
       }).toList();
 
+      // Ordenar globalmente antes de paginar:
+      // Primero por ficha de producto (los que tienen van arriba)
+      // Luego por fecha (ascendente o descendente según _isAscending)
+      filteredRaw.sort((a, b) {
+        final hasChipA = (extractProductChipId(a) != null) ? 1 : 0;
+        final hasChipB = (extractProductChipId(b) != null) ? 1 : 0;
+        
+        if (hasChipA != hasChipB) {
+          return hasChipB.compareTo(hasChipA);
+        }
+
+        // Obtener fechas para el orden secundario (por defecto descendente)
+        final dateA = (a['Created'] ?? a['Date'] ?? a['Updated'] ?? '').toString();
+        final dateB = (b['Created'] ?? b['Date'] ?? b['Updated'] ?? '').toString();
+        
+        return _isAscending ? dateA.compareTo(dateB) : dateB.compareTo(dateA);
+      });
+
       // 4. Actualizar contador total
       _totalRecords = filteredRaw.length;
 
@@ -942,6 +968,12 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
           // Cacheamos el ordenamiento aquí para evitar hacerlo en el build
           _sortedRequests = _requests.toList()
             ..sort((a, b) {
+              final hasChipA = (a['productChipId'] != null) ? 1 : 0;
+              final hasChipB = (b['productChipId'] != null) ? 1 : 0;
+              if (hasChipA != hasChipB) {
+                return hasChipB.compareTo(hasChipA);
+              }
+
               final timeA = a['time'] ?? '';
               final timeB = b['time'] ?? '';
               return _isAscending
@@ -1418,6 +1450,12 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     setState(() {
       _sortedRequests = _requests.toList()
         ..sort((a, b) {
+          final hasChipA = (a['productChipId'] != null) ? 1 : 0;
+          final hasChipB = (b['productChipId'] != null) ? 1 : 0;
+          if (hasChipA != hasChipB) {
+            return hasChipB.compareTo(hasChipA);
+          }
+
           final timeA = a['time'] ?? '';
           final timeB = b['time'] ?? '';
           return _isAscending ? timeA.compareTo(timeB) : timeB.compareTo(timeA);
@@ -1612,13 +1650,23 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                                   onShowCalendar: () =>
                                       setState(() => _showCalendar = !_showCalendar),
                                   showCalendar: _showCalendar,
+                                  showWithoutChipOnly: _showWithoutChipOnly,
+                                  onToggleWithoutChip: () {
+                                    setState(() {
+                                      _showWithoutChipOnly = !_showWithoutChipOnly;
+                                      _currentPage = 0;
+                                    });
+                                    _refreshRequest(fetchNetwork: false);
+                                  },
                                   activeFilterCount: _activeFilterCount,
                                   isLoading:
                                       _isLoading || !GlobalCache.isDataLoaded,
                                   onSortChanged: () {
-                                    _isAscending = !_isAscending;
-                                    _currentPage = 0;
-                                    _updateSortedRequests();
+                                    setState(() {
+                                      _isAscending = !_isAscending;
+                                      _currentPage = 0;
+                                    });
+                                    _refreshRequest(fetchNetwork: false);
                                   },
                                   onRowsPerPageChanged: (val) {
                                     setState(() {

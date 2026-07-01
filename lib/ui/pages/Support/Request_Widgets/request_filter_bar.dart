@@ -21,6 +21,8 @@ class RequestFilterBar extends StatelessWidget {
   final int activeFilterCount;
   final bool isLoading;
   final bool showCalendar; // Add showCalendar
+  final bool showWithoutChipOnly;
+  final VoidCallback? onToggleWithoutChip;
 
   const RequestFilterBar({
     super.key,
@@ -40,6 +42,8 @@ class RequestFilterBar extends StatelessWidget {
     required this.onShowCalendar,
     this.isLoading = false,
     this.showCalendar = false, // Default to false
+    this.showWithoutChipOnly = false,
+    this.onToggleWithoutChip,
   });
 
   @override
@@ -104,18 +108,30 @@ class RequestFilterBar extends StatelessWidget {
           label: Text(isAscending ? 'Más antiguas' : 'Más recientes'),
           onPressed: onSortChanged,
         ),
-        ActionChip(
-          avatar: const Icon(Icons.calendar_today, size: 16),
-          label: Text(() {
-            if (selectedYears.isEmpty) return 'Año: Todos';
-            if (selectedYears.length == 1) {
-              if (selectedYears.first == DateTime.now().year) return 'Año: Actual';
-              return 'Año: ${selectedYears.first}';
-            }
-            return 'Años: ${selectedYears.length}';
-          }()),
-          onPressed: onShowYearFilter,
-        ),
+        if (AccessControl.isAdmin && onToggleWithoutChip != null)
+          ActionChip(
+            backgroundColor: showWithoutChipOnly ? Theme.of(context).colorScheme.primaryContainer : null,
+            labelStyle: TextStyle(
+              color: showWithoutChipOnly ? Theme.of(context).colorScheme.onPrimaryContainer : null,
+              fontWeight: showWithoutChipOnly ? FontWeight.bold : null,
+            ),
+            avatar: const Icon(Icons.block, size: 16),
+            label: const Text('Sin ficha'),
+            onPressed: onToggleWithoutChip,
+          ),
+        if (!AccessControl.isSupport)
+          ActionChip(
+            avatar: const Icon(Icons.calendar_today, size: 16),
+            label: Text(() {
+              if (selectedYears.isEmpty) return 'Año: Todos';
+              if (selectedYears.length == 1) {
+                if (selectedYears.first == DateTime.now().year) return 'Año: Actual';
+                return 'Año: ${selectedYears.first}';
+              }
+              return 'Años: ${selectedYears.length}';
+            }()),
+            onPressed: onShowYearFilter,
+          ),
         DropdownButton<int>(
           value: rowsPerPage,
           items: [10, 25, 50, 100]

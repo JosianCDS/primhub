@@ -758,7 +758,26 @@ Future<Map<String, dynamic>> processRequests(List<dynamic> requests, Map<String,
 
 Future<List<Map<String, dynamic>>> fetchRequestUpdates(int requestId) async {
   // Usa la función genérica fetchRequest para obtener las actualizaciones
-  return await fetchRequest(model: 'R_RequestUpdate', filter: "R_Request_ID eq $requestId", orderBy: 'Created desc', select: 'Created,Result,ConfidentialTypeEntry,AD_Image_ID,AD_Image1_ID,AD_Image2_ID,AD_Image3_ID');
+  final updates = await fetchRequest(
+      model: 'R_RequestUpdate',
+      filter: "R_Request_ID eq $requestId",
+      orderBy: 'Created desc',
+      select: 'Created,CreatedBy,Result,ConfidentialTypeEntry,AD_Image_ID,AD_Image1_ID,AD_Image2_ID,AD_Image3_ID');
+
+  if (!AccessControl.isAdmin) {
+    return updates.where((update) {
+      final createdBy = update['CreatedBy'];
+      String createdByName = '';
+      if (createdBy is Map) {
+        createdByName = (createdBy['identifier'] ?? createdBy['Name'] ?? '').toString();
+      } else {
+        createdByName = createdBy?.toString() ?? '';
+      }
+      return !createdByName.contains('System (deprecated)');
+    }).toList();
+  }
+
+  return updates;
 }
 
 Future<Map<String, dynamic>> updateRemoteRequest({

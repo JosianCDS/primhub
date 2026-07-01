@@ -261,7 +261,9 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
     );
 
     final processedData = await processRequests(rawRequests, _statusIdMap);
-    final allRequests = processedData['requests'] as List<Map<String, dynamic>>;
+    final allRequests = (processedData['requests'] as List<Map<String, dynamic>>)
+        .where((req) => req['productChipId'] != null)
+        .toList();
 
     final archivedId = _statusIdMap.entries
         .firstWhere(
@@ -756,6 +758,13 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
     }).toList();
 
     filtered.sort((a, b) {
+      final hasChipA = (a['productChipId'] != null) ? 1 : 0;
+      final hasChipB = (b['productChipId'] != null) ? 1 : 0;
+
+      if (hasChipA != hasChipB) {
+        return hasChipB.compareTo(hasChipA);
+      }
+
       final timeA = a['time'] ?? '';
       final timeB = b['time'] ?? '';
       return _isAscending ? timeA.compareTo(timeB) : timeB.compareTo(timeA);
@@ -1386,19 +1395,20 @@ class _SupportDashboardFilterBar extends StatelessWidget {
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             // Eliminado el botón de "Filtros" (BPartner) para administradores ya que existe el selector global superior.
-            ActionChip(
-              avatar: const Icon(Icons.calendar_today, size: 16),
-              label: Text(() {
-                if (selectedYears.isEmpty) return 'Año: Todos';
-                if (selectedYears.length == 1) {
-                  if (selectedYears.first == DateTime.now().year)
-                    return 'Año: Actual';
-                  return 'Año: ${selectedYears.first}';
-                }
-                return 'Años: ${selectedYears.length}';
-              }()),
-              onPressed: onShowYearFilter,
-            ),
+            if (!AccessControl.isSupport)
+              ActionChip(
+                avatar: const Icon(Icons.calendar_today, size: 16),
+                label: Text(() {
+                  if (selectedYears.isEmpty) return 'Año: Todos';
+                  if (selectedYears.length == 1) {
+                    if (selectedYears.first == DateTime.now().year)
+                      return 'Año: Actual';
+                    return 'Año: ${selectedYears.first}';
+                  }
+                  return 'Años: ${selectedYears.length}';
+                }()),
+                onPressed: onShowYearFilter,
+              ),
             ActionChip(
               avatar: Icon(
                 isAscending ? Icons.arrow_upward : Icons.arrow_downward,
@@ -1445,15 +1455,17 @@ void _showRequestDetails(BuildContext context, Map<String, dynamic> record) {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CustomTextField(
-              controller: TextEditingController(
-                text: record['emailSubject'] ?? record['descriptionClean'],
+            if (AccessControl.isAdmin) ...[
+              CustomTextField(
+                controller: TextEditingController(
+                  text: record['emailSubject'] ?? record['descriptionClean'],
+                ),
+                label: 'Asunto / Actividad',
+                readOnly: true,
+                maxLines: 3,
               ),
-              label: 'Asunto / Actividad',
-              readOnly: true,
-              maxLines: 3,
-            ),
-            const SizedBox(height: 16),
+              const SizedBox(height: 16),
+            ],
             CustomTextField(
               controller: TextEditingController(
                 text: record['dateStartPlan'] ?? '',
@@ -1490,12 +1502,12 @@ class _DesktopRecordTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CustomTable(
-      columns: const [
-        DataColumn(label: Text('Ticket')),
-        DataColumn(label: Text('Asunto / Actividad')),
-        DataColumn(label: Text('Estado')),
-        DataColumn(label: Text('Horas Consumidas')),
-        DataColumn(label: Text('Ficha de Producto')),
+      columns: [
+        const DataColumn(label: Text('Ticket')),
+        if (AccessControl.isAdmin) const DataColumn(label: Text('Asunto / Actividad')),
+        const DataColumn(label: Text('Estado')),
+        const DataColumn(label: Text('Horas Consumidas')),
+        const DataColumn(label: Text('Ficha de Producto')),
       ],
       rows: records.map((record) {
         final double h = (record['qtySpent'] as num?)?.toDouble() ?? 0.0;
@@ -1529,28 +1541,29 @@ class _DesktopRecordTable extends StatelessWidget {
                 ],
               ),
             ),
-            DataCell(
-              Tooltip(
-                message: () {
-                  final text =
-                      record['emailSubject'] ??
-                      record['descriptionClean'] ??
-                      '';
-                  return text.length > 2000
-                      ? '${text.substring(0, 2000)}...'
-                      : text;
-                }(),
-                waitDuration: const Duration(milliseconds: 500),
-                child: SizedBox(
-                  width: 300,
-                  child: Text(
-                    record['emailSubject'] ?? record['descriptionClean'] ?? '',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+            if (AccessControl.isAdmin)
+              DataCell(
+                Tooltip(
+                  message: () {
+                    final text =
+                        record['emailSubject'] ??
+                        record['descriptionClean'] ??
+                        '';
+                    return text.length > 2000
+                        ? '${text.substring(0, 2000)}...'
+                        : text;
+                  }(),
+                  waitDuration: const Duration(milliseconds: 500),
+                  child: SizedBox(
+                    width: 300,
+                    child: Text(
+                      record['emailSubject'] ?? record['descriptionClean'] ?? '',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ),
               ),
-            ),
             DataCell(Text(record['status'] ?? '')),
             DataCell(
               Text(hours, style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -1631,13 +1644,15 @@ class _SupportRecordCard extends StatelessWidget {
                   color: colorScheme.primary,
                 ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                subject,
-                style: theme.textTheme.bodyLarge,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
+              if (AccessControl.isAdmin) ...[
+                const SizedBox(height: 8),
+                Text(
+                  subject,
+                  style: theme.textTheme.bodyLarge,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
               const Divider(height: 24),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,

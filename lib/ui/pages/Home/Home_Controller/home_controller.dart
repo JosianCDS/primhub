@@ -272,6 +272,13 @@ class HomeController extends ChangeNotifier {
     }).toList();
 
     filteredRequests.sort((a, b) {
+      final hasChipA = (extractProductChipId(a) != null) ? 1 : 0;
+      final hasChipB = (extractProductChipId(b) != null) ? 1 : 0;
+
+      if (hasChipA != hasChipB) {
+        return hasChipB.compareTo(hasChipA);
+      }
+
       final dateA = DateTime.tryParse(a['Created'] ?? '') ?? DateTime(0);
       final dateB = DateTime.tryParse(b['Created'] ?? '') ?? DateTime(0);
       return dateB.compareTo(dateA);

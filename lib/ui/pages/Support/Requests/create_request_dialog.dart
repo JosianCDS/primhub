@@ -17,6 +17,7 @@ import '../../../../api/token.dart';
 import 'package:primhub/api/api_utils.dart';
 import 'package:primhub/api/global_cache.dart';
 import 'package:primhub/ImagesManagment/postAttachments.dart';
+import 'package:primhub/ui/widgets/duration_formatter.dart';
 
 class CreateRequestDialog extends StatefulWidget {
   final String? linkedRecordUU;
@@ -887,44 +888,34 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
       setState(() => _isSubmitting = true); // Mostrar carga mientras validamos
       try {
         if (bpId != null) {
-          // 1. Obtener horas adquiridas (Fichas de Producto)
-          final chips = await ContractApi.getSupportProductChips(
-            bPartnerId: bpId,
-          );
-          final double totalContracted = chips.fold(
-            0.0,
-            (sum, chip) => sum + ((chip['Qty'] as num?)?.toDouble() ?? 0.0),
-          );
+          if (_selectedProductChipId != null) {
+            final selectedChip = _productChips.firstWhere((c) => c['id'] == _selectedProductChipId, orElse: () => {});
+            if (selectedChip.isNotEmpty) {
+              final double chipTotalQty = (selectedChip['Qty'] as num?)?.toDouble() ?? 0.0;
 
-          // 2. Obtener horas consumidas y estimadas
-          final requests = await fetchRequest(filter: "C_BPartner_ID eq $bpId");
-          double totalEstimatedAndConsumed = 0.0;
-          for (var req in requests) {
-            final recordUU = req['Record_UU'];
-            if (recordUU != null && recordUU.toString().isNotEmpty) continue;
+              // Fetch all requests linked to THIS SPECIFIC CHIP
+              final chipRequests = await fetchRequest(filter: "C_BPartner_Product_Chip_ID eq $_selectedProductChipId");
+              double totalEstimatedAndConsumedForChip = 0.0;
 
-            // Usamos QtySpent (consumidas) o QtyPlan (en progreso)
-            totalEstimatedAndConsumed +=
-                (req['QtySpent'] as num?)?.toDouble() ?? 
-                (req['QtyPlan'] as num?)?.toDouble() ?? 0.0;
-          }
+              for (var req in chipRequests) {
+                if (req['Record_UU'] != null && req['Record_UU'].toString().isNotEmpty) continue;
+                
+                // Sumamos QtySpent (consumidas) o QtyPlan (en progreso)
+                totalEstimatedAndConsumedForChip += (req['QtySpent'] as num?)?.toDouble() ?? (req['QtyPlan'] as num?)?.toDouble() ?? 0.0;
+              }
 
-          final double available = totalContracted - totalEstimatedAndConsumed;
-
-          if (qty > available) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'No se puede exceder las horas estimadas/consumidas de las Disponibles.',
-                  ),
-                  backgroundColor: Colors.red,
-                  duration: Duration(seconds: 4),
-                ),
-              );
-              setState(() => _isSubmitting = false);
+              if (totalEstimatedAndConsumedForChip + qty > chipTotalQty) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text('La solicitud consumirá más horas de las que tiene disponible dicha ficha de producto. Disponibles: ${DurationFormatter.format(chipTotalQty - totalEstimatedAndConsumedForChip)} h, Intentando registrar: ${DurationFormatter.format(qty)} h'),
+                    backgroundColor: Colors.red,
+                    duration: const Duration(seconds: 5)
+                  ));
+                  setState(() => _isSubmitting = false);
+                }
+                return;
+              }
             }
-            return;
           }
         }
       } catch (e) {

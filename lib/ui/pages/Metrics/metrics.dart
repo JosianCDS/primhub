@@ -494,6 +494,11 @@ class _MetricsPageState extends State<MetricsPage> {
           } else if (AccessControl.isAdmin && _supportSelectedBpId != null) {
             if (bpId != _supportSelectedBpId) return false;
           }
+          
+          if (req['productChipId'] == null && req['C_BPartner_Product_Chip_ID'] == null) {
+            return false;
+          }
+          
           return true;
         }).toList();
       } else {
@@ -505,11 +510,14 @@ class _MetricsPageState extends State<MetricsPage> {
         }
         String expand =
             "R_Status_ID(\$select=Name,IsOpen),Priority(\$select=Name)";
-        rawRequests = await fetchRequest(
+        final fetchedRequests = await fetchRequest(
           filter: filter,
           top: 500,
           expand: expand,
         );
+        rawRequests = fetchedRequests.where((req) {
+          return req['productChipId'] != null || req['C_BPartner_Product_Chip_ID'] != null;
+        }).toList();
       }
 
       final Map<String, double> priorityCounts = {};
@@ -1095,11 +1103,13 @@ class _MetricsPageState extends State<MetricsPage> {
                       'Métricas de Soporte',
                       Icons.support_agent_rounded,
                     ),
-                    _buildControlCenterContainer(
-                      context,
-                      child: _buildSupportFilters(),
-                    ),
-                    const SizedBox(height: 24),
+                    if (!AccessControl.isSupport) ...[
+                      _buildControlCenterContainer(
+                        context,
+                        child: _buildSupportFilters(),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
 
                     if (!_isLoadingSupport) _buildSupportKPIRow(context),
                     const SizedBox(height: 24),

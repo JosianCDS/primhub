@@ -5,6 +5,7 @@ import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/theme/theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:primhub/api/token.dart';
+import 'package:primhub/api/session_manager.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,6 +30,9 @@ void main() async {
     User.userID = prefs.getInt('user_id');
     User.cBPartnerID = prefs.getInt('cbpartner_id');
     User.name = prefs.getString('user_name');
+    
+    // Iniciar temporizador de refresco porque ya hay un token cargado
+    SessionManager().startKeepAliveTimer();
   }
 
   final savedUrl = prefs.getString('api_base_url');
