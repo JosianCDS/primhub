@@ -71,38 +71,11 @@ class BreadcrumbNavigator extends StatelessWidget {
         ),
       );
 
-      // Permitir soltar en cualquier nivel previo (Padres o Raíz)
       if (!isLast && i >= 2 && onDropToRoot != null) {
-        final Widget baseCrumb = crumb;
-        crumb = StatefulBuilder(
-          builder: (context, setStateSB) {
-            bool isDragOver = false;
-            return DropRegion(
-              formats: Formats.standardFormats,
-              onDropEnter: (event) => setStateSB(() => isDragOver = true),
-              onDropLeave: (event) => setStateSB(() => isDragOver = false),
-              onDropOver: (event) {
-                if (event.session.items.isEmpty) return DropOperation.none;
-                return DropOperation.move;
-              },
-              onPerformDrop: (event) async {
-                setStateSB(() => isDragOver = false);
-                final item = event.session.items.first;
-                if (item.localData is Map) {
-                  onDropToRoot!(i, item.localData as Map);
-                }
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                decoration: BoxDecoration(
-                  color: isDragOver ? Colors.blue.withOpacity(0.15) : Colors.transparent,
-                  borderRadius: BorderRadius.circular(8),
-                  border: isDragOver ? Border.all(color: Colors.blue.shade300) : null,
-                ),
-                child: baseCrumb,
-              ),
-            );
-          },
+        crumb = _BreadcrumbDropTarget(
+          index: i,
+          baseCrumb: crumb,
+          onDropToRoot: onDropToRoot,
         );
       }
 
@@ -119,6 +92,55 @@ class BreadcrumbNavigator extends StatelessWidget {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: crumbs),
+    );
+  }
+}
+
+class _BreadcrumbDropTarget extends StatefulWidget {
+  final int index;
+  final Widget baseCrumb;
+  final Function(int, Map)? onDropToRoot;
+
+  const _BreadcrumbDropTarget({
+    super.key,
+    required this.index,
+    required this.baseCrumb,
+    this.onDropToRoot,
+  });
+
+  @override
+  State<_BreadcrumbDropTarget> createState() => _BreadcrumbDropTargetState();
+}
+
+class _BreadcrumbDropTargetState extends State<_BreadcrumbDropTarget> {
+  bool _isDragOver = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return DropRegion(
+      formats: Formats.standardFormats,
+      onDropEnter: (event) => setState(() => _isDragOver = true),
+      onDropLeave: (event) => setState(() => _isDragOver = false),
+      onDropOver: (event) {
+        if (event.session.items.isEmpty) return DropOperation.none;
+        return DropOperation.move;
+      },
+      onPerformDrop: (event) async {
+        setState(() => _isDragOver = false);
+        final item = event.session.items.first;
+        if (item.localData is Map) {
+          widget.onDropToRoot?.call(widget.index, item.localData as Map);
+        }
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        decoration: BoxDecoration(
+          color: _isDragOver ? Colors.blue.withOpacity(0.25) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: _isDragOver ? Border.all(color: Colors.blue.shade500, width: 2) : null,
+        ),
+        child: widget.baseCrumb,
+      ),
     );
   }
 }

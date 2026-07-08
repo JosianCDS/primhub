@@ -1246,8 +1246,13 @@ class _MetricsPageState extends State<MetricsPage> {
 
     int urgentCount = 0;
     int urgentIdx = _supportPriorityLabels.indexOf('Urgente');
-    if (urgentIdx != -1)
-      urgentCount = _supportPriorityValues[urgentIdx].toInt();
+    if (urgentIdx != -1) {
+      urgentCount += _supportPriorityValues[urgentIdx].toInt();
+    }
+    int altaIdx = _supportPriorityLabels.indexOf('Alta');
+    if (altaIdx != -1) {
+      urgentCount += _supportPriorityValues[altaIdx].toInt();
+    }
 
     return LayoutBuilder(
       builder: (context, constraints) {

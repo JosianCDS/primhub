@@ -25,6 +25,14 @@ import 'package:primhub/ui/Shared_Custom/custom_skeleton.dart';
 import 'package:primhub/ui/Shared_Custom/user_info_leading.dart';
 import 'package:primhub/ui/pages/Support/Request_Widgets/support_summary_premium.dart';
 import 'package:primhub/ui/Shared_Custom/help_icon.dart';
+import 'package:primhub/ImagesManagment/fecthAttachments.dart';
+import 'package:primhub/ImagesManagment/postAttachments.dart';
+import 'package:primhub/ImagesManagment/downloadAttachments.dart';
+import 'package:file_picker/file_picker.dart';
+import 'dart:convert';
+import 'package:primhub/endpoint/endpoint.dart';
+import 'package:primhub/api/api_http.dart' as http;
+import 'package:primhub/ui/pages/Projects/Projects_Widgets/file_preview_manager.dart';
 
 class SupportDashboardPage extends StatefulWidget {
   const SupportDashboardPage({super.key});
@@ -1224,6 +1232,16 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                               AccessControl.isAdmin && _selectedBpId == null
                               ? '(Como administrador) seleccione un tercero para ver sus fichas de producto'
                               : null,
+                          attachmentAction: (_selectedBpId != null || (!AccessControl.isAdmin && User.cBPartnerID != null))
+                              ? IconButton(
+                                  icon: const Icon(Icons.attach_file),
+                                  tooltip: 'Adjuntos del Tercero',
+                                  onPressed: () => showDialog(
+                                    context: context,
+                                    builder: (context) => BPartnerAttachmentsDialog(bPartnerId: _selectedBpId ?? User.cBPartnerID!),
+                                  ),
+                                )
+                              : null,
                         );
                       },
                     ),
@@ -1682,6 +1700,176 @@ class _SupportRecordCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class BPartnerAttachmentsDialog extends StatefulWidget {
+  final int bPartnerId;
+
+  const BPartnerAttachmentsDialog({super.key, required this.bPartnerId});
+
+  @override
+  State<BPartnerAttachmentsDialog> createState() => _BPartnerAttachmentsDialogState();
+}
+
+class _BPartnerAttachmentsDialogState extends State<BPartnerAttachmentsDialog> {
+  List<Map<String, dynamic>> _attachments = [];
+  bool _isLoading = true;
+  bool _isUploading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAttachments();
+  }
+
+  Future<void> _loadAttachments() async {
+    setState(() => _isLoading = true);
+    const tableName = 'C_BPartner';
+    final String fullTableUrl = '${Endpoint.baseUrl}/api/v1/models/$tableName';
+    final attachments = await fetchAttachments(recordID: widget.bPartnerId, tableName: fullTableUrl);
+    if (mounted) {
+      setState(() {
+        _attachments = attachments;
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _uploadAttachment() async {
+    if (!AccessControl.isAdmin) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No tienes permisos para subir archivos.')));
+      return;
+    }
+
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.any,
+      withData: true,
+    );
+
+    if (result == null || result.files.isEmpty) return;
+
+    final file = result.files.first;
+    if (file.bytes == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No se pudieron leer los datos del archivo.'), backgroundColor: Colors.red));
+      return;
+    }
+
+    setState(() => _isUploading = true);
+
+    const tableName = 'C_BPartner';
+    final String fullTableUrl = '${Endpoint.baseUrl}/api/v1/models/$tableName';
+    
+    final convertedFile = {'title': file.name, 'base64': base64Encode(file.bytes!)};
+    
+    final success = await postAttachments(
+      recordID: widget.bPartnerId, 
+      tableName: fullTableUrl, 
+      convertedFile: convertedFile,
+      shouldUpdateStatus: false,
+    );
+
+    if (mounted) {
+      setState(() => _isUploading = false);
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Archivo subido correctamente'), backgroundColor: Colors.green));
+        _loadAttachments();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al subir archivo'), backgroundColor: Colors.red));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const tableName = 'C_BPartner';
+    final String fullTableUrl = '${Endpoint.baseUrl}/api/v1/models/$tableName';
+
+    return CustomModal(
+      title: 'Adjuntos del Tercero',
+      width: 500,
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_isLoading)
+            const Padding(
+              padding: EdgeInsets.all(20.0),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (_attachments.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(20.0),
+              child: Center(child: Text('No hay archivos adjuntos para este tercero.')),
+            )
+          else
+            ListView.builder(
+              shrinkWrap: true,
+              itemCount: _attachments.length,
+              itemBuilder: (context, index) {
+                final att = _attachments[index];
+                return ListTile(
+                  leading: const Icon(Icons.insert_drive_file),
+                  title: Text(att['name'] ?? 'Sin nombre'),
+                  onTap: () {
+                    FilePreviewManager.showPreview(context, {'id': widget.bPartnerId, 'Status': 'N/A', 'VersionNo': 'N/A'}, fullTableUrl, att['name'] ?? '', () async {
+                      if (!AccessControl.isAdmin) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No tienes permisos para borrar adjuntos.')));
+                        return;
+                      }
+
+                      final confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => CustomModal(
+                          title: 'Eliminar Archivo',
+                          content: Text('¿Estás seguro de que deseas eliminar "${att['name'] ?? ''}"?'),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+                            CustomButton(text: 'Eliminar', backgroundColor: Colors.red, onPressed: () => Navigator.pop(ctx, true)),
+                          ],
+                        ),
+                      );
+
+                      if (confirm != true) return;
+
+                      try {
+                        setState(() => _isLoading = true);
+                        final url = Uri.parse('$fullTableUrl/${widget.bPartnerId}/attachments/${Uri.encodeComponent(att['name'] ?? '')}');
+                        final response = await http.delete(url, headers: {'Authorization': Token.token});
+                        if (response.statusCode == 200 || response.statusCode == 204) {
+                          if (mounted) {
+                            setState(() {
+                              _attachments.removeWhere((item) => item['name'] == att['name']);
+                              _isLoading = false;
+                            });
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Adjunto eliminado')));
+                            // _loadAttachments(); // Removed to avoid stale cache issues
+                          }
+                        } else {
+                          if (mounted) {
+                            setState(() => _isLoading = false);
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al eliminar adjunto'), backgroundColor: Colors.red));
+                          }
+                        }
+                      } catch (e) {
+                        if (mounted) setState(() => _isLoading = false);
+                      }
+                    }, () {}, canDelete: AccessControl.isAdmin);
+                  },
+                  trailing: IconButton(
+                    icon: const Icon(Icons.download, color: Color(0xFF4F47E5)),
+                    tooltip: 'Descargar',
+                    onPressed: () => downloadAttachment(context: context, recordID: widget.bPartnerId, tableName: fullTableUrl, fileName: att['name']),
+                  ),
+                );
+              },
+            ),
+        ],
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cerrar')),
+        if (AccessControl.isAdmin) CustomButton(text: 'Subir Archivo', icon: Icons.upload_file, isLoading: _isUploading, onPressed: _uploadAttachment),
+      ],
     );
   }
 }

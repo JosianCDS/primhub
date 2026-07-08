@@ -613,15 +613,20 @@ class DocumentsLogic {
   }
 
   static Future<List<dynamic>> fetchDocuments({
-    required int projectId,
+    int? projectId,
+    int? bPartnerId,
     required String viewType,
     required List<String> currentPath,
   }) async {
     final typeCode = getTypeCode(viewType);
+    String filter = "Type eq '$typeCode'";
+    if (projectId != null) filter += " and C_Project_ID eq $projectId";
+    if (bPartnerId != null) filter += " and C_BPartner_ID eq $bPartnerId";
+    
     try {
       var response = await http.get(
         Uri.parse(
-          '${Endpoint.primDocuments}?\$filter=C_Project_ID eq $projectId and Type eq \'$typeCode\'&\$expand=PRIM_Documents_Related',
+          '${Endpoint.primDocuments}?\$filter=$filter&\$expand=PRIM_Documents_Related',
         ),
         headers: {
           'Content-Type': 'application/json',
@@ -634,7 +639,7 @@ class DocumentsLogic {
         if (refreshed) {
           response = await http.get(
             Uri.parse(
-              '${Endpoint.primDocuments}?\$filter=C_Project_ID eq $projectId and Type eq \'$typeCode\'&\$expand=PRIM_Documents_Related',
+              '${Endpoint.primDocuments}?\$filter=$filter&\$expand=PRIM_Documents_Related',
             ),
             headers: {
               'Content-Type': 'application/json',
@@ -714,7 +719,8 @@ class DocumentsLogic {
 
   static Future<bool> createFolder({
     required String name,
-    required int projectId,
+    int? projectId,
+    int? bPartnerId,
     required String viewType,
     required List<String> currentPath,
     required List<dynamic> documents,
@@ -729,12 +735,12 @@ class DocumentsLogic {
 
     final Map<String, dynamic> payload = {
       'Name': name,
-      'name': name,
-      'C_Project_ID': {'id': projectId},
       'Type': typeCode,
       'IsSummary': true,
       'Status': 'IR', // Por defecto "En revisión" para carpetas nuevas
     };
+    if (projectId != null) payload['C_Project_ID'] = {'id': projectId};
+    if (bPartnerId != null) payload['C_BPartner_ID'] = {'id': bPartnerId};
 
     try {
       var response = await http.post(
@@ -768,31 +774,42 @@ class DocumentsLogic {
     }
   }
 
-  static Future<bool> uploadFile({
+  static Future<dynamic> uploadFile({
     required String fileName,
     required String displayName,
     required Uint8List fileBytes,
-    required int projectId,
+    int? projectId,
+    int? bPartnerId,
     required String viewType,
     required List<String> currentPath,
     required List<dynamic> documents,
   }) async {
-    final String extension = fileName.contains('.')
-        ? fileName.split('.').last.toLowerCase()
+    String actualFileName = fileName;
+    String extension = actualFileName.contains('.')
+        ? actualFileName.split('.').last.toUpperCase()
         : '';
+
+    if (extension == 'JSON') {
+      actualFileName = actualFileName.substring(0, actualFileName.lastIndexOf('.')) + '.txt';
+      extension = 'TXT';
+    }
+
+    const allowed = ['BTM', 'DOC', 'DOCX', 'DWG', 'DWF', 'DXF', 'EASM', 'EML', 'GIF', 'JPEG', 'JPG', 'MP4', 'MSG', 'PDF', 'PNG', 'PPT', 'PPTX', 'PST', 'RAR', 'RTF', 'SLDASM', 'SLDDRW', 'SLDPRT', 'TIF', 'TXT', 'XLS', 'XLSX', 'XML', 'ZIP', 'ZIPP'];
+    if (!allowed.contains(extension)) {
+      return 'Formato del archivo inválido';
+    }
+
     final typeCode = getTypeCode(viewType);
     Uri createUrl = Uri.parse(Endpoint.primDocuments);
 
     final Map<String, dynamic> payload = {
-      'Name': fileName,
-      'name': fileName,
-      'C_Project_ID': {'id': projectId},
+      'Name': actualFileName,
       'Type': typeCode,
-      'Extension': extension,
-      'VersionNo': '1.0',
-      'Status': 'IR', // Por defecto "En revisión"
-      'IsActive': true,
+      'IsSummary': false,
+      'Status': 'IR',
     };
+    if (projectId != null) payload['C_Project_ID'] = {'id': projectId};
+    if (bPartnerId != null) payload['C_BPartner_ID'] = {'id': bPartnerId};
 
     if (currentPath.length > 3) {
       final folderName = currentPath.last;
@@ -806,12 +823,27 @@ class DocumentsLogic {
         createUrl = Uri.parse(Endpoint.primDocumentsRelated);
         payload['PRIM_Documents_ID'] = {'id': folder['id']};
         payload.remove('C_Project_ID');
+        payload.remove('C_BPartner_ID');
+        payload.remove('IsSummary'); // Remove IsSummary for related documents
+        
+        // Heredar el Type de la carpeta padre
+        if (folder['Type'] != null) {
+          if (folder['Type'] is Map) {
+            payload['Type'] = folder['Type']['id'];
+          } else {
+            payload['Type'] = folder['Type'];
+          }
+        }
       } else {
         return false;
       }
     }
 
     try {
+      // [Mantenimiento] Log temporal para debug de subida de archivos
+      debugPrint('uploadFile -> URL: $createUrl');
+      debugPrint('uploadFile -> Payload: ${jsonEncode(payload)}');
+      
       var createResponse = await http.post(
         createUrl,
         headers: {
@@ -833,9 +865,15 @@ class DocumentsLogic {
             body: jsonEncode(payload),
           );
         } else {
+          // [Mantenimiento] Log temporal
+          debugPrint('uploadFile -> Error 401 y fallo al refrescar token');
           return false;
         }
       }
+
+      // [Mantenimiento] Log temporal
+      debugPrint('uploadFile -> Status Code: ${createResponse.statusCode}');
+      debugPrint('uploadFile -> Response Body: ${createResponse.body}');
 
       if (createResponse.statusCode == 200 ||
           createResponse.statusCode == 201) {
@@ -844,7 +882,7 @@ class DocumentsLogic {
         final success = await postAttachments(
           recordID: newRecordId,
           tableName: createUrl.toString(),
-          convertedFile: {'title': fileName, 'base64': base64Encode(fileBytes)},
+          convertedFile: {'title': actualFileName, 'base64': base64Encode(fileBytes)},
         );
         if (success) {
           final prefs = await SharedPreferences.getInstance();
@@ -944,7 +982,8 @@ class DocumentsLogic {
     required Map<String, dynamic> doc,
     required String currentTableName,
     required int? targetFolderId,
-    required int projectId,
+    int? projectId,
+    int? bPartnerId,
     required String viewType,
   }) async {
     final int docId = doc['id'];
@@ -1037,7 +1076,9 @@ class DocumentsLogic {
         createUrl = Uri.parse(Endpoint.primDocumentsRelated);
         payload['PRIM_Documents_ID'] = {'id': targetFolderId};
       } else {
-        payload['C_Project_ID'] = {'id': projectId};
+        payload['IsSummary'] = false;
+        if (projectId != null) payload['C_Project_ID'] = {'id': projectId};
+        if (bPartnerId != null) payload['C_BPartner_ID'] = {'id': bPartnerId};
       }
 
       var createResponse = await http.post(
@@ -1305,13 +1346,23 @@ class DocumentsLogic {
 
   static String extractStatus(dynamic val) {
     if (val == null) return 'Pendiente';
-    if (val is String) return val;
-    if (val is Map)
-      return val['identifier']?.toString() ??
+    String strVal = '';
+    if (val is String) {
+      strVal = val;
+    } else if (val is Map) {
+      strVal = val['identifier']?.toString() ??
           val['Name']?.toString() ??
           val['name']?.toString() ??
           'Pendiente';
-    return 'Pendiente';
+    } else {
+      return 'Pendiente';
+    }
+    
+    if (strVal == 'PD' || strVal.toLowerCase() == 'pendiente') return 'Pendiente';
+    if (strVal == 'IR' || strVal.toLowerCase() == 'en revisión' || strVal.toLowerCase() == 'en revision') return 'En revisión';
+    if (strVal == 'DL' || strVal.toLowerCase() == 'entregado') return 'Entregado';
+    
+    return strVal;
   }
 
   static String extractIdentifier(dynamic val, {String defaultValue = 'N/A'}) {

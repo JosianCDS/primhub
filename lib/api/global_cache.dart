@@ -20,7 +20,7 @@ class GlobalCache {
   static List<Map<String, dynamic>> productChips = [];
   static List<dynamic> users = [];
   static Map<String, int> statuses = {};
-  static Map<int, bool> statusIsClosedMap = {};
+  static Map<int, bool> statusIsFinalCloseMap = {};
   static List<Map<String, dynamic>> salesReps = [];
   static Map<String, int> requestTypes = {};
   static Map<String, int> categories = {};
@@ -97,7 +97,7 @@ class GlobalCache {
 
     final statusData = futures[0] as Map<String, dynamic>;
     statuses = statusData['nameToId'] as Map<String, int>;
-    statusIsClosedMap = statusData['idToIsClosed'] as Map<int, bool>;
+    statusIsFinalCloseMap = statusData['idToIsFinalClose'] as Map<int, bool>;
     
     requestTypes = futures[1] as Map<String, int>;
     

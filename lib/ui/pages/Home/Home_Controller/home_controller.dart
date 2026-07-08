@@ -85,7 +85,7 @@ class HomeController extends ChangeNotifier {
       validationLoading = false;
       isLoading = false;
       await loadValidationData();
-      if (AccessControl.isAdmin) await loadSupportBPartners();
+      await loadSupportBPartners();
       await loadDocumentStats();
       await loadSupportProductChips();
       await loadRecentRequests();
@@ -112,9 +112,7 @@ class HomeController extends ChangeNotifier {
       final bool isSupport = AccessControl.isSupport;
       final bool isProject = AccessControl.isProject;
 
-      if (isAdmin) {
-        await loadSupportBPartners();
-      }
+      await loadSupportBPartners();
 
       if (isAdmin || isProject) {
         await loadDocumentStats();
@@ -256,6 +254,8 @@ class HomeController extends ChangeNotifier {
       final recordUU = r['Record_UU'];
       bool isBitacora = recordUU != null && recordUU.toString().trim().isNotEmpty;
       if (isBitacora) return false;
+
+      if (extractProductChipId(r) == null) return false;
 
       final statusId = r['R_Status_ID'] is Map ? r['R_Status_ID']['id'] : r['R_Status_ID'];
       final statusIdentifier = r['R_Status_ID'] is Map ? r['R_Status_ID']['identifier'] : '';

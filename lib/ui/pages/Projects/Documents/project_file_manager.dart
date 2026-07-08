@@ -15,12 +15,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:super_drag_and_drop/super_drag_and_drop.dart';
 
 class ProjectFileManager extends StatefulWidget {
-  final Map<String, dynamic> project;
+  final Map<String, dynamic>? project;
+  final int? bPartnerId;
+  final String? bPartnerName;
   final String viewType; // 'Entregables', 'Seguimiento', 'General'
   final VoidCallback onExit;
   final ValueChanged<bool>? onRootChanged;
+  final Widget? headerWidget;
 
-  const ProjectFileManager({super.key, required this.project, required this.viewType, required this.onExit, this.onRootChanged});
+  const ProjectFileManager({super.key, this.project, this.bPartnerId, this.bPartnerName, required this.viewType, required this.onExit, this.onRootChanged, this.headerWidget});
 
   @override
   State<ProjectFileManager> createState() => ProjectFileManagerState();
@@ -37,10 +40,16 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
   int? _downloadingId;
   final Set<int> _movingFiles = {}; // Bloqueo de concurrencia para evitar duplicados
 
+  bool get _canManageFiles {
+    return AccessControl.canManageFiles;
+  }
+
   @override
   void initState() {
     super.initState();
-    _currentPath = ['Mis Proyectos', widget.project['Name'] ?? 'Proyecto', widget.viewType];
+    final rootName = widget.bPartnerId != null ? 'Mis Documentos' : 'Mis Proyectos';
+    final entityName = widget.bPartnerId != null ? (widget.bPartnerName ?? 'Tercero') : (widget.project?['Name'] ?? 'Proyecto');
+    _currentPath = [rootName, entityName, widget.viewType];
     _searchController.addListener(() => setState(() {}));
     _fetchDocuments();
   }
@@ -69,11 +78,11 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
 
   Future<void> _fetchDocuments({bool showLoading = true}) async {
     if (showLoading) setState(() => _isLoadingDocuments = true);
-    final docs = await DocumentsLogic.fetchDocuments(projectId: widget.project['id'], viewType: widget.viewType, currentPath: _currentPath);
+    final docs = await DocumentsLogic.fetchDocuments(projectId: widget.project?['id'], bPartnerId: widget.bPartnerId, viewType: widget.viewType, currentPath: _currentPath);
 
     // Recuperar el orden guardado
     final prefs = await SharedPreferences.getInstance();
-    final String orderKey = 'order_${widget.project['id']}_${widget.viewType}_${_currentPath.join('_')}';
+    final String orderKey = 'order_${widget.project?['id'] ?? widget.bPartnerId}_${widget.viewType}_${_currentPath.join('_')}';
     final List<String>? savedOrder = prefs.getStringList(orderKey);
 
     // Función recursiva para inyectar la secuencia guardada a los documentos y sus hijos
@@ -141,7 +150,7 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
 
         // Lanzar el guardado asíncrono en background sin bloquear la interfaz (Fire and Forget)
         SharedPreferences.getInstance().then((prefs) {
-          final String orderKey = 'order_${widget.project['id']}_${widget.viewType}_${_currentPath.join('_')}';
+          final String orderKey = 'order_${widget.project?['id'] ?? widget.bPartnerId}_${widget.viewType}_${_currentPath.join('_')}';
           prefs.setStringList(orderKey, viewItems.map((e) => e['id'].toString()).toList());
         });
       });
@@ -201,7 +210,7 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
     });
 
     // --- 2. LLAMADA A LA API EN SEGUNDO PLANO ---
-    final result = await DocumentsLogic.moveDocument(doc: doc, currentTableName: currentTableName, targetFolderId: targetFolderId, projectId: widget.project['id'], viewType: widget.viewType);
+    final result = await DocumentsLogic.moveDocument(doc: doc, currentTableName: currentTableName, targetFolderId: targetFolderId, projectId: widget.project?['id'], bPartnerId: widget.bPartnerId, viewType: widget.viewType);
 
     _movingFiles.remove(docId);
 
@@ -218,7 +227,7 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
   }
 
   Future<void> pickAndUploadFile() async {
-    if (!AccessControl.canManageFiles) {
+    if (!_canManageFiles) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No tienes permisos para subir archivos.')));
       return;
     }
@@ -255,18 +264,25 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
     final displayName = nameController.text.trim().isEmpty ? fileName : nameController.text.trim();
 
     setState(() => _isLoadingDocuments = true);
-    final success = await DocumentsLogic.uploadFile(fileName: fileName, displayName: displayName, fileBytes: result.files.first.bytes!, projectId: widget.project['id'], viewType: widget.viewType, currentPath: _currentPath, documents: _documents);
+    final resultUpload = await DocumentsLogic.uploadFile(fileName: fileName, displayName: displayName, fileBytes: result.files.first.bytes!, projectId: widget.project?['id'], bPartnerId: widget.bPartnerId, viewType: widget.viewType, currentPath: _currentPath, documents: _documents);
 
-    if (success)
+    if (resultUpload == true) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Archivo subido correctamente')));
-    else
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al subir archivo')));
+    } else if (resultUpload is String) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(resultUpload), backgroundColor: Colors.red));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al subir archivo'), backgroundColor: Colors.red));
+    }
     _fetchDocuments();
   }
 
   Future<void> createFolderDialog() async {
-    if (!AccessControl.canManageFiles) {
+    if (!_canManageFiles) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No tienes permisos para crear carpetas.')));
+      return;
+    }
+    if (!isRoot()) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No se permiten subcarpetas.')));
       return;
     }
     final TextEditingController controller = TextEditingController();
@@ -283,7 +299,7 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
     );
     if (create == true && controller.text.isNotEmpty) {
       setState(() => _isLoadingDocuments = true);
-      final success = await DocumentsLogic.createFolder(name: controller.text, projectId: widget.project['id'], viewType: widget.viewType, currentPath: _currentPath, documents: _documents);
+      final success = await DocumentsLogic.createFolder(name: controller.text, projectId: widget.project?['id'], bPartnerId: widget.bPartnerId, viewType: widget.viewType, currentPath: _currentPath, documents: _documents);
       if (success)
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Carpeta creada correctamente')));
       else
@@ -293,6 +309,21 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
   }
 
   Future<void> _deleteFile(int id, String tableName, String name) async {
+    final item = _documents.firstWhere((e) => e['id'] == id, orElse: () => null);
+    if (item != null) {
+      final isFolder = item['IsSummary'] == true || item['IsSummary'] == 'Y';
+      final children = isFolder ? (item['PRIM_Documents_Related'] as List? ?? []) : [];
+      if (isFolder && children.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No puede eliminar esta carpeta con contenido. Elimine los documentos primero.'),
+            backgroundColor: Colors.red,
+          )
+        );
+        return;
+      }
+    }
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => CustomModal(
@@ -324,7 +355,7 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
     return DropRegion(
       formats: Formats.standardFormats,
       onDropEnter: (event) {
-        if (!AccessControl.canManageFiles) return;
+        if (!_canManageFiles) return;
         if (event.session.items.any((item) => item.localData is Map && (item.localData as Map)['type'] != null)) return;
         if (!_isDragging) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -333,7 +364,7 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
         }
       },
       onDropOver: (event) {
-        if (!AccessControl.canManageFiles) return DropOperation.none;
+        if (!_canManageFiles) return DropOperation.none;
         // Ignorar drags internos para no bloquear el movimiento entre carpetas
         if (event.session.items.any((item) => item.localData is Map && (item.localData as Map)['type'] != null)) {
           return DropOperation.none;
@@ -353,7 +384,7 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
             if (mounted) setState(() => _isDragging = false);
           });
         }
-        if (!AccessControl.canManageFiles) return;
+        if (!_canManageFiles) return;
 
         // No procesar drags internos de Flutter aquí
         if (event.session.items.any((item) => item.localData is Map && (item.localData as Map)['type'] == 'file')) {
@@ -366,7 +397,12 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
           if (reader != null) {
             reader.getFile(null, (file) async {
               final bytes = await file.readAll();
-              await DocumentsLogic.uploadFile(fileName: file.fileName ?? 'Archivo_Subido', displayName: file.fileName ?? 'Archivo_Subido', fileBytes: bytes, projectId: widget.project['id'], viewType: widget.viewType, currentPath: _currentPath, documents: _documents);
+              final resultUpload = await DocumentsLogic.uploadFile(fileName: file.fileName ?? 'Archivo_Subido', displayName: file.fileName ?? 'Archivo_Subido', fileBytes: bytes, projectId: widget.project?['id'], bPartnerId: widget.bPartnerId, viewType: widget.viewType, currentPath: _currentPath, documents: _documents);
+              if (resultUpload is String) {
+                if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(resultUpload), backgroundColor: Colors.red));
+              } else if (resultUpload != true) {
+                if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al subir archivo'), backgroundColor: Colors.red));
+              }
               _fetchDocuments();
             }, onError: (e) {});
           }
@@ -380,6 +416,11 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
               child: CustomTextField(controller: _searchController, hintText: 'Buscar documento...', prefixIcon: const Icon(Icons.search)),
             ),
+            if (widget.headerWidget != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 16.0),
+                child: widget.headerWidget!,
+              ),
             Expanded(
               child: Builder(
                 builder: (context) {
@@ -572,7 +613,7 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
                 })
               : FilePreviewManager.showPreview(context, item, tableName, name, () => _deleteFile(item['id'], tableName, name), () {
                   setState(() {}); // Únicamente actualiza la grilla visualmente
-                }),
+                }, canDelete: _canManageFiles),
           onProperties: () => _showPropertiesDialog(context, name, item, tableName),
         );
       },
@@ -658,7 +699,7 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
                 ),
               ),
               actions: [
-                if (AccessControl.canManageFiles)
+                if (_canManageFiles)
                   IconButton(
                     icon: const Icon(Icons.delete, color: Colors.red),
                     onPressed: () {
@@ -670,7 +711,7 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
                 CustomButton(
                   text: 'Guardar',
                   isLoading: isSaving,
-                  onPressed: !AccessControl.canManageFiles
+                  onPressed: !_canManageFiles
                       ? null
                       : () async {
                           setStateDialog(() => isSaving = true);
@@ -685,6 +726,12 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
 
                           setStateDialog(() => isSaving = false);
                           if (success) {
+                            // Actualizar la memoria local para que se refleje inmediatamente
+                            details['VersionNo'] = body['VersionNo'];
+                            if (body.containsKey('Status')) {
+                              details['Status'] = body['Status'];
+                            }
+
                             if (context.mounted) {
                               Navigator.pop(context);
                               setState(() {}); // Refleja el cambio visualmente en la grilla

@@ -543,7 +543,7 @@ class _HomePageState extends State<HomePage> {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text(
-                                  'Código de contrato copiado al portapapeles',
+                                  'Código del plan copiado al portapapeles',
                                 ),
                               ),
                             );
@@ -573,7 +573,7 @@ class _HomePageState extends State<HomePage> {
             }
 
             return CustomModal(
-              title: 'Contratos de Soporte para $bpName',
+              title: 'Planes de Soporte para $bpName',
               width: 500,
               height: 450,
               content: SingleChildScrollView(
@@ -581,13 +581,13 @@ class _HomePageState extends State<HomePage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Contratos Activos durante este año',
+                      'Planes Activos durante este año',
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     const SizedBox(height: 8),
                     currentYearContracts.isEmpty
                         ? const Text(
-                            'No hay contratos para el año actual.',
+                            'No hay planes para el año actual.',
                             style: TextStyle(color: Colors.grey),
                           )
                         : buildContractList(
@@ -607,13 +607,13 @@ class _HomePageState extends State<HomePage> {
                       const Divider(),
                       const SizedBox(height: 8),
                       Text(
-                        'Contratos Pasados',
+                        'Planes Pasados',
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const SizedBox(height: 8),
                       pastContracts.isEmpty
                           ? const Text(
-                              'No hay contratos pasados.',
+                              'No hay planes pasados.',
                               style: TextStyle(color: Colors.grey),
                             )
                           : buildContractList(pastContracts),
@@ -675,6 +675,22 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
             const HelpIcon(),
+            if (MediaQuery.of(context).size.width < 900 && !AccessControl.isAdmin)
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.folder_shared_outlined),
+                tooltip: 'Documentos de Soporte',
+                onSelected: (value) => context.push(value),
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: '/bpartner-docs/general',
+                    child: Text('Docs: General'),
+                  ),
+                  const PopupMenuItem(
+                    value: '/bpartner-docs/seguimiento',
+                    child: Text('Docs: Seguimiento'),
+                  ),
+                ],
+              ),
             IconButton(
               icon: const Icon(Icons.refresh),
               tooltip: 'Refrescar',

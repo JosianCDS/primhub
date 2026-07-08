@@ -761,32 +761,27 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
           if (isSupport) return false;
         }
 
-        // C. Filtrado de Archivadas
         final statusData = req['R_Status_ID'];
         bool isArchived = false;
+        
+        int? statusIdFromReq;
         if (statusData is Map) {
-          final sIdentifier = (statusData['identifier'] ?? '').toString();
-          final sName = (statusData['Name'] ?? '').toString().toLowerCase();
-          final sId = statusData['id']?.toString();
-          isArchived =
-              sIdentifier == '100_Archivada' ||
-              sIdentifier == '90_Anulada' ||
-              sIdentifier == '80_Implementada en producci' ||
-              sName.contains('archivada') ||
-              sName.contains('anulada') ||
-              sName.contains('implementada') ||
-              sId == '1000019' ||
-              sId == '1000015' ||
-              sId == '1000018' ||
-              sId == '103';
+          statusIdFromReq = (statusData['id'] as num?)?.toInt();
         } else if (statusData != null) {
-          final sId = statusData.toString();
-          isArchived =
-              sId == '1000019' ||
-              sId == '1000015' ||
-              sId == '1000018' ||
-              sId == '103';
+          statusIdFromReq = int.tryParse(statusData.toString());
         }
+
+        if (statusIdFromReq != null && GlobalCache.statusIsFinalCloseMap.containsKey(statusIdFromReq)) {
+          isArchived = GlobalCache.statusIsFinalCloseMap[statusIdFromReq]!;
+        } else {
+          // Fallback robusto en caso de que falle la caché
+          final statusName = statusData is Map ? (statusData['Name'] ?? '').toString() : '';
+          isArchived = statusName.toLowerCase().contains('archivada') ||
+                       statusName.toLowerCase().contains('anulada') ||
+                       statusName.toLowerCase().contains('final close') ||
+                       statusName.toLowerCase().contains('cerrada');
+        }
+        
         if (_showHistory != isArchived) return false;
 
         // D. Filtros de la UI (Búsqueda, BP, Usuario, etc.) sobre RAW
@@ -1046,15 +1041,18 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                 .toLowerCase()
           : '';
 
-      bool isClosed =
-          sId == 1000019 ||
-          sId == 1000015 ||
-          sId == 1000018 ||
-          sName.contains('archivada') ||
-          sName.contains('anulada') ||
-          sName.contains('implementada en produccion') ||
-          sName.contains('implementada en producción') ||
-          sId == 103;
+      bool isClosed = false;
+      if (sId != null && GlobalCache.statusIsFinalCloseMap.containsKey(sId)) {
+        isClosed = GlobalCache.statusIsFinalCloseMap[sId]!;
+      } else {
+        isClosed = sName.contains('archivada') ||
+            sName.contains('anulada') ||
+            sName.contains('final close') ||
+            sName.contains('cerrada') ||
+            sName.contains('implementada en produccion') ||
+            sName.contains('implementada en producción') ||
+            sId == 1000019 || sId == 1000015 || sId == 1000018 || sId == 103;
+      }
 
       // Extraer ID de ficha con los múltiples nombres posibles
       final int? chipId = extractProductChipId(r);
@@ -1588,13 +1586,14 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
               ? 'Calendario de Solicitudes'
               : 'Mis Solicitudes De Soporte',
         ),
+        leadingWidth: !AccessControl.isAdmin ? 220 : null,
         leading: _showCalendar
             ? IconButton(
                 icon: const Icon(Icons.arrow_back),
                 tooltip: 'Volver al Listado',
                 onPressed: () => setState(() => _showCalendar = false),
               )
-            : null,
+            : (!AccessControl.isAdmin ? const UserInfoLeading() : null),
         actions: appBarActions,
       ),
       drawer: !AccessControl.isAdmin

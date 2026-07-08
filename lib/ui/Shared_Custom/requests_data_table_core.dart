@@ -149,8 +149,8 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
       if (widget.showProjectContext) const ResponsiveDataColumn(label: 'Fase'),
       if (widget.showProjectContext) const ResponsiveDataColumn(label: 'Tarea'),
       const ResponsiveDataColumn(label: 'Tercero'),
-      const ResponsiveDataColumn(label: 'Usuario'),
-      if (AccessControl.isAdmin || AccessControl.isSupport) const ResponsiveDataColumn(label: 'Rep. Comercial'),
+      if (AccessControl.isAdmin) const ResponsiveDataColumn(label: 'Usuario'),
+      if (AccessControl.isAdmin) const ResponsiveDataColumn(label: 'Rep. Comercial'),
       const ResponsiveDataColumn(label: 'Descripción'),
       const ResponsiveDataColumn(label: 'Horas Consumidas'),
       if (!widget.showProjectContext) const ResponsiveDataColumn(label: 'Ficha de Producto'),
@@ -229,8 +229,8 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
         if (widget.showProjectContext) DataCell(Text(alert['phaseName']?.toString() ?? '-')),
         if (widget.showProjectContext) DataCell(Text(alert['taskName']?.toString() ?? '-')),
         DataCell(Text(alert['bpName']?.toString() ?? '')),
-        DataCell(Text(alert['userName']?.toString() ?? '')),
-        if (AccessControl.isAdmin || AccessControl.isSupport) DataCell(Text(repName.toString().isEmpty ? (alert['salesRepName']?.toString() ?? '') : repName.toString())),
+        if (AccessControl.isAdmin) DataCell(Text(alert['userName']?.toString() ?? '')),
+        if (AccessControl.isAdmin) DataCell(Text(repName.toString().isEmpty ? (alert['salesRepName']?.toString() ?? '') : repName.toString())),
         DataCell(
           Tooltip(
             message: alert['descriptionClean'] ?? '',

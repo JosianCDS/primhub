@@ -247,6 +247,8 @@ class _CustomDrawerState extends State<CustomDrawer> {
                       },
                     ),
 
+
+
                   if (AccessControl.isProject)
                     HoverListTile(
                       builder: (isHovered) {
@@ -268,6 +270,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                       },
                     ),
 
+
                   HoverListTile(
                     builder: (isHovered) {
                       bool isSelected = widget.currentRoute == '/metrics';
@@ -287,6 +290,61 @@ class _CustomDrawerState extends State<CustomDrawer> {
                       );
                     },
                   ),
+
+                  if (AccessControl.isSupport)
+                    Theme(
+                      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                      child: ExpansionTile(
+                        leading: Icon(Icons.folder_shared_rounded, color: colorScheme.onSurfaceVariant),
+                        title: Text(
+                          AccessControl.isAdmin ? 'Documentos de Soporte' : 'Documentos',
+                          style: TextStyle(color: colorScheme.onSurface),
+                        ),
+                        initiallyExpanded: widget.currentRoute.startsWith('/bpartner-docs'),
+                        children: [
+                          HoverListTile(
+                            builder: (isHovered) {
+                              bool isSelected = widget.currentRoute == '/bpartner-docs/general';
+                              return ListTile(
+                                contentPadding: const EdgeInsets.only(left: 48, right: 16),
+                                selected: isSelected,
+                                selectedTileColor: colorScheme.primary.withOpacity(0.2),
+                                tileColor: isHovered ? Colors.blue.withOpacity(0.1) : Colors.transparent,
+                                leading: Icon(Icons.insert_drive_file_outlined, color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant),
+                                title: Text(
+                                  'General',
+                                  style: TextStyle(color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurface, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal),
+                                ),
+                                onTap: () {
+                                  Navigator.pop(context);
+                                  context.push('/bpartner-docs/general');
+                                },
+                              );
+                            },
+                          ),
+                          HoverListTile(
+                            builder: (isHovered) {
+                              bool isSelected = widget.currentRoute == '/bpartner-docs/seguimiento';
+                              return ListTile(
+                                contentPadding: const EdgeInsets.only(left: 48, right: 16),
+                                selected: isSelected,
+                                selectedTileColor: colorScheme.primary.withOpacity(0.2),
+                                tileColor: isHovered ? Colors.blue.withOpacity(0.1) : Colors.transparent,
+                                leading: Icon(Icons.insert_drive_file_outlined, color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant),
+                                title: Text(
+                                  'Seguimiento',
+                                  style: TextStyle(color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurface, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal),
+                                ),
+                                onTap: () {
+                                  Navigator.pop(context);
+                                  context.push('/bpartner-docs/seguimiento');
+                                },
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
                 ],
               ),
             ),

@@ -389,24 +389,24 @@ Future<Map<String, dynamic>> fetchStatusesWithMetadata() async {
       final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
       final records = jsonResponse['records'] as List;
       final Map<String, int> nameToId = {};
-      final Map<int, bool> idToIsClosed = {};
+      final Map<int, bool> idToIsFinalClose = {};
       for (var r in records) {
         final name = r['Name']?.toString().trim() ?? '';
         if (name.isEmpty) continue;
         final id = (r['id'] as num).toInt();
-        final rawIsClosed = r['IsClosed'] ?? r['isClosed'];
-        final isClosedStr = rawIsClosed?.toString().trim().toLowerCase();
-        bool isClosed = isClosedStr == 'true' || isClosedStr == 'y' || rawIsClosed == true;
+        final rawIsFinalClose = r['IsFinalClose'] ?? r['isFinalClose'];
+        final isFinalCloseStr = rawIsFinalClose?.toString().trim().toLowerCase();
+        bool isFinalClose = isFinalCloseStr == 'true' || isFinalCloseStr == 'y' || rawIsFinalClose == true;
         
         nameToId[name] = id;
-        idToIsClosed[id] = isClosed;
+        idToIsFinalClose[id] = isFinalClose;
       }
-      return {'nameToId': nameToId, 'idToIsClosed': idToIsClosed};
+      return {'nameToId': nameToId, 'idToIsFinalClose': idToIsFinalClose};
     }
   } catch (e) {
 // [Mantenimiento] Log removido:     debugPrint("Error fetching statuses: $e");
   }
-  return {'nameToId': <String, int>{}, 'idToIsClosed': <int, bool>{}};
+  return {'nameToId': <String, int>{}, 'idToIsFinalClose': <int, bool>{}};
 }
 
 Future<Map<String, int>> fetchStatuses() async {
@@ -516,27 +516,18 @@ Future<Map<String, dynamic>> processRequests(List<dynamic> requests, Map<String,
     final double qtyPlan = tryGetDouble(req, ['QtyPlan', 'qtyPlan', 'qty_plan']) ?? 0.0;
     final double qtySpent = tryGetDouble(req, ['QtySpent', 'qtySpent', 'qty_spent', 'UsedQty', 'used_qty']) ?? 0.0;
 
-    // Lógica de horas basada en metadatos de estado (IsClosed)
-    bool isClosedStatus = false;
-    if (statusIdFromReq != null && GlobalCache.statusIsClosedMap.containsKey(statusIdFromReq)) {
-      isClosedStatus = GlobalCache.statusIsClosedMap[statusIdFromReq]!;
+    // Lógica de horas basada en metadatos de estado (IsFinalClose)
+    bool isFinalCloseStatus = false;
+    if (statusIdFromReq != null && GlobalCache.statusIsFinalCloseMap.containsKey(statusIdFromReq)) {
+      isFinalCloseStatus = GlobalCache.statusIsFinalCloseMap[statusIdFromReq]!;
     } else {
-      // Fallback robusto por nombre y IDs conocidos
-    isClosedStatus = statusIdFromReq == 1000019 || // Archivada
-                     statusIdFromReq == 1000015 || // Anulada
-                     statusIdFromReq == 1000018 || // Implementada en produccion
-                     statusIdFromReq == 1000001 || // Por entregar
-                     statusName.toLowerCase().contains('archivada') || 
-                     statusName.toLowerCase().contains('anulada') ||
-                     statusName.toLowerCase().contains('implementada en produccion') ||
-                     statusName.toLowerCase().contains('implementada en producción') ||
-                     statusName.toLowerCase().contains('por entregar') ||
-                     statusIdFromReq == 103 || 
-                     statusName.toLowerCase().contains('final close') ||
-                     statusName.toLowerCase().contains('cerrada');
+      isFinalCloseStatus = statusName.toLowerCase().contains('archivada') ||
+                           statusName.toLowerCase().contains('anulada') ||
+                           statusName.toLowerCase().contains('final close') ||
+                           statusName.toLowerCase().contains('cerrada');
     }
 
-    if (isClosedStatus) {
+    if (isFinalCloseStatus) {
       consumed += qtySpent; // Horas ya cerradas/finalizadas
     } else {
       // Horas en solicitudes activas: se consideran "Estimadas" (inProgress)
@@ -748,7 +739,7 @@ Future<Map<String, dynamic>> processRequests(List<dynamic> requests, Map<String,
       'recordUU': req['Record_UU'],
       'productChipId': extractProductChipId(req),
       'productChipName': extractProductChipName(req),
-      'isClosed': isClosedStatus,
+      'isClosed': isFinalCloseStatus,
       'original': req,
     });
   }
@@ -1080,8 +1071,11 @@ class _RequestAttachmentsDialogState extends State<RequestAttachmentsDialog> {
                         final response = await http.delete(url, headers: {'Authorization': Token.token});
                         if (response.statusCode == 200 || response.statusCode == 204) {
                           if (mounted) {
+                            setState(() {
+                              _attachments.removeWhere((item) => item['name'] == att['name']);
+                              _isLoading = false;
+                            });
                             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Adjunto eliminado')));
-                            _loadAttachments();
                           }
                         } else {
                           if (mounted) {
@@ -1092,7 +1086,7 @@ class _RequestAttachmentsDialogState extends State<RequestAttachmentsDialog> {
                       } catch (e) {
                         if (mounted) setState(() => _isLoading = false);
                       }
-                    }, () {});
+                    }, () {}, canDelete: AccessControl.isAdmin || AccessControl.isSupport);
                   },
                   trailing: IconButton(
                     icon: const Icon(Icons.download, color: Color(0xFF4F47E5)),

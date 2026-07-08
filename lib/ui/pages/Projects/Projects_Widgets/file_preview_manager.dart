@@ -18,8 +18,9 @@ class FilePreviewManager {
     String tableName,
     String name,
     VoidCallback onDelete,
-    VoidCallback onStatusChanged,
-  ) {
+    VoidCallback onStatusChanged, {
+    bool canDelete = false,
+  }) {
     final extension = name.split('.').last.toLowerCase();
     final isImage = [
       'jpg',
@@ -164,7 +165,7 @@ class FilePreviewManager {
                 // Fila superior: Eliminar a la izquierda, Cerrar a la derecha
                 Row(
                   children: [
-                    if (AccessControl.canManageFiles)
+                    if (canDelete)
                       IconButton(
                         icon: const Icon(
                           Icons.delete_outline,

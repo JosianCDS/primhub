@@ -409,8 +409,11 @@ class _RequestAttachmentsDialogState extends State<_RequestAttachmentsDialog> {
                         final response = await http.delete(url, headers: {'Authorization': Token.token});
                         if (response.statusCode == 200 || response.statusCode == 204) {
                           if (mounted) {
+                            setState(() {
+                              _attachments.removeWhere((item) => item['name'] == att['name']);
+                              _isLoading = false;
+                            });
                             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Adjunto eliminado')));
-                            _loadAttachments();
                           }
                         } else {
                           if (mounted) {
@@ -421,7 +424,7 @@ class _RequestAttachmentsDialogState extends State<_RequestAttachmentsDialog> {
                       } catch (e) {
                         if (mounted) setState(() => _isLoading = false);
                       }
-                    }, () {});
+                    }, () {}, canDelete: AccessControl.isAdmin || AccessControl.isSupport);
                   },
                   trailing: IconButton(
                     icon: const Icon(Icons.download, color: Color(0xFF4F47E5)),

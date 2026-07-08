@@ -19,6 +19,7 @@ class SupportSummaryPremium extends StatelessWidget {
   final bool allowRename;
   final String? emptyMessage;
   final bool isLoading;
+  final Widget? attachmentAction;
 
   const SupportSummaryPremium({
     super.key,
@@ -33,6 +34,7 @@ class SupportSummaryPremium extends StatelessWidget {
     this.allowRename = false,
     this.emptyMessage,
     this.isLoading = false,
+    this.attachmentAction,
   });
 
   @override
@@ -79,7 +81,7 @@ class SupportSummaryPremium extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Resumen del contrato',
+                            'Resumen del Plan de Soporte',
                             style: theme.textTheme.titleMedium?.copyWith(
                               color: isDark
                                   ? colorScheme.primary
@@ -96,25 +98,34 @@ class SupportSummaryPremium extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 12),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: (isDark ? colorScheme.primary : const Color(0xFF463EE2))
-                                  .withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              '${DurationFormatter.format(contractedHours)} Adquiridas',
-                              style: TextStyle(
-                                color: isDark
-                                    ? colorScheme.primary
-                                    : const Color(0xFF463EE2),
-                                fontWeight: FontWeight.bold,
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (attachmentAction != null) ...[
+                                attachmentAction!,
+                                const SizedBox(width: 8),
+                              ],
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: (isDark ? colorScheme.primary : const Color(0xFF463EE2))
+                                      .withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  '${DurationFormatter.format(contractedHours)} Adquiridas',
+                                  style: TextStyle(
+                                    color: isDark
+                                        ? colorScheme.primary
+                                        : const Color(0xFF463EE2),
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                               ),
-                            ),
+                            ],
                           ),
                         ],
                       )
@@ -125,7 +136,7 @@ class SupportSummaryPremium extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Resumen del contrato',
+                                'Resumen del Plan de Soporte',
                                 style: theme.textTheme.titleMedium?.copyWith(
                                   color: isDark
                                       ? colorScheme.primary
@@ -143,25 +154,34 @@ class SupportSummaryPremium extends StatelessWidget {
                               ),
                             ],
                           ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: (isDark ? colorScheme.primary : const Color(0xFF463EE2))
-                                  .withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              '${DurationFormatter.format(contractedHours)} Adquiridas',
-                              style: TextStyle(
-                                color: isDark
-                                    ? colorScheme.primary
-                                    : const Color(0xFF463EE2),
-                                fontWeight: FontWeight.bold,
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (attachmentAction != null) ...[
+                                attachmentAction!,
+                                const SizedBox(width: 8),
+                              ],
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: (isDark ? colorScheme.primary : const Color(0xFF463EE2))
+                                      .withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  '${DurationFormatter.format(contractedHours)} Adquiridas',
+                                  style: TextStyle(
+                                    color: isDark
+                                        ? colorScheme.primary
+                                        : const Color(0xFF463EE2),
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                               ),
-                            ),
+                            ],
                           ),
                         ],
                       ),

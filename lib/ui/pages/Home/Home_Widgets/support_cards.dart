@@ -103,18 +103,7 @@ class UnifiedSupportCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (frequency != null)
-                  Chip(
-                    label: Text(
-                      frequency!,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: const Color(0xFF1E40AF),
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    backgroundColor: const Color(0xFFDBEAFE),
-                    visualDensity: VisualDensity.compact,
-                  ),
+
               ],
             ),
             const SizedBox(height: 8),

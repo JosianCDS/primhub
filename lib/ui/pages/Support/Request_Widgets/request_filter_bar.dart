@@ -152,9 +152,12 @@ class RequestFilterBar extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < 1200) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        final bool isSupportClient = AccessControl.isRealSupport;
+        final bool isLargeScreen = constraints.maxWidth >= 600;
+
+        Widget topRow;
+        if (isSupportClient && isLargeScreen) {
+          topRow = Row(
             children: [
               SizedBox(
                 width: 400,
@@ -164,45 +167,42 @@ class RequestFilterBar extends StatelessWidget {
                   prefixIcon: const Icon(Icons.search),
                 ),
               ),
-              const SizedBox(height: 8),
-              filterChips,
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 16.0,
-                runSpacing: 8.0,
-                children: buttons.children,
-              ),
-              const SizedBox(height: 8),
+              const Spacer(),
+              buttons,
             ],
           );
         } else {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: SizedBox(
-                  width: 400,
+          topRow = SizedBox(
+            width: double.infinity,
+            child: Wrap(
+              alignment: isSupportClient ? WrapAlignment.spaceBetween : WrapAlignment.start,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 16.0,
+              runSpacing: 12.0,
+              children: [
+                SizedBox(
+                  width: isLargeScreen ? 400 : constraints.maxWidth,
                   child: CustomTextField(
                     controller: searchController,
                     hintText: 'Buscar por número de ticket...',
                     prefixIcon: const Icon(Icons.search),
                   ),
                 ),
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Expanded(child: filterChips),
-                  const SizedBox(width: 16),
-                  buttons,
-                ],
-              ),
-              const SizedBox(height: 8),
-            ],
+                buttons,
+              ],
+            ),
           );
         }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            topRow,
+            const SizedBox(height: 12),
+            filterChips,
+            const SizedBox(height: 8),
+          ],
+        );
       },
     );
   }

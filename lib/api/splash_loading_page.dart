@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/global_cache.dart';
+import 'package:primhub/api/token.dart';
+import 'package:primhub/api/api_utils.dart';
 
 class SplashLoadingPage extends StatefulWidget {
   const SplashLoadingPage({super.key});
@@ -35,6 +37,20 @@ class _SplashLoadingPageState extends State<SplashLoadingPage> with SingleTicker
   Future<void> _startSync() async {
     // 1. Inicia la animación para que el usuario vea el progreso.
     _progressController.forward();
+
+    if (Token.auth != null && Token.auth!.isNotEmpty) {
+      final payload = Token.decodePayload(Token.auth!);
+      if (payload.containsKey('exp')) {
+        final exp = payload['exp'] as int;
+        final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+        if (now >= exp) {
+          final refreshed = await handleTokenRefresh();
+          if (!refreshed) {
+            return;
+          }
+        }
+      }
+    }
 
     // 2. Fase 1 (Datos Esenciales): Esperamos a que termine. Es vital para que 
     // la app no muestre listas vacías en dispositivos móviles más lentos.

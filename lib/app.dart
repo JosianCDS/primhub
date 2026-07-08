@@ -9,6 +9,7 @@ import 'package:primhub/ui/pages/OnDevelop/knowledge_base.dart';
 import 'package:primhub/ui/pages/Projects/Projects_Widgets/project_requests_view.dart';
 import 'package:primhub/ui/pages/Metrics/metrics_requests_page.dart';
 import 'package:primhub/ui/pages/Login/login.dart';
+import 'package:primhub/ui/pages/Login/reset_password_page.dart';
 import 'package:primhub/ui/pages/Login/login_selection_page.dart';
 import 'package:primhub/ui/pages/OnDevelop/marketplace.dart';
 import 'package:primhub/ui/pages/Metrics/metrics.dart';
@@ -18,13 +19,14 @@ import 'package:primhub/ui/pages/Support/support_dashboard.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_updates_page.dart';
 import 'package:primhub/api/splash_loading_page.dart';
 import 'package:primhub/ui/pages/Projects/project_calendar_page.dart';
+import 'package:primhub/ui/pages/BPartner/bpartner_documents_page.dart';
 
 final _router = GoRouter(
   navigatorKey: SessionManager.navigatorKey,
   initialLocation: '/login',
   redirect: (context, state) {
     final bool isLoggedIn = Token.auth != null;
-    final bool isLoggingIn = state.uri.path == '/login' || state.uri.path == '/login-selection';
+    final bool isLoggingIn = state.uri.path == '/login' || state.uri.path == '/login-selection' || state.uri.path == '/reset-password';
 
     if (!isLoggedIn && !isLoggingIn) {
       return '/login';
@@ -46,6 +48,10 @@ final _router = GoRouter(
     GoRoute(
       path: '/login',
       pageBuilder: (context, state) => NoTransitionPage(key: state.pageKey, child: const LoginPage()),
+    ),
+    GoRoute(
+      path: '/reset-password',
+      pageBuilder: (context, state) => NoTransitionPage(key: state.pageKey, child: const ResetPasswordPage()),
     ),
     GoRoute(
       path: '/login-selection',
@@ -123,6 +129,14 @@ final _router = GoRouter(
         final project = extra ?? {};
         return NoTransitionPage(key: state.pageKey, child: ProjectCalendarPage(project: project));
       },
+    ),
+    GoRoute(
+      path: '/bpartner-docs/general',
+      pageBuilder: (context, state) => NoTransitionPage(key: state.pageKey, child: const BPartnerDocumentsPage(viewType: 'General')),
+    ),
+    GoRoute(
+      path: '/bpartner-docs/seguimiento',
+      pageBuilder: (context, state) => NoTransitionPage(key: state.pageKey, child: const BPartnerDocumentsPage(viewType: 'Seguimiento')),
     ),
   ],
 );
