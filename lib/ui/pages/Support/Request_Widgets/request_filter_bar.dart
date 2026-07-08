@@ -156,7 +156,7 @@ class RequestFilterBar extends StatelessWidget {
         final bool isLargeScreen = constraints.maxWidth >= 600;
 
         Widget topRow;
-        if (isSupportClient && isLargeScreen) {
+        if (isLargeScreen) {
           topRow = Row(
             children: [
               SizedBox(
@@ -175,13 +175,13 @@ class RequestFilterBar extends StatelessWidget {
           topRow = SizedBox(
             width: double.infinity,
             child: Wrap(
-              alignment: isSupportClient ? WrapAlignment.spaceBetween : WrapAlignment.start,
+              alignment: WrapAlignment.spaceBetween,
               crossAxisAlignment: WrapCrossAlignment.center,
               spacing: 16.0,
               runSpacing: 12.0,
               children: [
                 SizedBox(
-                  width: isLargeScreen ? 400 : constraints.maxWidth,
+                  width: constraints.maxWidth,
                   child: CustomTextField(
                     controller: searchController,
                     hintText: 'Buscar por número de ticket...',
