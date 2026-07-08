@@ -70,6 +70,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
   int _rowsPerPage = 25;
   bool _isAscending = false;
   List<int> _selectedYears = [DateTime.now().year];
+  String _searchType = 'all';
 
   @override
   void initState() {
@@ -745,11 +746,14 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
     var filtered = _supportRecords.where((record) {
       if (_searchController.text.isNotEmpty) {
         final search = _searchController.text.toLowerCase();
-        final matchId =
-            record['id']?.toString().toLowerCase().contains(search) ?? false;
-        final matchDesc =
-            record['description']?.toString().toLowerCase().contains(search) ??
-            false;
+        
+        final matchId = _searchType == 'all' || _searchType == 'ticket'
+            ? (record['id']?.toString().toLowerCase().contains(search) ?? false)
+            : false;
+            
+        final matchDesc = _searchType == 'all' || _searchType == 'desc'
+            ? (record['description']?.toString().toLowerCase().contains(search) ?? false)
+            : false;
 
         if (!matchId && !matchDesc) {
           return false;
@@ -1276,6 +1280,12 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                             onShowBPartnerFilter: _showBPartnerFilterModal,
                             activeFilterCount: _activeFilterCount,
                             selectedBpId: _selectedBpId,
+                            searchType: _searchType,
+                            onSearchTypeChanged: (val) => setState(() {
+                              _searchType = val;
+                              _currentPage = 0;
+                              _refreshData();
+                            }),
                           ),
                           // CONTROLES DE PAGINACIÓN (ARRIBA)
                           Container(
@@ -1391,20 +1401,45 @@ class _SupportDashboardFilterBar extends StatelessWidget {
     required this.onShowBPartnerFilter,
     required this.activeFilterCount,
     this.selectedBpId,
+    required this.searchType,
+    required this.onSearchTypeChanged,
   });
+
+  final String searchType;
+  final ValueChanged<String> onSearchTypeChanged;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(
-          width: 400,
-          child: CustomTextField(
-            controller: searchController,
-            hintText: 'Buscar por ticket o actividad...',
-            prefixIcon: const Icon(Icons.search),
-          ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 400,
+              child: CustomTextField(
+                controller: searchController,
+                hintText: searchType == 'ticket' ? 'Buscar por ticket...' : (searchType == 'desc' ? 'Buscar por descripción...' : 'Buscar por ticket o descripción...'),
+                prefixIcon: const Icon(Icons.search),
+              ),
+            ),
+            const SizedBox(width: 8),
+            SizedBox(
+              width: 150,
+              child: CustomDropdown<String>(
+                value: searchType,
+                items: const [
+                  DropdownMenuItem(value: 'all', child: Text('Ambos')),
+                  DropdownMenuItem(value: 'ticket', child: Text('Ticket')),
+                  DropdownMenuItem(value: 'desc', child: Text('Descripción')),
+                ],
+                onChanged: (val) {
+                  if (val != null) onSearchTypeChanged(val);
+                },
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 12),
         Wrap(
@@ -1473,17 +1508,15 @@ void _showRequestDetails(BuildContext context, Map<String, dynamic> record) {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (AccessControl.isAdmin) ...[
-              CustomTextField(
-                controller: TextEditingController(
-                  text: record['emailSubject'] ?? record['descriptionClean'],
-                ),
-                label: 'Asunto / Actividad',
-                readOnly: true,
-                maxLines: 3,
+            CustomTextField(
+              controller: TextEditingController(
+                text: record['descriptionClean'] ?? '',
               ),
-              const SizedBox(height: 16),
-            ],
+              label: 'Descripción',
+              readOnly: true,
+              maxLines: 3,
+            ),
+            const SizedBox(height: 16),
             CustomTextField(
               controller: TextEditingController(
                 text: record['dateStartPlan'] ?? '',
@@ -1522,7 +1555,7 @@ class _DesktopRecordTable extends StatelessWidget {
     return CustomTable(
       columns: [
         const DataColumn(label: Text('Ticket')),
-        if (AccessControl.isAdmin) const DataColumn(label: Text('Asunto / Actividad')),
+        const DataColumn(label: Text('Descripción')),
         const DataColumn(label: Text('Estado')),
         const DataColumn(label: Text('Horas Consumidas')),
         const DataColumn(label: Text('Ficha de Producto')),
@@ -1559,29 +1592,20 @@ class _DesktopRecordTable extends StatelessWidget {
                 ],
               ),
             ),
-            if (AccessControl.isAdmin)
-              DataCell(
-                Tooltip(
-                  message: () {
-                    final text =
-                        record['emailSubject'] ??
-                        record['descriptionClean'] ??
-                        '';
-                    return text.length > 2000
-                        ? '${text.substring(0, 2000)}...'
-                        : text;
-                  }(),
-                  waitDuration: const Duration(milliseconds: 500),
-                  child: SizedBox(
-                    width: 300,
-                    child: Text(
-                      record['emailSubject'] ?? record['descriptionClean'] ?? '',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+            DataCell(
+              Tooltip(
+                message: record['descriptionClean'] ?? '',
+                waitDuration: const Duration(milliseconds: 500),
+                child: SizedBox(
+                  width: 300,
+                  child: Text(
+                    record['descriptionClean'] ?? '',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ),
+            ),
             DataCell(Text(record['status'] ?? '')),
             DataCell(
               Text(hours, style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -1640,10 +1664,7 @@ class _SupportRecordCard extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final double h = (record['qtySpent'] as num?)?.toDouble() ?? 0.0;
     final hours = DurationFormatter.format(h);
-    final subject =
-        record['emailSubject'] ??
-        record['descriptionClean'] ??
-        'Sin descripción';
+    final subject = record['descriptionClean'] ?? 'Sin descripción';
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),

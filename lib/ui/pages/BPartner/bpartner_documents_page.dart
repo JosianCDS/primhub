@@ -69,9 +69,6 @@ class _BPartnerDocumentsPageState extends State<BPartnerDocumentsPage> {
   void _loadBPartners() {
     setState(() {
       _bPartners = GlobalCache.bPartners;
-      if (_selectedBPartnerIds.isEmpty && _bPartners.isNotEmpty) {
-        _selectedBPartnerIds = [_bPartners.first['id']];
-      }
     });
   }
 
