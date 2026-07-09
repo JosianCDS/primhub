@@ -22,6 +22,7 @@ dependencies:
   card_stack_swiper: ^1.1.1
   flutter_html: ^3.0.0-beta.2
   intl: ^0.18.1
+  flutter_svg: ^2.3.0
 
 dev_dependencies:
   flutter_test:

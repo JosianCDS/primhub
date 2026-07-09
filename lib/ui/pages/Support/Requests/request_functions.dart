@@ -75,7 +75,18 @@ String? getDropdownValue(dynamic rawValue) {
 
 String stripHtmlTags(String htmlString) {
   RegExp exp = RegExp(r"<[^>]*>", multiLine: true, caseSensitive: true);
-  return htmlString.replaceAll(exp, ' ').replaceAll(RegExp(r'\s+'), ' ').replaceAll('&nbsp;', ' ').trim();
+  return htmlString
+      .replaceAll(exp, ' ')
+      .replaceAll('&#34;', '"')
+      .replaceAll('&quot;', '"')
+      .replaceAll('&#39;', "'")
+      .replaceAll('&apos;', "'")
+      .replaceAll('&amp;', '&')
+      .replaceAll('&lt;', '<')
+      .replaceAll('&gt;', '>')
+      .replaceAll('&nbsp;', ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
 }
 
 /// Limpia los nombres de estado eliminando prefijos numéricos como '10_'

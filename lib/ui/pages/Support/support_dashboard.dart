@@ -24,6 +24,7 @@ import 'package:primhub/api/api_utils.dart';
 import 'package:primhub/ui/Shared_Custom/custom_skeleton.dart';
 import 'package:primhub/ui/Shared_Custom/user_info_leading.dart';
 import 'package:primhub/ui/pages/Support/Request_Widgets/support_summary_premium.dart';
+import 'package:primhub/ui/pages/Support/Request_Widgets/bpartner_attachments_preview.dart';
 import 'package:primhub/ui/Shared_Custom/help_icon.dart';
 import 'package:primhub/ImagesManagment/fecthAttachments.dart';
 import 'package:primhub/ImagesManagment/postAttachments.dart';
@@ -1236,15 +1237,8 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                               AccessControl.isAdmin && _selectedBpId == null
                               ? '(Como administrador) seleccione un tercero para ver sus fichas de producto'
                               : null,
-                          attachmentAction: (_selectedBpId != null || (!AccessControl.isAdmin && User.cBPartnerID != null))
-                              ? IconButton(
-                                  icon: const Icon(Icons.attach_file),
-                                  tooltip: 'Adjuntos del Tercero',
-                                  onPressed: () => showDialog(
-                                    context: context,
-                                    builder: (context) => BPartnerAttachmentsDialog(bPartnerId: _selectedBpId ?? User.cBPartnerID!),
-                                  ),
-                                )
+                          attachmentCarousel: (_selectedBpId != null || (!AccessControl.isAdmin && User.cBPartnerID != null))
+                              ? BPartnerAttachmentsPreview(bPartnerId: _selectedBpId ?? User.cBPartnerID!)
                               : null,
                         );
                       },

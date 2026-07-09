@@ -148,7 +148,7 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
       const ResponsiveDataColumn(label: 'Prioridad'),
       if (widget.showProjectContext) const ResponsiveDataColumn(label: 'Fase'),
       if (widget.showProjectContext) const ResponsiveDataColumn(label: 'Tarea'),
-      const ResponsiveDataColumn(label: 'Tercero'),
+      if (AccessControl.isAdmin) const ResponsiveDataColumn(label: 'Tercero'),
       if (AccessControl.isAdmin) const ResponsiveDataColumn(label: 'Usuario'),
       if (AccessControl.isAdmin) const ResponsiveDataColumn(label: 'Rep. Comercial'),
       const ResponsiveDataColumn(label: 'Descripción'),
@@ -228,7 +228,7 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
         ),
         if (widget.showProjectContext) DataCell(Text(alert['phaseName']?.toString() ?? '-')),
         if (widget.showProjectContext) DataCell(Text(alert['taskName']?.toString() ?? '-')),
-        DataCell(Text(alert['bpName']?.toString() ?? '')),
+        if (AccessControl.isAdmin) DataCell(Text(alert['bpName']?.toString() ?? '')),
         if (AccessControl.isAdmin) DataCell(Text(alert['userName']?.toString() ?? '')),
         if (AccessControl.isAdmin) DataCell(Text(repName.toString().isEmpty ? (alert['salesRepName']?.toString() ?? '') : repName.toString())),
         DataCell(

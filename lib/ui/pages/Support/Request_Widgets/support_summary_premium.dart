@@ -19,7 +19,7 @@ class SupportSummaryPremium extends StatelessWidget {
   final bool allowRename;
   final String? emptyMessage;
   final bool isLoading;
-  final Widget? attachmentAction;
+  final Widget? attachmentCarousel;
 
   const SupportSummaryPremium({
     super.key,
@@ -34,7 +34,7 @@ class SupportSummaryPremium extends StatelessWidget {
     this.allowRename = false,
     this.emptyMessage,
     this.isLoading = false,
-    this.attachmentAction,
+    this.attachmentCarousel,
   });
 
   @override
@@ -101,9 +101,9 @@ class SupportSummaryPremium extends StatelessWidget {
                           Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              if (attachmentAction != null) ...[
-                                attachmentAction!,
-                                const SizedBox(width: 8),
+                              if (attachmentCarousel != null) ...[
+                                attachmentCarousel!,
+                                const SizedBox(width: 12),
                               ],
                               Container(
                                 padding: const EdgeInsets.symmetric(
@@ -157,9 +157,9 @@ class SupportSummaryPremium extends StatelessWidget {
                           Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              if (attachmentAction != null) ...[
-                                attachmentAction!,
-                                const SizedBox(width: 8),
+                              if (attachmentCarousel != null) ...[
+                                attachmentCarousel!,
+                                const SizedBox(width: 12),
                               ],
                               Container(
                                 padding: const EdgeInsets.symmetric(
