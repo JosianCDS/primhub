@@ -315,7 +315,6 @@ class _ProfilePageState extends State<ProfilePage> {
                 child: Material(
                   color: Colors.transparent,
                   child: ListTile(
-                    leading: const Icon(Icons.vpn_key, color: Color(0xFF4F47E5)),
                     title: const Text('Cambiar Contraseña', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => _showChangePasswordModal(context),

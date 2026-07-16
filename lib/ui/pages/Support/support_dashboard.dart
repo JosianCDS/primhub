@@ -867,7 +867,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.table_chart, color: Colors.green),
+              leading: const Icon(Icons.grid_on, color: Colors.green),
               title: const Text('Exportar a Excel (XLSX)'),
               onTap: () {
                 Navigator.pop(ctx);
@@ -875,7 +875,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.list_alt, color: Colors.blue),
+              leading: const Icon(Icons.insert_drive_file, color: Colors.blue),
               title: const Text('Exportar a CSV'),
               onTap: () {
                 Navigator.pop(ctx);
@@ -883,7 +883,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
+              leading: const Icon(Icons.description, color: Colors.red),
               title: const Text('Exportar a PDF'),
               onTap: () {
                 Navigator.pop(ctx);
