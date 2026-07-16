@@ -34,6 +34,7 @@ import 'dart:convert';
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/api/api_http.dart' as http;
 import 'package:primhub/ui/pages/Projects/Projects_Widgets/file_preview_manager.dart';
+import 'package:primhub/ui/pages/Support/Requests/export_functions.dart';
 
 class SupportDashboardPage extends StatefulWidget {
   const SupportDashboardPage({super.key});
@@ -849,6 +850,58 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
     _refreshData();
   }
 
+  void _showExportModal() {
+    final recordsToExport = _getFilteredRecords();
+    if (recordsToExport.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No hay registros para exportar')),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => CustomModal(
+        title: 'Exportar Tabla Actual',
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.table_chart, color: Colors.green),
+              title: const Text('Exportar a Excel (XLSX)'),
+              onTap: () {
+                Navigator.pop(ctx);
+                ExportFunctions.exportToExcel(recordsToExport, context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.list_alt, color: Colors.blue),
+              title: const Text('Exportar a CSV'),
+              onTap: () {
+                Navigator.pop(ctx);
+                ExportFunctions.exportToCsv(recordsToExport, context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
+              title: const Text('Exportar a PDF'),
+              onTap: () {
+                Navigator.pop(ctx);
+                ExportFunctions.exportToPdf(recordsToExport, context);
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _showBPartnerFilterModal() async {
     if (!AccessControl.isAdmin) return;
 
@@ -1280,6 +1333,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                               _currentPage = 0;
                               _refreshData();
                             }),
+                            onExport: _showExportModal,
                           ),
                           // CONTROLES DE PAGINACIÓN (ARRIBA)
                           Container(
@@ -1397,10 +1451,12 @@ class _SupportDashboardFilterBar extends StatelessWidget {
     this.selectedBpId,
     required this.searchType,
     required this.onSearchTypeChanged,
+    required this.onExport,
   });
 
   final String searchType;
   final ValueChanged<String> onSearchTypeChanged;
+  final VoidCallback onExport;
 
   @override
   Widget build(BuildContext context) {
@@ -1441,6 +1497,11 @@ class _SupportDashboardFilterBar extends StatelessWidget {
           runSpacing: 8.0,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
+            CustomButton(
+              text: 'Exportar Tabla Actual',
+              onPressed: onExport,
+              icon: Icons.download,
+            ),
             // Eliminado el botón de "Filtros" (BPartner) para administradores ya que existe el selector global superior.
             if (!AccessControl.isSupport)
               ActionChip(
