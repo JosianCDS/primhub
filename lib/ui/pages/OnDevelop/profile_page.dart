@@ -11,6 +11,11 @@ import '../../../theme/theme.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/api_utils.dart';
+import 'package:primhub/api/auth_api.dart';
+import '../../Shared_Custom/custom_button.dart';
+import '../../Shared_Custom/custom_inputs.dart';
+import '../../Shared_Custom/customToast.dart';
+
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -99,14 +104,125 @@ class _ProfilePageState extends State<ProfilePage> {
     } catch (e) {}
   }
 
-  void _loadUserInfo() {
+  Future<void> _loadUserInfo() async {
     try {
       final payload = Token.decodePayload(Token.token);
-      setState(() {
-        _userInfo = payload;
-      });
+      if (mounted) {
+        setState(() {
+          _userInfo = payload;
+        });
+      }
+      
+      final userId = payload['AD_User_ID'] ?? User.userID;
+      if (userId != null) {
+        final url = Uri.parse('${Endpoint.adUser}/$userId');
+        final response = await http.get(url, headers: {'Authorization': Token.token});
+        if (response.statusCode == 200) {
+          final data = json.decode(utf8.decode(response.bodyBytes));
+          if (mounted) {
+            setState(() {
+              if (data['C_BPartner_ID'] != null && data['C_BPartner_ID'] is Map) {
+                _userInfo['bpartner_name'] = data['C_BPartner_ID']['identifier'];
+              }
+              if (data['AD_Client_ID'] != null && data['AD_Client_ID'] is Map) {
+                _userInfo['client_name'] = data['AD_Client_ID']['identifier'];
+              }
+              _userInfo['sub'] = data['Name'] ?? _userInfo['sub'];
+              _userInfo['email'] = data['EMail'] ?? _userInfo['email'];
+            });
+          }
+        }
+      }
     } catch (e) {}
   }
+
+  void _showChangePasswordModal(BuildContext context) {
+    final TextEditingController passwordController = TextEditingController();
+    final TextEditingController confirmPasswordController = TextEditingController();
+    final GlobalKey<FormState> formKey = GlobalKey<FormState>();
+    bool isLoading = false;
+    bool obscurePassword = true;
+    bool obscureConfirmPassword = true;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return CustomModal(
+              title: 'Cambiar Contraseña',
+              width: 450,
+              content: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CustomTextField(
+                      label: 'Nueva Contraseña',
+                      controller: passwordController,
+                      obscureText: obscurePassword,
+                      suffixIcon: IconButton(
+                        icon: Icon(obscurePassword ? Icons.visibility_off : Icons.visibility),
+                        onPressed: () => setModalState(() => obscurePassword = !obscurePassword),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) return 'Este campo es obligatorio';
+                        if (value.length < 6) return 'Debe tener al menos 6 caracteres';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    CustomTextField(
+                      label: 'Confirmar Contraseña',
+                      controller: confirmPasswordController,
+                      obscureText: obscureConfirmPassword,
+                      suffixIcon: IconButton(
+                        icon: Icon(obscureConfirmPassword ? Icons.visibility_off : Icons.visibility),
+                        onPressed: () => setModalState(() => obscureConfirmPassword = !obscureConfirmPassword),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) return 'Este campo es obligatorio';
+                        if (value != passwordController.text) return 'Las contraseñas no coinciden';
+                        return null;
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                CustomButton(
+                  text: 'Cancelar',
+                  onPressed: isLoading ? () {} : () => Navigator.of(context).pop(),
+                  backgroundColor: Colors.grey[700],
+                ),
+                CustomButton(
+                  text: 'Guardar',
+                  isLoading: isLoading,
+                  onPressed: isLoading
+                      ? () {}
+                      : () async {
+                          if (formKey.currentState!.validate()) {
+                            setModalState(() => isLoading = true);
+                            final result = await changePassword(newPassword: passwordController.text);
+                            setModalState(() => isLoading = false);
+                            if (result['success'] == true) {
+                              Navigator.of(context).pop();
+                              ToastMessage.show(context: context, message: result['message'], type: ToastType.success);
+                            } else {
+                              ToastMessage.show(context: context, message: result['message'], type: ToastType.failure);
+                            }
+                          }
+                        },
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -119,15 +235,14 @@ class _ProfilePageState extends State<ProfilePage> {
     final String email = _userInfo['email'] ?? 'admin@gardenworld.com';
     final String bPartner = _userInfo['bpartner_name'] ?? 'GardenWorld HQ';
 
-    String roleFallback = 'Usuario';
+    String roleName = 'Usuario';
     if (AccessControl.isRealAdmin) {
-      roleFallback = 'Administrador';
+      roleName = 'Administrador del Primhub';
     } else if (AccessControl.isRealSupport) {
-      roleFallback = 'Soporte Técnico';
+      roleName = 'Usuario de Soporte';
     } else if (AccessControl.isRealProject) {
-      roleFallback = 'Cliente / Proyecto';
+      roleName = 'Usuario de Proyecto';
     }
-    final String roleName = _userInfo['role_name'] ?? _userInfo['roleName'] ?? roleFallback;
     final String clientName = _userInfo['client_name'] ?? _userInfo['clientName'] ?? (clientId == 11 ? 'GardenWorld' : 'Cliente $clientId');
     final String orgName = orgId == 0 ? '*' : (orgId == 11 ? 'HQ' : 'Org $orgId');
 
@@ -157,23 +272,22 @@ class _ProfilePageState extends State<ProfilePage> {
                   children: [
                     CircleAvatar(
                       radius: 50,
-                      backgroundColor: const Color(0xFF4F47E5),
+                      backgroundColor: const Color(0xFF649E49), // Verde del logo
                       backgroundImage: _profileImageBytes != null ? MemoryImage(_profileImageBytes!) : null,
                       onBackgroundImageError: _profileImageBytes != null
                           ? (exception, stackTrace) {
                               if (mounted) setState(() => _profileImageBytes = null);
                             }
                           : null,
-                      child: _profileImageBytes != null ? null : Text(clientName.isNotEmpty ? clientName[0].toUpperCase() : (username.isNotEmpty ? username[0].toUpperCase() : 'U'), style: const TextStyle(fontSize: 40, color: Colors.white)),
+                      child: _profileImageBytes != null ? null : Text(username.isNotEmpty ? username[0].toUpperCase() : 'U', style: const TextStyle(fontSize: 40, color: Colors.white)),
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 16),
-              Text(clientName, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
               Text(
                 username,
-                style: TextStyle(fontSize: 18, color: Colors.grey[800], fontWeight: FontWeight.w500),
+                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
               Text(roleName, style: TextStyle(fontSize: 16, color: Colors.grey[600])),
               const SizedBox(height: 32),
@@ -183,28 +297,29 @@ class _ProfilePageState extends State<ProfilePage> {
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
-                    children: [_buildInfoTile(Icons.business, 'Empresa / Cliente', clientName), const Divider(), _buildInfoTile(Icons.store, 'Socio de Negocio', bPartner), const Divider(), _buildInfoTile(Icons.domain, 'Organización', orgName), const Divider(), _buildInfoTile(Icons.email, 'Correo Electrónico', email), const Divider(), _buildInfoTile(Icons.language, 'Idioma', language)],
+                    children: [
+                      _buildInfoTile(Icons.person, 'Nombre de Usuario', username),
+                      const Divider(),
+                      _buildInfoTile(Icons.store, 'Socio de Negocio', bPartner),
+                      const Divider(),
+                      _buildInfoTile(Icons.email, 'Correo Electrónico', email),
+                    ],
                   ),
                 ),
               ),
+
               const SizedBox(height: 16),
               Card(
                 elevation: 2,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                child: ValueListenableBuilder<ThemeMode>(
-                  valueListenable: AppThemes.themeModeNotifier,
-                  builder: (context, mode, child) {
-                    return SwitchListTile(
-                      secondary: const Icon(Icons.dark_mode, color: Color(0xFF4F47E5)),
-                      title: const Text('Modo Oscuro', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
-                      value: mode == ThemeMode.dark,
-                      onChanged: (bool value) async {
-                        final prefs = await SharedPreferences.getInstance();
-                        await prefs.setBool('is_dark_mode', value);
-                        AppThemes.themeModeNotifier.value = value ? ThemeMode.dark : ThemeMode.light;
-                      },
-                    );
-                  },
+                child: Material(
+                  color: Colors.transparent,
+                  child: ListTile(
+                    leading: const Icon(Icons.vpn_key, color: Color(0xFF4F47E5)),
+                    title: const Text('Cambiar Contraseña', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => _showChangePasswordModal(context),
+                  ),
                 ),
               ),
             ],

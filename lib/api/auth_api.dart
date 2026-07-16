@@ -231,3 +231,63 @@ Future<bool> checkProjects() async {
   } catch (e) {}
   return false;
 }
+
+// Cambiar contraseña
+Future<Map<String, dynamic>> changePassword({required String newPassword}) async {
+  if (User.userID == null) {
+    return {'success': false, 'message': 'ID de usuario no encontrado en la sesión actual.'};
+  }
+  
+  try {
+    // 1. Obtener UU del usuario
+    String? userUuid;
+    final userResponse = await get(
+      Uri.parse('${Endpoint.adUser}/${User.userID}'), 
+      headers: {'Content-Type': 'application/json', 'Authorization': Token.token}
+    );
+    
+    if (userResponse.statusCode == 200) {
+      final userJson = json.decode(utf8.decode(userResponse.bodyBytes));
+      Map<String, dynamic>? userData = userJson;
+      if (userJson.containsKey('records') && userJson['records'] is List && userJson['records'].isNotEmpty) {
+        userData = userJson['records'][0];
+      }
+      
+      if (userData != null) {
+        userUuid = userData['uid'] ?? userData['uuid'] ?? userData['UU'] ?? userData['AD_User_UU'];
+      }
+    }
+    
+    if (userUuid == null) {
+      return {'success': false, 'message': 'No se pudo obtener el UUID del usuario para el cambio de contraseña.'};
+    }
+
+    final body = {
+      "Password": newPassword
+    };
+    
+    final bodyJsonStr = jsonEncode(body);
+    CurrentLogMessage.add('Payload para AD_User PUT (Cambio de Password con UU): $bodyJsonStr', level: 'INFO', tag: 'changePassword');
+    
+    final response = await put(
+      Uri.parse('${Endpoint.adUser}/$userUuid'),
+      headers: {'Content-Type': 'application/json', 'Authorization': Token.token},
+      body: bodyJsonStr
+    );
+    
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      final result = json.decode(utf8.decode(response.bodyBytes));
+      if (result['isError'] == true) {
+        return {'success': false, 'message': result['summary'] ?? 'Error al cambiar contraseña.'};
+      }
+      return {'success': true, 'message': 'Contraseña actualizada exitosamente.'};
+    } else {
+      CurrentLogMessage.add('changePassword error: ${response.statusCode}, ${response.body}', level: 'ERROR', tag: 'changePassword');
+      return {'success': false, 'message': 'Error al cambiar la contraseña (Status ${response.statusCode}).'};
+    }
+  } catch (e) {
+    CurrentLogMessage.add('Excepcion en changePassword: $e', level: 'ERROR', tag: 'changePassword');
+    return {'success': false, 'message': 'Error inesperado.'};
+  }
+}
+

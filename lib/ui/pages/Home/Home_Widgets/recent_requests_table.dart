@@ -95,10 +95,12 @@ class _DesktopRequestTable extends StatelessWidget {
                 onPressed: () => context.push('/my-requests', extra: {'search': alert['code']}),
               ),
               IconButton(
+                tooltip: AccessControl.canAddUpdates ? 'Responder' : 'Ver Actualizaciones',
                 icon: Icon(AccessControl.canAddUpdates ? Icons.reply : Icons.forum),
                 onPressed: () => GoRouter.of(context).push('/request-updates/${Uri.encodeComponent((alert['realId'] ?? alert['original']['id']).toString())}', extra: {'docNo': alert['code']}),
               ),
               IconButton(
+                tooltip: 'Ver Adjuntos',
                 icon: const Icon(Icons.attach_file),
                 onPressed: () => showDialog(
                   context: context,
@@ -106,6 +108,7 @@ class _DesktopRequestTable extends StatelessWidget {
                 ),
               ),
               IconButton(
+                tooltip: AccessControl.canManageRequests ? 'Editar' : 'Ver Detalles',
                 icon: Icon(AccessControl.canManageRequests ? Icons.edit : Icons.visibility),
                 onPressed: () => onEdit(alert),
               ),

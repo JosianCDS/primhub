@@ -148,7 +148,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
       } else if (errorMessage.contains('Failed to fetch') ||
           errorMessage.contains('ClientException') ||
           errorMessage.contains('SocketException')) {
-        _showError('Verifique su conexión a internet y vuelva a intentarlo');
+        _showError('Verifique su conexion a internet y que sus credenciales sean correctas.');
       } else {
         _showError(errorMessage);
       }
@@ -524,8 +524,8 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                         IconButton(
                                           icon: Icon(
                                             _obscurePassword
-                                                ? Icons.visibility_rounded
-                                                : Icons.visibility_off_rounded,
+                                                ? Icons.visibility_off_rounded
+                                                : Icons.visibility_rounded,
                                           ),
                                           onPressed: () {
                                             setState(

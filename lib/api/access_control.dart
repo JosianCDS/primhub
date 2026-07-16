@@ -53,7 +53,7 @@ class AccessControl {
   // Capacidades de Solicitudes (Soporte)
   static bool get canManageRequests => isAdmin; // Solo admin edita/elimina a fondo
   static bool get canCreateRequests => isAdmin || isRealSupport; // Proyecto real es Solo Lectura
-  static bool get canAddUpdates => isAdmin; // Soporte solo puede ver las actualizaciones, no responder
+  static bool get canAddUpdates => isAdmin || isRealSupport;
   static bool get canViewRequestDetails => true;
 
   // Capacidades de Métricas

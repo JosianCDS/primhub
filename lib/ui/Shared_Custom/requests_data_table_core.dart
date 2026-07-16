@@ -96,10 +96,12 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
             mainAxisSize: MainAxisSize.min,
             children: [
               IconButton(
+                tooltip: AccessControl.canAddUpdates ? 'Responder' : 'Ver Actualizaciones',
                 icon: Icon(AccessControl.canAddUpdates ? Icons.reply : Icons.forum),
                 onPressed: () => GoRouter.of(context).push('/request-updates/${Uri.encodeComponent(alert['realId'].toString())}', extra: {'docNo': alert['id']}),
               ),
               IconButton(
+                tooltip: 'Ver Adjuntos',
                 icon: const Icon(Icons.attach_file),
                 onPressed: () => showDialog(
                   context: context,
@@ -107,6 +109,7 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
                 ),
               ),
               IconButton(
+                tooltip: AccessControl.canManageRequests ? 'Editar' : 'Ver Detalles',
                 icon: Icon(AccessControl.canManageRequests ? Icons.edit : Icons.visibility),
                 onPressed: () => widget.onEdit(alert),
               ),

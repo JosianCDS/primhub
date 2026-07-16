@@ -84,7 +84,10 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
     final chips = await ContractApi.getSupportProductChips(bPartnerId: bpId);
     if (mounted) {
       setState(() {
-        _productChips = chips;
+        _productChips = chips.where((c) {
+          final active = c['IsActive'] == 'Y' || c['IsActive'] == true;
+          return active;
+        }).toList();
         _isLoadingChips = false;
       });
     }

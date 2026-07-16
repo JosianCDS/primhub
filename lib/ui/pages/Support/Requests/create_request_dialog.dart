@@ -129,7 +129,10 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
           await ContractApi.getSupportProductChips(bPartnerId: _selectedBpId);
       if (mounted) {
         setState(() {
-          _productChips = fetchedChips;
+          _productChips = fetchedChips.where((c) {
+            final active = c['IsActive'] == 'Y' || c['IsActive'] == true;
+            return active;
+          }).toList();
           // Si solo hay 1 ficha, se coloca automáticamente (independiente del rol)
           if (_productChips.length == 1) {
             _selectedProductChipId = ((_productChips.first['id'] ?? _productChips.first['C_BPartner_Product_Chip_ID']) as num?)?.toInt();
@@ -1053,30 +1056,30 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
 
     // --- Lógica segura para asignar SalesRep_ID ---
     int? repIdToAssign;
-    if (!AccessControl.isRealSupport) {
-      // 1. Si es admin, el valor seleccionado tiene prioridad.
-      if (isFullAccess) {
-        repIdToAssign = _selectedSalesRepId;
-      }
-      // 2. Si no hay rep, usar el usuario actual si es un rep válido.
-      if (repIdToAssign == null && userId != null) {
-        final currentUserIsRep = _salesReps.any(
-          (rep) => (rep['AD_User_ID'] ?? rep['id']) == userId,
-        );
-        if (currentUserIsRep) repIdToAssign = userId;
-      }
-      // 3. Como fallback, usar el rep del tercero si existe.
-      if (repIdToAssign == null && _selectedBpId != null) {
-        final bpData = _bPartnersList.firstWhere(
-          (bp) => bp['id'] == _selectedBpId,
-          orElse: () => {},
-        );
-        final bpRep = bpData['SalesRep_ID'];
-        repIdToAssign = (bpRep is Map)
-            ? bpRep['id']
-            : (bpRep is int ? bpRep : null);
-      }
+    
+    // 1. Si es admin, el valor seleccionado tiene prioridad.
+    if (isFullAccess) {
+      repIdToAssign = _selectedSalesRepId;
     }
+    // 2. Si no hay rep, usar el usuario actual si es un rep válido.
+    if (repIdToAssign == null && userId != null) {
+      final currentUserIsRep = _salesReps.any(
+        (rep) => (rep['AD_User_ID'] ?? rep['id']) == userId,
+      );
+      if (currentUserIsRep) repIdToAssign = userId;
+    }
+    // 3. Como fallback (y necesario para soporte/proyecto), usar el rep del tercero si existe.
+    if (repIdToAssign == null && _selectedBpId != null) {
+      final bpData = _bPartnersList.firstWhere(
+        (bp) => bp['id'] == _selectedBpId,
+        orElse: () => {},
+      );
+      final bpRep = bpData['SalesRep_ID'];
+      repIdToAssign = (bpRep is Map)
+          ? bpRep['id']
+          : (bpRep is int ? bpRep : null);
+    }
+
     // 4. Asignar al payload si se encontró un rep válido.
     if (repIdToAssign != null) data['SalesRep_ID'] = repIdToAssign;
 
@@ -1421,14 +1424,13 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                                   )
                               ? _productChips.firstWhere(
                                   (c) => c['id'] == _selectedProductChipId,
-                                )['identifier'] ??
-                                  ''
+                                )['Description'] ?? 'Ficha #${_selectedProductChipId}'
                               : '',
                           onTap: () => _openSearchModal<int>(
                             title: 'Ficha de Producto',
                             items: _productChips,
                             currentValue: _selectedProductChipId,
-                            getTitle: (item) => item['identifier'] ?? 'Sin ID',
+                            getTitle: (item) => item['Description'] ?? 'Ficha #${item['id']}',
                             getValue: (item) => item['id'] as int,
                             onSelected: (val) =>
                                 setState(() => _selectedProductChipId = val),

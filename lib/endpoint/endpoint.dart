@@ -19,6 +19,7 @@ class Endpoint {
   static String authWarehouses = "$baseUrl/api/v1/auth/warehouses";
   static String authLogout = "$baseUrl/api/v1/auth/logout";
   static String primDocumentsRelated = "$baseUrl/api/v1/models/PRIM_Documents_Related";
+  static String changePasswordProcess = "$baseUrl/api/v1/processes/setuserpasswordprocesspos";
 }
 
 class PostMedia {

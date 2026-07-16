@@ -10,6 +10,7 @@ class CustomTextField extends StatelessWidget {
   final double? height;
   final bool obscureText;
   final Widget? prefixIcon;
+  final Widget? suffixIcon;
   final String? Function(String?)? validator;
   final TextInputType? keyboardType;
   final bool filled;
@@ -33,6 +34,7 @@ class CustomTextField extends StatelessWidget {
     this.height,
     this.obscureText = false,
     this.prefixIcon,
+    this.suffixIcon,
     this.validator,
     this.keyboardType,
     this.filled = false,
@@ -67,6 +69,7 @@ class CustomTextField extends StatelessWidget {
           labelText: label,
           hintText: hintText,
           prefixIcon: prefixIcon,
+          suffixIcon: suffixIcon,
           filled: filled,
           fillColor: fillColor,
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0)),

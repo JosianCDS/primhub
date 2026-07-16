@@ -177,7 +177,13 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
     try {
       final fetchedChips = await ContractApi.getSupportProductChips(bPartnerId: _selectedBpId);
       if (mounted) {
-        setState(() => _productChips = fetchedChips);
+        setState(() {
+          _productChips = fetchedChips.where((c) {
+            final active = c['IsActive'] == 'Y' || c['IsActive'] == true;
+            final isCurrent = c['id'] == _selectedProductChipId;
+            return active || isCurrent;
+          }).toList();
+        });
       }
     } finally {
       if (mounted) setState(() => _isLoadingProducts = false);

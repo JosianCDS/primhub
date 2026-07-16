@@ -102,10 +102,10 @@ class RequestFilterBar extends StatelessWidget {
           ),
         ActionChip(
           avatar: Icon(
-            isAscending ? Icons.arrow_upward : Icons.arrow_downward,
+            isAscending ? Icons.arrow_downward : Icons.arrow_upward,
             size: 16,
           ),
-          label: Text(isAscending ? 'Más antiguas' : 'Más recientes'),
+          label: Text(isAscending ? 'Más antiguas primero' : 'Más recientes primero'),
           onPressed: onSortChanged,
         ),
         if (AccessControl.isAdmin && onToggleWithoutChip != null)
@@ -152,47 +152,28 @@ class RequestFilterBar extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final bool isSupportClient = AccessControl.isRealSupport;
         final bool isLargeScreen = constraints.maxWidth >= 600;
 
-        Widget topRow;
-        if (isLargeScreen) {
-          topRow = Row(
+        Widget topRow = SizedBox(
+          width: double.infinity,
+          child: Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 16.0,
+            runSpacing: 12.0,
             children: [
               SizedBox(
-                width: 400,
+                width: isLargeScreen ? 400 : constraints.maxWidth,
                 child: CustomTextField(
                   controller: searchController,
                   hintText: 'Buscar por número de ticket...',
                   prefixIcon: const Icon(Icons.search),
                 ),
               ),
-              const Spacer(),
               buttons,
             ],
-          );
-        } else {
-          topRow = SizedBox(
-            width: double.infinity,
-            child: Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 16.0,
-              runSpacing: 12.0,
-              children: [
-                SizedBox(
-                  width: constraints.maxWidth,
-                  child: CustomTextField(
-                    controller: searchController,
-                    hintText: 'Buscar por número de ticket...',
-                    prefixIcon: const Icon(Icons.search),
-                  ),
-                ),
-                buttons,
-              ],
-            ),
-          );
-        }
+          ),
+        );
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,

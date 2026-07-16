@@ -43,15 +43,16 @@ class ProjectSideBar extends StatelessWidget {
     int selectedIndex = items.indexWhere((item) => item['route'] == currentRoute);
     if (selectedIndex == -1) selectedIndex = 0;
 
-    return Container(
-      width: 260,
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        border: Border(
-          right: BorderSide(color: colorScheme.outline.withOpacity(0.1)),
+    return Material(
+      color: theme.cardColor,
+      child: Container(
+        width: 260,
+        decoration: BoxDecoration(
+          border: Border(
+            right: BorderSide(color: colorScheme.outline.withOpacity(0.1)),
+          ),
         ),
-      ),
-      child: Column(
+        child: Column(
         children: [
           const SizedBox(height: 24),
           // Logo o Título opcional aquí
@@ -165,6 +166,6 @@ class ProjectSideBar extends StatelessWidget {
           const SizedBox(height: 8),
         ],
       ),
-    );
+    ));
   }
 }

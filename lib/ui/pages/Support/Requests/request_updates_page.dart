@@ -510,39 +510,41 @@ class _AddUpdateDialogState extends State<_AddUpdateDialog> {
               ),
             ),
             CustomTextField(controller: _resultController, label: 'Resultado o comentario *', maxLines: 5),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: CustomDropdown<String>(
-                    label: 'Confidencialidad',
-                    value: _confidentialType,
-                    items: const [
-                      DropdownMenuItem(value: 'I', child: Text('Nota Interna')),
-                      DropdownMenuItem(value: 'C', child: Text('Visible para Cliente')),
-                      DropdownMenuItem(value: 'P', child: Text('Público')),
-                    ],
-                    onChanged: (val) {
-                      if (val != null) setState(() => _confidentialType = val);
-                    },
+            if (AccessControl.isAdmin) ...[
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: CustomDropdown<String>(
+                      label: 'Confidencialidad',
+                      value: _confidentialType,
+                      items: const [
+                        DropdownMenuItem(value: 'I', child: Text('Nota Interna')),
+                        DropdownMenuItem(value: 'C', child: Text('Visible para Cliente')),
+                        DropdownMenuItem(value: 'P', child: Text('Público')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) setState(() => _confidentialType = val);
+                      },
+                    ),
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: CustomDropdown<int>(
-                    label: 'Estado',
-                    value: _newStatusId,
-                    items: SUPPORT_STATUS_MAPPING.entries.map((e) => DropdownMenuItem(
-                      value: e.key,
-                      child: Text(cleanStatusName(e.value)),
-                    )).toList(),
-                    onChanged: (val) {
-                      if (val != null) setState(() => _newStatusId = val);
-                    },
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: CustomDropdown<int>(
+                      label: 'Estado',
+                      value: _newStatusId,
+                      items: SUPPORT_STATUS_MAPPING.entries.map((e) => DropdownMenuItem(
+                        value: e.key,
+                        child: Text(cleanStatusName(e.value)),
+                      )).toList(),
+                      onChanged: (val) {
+                        if (val != null) setState(() => _newStatusId = val);
+                      },
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
+            ],
             const SizedBox(height: 12),
             const Text('Evidencias (Opcional, hasta 4 archivos):', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             const SizedBox(height: 12),
