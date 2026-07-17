@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_quill/flutter_quill.dart' hide Style;
+import 'package:primhub/ui/pages/Support/Requests/html_editor_utils.dart';
 import 'package:flutter/services.dart'; // Para FilteringTextInputFormatter
 import 'package:primhub/api/api_http.dart' as http;
 import 'package:file_picker/file_picker.dart';
@@ -45,11 +47,11 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
   final _formKey = GlobalKey<FormState>();
   bool _isSubmitting = false;
 
-  final TextEditingController _summaryController = TextEditingController();
+  final QuillController _summaryQuillController = QuillController.basic();
   final TextEditingController _dateStartController = TextEditingController();
   final TextEditingController _dateCompleteController = TextEditingController();
   final TextEditingController _qtyUsedController = TextEditingController();
-  final TextEditingController _emailSubjectController = TextEditingController();
+  final TextEditingController _subjectController = TextEditingController();
 
   String _selectedPriority = 'Media';
   String? _selectedType;
@@ -101,7 +103,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     
     // Si viene vinculado a una tarea, pre-llenar el asunto
     if (widget.linkedRecordUU != null) {
-      _emailSubjectController.text = 'Solicitud de Tarea';
+      _subjectController.text = 'Solicitud de Tarea';
     }
     if (currentUserId != null) {
       _selectedUserId = payload['AD_User_ID'];
@@ -116,6 +118,16 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
 
     _selectedBpId = AccessControl.isAdmin ? null : User.cBPartnerID;
     _fetchBPartners();
+  }
+
+  @override
+  void dispose() {
+    _summaryQuillController.dispose();
+    _dateStartController.dispose();
+    _dateCompleteController.dispose();
+    _qtyUsedController.dispose();
+    _subjectController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchProductChips() async {
@@ -846,6 +858,15 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     final bool isFullAccess = AccessControl.isAdmin;
 
     if (!_formKey.currentState!.validate()) return;
+    
+    final summaryText = _summaryQuillController.document.toPlainText().trim();
+    if (summaryText.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Por favor ingrese una descripción'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
     if (!AccessControl.canCreateRequests) return;
     if (_isLoadingStatuses ||
         _isLoadingTypes ||
@@ -1023,8 +1044,11 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     final url = Uri.parse(Endpoint.request);
     double qty = double.tryParse(_qtyUsedController.text) ?? 0.0;
 
+    final summaryHtml = HtmlEditorUtils.deltaToHtml(_summaryQuillController.document);
+    final subjectText = _subjectController.text.trim();
+
     final Map<String, dynamic> data = {
-      'Summary': _summaryController.text,
+      'Summary': summaryHtml,
       'Priority': _priorityMap[_selectedPriority] ?? '5',
       'R_RequestType_ID': {'id': _requestTypeMap[_selectedType!]},
       'R_Status_ID': {
@@ -1036,8 +1060,8 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
 
 
 
-    if (_emailSubjectController.text.isNotEmpty) {
-      data['CDS_EmailSubject'] = _emailSubjectController.text;
+    if (subjectText.isNotEmpty) {
+      data['CDS_EmailSubject'] = subjectText;
     }
 
     if (_selectedCategory != null &&
@@ -1326,10 +1350,9 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                // ASUNTO (Campo común para todos)
                 CustomTextField(
-                  controller: _emailSubjectController,
-                  label: 'Asunto',
+                  controller: _subjectController,
+                  label: 'Asunto / Título de la solicitud *',
                 ),
                 const SizedBox(height: 16),
                 Row(
@@ -1588,15 +1611,13 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
               ],
 
               // RESUMEN Y ADJUNTOS (Campos comunes)
-              CustomTextField(
-                controller: _summaryController,
+              const Text('Descripción / Resumen *', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              const SizedBox(height: 8),
+              QuillExpandableField(
+                controller: _summaryQuillController,
                 label: 'Descripción / Resumen',
-                maxLines: 4,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty)
-                    return 'Por favor ingrese una descripción';
-                  return null;
-                },
+                isRequired: true,
+                height: 150,
               ),
               const SizedBox(height: 24),
               const Text(

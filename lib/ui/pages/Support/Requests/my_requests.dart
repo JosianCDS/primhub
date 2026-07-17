@@ -906,12 +906,8 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
         if (_searchController.text.trim().isNotEmpty) {
           final search = _searchController.text.trim().toLowerCase();
           final docNo = (req['DocumentNo'] ?? '').toString().toLowerCase();
-          final internalId = (req['id'] ?? '').toString().toLowerCase();
-          final summary = (req['Summary'] ?? '').toString().toLowerCase();
 
-          if (!docNo.contains(search) &&
-              !internalId.contains(search) &&
-              !summary.contains(search))
+          if (!docNo.contains(search))
             return false;
         }
 

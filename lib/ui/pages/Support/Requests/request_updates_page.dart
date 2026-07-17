@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter_quill/flutter_quill.dart' hide Style;
+import 'package:primhub/ui/pages/Support/Requests/html_editor_utils.dart';
 import 'package:primhub/api/api_http.dart' as http;
 import 'package:file_picker/file_picker.dart';
 import 'package:primhub/api/token.dart';
@@ -164,7 +166,7 @@ class _RequestUpdatesPageState extends State<RequestUpdatesPage> {
         currentStatusId: _requestDetails?['R_Status_ID'] is Map 
             ? (_requestDetails!['R_Status_ID']['id'] as num?)?.toInt() 
             : (_requestDetails?['R_Status_ID'] as num?)?.toInt(),
-        summary: stripHtmlTags((_requestDetails?['Summary'] ?? _requestDetails?['summary'] ?? widget.docNo).toString()),
+        summary: (_requestDetails?['Summary'] ?? _requestDetails?['summary'] ?? widget.docNo).toString(),
         description: _memoizedDescription ?? 'Cargando...',
       ),
     );
@@ -363,7 +365,7 @@ class _AddUpdateDialog extends StatefulWidget {
 }
 
 class _AddUpdateDialogState extends State<_AddUpdateDialog> {
-  final _resultController = TextEditingController();
+  final QuillController _resultController = QuillController.basic();
   String _confidentialType = 'I'; // Internal
   List<PlatformFile?> _evidences = [null, null, null, null];
   bool _isSaving = false;
@@ -400,14 +402,17 @@ class _AddUpdateDialogState extends State<_AddUpdateDialog> {
   }
 
   Future<void> _handleSave() async {
-    if (_resultController.text.trim().isEmpty) {
+    final resultText = _resultController.document.toPlainText().trim();
+    if (resultText.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('El campo de resultado no puede estar vacío.'), backgroundColor: Colors.orange));
       return;
     }
 
     setState(() => _isSaving = true);
 
-    final result = await createRequestUpdate(requestId: widget.requestId, resultText: _resultController.text, confidentialType: _confidentialType, evidences: _evidences);
+    final resultHtml = HtmlEditorUtils.deltaToHtml(_resultController.document);
+
+    final result = await createRequestUpdate(requestId: widget.requestId, resultText: resultHtml, confidentialType: _confidentialType, evidences: _evidences);
 
     if (mounted) {
       setState(() => _isSaving = false);
@@ -480,13 +485,17 @@ class _AddUpdateDialogState extends State<_AddUpdateDialog> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        widget.summary.toUpperCase(),
-                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: Theme.of(context).colorScheme.primary,
-                              letterSpacing: 0.5,
-                            ),
+                      Html(
+                        data: widget.summary.replaceAll('&lt;', '<').replaceAll('&gt;', '>'),
+                        style: {
+                          "body": Style(
+                            margin: Margins.zero,
+                            padding: HtmlPaddings.zero,
+                            fontSize: FontSize(14),
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.primary,
+                          )
+                        },
                       ),
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 4.0),
@@ -509,7 +518,12 @@ class _AddUpdateDialogState extends State<_AddUpdateDialog> {
                 ),
               ),
             ),
-            CustomTextField(controller: _resultController, label: 'Resultado o comentario *', maxLines: 5),
+            QuillExpandableField(
+              controller: _resultController,
+              label: 'Resultado o comentario',
+              isRequired: true,
+              height: 120,
+            ),
             if (AccessControl.isAdmin) ...[
               const SizedBox(height: 16),
               Row(
@@ -816,14 +830,19 @@ class _RequestSummaryHeader extends StatelessWidget {
                       ),
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  stripHtmlTags((details['Summary'] ?? details['summary'] ?? 'Sin resumen').toString()),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.onSurface,
-                  ),
+                Html(
+                  data: (details['Summary'] ?? details['summary'] ?? 'Sin resumen').toString().replaceAll('&lt;', '<').replaceAll('&gt;', '>'),
+                  style: {
+                    "body": Style(
+                      margin: Margins.zero,
+                      padding: HtmlPaddings.zero,
+                      fontSize: FontSize(16),
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
+                      maxLines: 2,
+                      textOverflow: TextOverflow.ellipsis,
+                    ),
+                  },
                 ),
                 const SizedBox(height: 8),
                 ConstrainedBox(

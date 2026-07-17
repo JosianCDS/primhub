@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_quill/flutter_quill.dart' hide Style;
+import 'package:primhub/ui/pages/Support/Requests/html_editor_utils.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter/services.dart'; // Para FilteringTextInputFormatter
 import 'package:primhub/api/api_http.dart' as http;
@@ -73,11 +75,12 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
 
   late TextEditingController _resultController;
   late TextEditingController _newUpdateController;
-  late TextEditingController _summaryController;
   late TextEditingController _dateStartController;
   late TextEditingController _dateCompleteController;
   late TextEditingController _qtyUsedController;
-  late TextEditingController _emailSubjectController;
+  late TextEditingController _subjectController;
+
+  final QuillController _summaryQuillController = QuillController.basic();
 
   @override
   void initState() {
@@ -96,11 +99,14 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
 
     _resultController = TextEditingController(text: widget.request['result']);
     _newUpdateController = TextEditingController();
-    _summaryController = TextEditingController(text: widget.request['description']);
     _dateStartController = TextEditingController(text: widget.request['dateStartPlan']);
     _dateCompleteController = TextEditingController(text: widget.request['dateCompletePlan']);
+    
+    final String initialSubject = stripHtmlTags((widget.request['emailSubject'] ?? widget.request['summary'] ?? '').toString());
+    _subjectController = TextEditingController(text: initialSubject);
+    final String initialSummary = (widget.request['description'] ?? '').toString();
+    _summaryQuillController.document = HtmlEditorUtils.htmlToDelta(initialSummary);
     _qtyUsedController = TextEditingController(text: ((widget.request['qtySpent'] as num?)?.toDouble() ?? 0.0).toString());
-    _emailSubjectController = TextEditingController(text: widget.request['emailSubject']);
 
     _selectedType = widget.request['type'];
     _selectedCategory = widget.request['category'];
@@ -133,8 +139,6 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
 
       if (mounted) {
         setState(() {
-          // APLICAMOS EL FILTRO AQUÍ
-          // Excluir terceros que sean proveedores o que empiecen con '~'
           _bPartnersList = bps.where((bp) {
             final name = bp['Name']?.toString() ?? '';
             final rawVendor = bp['IsVendor'] ?? bp['isVendor'];
@@ -155,8 +159,6 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
             return !name.startsWith('~') && ((isCustomer && !isVendor) || isSpecificAdmin);
           }).toList();
 
-          // Rescate: Si el tercero actual del ticket estaba inactivo o no es cliente,
-          // lo conservamos en la lista visual para no borrar la data existente.
           if (_selectedBpId != null && !_bPartnersList.any((bp) => bp['id'] == _selectedBpId)) {
             _bPartnersList.add({'id': _selectedBpId, 'Name': widget.request['bpName'] ?? 'Tercero $_selectedBpId'});
           }
@@ -196,11 +198,10 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
     _descriptionScrollController.dispose();
     _resultController.dispose();
     _newUpdateController.dispose();
-    _summaryController.dispose();
     _dateStartController.dispose();
-    _dateCompleteController.dispose();
+    _summaryQuillController.dispose();
+    _subjectController.dispose();
     _qtyUsedController.dispose();
-    _emailSubjectController.dispose();
     super.dispose();
   }
 
@@ -232,7 +233,6 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
           setState(() {
             _requestTypeMap = {for (var r in records) r['Name']: r['id']};
             
-            // Establecer tipo por defecto si no tiene uno válido asignado
             if ((_selectedType == null || _selectedType == 'Solicitud' || _selectedType!.isEmpty) && _requestTypeMap.isNotEmpty) {
               if (isProject) {
                 _selectedType = _requestTypeMap.keys.firstWhere(
@@ -262,9 +262,6 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
       final bool isProject = (widget.request['recordUU'] != null && widget.request['recordUU'].toString().trim().isNotEmpty) ||
                              (widget.request['Record_UU'] != null && widget.request['Record_UU'].toString().trim().isNotEmpty);
       
-      // Filtrar categorías según el contexto:
-      // Si es Proyecto: mostrar las que tienen showinprimhub = false
-      // Si es Soporte: mostrar las que tienen showinprimhub = true
       final records = allRecords.where((c) {
         final bool isPrimhub = c['showinprimhub'] == true;
         return isProject ? !isPrimhub : isPrimhub;
@@ -285,7 +282,6 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
       if (mounted) setState(() => _isLoadingCategories = false);
     }
   }
-
 
   void _showCategoryHelpModal() {
     showDialog(
@@ -368,12 +364,11 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
   Future<void> _fetchUsers() async {
     try {
       final logic = ProjectsLogic();
-      final users = await logic.fetchUsers(bPartnerId: _selectedBpId); // Usa el ID del tercero seleccionado
+      final users = await logic.fetchUsers(bPartnerId: _selectedBpId); 
       if (mounted) {
         final previouslySelectedUserId = _selectedUserId;
         bool userWasCleared = false;
 
-        // Si el usuario actual ya no está en la lista filtrada, lo deseleccionamos.
         if (previouslySelectedUserId != null && !users.any((u) => (u['AD_User_ID'] ?? u['id']) == previouslySelectedUserId)) {
           _selectedUserId = null;
           userWasCleared = true;
@@ -381,7 +376,6 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
 
         setState(() {
           _users = users;
-          // Rescate: Añadir usuario actual si no vino en la lista de activos
           if (previouslySelectedUserId != null && !userWasCleared && !_users.any((u) => (u['AD_User_ID'] ?? u['id']) == previouslySelectedUserId)) {
             _users.add({'id': _selectedUserId, 'AD_User_ID': _selectedUserId, 'Name': widget.request['userName'] ?? 'Usuario $_selectedUserId'});
           }
@@ -403,37 +397,6 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
         controller.text = "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
       });
     }
-  }
-
-  Future<void> _selectTime(BuildContext context, TextEditingController controller) async {
-    final TimeOfDay? picked = await showTimePicker(context: context, initialTime: TimeOfDay.now());
-    if (picked != null) {
-      setState(() {
-        controller.text = "${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}:00";
-      });
-    }
-  }
-
-  void _showFullDescription(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        return CustomModal(
-          title: 'Descripción Completa',
-          width: 600,
-          content: SizedBox(
-            height: 400,
-            child: SingleChildScrollView(
-              child: Html(
-                data: _summaryController.text,
-                style: {"body": Style(margin: Margins.zero, padding: HtmlPaddings.zero)},
-              ),
-            ),
-          ),
-          actions: [CustomButton(text: 'Cerrar', onPressed: () => Navigator.of(dialogContext).pop())],
-        );
-      },
-    );
   }
 
   Future<void> _openSearchModal<T>({required String title, required List<dynamic> items, required T? currentValue, required String Function(dynamic) getTitle, String Function(dynamic)? getSubtitle, required T? Function(dynamic) getValue, required void Function(T?) onSelected}) async {
@@ -498,7 +461,6 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
       },
     );
 
-    // Verificamos si retornó explícitamente una selección (incluso si es null para "Todos")
     if (result != null && result is Map && result['selected'] == true) {
       onSelected(result['value'] as T?);
     }
@@ -555,7 +517,6 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
     double currentQty = (widget.request['qtySpent'] as num?)?.toDouble() ?? 0.0;
     double inputQty = double.tryParse(_qtyUsedController.text) ?? 0.0;
 
-    // VALIDACIÓN DE HORAS DISPONIBLES (Ficha de Producto)
     if (inputQty > 0) {
       setState(() => _isSaving = true);
       final freshData = await fetchRequest(filter: "R_Request_ID eq ${widget.request['realId']}");
@@ -571,7 +532,6 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
               if (selectedChip.isNotEmpty) {
                 final double chipTotalQty = (selectedChip['Qty'] as num?)?.toDouble() ?? 0.0;
 
-                // Fetch all requests linked to THIS SPECIFIC CHIP
                 final chipRequests = await fetchRequest(filter: "C_BPartner_Product_Chip_ID eq $_selectedProductChipId");
                 double totalEstimatedAndConsumedForChip = 0.0;
 
@@ -579,7 +539,6 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                   if (r['Record_UU'] != null && r['Record_UU'].toString().isNotEmpty) continue;
                   if (r['id'] == widget.request['realId']) continue;
                   
-                  // Sumamos QtySpent (consumidas) o QtyPlan (en progreso)
                   totalEstimatedAndConsumedForChip += (r['QtySpent'] as num?)?.toDouble() ?? (r['QtyPlan'] as num?)?.toDouble() ?? 0.0;
                 }
 
@@ -596,9 +555,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                 }
               }
             }
-          } catch (e) {
-            // Permitir continuar si la validación falla por red.
-          }
+          } catch (e) {}
         }
       }
     }
@@ -621,14 +578,11 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
       if (_dateCompleteController.text.isNotEmpty) {
         closeDateToSend = "${_dateCompleteController.text}T00:00:00Z";
       }
-      // Si estamos cerrando, forzamos el statusId a uno de cierre si no está ya definido
       statusIdToSend ??= _statusIdMap['9_Final Close'] ?? _statusIdMap.entries.firstWhere((e) => e.key.toLowerCase().contains('close'), orElse: () => const MapEntry('', 103)).value;
       statusIdentifierToSend = null;
     }
 
-    // Fase 1: Actualizar Tercero (y Usuario/Ficha si se seleccionaron nuevos) para asegurar consistencia
     if (_selectedBpId != widget.request['bpId']) {
-      // VALIDACIÓN: El servidor no acepta null para el usuario al cambiar de tercero
       if (_selectedUserId == null) {
         if (mounted) {
           setState(() => _isSaving = false);
@@ -672,7 +626,6 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
         }
         return;
       }
-      // Actualizamos el ID local para que la segunda fase no tenga conflictos
       widget.request['bpId'] = _selectedBpId;
     }
 
@@ -690,19 +643,22 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
       return;
     }
 
+    final summaryHtml = HtmlEditorUtils.deltaToHtml(_summaryQuillController.document);
+    final subjectText = _subjectController.text.trim();
+
     final result = await updateRemoteRequest(
       id: widget.request['realId'],
       priority: _currentPriority,
       statusId: statusIdToSend,
       statusIdentifier: statusIdentifierToSend,
       result: _resultController.text,
-      summary: _summaryController.text,
+      summary: summaryHtml,
       dateStartPlan: dateStartPlanToSend,
       dateCompletePlan: dateCompletePlanToSend,      
       qtySpent: qtySpentToSend,
       startDate: startDateToSend,
       closeDate: closeDateToSend,
-      emailSubject: _emailSubjectController.text,
+      emailSubject: subjectText,
       requestTypeId: _requestTypeMap[_selectedType],
       categoryId: _categoryMap[_selectedCategory],
       groupId: _groupMap[_selectedGroup],
@@ -712,19 +668,17 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
       productChipId: _selectedProductChipId,
     );
 
-    // Si hay una nueva actualización, la creamos
     final newUpdateText = _newUpdateController.text.trim();
     if (newUpdateText.isNotEmpty) {
       await createRequestUpdate(
         requestId: widget.request['realId'],
         resultText: newUpdateText,
-        confidentialType: 'I', // Valor por defecto para actualizaciones rápidas
-        evidences: [null, null, null, null], // Sin archivos adjuntos desde aquí
+        confidentialType: 'I',
+        evidences: [null, null, null, null],
       );
     }
 
     if (result['success'] == true) {
-      // Sincronizar el caché local con este ticket específico
       await GlobalCache.syncSingleRequest(widget.request['realId']);
     }
 
@@ -818,7 +772,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                             onSelected: (val) {
                               setState(() {
                                 _selectedBpId = val;
-                                _selectedUserId = null; // Reseteamos usuario al cambiar tercero
+                                _selectedUserId = null;
                                 _selectedProductChipId = null;
                                 _users = [];
                                 _isLoadingUsers = true;
@@ -865,11 +819,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                             hintText: _selectedBpId == null ? 'Seleccione un tercero' : 'Seleccione Ficha',
                             value: _selectedProductChipId,
                             isLoading: _isLoadingProducts,
-                            isDisabled: (() {
-                              final bool d = _isLoadingProducts || _selectedBpId == null;
-// [Mantenimiento] Log removido:                               debugPrint("DEBUG EDIT CHIP: disabled=$d (Loading=$_isLoadingProducts, BP=$_selectedBpId)");
-                              return d;
-                            })(),
+                            isDisabled: _isLoadingProducts || _selectedBpId == null,
                             displayText: _selectedProductChipId != null && _productChips.any((c) => c['id'] == _selectedProductChipId) 
                                 ? _productChips.firstWhere((c) => c['id'] == _selectedProductChipId)['Description'] ?? 'Ficha #${_selectedProductChipId}' 
                                 : '',
@@ -889,9 +839,6 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                     const SizedBox(height: 16),
                   ],
                 ],
-                const SizedBox(height: 16),
-
-
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -917,7 +864,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                CustomTextField(controller: _emailSubjectController, label: 'Asunto', readOnly: _isReadOnly),
+                CustomTextField(controller: _subjectController, label: 'Asunto', readOnly: _isReadOnly),
                 const SizedBox(height: 16),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
@@ -943,7 +890,6 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                               final bool isProject = (widget.request['recordUU'] != null && widget.request['recordUU'].toString().trim().isNotEmpty) ||
                                                      (widget.request['Record_UU'] != null && widget.request['Record_UU'].toString().trim().isNotEmpty);
 
-                              // La automatización de prioridad solo aplica a SOPORTE (no proyectos)
                               if (!isProject && val != null &&
                                   _categoryPriorityMap.containsKey(val)) {
                                 final pValue = _categoryPriorityMap[val]!;
@@ -993,7 +939,6 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                   ],
                 ),
                 const SizedBox(height: 16),
-
                 if (isFullAccess) ...[
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1024,7 +969,6 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                     ],
                   ),
                   const SizedBox(height: 16),
-
                   Row(
                     children: [
                       Expanded(
@@ -1033,7 +977,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                           hintText: 'Seleccione Estado',
                           value: _currentStatus,
                           isLoading: false,
-                          isDisabled: false, // Siempre editable para permitir reabrir
+                          isDisabled: false,
                           displayText: cleanStatusName(_currentStatus),
                           onTap: () => _openSearchModal<String>(
                             title: 'Estado',
@@ -1073,7 +1017,6 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                   CustomTextField(controller: _qtyUsedController, label: 'Horas Invertidas', readOnly: _isReadOnly, keyboardType: const TextInputType.numberWithOptions(decimal: true), inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))]),
                   const SizedBox(height: 16),
                 ],
-
                 Stack(
                   alignment: Alignment.topRight,
                   children: [
@@ -1091,7 +1034,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                             Text('Descripción / Resumen', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Theme.of(context).colorScheme.primary)),
                             const SizedBox(height: 8),
                             Html(
-                              data: _summaryController.text,
+                              data: HtmlEditorUtils.deltaToHtml(_summaryQuillController.document),
                               style: {
                                 "body": Style(
                                   margin: Margins.zero,
@@ -1103,21 +1046,12 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                           ],
                         ),
                       )
-                    : CustomTextField(
-                        controller: _summaryController,
-                        scrollController: _descriptionScrollController,
+                    : QuillExpandableField(
+                        controller: _summaryQuillController,
                         label: 'Descripción / Resumen',
                         readOnly: _isReadOnly,
-                        maxLines: 4,
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) return 'Por favor ingrese una descripción';
-                          return null;
-                        },
+                        height: 150,
                       ),
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4.0, right: 4.0),
-                      child: IconButton(icon: const Icon(Icons.zoom_out_map), tooltip: 'Ver descripción completa', onPressed: () => _showFullDescription(context)),
-                    ),
                   ],
                 ),
               ],

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/api/session_manager.dart';
+import 'package:flutter_quill/flutter_quill.dart' show FlutterQuillLocalizations;
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:primhub/theme/theme.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents.dart';
 import 'package:primhub/ui/pages/Home/home_page.dart';
@@ -149,7 +151,24 @@ class MainApp extends StatelessWidget {
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: AppThemes.themeModeNotifier,
       builder: (context, themeMode, child) {
-        return MaterialApp.router(routerConfig: _router, title: 'PrimHub', debugShowCheckedModeBanner: false, theme: AppThemes.lightTheme, darkTheme: AppThemes.darkTheme, themeMode: themeMode);
+        return MaterialApp.router(
+          routerConfig: _router,
+          title: 'PrimHub',
+          debugShowCheckedModeBanner: false,
+          theme: AppThemes.lightTheme,
+          darkTheme: AppThemes.darkTheme,
+          themeMode: themeMode,
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+            FlutterQuillLocalizations.delegate,
+          ],
+          supportedLocales: const [
+            Locale('en', ''),
+            Locale('es', ''),
+          ],
+        );
       },
     );
   }

@@ -3,6 +3,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_html/flutter_html.dart';
 import 'package:primhub/api/api_http.dart' as http;
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/endpoint/endpoint.dart';
@@ -238,10 +239,20 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
           Tooltip(
             message: alert['descriptionClean'] ?? '',
             waitDuration: const Duration(milliseconds: 500),
-            child: Text(
-              (alert['descriptionClean'] ?? '').length > 50 
-                ? '${(alert['descriptionClean'] ?? '').substring(0, 50)}...' 
-                : (alert['descriptionClean'] ?? '')
+            child: SizedBox(
+              width: 250,
+              child: Html(
+                data: (alert['description'] ?? alert['descriptionClean'] ?? '').toString(),
+                style: {
+                  "body": Style(
+                    margin: Margins.zero,
+                    padding: HtmlPaddings.zero,
+                    fontSize: FontSize(12),
+                    maxLines: 2,
+                    textOverflow: TextOverflow.ellipsis,
+                  ),
+                },
+              ),
             ),
           ),
         ),
