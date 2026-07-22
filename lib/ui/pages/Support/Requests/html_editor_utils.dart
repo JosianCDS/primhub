@@ -6,6 +6,7 @@ import 'package:flutter_html/flutter_html.dart';
 import 'package:universal_html/html.dart' as html;
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 class HtmlEditorUtils {
   /// Convierte un documento de Quill (Delta) a HTML
@@ -287,10 +288,19 @@ class _QuillExpandableFieldState extends State<QuillExpandableField> {
                   showFontFamily: false,
                   showFontSize: false,
                   buttonOptions: QuillSimpleToolbarButtonOptions(
+                    bold: const QuillToolbarToggleStyleButtonOptions(iconData: Symbols.format_bold),
+                    italic: const QuillToolbarToggleStyleButtonOptions(iconData: Symbols.format_italic),
+                    underLine: const QuillToolbarToggleStyleButtonOptions(iconData: Symbols.format_underlined),
+                    strikeThrough: const QuillToolbarToggleStyleButtonOptions(iconData: Symbols.strikethrough_s),
+                    listBullets: const QuillToolbarToggleStyleButtonOptions(iconData: Symbols.format_list_bulleted),
+                    undoHistory: const QuillToolbarHistoryButtonOptions(iconData: Symbols.undo),
+                    redoHistory: const QuillToolbarHistoryButtonOptions(iconData: Symbols.redo),
                     color: QuillToolbarColorButtonOptions(
+                      iconData: Symbols.palette,
                       customOnPressedCallback: (controller, isBackground) => HtmlEditorUtils.showColorPicker(context, controller, isBackground),
                     ),
                     backgroundColor: QuillToolbarColorButtonOptions(
+                      iconData: Symbols.format_color_fill,
                       customOnPressedCallback: (controller, isBackground) => HtmlEditorUtils.showColorPicker(context, controller, isBackground),
                     ),
                   ),
