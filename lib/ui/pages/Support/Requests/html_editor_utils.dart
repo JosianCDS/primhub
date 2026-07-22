@@ -173,6 +173,7 @@ class HtmlEditorUtils {
   static Future<void> showColorPicker(BuildContext context, QuillController controller, bool isBackground) async {
     Color? selectedColor;
     final colors = [
+      Colors.transparent,
       Colors.black, Colors.white, Colors.grey, Colors.red,
       Colors.orange, Colors.yellow, Colors.green, Colors.blue,
       Colors.indigo, Colors.purple, Colors.pink, Colors.brown,
@@ -180,7 +181,7 @@ class HtmlEditorUtils {
     await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Seleccionar color'),
+        title: Text('Seleccionar color', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
         content: Wrap(
           spacing: 8,
           runSpacing: 8,
@@ -189,25 +190,40 @@ class HtmlEditorUtils {
               selectedColor = c;
               Navigator.pop(ctx);
             },
-            child: Container(
-              width: 40, height: 40,
-              decoration: BoxDecoration(
-                color: c,
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.grey),
-              ),
-            ),
+            child: c == Colors.transparent
+                ? Container(
+                    width: 40, height: 40,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.grey),
+                    ),
+                    child: const Icon(Icons.format_color_reset, size: 24, color: Colors.grey),
+                  )
+                : Container(
+                    width: 40, height: 40,
+                    decoration: BoxDecoration(
+                      color: c,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.grey),
+                    ),
+                  ),
           )).toList(),
         ),
       ),
     );
 
     if (selectedColor != null) {
-      var hex = selectedColor!.value.toRadixString(16).padLeft(8, '0');
-      hex = '#${hex.substring(2)}';
-      controller.formatSelection(
-        isBackground ? BackgroundAttribute(hex) : ColorAttribute(hex)
-      );
+      if (selectedColor == Colors.transparent) {
+        controller.formatSelection(
+          isBackground ? const BackgroundAttribute(null) : const ColorAttribute(null)
+        );
+      } else {
+        var hex = selectedColor!.value.toRadixString(16).padLeft(8, '0');
+        hex = '#${hex.substring(2)}';
+        controller.formatSelection(
+          isBackground ? BackgroundAttribute(hex) : ColorAttribute(hex)
+        );
+      }
     }
   }
 }

@@ -489,7 +489,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
     );
   }
 
-  Future<void> _handleSave() async {
+  Future<void> _handleSave({bool navigateToReply = false}) async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isSaving = true);
@@ -685,11 +685,16 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
     if (mounted) {
       setState(() => _isSaving = false);
       if (result['success'] == true) {
+        final router = GoRouter.of(context);
         if (Navigator.of(context).canPop()) {
           Navigator.of(context).pop(true);
         }
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Solicitud actualizada correctamente')));
         widget.onSave();
+
+        if (navigateToReply) {
+          router.push('/request-updates/${widget.request['realId']}', extra: {'docNo': widget.request['id']?.toString() ?? '...'});
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${result['error']}'), backgroundColor: Colors.red, duration: const Duration(seconds: 10)));
       }
@@ -1069,11 +1074,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
         ),
         // BOTÓN DE RESPONDER (Estilo limpio)
         TextButton.icon(
-          onPressed: () {
-            final router = GoRouter.of(context);
-            Navigator.pop(context); // Cerrar el diálogo de edición
-            router.push('/request-updates/${widget.request['realId']}', extra: {'docNo': widget.request['id']?.toString() ?? '...'});
-          },
+          onPressed: _isSaving ? null : () => _handleSave(navigateToReply: true),
           icon: const Icon(Icons.reply, size: 20),
           label: const Text('Responder', style: TextStyle(fontWeight: FontWeight.bold)),
           style: TextButton.styleFrom(
@@ -1081,7 +1082,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
           ),
         ),
         TextButton(onPressed: _isSaving ? null : () => Navigator.pop(context), child: const Text('Cancelar')),
-        CustomButton(text: 'Guardar', isLoading: _isSaving, onPressed: _handleSave),
+        CustomButton(text: 'Guardar', isLoading: _isSaving, onPressed: () => _handleSave()),
       ],
     );
   }
