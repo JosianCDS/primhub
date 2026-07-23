@@ -86,6 +86,8 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   int? _lastCurrentPage;
   bool? _lastShowHistory;
 
+  final ScrollController _outerScrollController = ScrollController();
+
   Widget _buildTableWidget() {
     final bool currentSkeleton = (_showHistory && _isHistorySkeletonActive);
     if (_cachedTable != null &&
@@ -109,7 +111,9 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       _cachedTable = const SkeletonTable();
     } else {
       _cachedTable = RequestsDataTableCore(
-        key: ValueKey('requests_table_${_currentPage}_${_rowsPerPage}_${_sortedRequests.length}'),
+        key: ValueKey(
+          'requests_table_${_currentPage}_${_rowsPerPage}_${_sortedRequests.length}',
+        ),
         requests: _sortedRequests,
         onEdit: _editRequest,
         onRefresh: () => _refreshRequest(fetchNetwork: true),
@@ -138,9 +142,9 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
 
   void _onBackgroundSyncChanged() {
     if (mounted) {
-// [Mantenimiento] Log removido:       debugPrint(
-// [Mantenimiento] Log removido:         "DEBUG: [SYNC] Refreshing MyRequests due to global sync notification.",
-// [Mantenimiento] Log removido:       );
+      // [Mantenimiento] Log removido:       debugPrint(
+      // [Mantenimiento] Log removido:         "DEBUG: [SYNC] Refreshing MyRequests due to global sync notification.",
+      // [Mantenimiento] Log removido:       );
       _refreshRequest(fetchNetwork: false);
     }
   }
@@ -221,6 +225,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
 
   @override
   void dispose() {
+    _outerScrollController.dispose();
     _historySkeletonTimer?.cancel();
     _skeletonTimer?.cancel();
     _searchController.dispose();
@@ -230,16 +235,16 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   }
 
   Future<void> _initData() async {
-// [Mantenimiento] Log removido:     debugPrint("DEBUG UI: _initData iniciado.");
+    // [Mantenimiento] Log removido:     debugPrint("DEBUG UI: _initData iniciado.");
     if (_isInit) {
       setState(() {
         _isLoading = true;
       });
     }
 
-// [Mantenimiento] Log removido:     debugPrint("DEBUG UI: Llamando a GlobalCache.syncData()...");
+    // [Mantenimiento] Log removido:     debugPrint("DEBUG UI: Llamando a GlobalCache.syncData()...");
     await GlobalCache.syncData();
-// [Mantenimiento] Log removido:     debugPrint("DEBUG UI: GlobalCache.syncData completado.");
+    // [Mantenimiento] Log removido:     debugPrint("DEBUG UI: GlobalCache.syncData completado.");
 
     // Esperar a que la Fase 2 (carga del año actual) termine antes de continuar.
     // Esto asegura que el skeleton se muestre hasta que los datos estén listos.
@@ -247,17 +252,17 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       if (GlobalCache.phase2SyncFuture != null)
         await GlobalCache.phase2SyncFuture;
     } catch (e) {
-// [Mantenimiento] Log removido:       debugPrint("Error esperando la Fase 2 de la caché: $e");
+      // [Mantenimiento] Log removido:       debugPrint("Error esperando la Fase 2 de la caché: $e");
     }
 
     if (mounted) {
       setState(() {
         _bPartners = GlobalCache.bPartners;
         _users = GlobalCache.users;
-// [Mantenimiento] Log removido:         debugPrint(
-// [Mantenimiento] Log removido:           "DEBUG UI: _bPartners poblados con ${_bPartners.length} items.",
-// [Mantenimiento] Log removido:         );
-// [Mantenimiento] Log removido:         debugPrint("DEBUG UI: _users poblados con ${_users.length} items.");
+        // [Mantenimiento] Log removido:         debugPrint(
+        // [Mantenimiento] Log removido:           "DEBUG UI: _bPartners poblados con ${_bPartners.length} items.",
+        // [Mantenimiento] Log removido:         );
+        // [Mantenimiento] Log removido:         debugPrint("DEBUG UI: _users poblados con ${_users.length} items.");
         _isLoading = false;
         _isInit = false;
       });
@@ -540,9 +545,9 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     );
 
     if (appliedFilters != null) {
-// [Mantenimiento] Log removido:       debugPrint(
-// [Mantenimiento] Log removido:         "DEBUG MY_REQUESTS: Filtros recibidos del modal -> BPs: ${appliedFilters.bpIds}, Chips: ${appliedFilters.productChipIds}",
-// [Mantenimiento] Log removido:       );
+      // [Mantenimiento] Log removido:       debugPrint(
+      // [Mantenimiento] Log removido:         "DEBUG MY_REQUESTS: Filtros recibidos del modal -> BPs: ${appliedFilters.bpIds}, Chips: ${appliedFilters.productChipIds}",
+      // [Mantenimiento] Log removido:       );
       setState(() {
         _filters = appliedFilters;
         _currentPage = 0;
@@ -550,9 +555,9 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
 
       final currentBPs = Set.from(_filters.bpIds);
       if (!setEquals(originalBPs, currentBPs)) {
-// [Mantenimiento] Log removido:         debugPrint(
-// [Mantenimiento] Log removido:           "DEBUG MY_REQUESTS: Cambiaron los Terceros. Reiniciando datos...",
-// [Mantenimiento] Log removido:         );
+        // [Mantenimiento] Log removido:         debugPrint(
+        // [Mantenimiento] Log removido:           "DEBUG MY_REQUESTS: Cambiaron los Terceros. Reiniciando datos...",
+        // [Mantenimiento] Log removido:         );
         _bpNameCache.clear();
         setState(() => _isLoading = true);
         if (_filters.bpIds.isNotEmpty) {
@@ -562,9 +567,9 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
         }
         _initData();
       } else {
-// [Mantenimiento] Log removido:         debugPrint(
-// [Mantenimiento] Log removido:           "DEBUG MY_REQUESTS: No cambiaron los Terceros, pero pueden haber cambiado otros filtros. Refrescando...",
-// [Mantenimiento] Log removido:         );
+        // [Mantenimiento] Log removido:         debugPrint(
+        // [Mantenimiento] Log removido:           "DEBUG MY_REQUESTS: No cambiaron los Terceros, pero pueden haber cambiado otros filtros. Refrescando...",
+        // [Mantenimiento] Log removido:         );
         _refreshRequest(
           fetchNetwork: false,
         ); // Solo refresco local ya que los datos base (GlobalCache) son los mismos
@@ -700,9 +705,9 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   }
 
   Future<void> _refreshRequest({bool fetchNetwork = true}) async {
-// [Mantenimiento] Log removido:     debugPrint(
-// [Mantenimiento] Log removido:       "DEBUG REFRESH: Calling _refreshRequest(fetchNetwork: $fetchNetwork). Filters: ${_filters.activeFilterCount} active. ChipIds: ${_filters.productChipIds}",
-// [Mantenimiento] Log removido:     );
+    // [Mantenimiento] Log removido:     debugPrint(
+    // [Mantenimiento] Log removido:       "DEBUG REFRESH: Calling _refreshRequest(fetchNetwork: $fetchNetwork). Filters: ${_filters.activeFilterCount} active. ChipIds: ${_filters.productChipIds}",
+    // [Mantenimiento] Log removido:     );
     try {
       if (mounted) setState(() => _isLoading = true);
 
@@ -715,9 +720,9 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
 
       // 2. Usar los datos centralizados de la caché (Ya cargados por Fase 1 y 2)
       final List<Map<String, dynamic>> rawAll = List.from(GlobalCache.requests);
-// [Mantenimiento] Log removido:       debugPrint(
-// [Mantenimiento] Log removido:         "DEBUG REFRESH: Iniciando filtrado local sobre ${rawAll.length} registros totales en caché.",
-// [Mantenimiento] Log removido:       );
+      // [Mantenimiento] Log removido:       debugPrint(
+      // [Mantenimiento] Log removido:         "DEBUG REFRESH: Iniciando filtrado local sobre ${rawAll.length} registros totales en caché.",
+      // [Mantenimiento] Log removido:       );
 
       if (rawAll.isEmpty && fetchNetwork) {
         // Fallback si por alguna razón la caché está vacía pero queremos red
@@ -763,7 +768,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
 
         final statusData = req['R_Status_ID'];
         bool isArchived = false;
-        
+
         int? statusIdFromReq;
         if (statusData is Map) {
           statusIdFromReq = (statusData['id'] as num?)?.toInt();
@@ -771,17 +776,21 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
           statusIdFromReq = int.tryParse(statusData.toString());
         }
 
-        if (statusIdFromReq != null && GlobalCache.statusIsFinalCloseMap.containsKey(statusIdFromReq)) {
+        if (statusIdFromReq != null &&
+            GlobalCache.statusIsFinalCloseMap.containsKey(statusIdFromReq)) {
           isArchived = GlobalCache.statusIsFinalCloseMap[statusIdFromReq]!;
         } else {
           // Fallback robusto en caso de que falle la caché
-          final statusName = statusData is Map ? (statusData['Name'] ?? '').toString() : '';
-          isArchived = statusName.toLowerCase().contains('archivada') ||
-                       statusName.toLowerCase().contains('anulada') ||
-                       statusName.toLowerCase().contains('final close') ||
-                       statusName.toLowerCase().contains('cerrada');
+          final statusName = statusData is Map
+              ? (statusData['Name'] ?? '').toString()
+              : '';
+          isArchived =
+              statusName.toLowerCase().contains('archivada') ||
+              statusName.toLowerCase().contains('anulada') ||
+              statusName.toLowerCase().contains('final close') ||
+              statusName.toLowerCase().contains('cerrada');
         }
-        
+
         if (_showHistory != isArchived) return false;
 
         // D. Filtros de la UI (Búsqueda, BP, Usuario, etc.) sobre RAW
@@ -802,9 +811,9 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
               : (repData as num?)?.toInt();
 
           if (rawAll.indexOf(req) < 10) {
-// [Mantenimiento] Log removido:             debugPrint(
-// [Mantenimiento] Log removido:               "DEBUG FILTER [SalesRep]: Buscando: ${_filters.salesRepIds}, Encontrado: $repId (Data: $repData)",
-// [Mantenimiento] Log removido:             );
+            // [Mantenimiento] Log removido:             debugPrint(
+            // [Mantenimiento] Log removido:               "DEBUG FILTER [SalesRep]: Buscando: ${_filters.salesRepIds}, Encontrado: $repId (Data: $repData)",
+            // [Mantenimiento] Log removido:             );
           }
 
           if (repId == null || !_filters.salesRepIds.contains(repId))
@@ -887,15 +896,15 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
 
           // Log de diagnóstico para el primer registro
           if (rawAll.indexOf(req) == 0) {
-// [Mantenimiento] Log removido:             debugPrint(
-// [Mantenimiento] Log removido:               "DEBUG FILTER [Ficha]: Buscando IDs: ${_filters.productChipIds}, Nombres: $selectedChipNames",
-// [Mantenimiento] Log removido:             );
-// [Mantenimiento] Log removido:             debugPrint(
-// [Mantenimiento] Log removido:               "DEBUG FILTER [Ficha]: Registro actual -> ID extraído: $parsedChipId, Nombre extraído: $chipName",
-// [Mantenimiento] Log removido:             );
-// [Mantenimiento] Log removido:             debugPrint(
-// [Mantenimiento] Log removido:               "DEBUG FILTER [Ficha]: Resultado -> matchById: $matchById, matchByName: $matchByName",
-// [Mantenimiento] Log removido:             );
+            // [Mantenimiento] Log removido:             debugPrint(
+            // [Mantenimiento] Log removido:               "DEBUG FILTER [Ficha]: Buscando IDs: ${_filters.productChipIds}, Nombres: $selectedChipNames",
+            // [Mantenimiento] Log removido:             );
+            // [Mantenimiento] Log removido:             debugPrint(
+            // [Mantenimiento] Log removido:               "DEBUG FILTER [Ficha]: Registro actual -> ID extraído: $parsedChipId, Nombre extraído: $chipName",
+            // [Mantenimiento] Log removido:             );
+            // [Mantenimiento] Log removido:             debugPrint(
+            // [Mantenimiento] Log removido:               "DEBUG FILTER [Ficha]: Resultado -> matchById: $matchById, matchByName: $matchByName",
+            // [Mantenimiento] Log removido:             );
           }
 
           if (!matchById && !matchByName) {
@@ -907,8 +916,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
           final search = _searchController.text.trim().toLowerCase();
           final docNo = (req['DocumentNo'] ?? '').toString().toLowerCase();
 
-          if (!docNo.contains(search))
-            return false;
+          if (!docNo.contains(search)) return false;
         }
 
         return true;
@@ -920,15 +928,17 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       filteredRaw.sort((a, b) {
         final hasChipA = (extractProductChipId(a) != null) ? 1 : 0;
         final hasChipB = (extractProductChipId(b) != null) ? 1 : 0;
-        
+
         if (hasChipA != hasChipB) {
           return hasChipB.compareTo(hasChipA);
         }
 
         // Obtener fechas para el orden secundario (por defecto descendente)
-        final dateA = (a['Created'] ?? a['Date'] ?? a['Updated'] ?? '').toString();
-        final dateB = (b['Created'] ?? b['Date'] ?? b['Updated'] ?? '').toString();
-        
+        final dateA = (a['Created'] ?? a['Date'] ?? a['Updated'] ?? '')
+            .toString();
+        final dateB = (b['Created'] ?? b['Date'] ?? b['Updated'] ?? '')
+            .toString();
+
         return _isAscending ? dateA.compareTo(dateB) : dateB.compareTo(dateA);
       });
 
@@ -976,7 +986,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
         _updateStatsLocally();
       }
     } catch (e) {
-// [Mantenimiento] Log removido:       debugPrint("Error in optimized _refreshRequest: $e");
+      // [Mantenimiento] Log removido:       debugPrint("Error in optimized _refreshRequest: $e");
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -1041,13 +1051,17 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       if (sId != null && GlobalCache.statusIsFinalCloseMap.containsKey(sId)) {
         isClosed = GlobalCache.statusIsFinalCloseMap[sId]!;
       } else {
-        isClosed = sName.contains('archivada') ||
+        isClosed =
+            sName.contains('archivada') ||
             sName.contains('anulada') ||
             sName.contains('final close') ||
             sName.contains('cerrada') ||
             sName.contains('implementada en produccion') ||
             sName.contains('implementada en producción') ||
-            sId == 1000019 || sId == 1000015 || sId == 1000018 || sId == 103;
+            sId == 1000019 ||
+            sId == 1000015 ||
+            sId == 1000018 ||
+            sId == 103;
       }
 
       // Extraer ID de ficha con los múltiples nombres posibles
@@ -1066,7 +1080,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     consumedForStats = 0.0;
     inProgressForStats = 0.0;
     List<Map<String, dynamic>> processed = [];
-    
+
     for (var chip in relevantChips) {
       final int chipId = (chip['id'] as num).toInt();
       double totalQty = (chip['Qty'] as num?)?.toDouble() ?? 0.0;
@@ -1587,7 +1601,16 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
             ? IconButton(
                 icon: const Icon(Icons.arrow_back),
                 tooltip: 'Volver al Listado',
-                onPressed: () => setState(() => _showCalendar = false),
+                onPressed: () {
+                  setState(() => _showCalendar = false);
+                  if (_outerScrollController.hasClients) {
+                    _outerScrollController.animateTo(
+                      0.0,
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeOut,
+                    );
+                  }
+                },
               )
             : (!AccessControl.isAdmin ? const UserInfoLeading() : null),
         actions: appBarActions,
@@ -1609,168 +1632,161 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
             child: SafeArea(
               bottom: false,
               child: NestedScrollView(
-                      headerSliverBuilder: (context, innerBoxIsScrolled) {
-                        return [
-                          SliverToBoxAdapter(
-                            child: RepaintBoundary(
-                              child: Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  16,
-                                  8,
-                                  16,
-                                  4,
-                                ),
-                                child: RequestStatsCard(
-                                  contractedHours: _contractedHours,
-                                  consumedHours: _consumedHours,
-                                  estimatedHours: _estimatedHours,
-                                ),
-                              ),
-                            ),
-                          ),
-                          SliverToBoxAdapter(
-                            child: RepaintBoundary(
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16.0,
-                                ),
-                                child: RequestFilterBar(
-                                  searchController: _searchController,
-                                  isAscending: _isAscending,
-                                  rowsPerPage: _rowsPerPage,
-                                  showHistory: _showHistory,
-                                  selectedYears: _selectedYears,
-                                  onShowYearFilter: _showYearFilterModal,
-                                  onShowFilters: _showFilterModal,
-                                  onShowCalendar: () =>
-                                      setState(() => _showCalendar = !_showCalendar),
-                                  showCalendar: _showCalendar,
-                                  showWithoutChipOnly: _showWithoutChipOnly,
-                                  onToggleWithoutChip: () {
-                                    setState(() {
-                                      _showWithoutChipOnly = !_showWithoutChipOnly;
-                                      _currentPage = 0;
-                                    });
-                                    _refreshRequest(fetchNetwork: false);
-                                  },
-                                  activeFilterCount: _activeFilterCount,
-                                  isLoading:
-                                      _isLoading || !GlobalCache.isDataLoaded,
-                                  onSortChanged: () {
-                                    setState(() {
-                                      _isAscending = !_isAscending;
-                                      _currentPage = 0;
-                                    });
-                                    _refreshRequest(fetchNetwork: false);
-                                  },
-                                  onRowsPerPageChanged: (val) {
-                                    setState(() {
-                                      _rowsPerPage = val!;
-                                      _currentPage = 0;
-                                      _cachedTable = null;
-                                    });
-                                    _refreshRequest(fetchNetwork: false);
-                                  },
-                                  onClearFilters: () {
-                                    setState(() {
-                                      _filters = const RequestFilterModel();
-                                      _searchController.clear();
-                                      _isAscending = false;
-                                      _currentPage = 0;
-                                      _bpId = null;
-                                      _selectedYears = [DateTime.now().year];
-                                      _isLoading = true;
-                                    });
-                                    _initData();
-                                  },
-                                  onAddRequest: () async {
-                                    if (await showDialog(
-                                          context: context,
-                                          builder: (context) =>
-                                              CreateRequestDialog(
-                                                bPartners: _bPartners,
-                                                selectedBPartnerId: _bpId,
-                                              ),
-                                        ) ==
-                                        true) {
-                                      _refreshRequest(fetchNetwork: false);
-                                    }
-                                  },
-                                  onToggleHistory: () {
-                                    setState(() {
-                                      _showHistory = !_showHistory;
-                                      _filters = _filters.copyWith(
-                                        statuses: [],
-                                      );
-                                      _currentPage = 0;
-                                      if (_showHistory) {
-                                        _startHistorySkeleton();
-                                      } else {
-                                        _isHistorySkeletonActive = false;
-                                      }
-                                    });
-                                    _refreshRequest(fetchNetwork: false);
-                                  },
-                                ),
-                              ),
-                            ),
-                          ),
-                          SliverToBoxAdapter(
-                            child: RepaintBoundary(
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16.0,
-                                  vertical: 4.0,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    _buildActiveFilterChips(),
-                                    Padding(
-                                      padding: const EdgeInsets.only(
-                                        bottom: 8.0,
-                                      ),
-                                      child: Text(
-                                        '$_totalRecords solicitudes encontradas en total',
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.titleMedium,
-                                      ),
-                                    ),
-                                    if (_selectedYears.length == 1 &&
-                                        _selectedYears.first ==
-                                            DateTime.now().year)
-                                      const Padding(
-                                        padding: EdgeInsets.only(bottom: 4.0),
-                                        child: Text(
-                                          "Mostrando solicitudes del año actual. Use el filtro de año para ver más años.",
-                                          style: TextStyle(color: Colors.grey),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ];
-                      },
-                      body: RepaintBoundary(
+                controller: _outerScrollController,
+                headerSliverBuilder: (context, innerBoxIsScrolled) {
+                  return [
+                    SliverToBoxAdapter(
+                      child: RepaintBoundary(
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                          child: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 300),
-                            child: _showCalendar
-                                ? CalendarGanttWrapper(requests: _rawRequests)
-                                : Column(
-                                    children: [
-                                      Expanded(child: _buildTableWidget()),
-                                    ],
-                                  ),
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                          child: RequestStatsCard(
+                            contractedHours: _contractedHours,
+                            consumedHours: _consumedHours,
+                            estimatedHours: _estimatedHours,
                           ),
                         ),
                       ),
                     ),
+                    SliverToBoxAdapter(
+                      child: RepaintBoundary(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                          child: RequestFilterBar(
+                            searchController: _searchController,
+                            isAscending: _isAscending,
+                            rowsPerPage: _rowsPerPage,
+                            showHistory: _showHistory,
+                            selectedYears: _selectedYears,
+                            onShowYearFilter: _showYearFilterModal,
+                            onShowFilters: _showFilterModal,
+                            onShowCalendar: () =>
+                                setState(() => _showCalendar = !_showCalendar),
+                            showCalendar: _showCalendar,
+                            showWithoutChipOnly: _showWithoutChipOnly,
+                            onToggleWithoutChip: () {
+                              setState(() {
+                                _showWithoutChipOnly = !_showWithoutChipOnly;
+                                _currentPage = 0;
+                              });
+                              _refreshRequest(fetchNetwork: false);
+                            },
+                            activeFilterCount: _activeFilterCount,
+                            isLoading: _isLoading || !GlobalCache.isDataLoaded,
+                            onSortChanged: () {
+                              setState(() {
+                                _isAscending = !_isAscending;
+                                _currentPage = 0;
+                              });
+                              _refreshRequest(fetchNetwork: false);
+                            },
+                            onRowsPerPageChanged: (val) {
+                              setState(() {
+                                _rowsPerPage = val!;
+                                _currentPage = 0;
+                                _cachedTable = null;
+                              });
+                              _refreshRequest(fetchNetwork: false);
+                            },
+                            onClearFilters: () {
+                              setState(() {
+                                _filters = const RequestFilterModel();
+                                _searchController.clear();
+                                _isAscending = false;
+                                _currentPage = 0;
+                                _bpId = null;
+                                _selectedYears = [DateTime.now().year];
+                                _isLoading = true;
+                              });
+                              _initData();
+                            },
+                            onAddRequest: () async {
+                              if (await showDialog(
+                                    context: context,
+                                    builder: (context) => CreateRequestDialog(
+                                      bPartners: _bPartners,
+                                      selectedBPartnerId: _bpId,
+                                    ),
+                                  ) ==
+                                  true) {
+                                _refreshRequest(fetchNetwork: false);
+                              }
+                            },
+                            onToggleHistory: () {
+                              setState(() {
+                                _showHistory = !_showHistory;
+                                _filters = _filters.copyWith(statuses: []);
+                                _currentPage = 0;
+                                if (_showHistory) {
+                                  _startHistorySkeleton();
+                                } else {
+                                  _isHistorySkeletonActive = false;
+                                }
+                              });
+                              _refreshRequest(fetchNetwork: false);
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                    SliverToBoxAdapter(
+                      child: RepaintBoundary(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16.0,
+                            vertical: 4.0,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _buildActiveFilterChips(),
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 8.0),
+                                child: Text(
+                                  '$_totalRecords solicitudes encontradas en total',
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.titleMedium,
+                                ),
+                              ),
+                              if (_selectedYears.length == 1 &&
+                                  _selectedYears.first == DateTime.now().year)
+                                const Padding(
+                                  padding: EdgeInsets.only(bottom: 4.0),
+                                  child: Text(
+                                    "Mostrando solicitudes del año actual. Use el filtro de año para ver más años.",
+                                    style: TextStyle(color: Colors.grey),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ];
+                },
+                body: RepaintBoundary(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: _showCalendar
+                          ? CalendarGanttWrapper(
+                              requests: _rawRequests,
+                              onGoToRequest: (String searchVal) {
+                                setState(() {
+                                  _showCalendar = false;
+                                  _searchController.text = searchVal;
+                                });
+                                _refreshRequest(fetchNetwork: false);
+                              },
+                            )
+                          : Column(
+                              children: [Expanded(child: _buildTableWidget())],
+                            ),
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
         ],
@@ -1778,4 +1794,3 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     );
   }
 }
-

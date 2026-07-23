@@ -766,6 +766,17 @@ Future<List<Map<String, dynamic>>> fetchRequestUpdates(int requestId) async {
       orderBy: 'Created desc',
       select: 'Created,CreatedBy,Result,ConfidentialTypeEntry,AD_Image_ID,AD_Image1_ID,AD_Image2_ID,AD_Image3_ID');
 
+  // Filtrar actualizaciones basura generadas automáticamente por el backend
+  updates.removeWhere((update) {
+    final resultText = (update['Result'] ?? '').toString().trim();
+    final hasImages = update['AD_Image_ID'] != null ||
+        update['AD_Image1_ID'] != null ||
+        update['AD_Image2_ID'] != null ||
+        update['AD_Image3_ID'] != null;
+    
+    return (resultText == 'Sin resultado.' || resultText == 'Sin resultado' || resultText.isEmpty) && !hasImages;
+  });
+
   if (!AccessControl.isAdmin) {
     return updates.where((update) {
       final createdBy = update['CreatedBy'];

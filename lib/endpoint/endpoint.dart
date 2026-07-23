@@ -1,25 +1,44 @@
 class Envirioment {
-  static bool isProduction = true;
+  static bool get isProduction {
+    final url = Uri.base.toString();
+    if (url.contains('hubtest.primware.net')) {
+      return false;
+    }
+    return true;
+  }
 }
 
 class Endpoint {
-  static String baseUrl = Envirioment.isProduction ? "https://erp.primware.net" : "https://erp.primware.net";
-  static String request = "$baseUrl/api/v1/models/R_Request";
-  static String order = "$baseUrl/api/v1/models/C_Order";
-  static String productChip = "$baseUrl/api/v1/models/C_BPartner_Product_Chip";
-  static String cBPartner = "$baseUrl/api/v1/models/C_BPartner";
-  static String adUser = "$baseUrl/api/v1/models/AD_User";
-  static String primConfig = "$baseUrl/api/v1/models/Prim_Config";
-  static String project = "$baseUrl/api/v1/models/C_Project";
-  static String primDocuments = "$baseUrl/api/v1/models/PRIM_Documents";
-  static String currency = "$baseUrl/api/v1/models/C_Currency";
-  static String authTokens = "$baseUrl/api/v1/auth/tokens";
-  static String authRoles = "$baseUrl/api/v1/auth/roles";
-  static String authOrgs = "$baseUrl/api/v1/auth/organizations";
-  static String authWarehouses = "$baseUrl/api/v1/auth/warehouses";
-  static String authLogout = "$baseUrl/api/v1/auth/logout";
-  static String primDocumentsRelated = "$baseUrl/api/v1/models/PRIM_Documents_Related";
-  static String changePasswordProcess = "$baseUrl/api/v1/processes/setuserpasswordprocesspos";
+  static String baseUrl = _getInitialBaseUrl();
+
+  static String _getInitialBaseUrl() {
+    final url = Uri.base.toString();
+    if (url.contains('hubtest.primware.net')) {
+      return "https://primhub.primware.net";
+    } else if (url.contains('hub.primware.net')) {
+      return "https://erp.primware.net";
+    }
+    return isProduction ? "https://erp.primware.net" : "https://primhub.primware.net";
+  }
+
+  static bool get isProduction => Envirioment.isProduction;
+
+  static String get request => "$baseUrl/api/v1/models/R_Request";
+  static String get order => "$baseUrl/api/v1/models/C_Order";
+  static String get productChip => "$baseUrl/api/v1/models/C_BPartner_Product_Chip";
+  static String get cBPartner => "$baseUrl/api/v1/models/C_BPartner";
+  static String get adUser => "$baseUrl/api/v1/models/AD_User";
+  static String get primConfig => "$baseUrl/api/v1/models/Prim_Config";
+  static String get project => "$baseUrl/api/v1/models/C_Project";
+  static String get primDocuments => "$baseUrl/api/v1/models/PRIM_Documents";
+  static String get currency => "$baseUrl/api/v1/models/C_Currency";
+  static String get authTokens => "$baseUrl/api/v1/auth/tokens";
+  static String get authRoles => "$baseUrl/api/v1/auth/roles";
+  static String get authOrgs => "$baseUrl/api/v1/auth/organizations";
+  static String get authWarehouses => "$baseUrl/api/v1/auth/warehouses";
+  static String get authLogout => "$baseUrl/api/v1/auth/logout";
+  static String get primDocumentsRelated => "$baseUrl/api/v1/models/PRIM_Documents_Related";
+  static String get changePasswordProcess => "$baseUrl/api/v1/processes/setuserpasswordprocesspos";
 }
 
 class PostMedia {

@@ -354,7 +354,7 @@ class _QuillExpandableFieldState extends State<QuillExpandableField> {
             children: const [
               Icon(Icons.format_bold), Icon(Icons.format_italic), Icon(Icons.format_underline),
               Icon(Icons.format_strikethrough), Icon(Icons.format_list_bulleted),
-              Icon(Icons.undo), Icon(Icons.redo), Icon(Icons.color_lens), Icon(Icons.format_color_fill),
+              Icon(Icons.undo), Icon(Icons.redo), Icon(Icons.color_lens), Icon(Icons.format_color_fill), Icon(Icons.format_color_reset),
             ],
           ),
         ),

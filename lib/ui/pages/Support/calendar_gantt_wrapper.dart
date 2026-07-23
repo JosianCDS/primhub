@@ -4,7 +4,8 @@ import 'package:primhub/ui/pages/Support/gantt_content.dart';
 
 class CalendarGanttWrapper extends StatefulWidget {
   final List<dynamic> requests;
-  const CalendarGanttWrapper({super.key, required this.requests});
+  final Function(String)? onGoToRequest;
+  const CalendarGanttWrapper({super.key, required this.requests, this.onGoToRequest});
 
   @override
   State<CalendarGanttWrapper> createState() => _CalendarGanttWrapperState();
@@ -46,8 +47,8 @@ class _CalendarGanttWrapperState extends State<CalendarGanttWrapper> with Single
           child: TabBarView(
             controller: _tabController,
             children: [
-              CalendarContent(requests: widget.requests),
-              GanttContent(requests: widget.requests),
+              CalendarContent(requests: widget.requests, onGoToRequest: widget.onGoToRequest),
+              GanttContent(requests: widget.requests, onGoToRequest: widget.onGoToRequest),
             ],
           ),
         ),

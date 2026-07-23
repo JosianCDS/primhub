@@ -20,6 +20,7 @@ import 'package:primhub/ui/pages/Projects/Projects_Widgets/file_preview_manager.
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
 import 'package:primhub/ui/pages/Support/Requests/bulk_edit_request_dialog.dart';
 import 'dart:math';
+import 'package:flutter_html/flutter_html.dart';
 
 class RequestsDataTable extends StatefulWidget {
   final List<Map<String, dynamic>> requests;
@@ -196,15 +197,23 @@ class _RequestsDataTableState extends State<RequestsDataTable> {
                     ),
                     DataCell(
                       Tooltip(
-                        message: () {
-                          final text = stripHtmlTags(DocumentsLogic.extractValue(req['Summary']));
-                          return text.length > 2000 ? '${text.substring(0, 2000)}...' : text;
-                        }(),
+                        message: stripHtmlTags(DocumentsLogic.extractValue(req['Summary'])),
                         waitDuration: const Duration(milliseconds: 500),
-                        child: Text(() {
-                          final text = stripHtmlTags(DocumentsLogic.extractValue(req['Summary']));
-                          return text.length > 35 ? '${text.substring(0, 35)}...' : text;
-                        }()),
+                        child: SizedBox(
+                          width: 250,
+                          child: Html(
+                            data: DocumentsLogic.extractValue(req['Summary']).toString(),
+                            style: {
+                              "body": Style(
+                                margin: Margins.zero,
+                                padding: HtmlPaddings.zero,
+                                fontSize: FontSize(12),
+                                maxLines: 2,
+                                textOverflow: TextOverflow.ellipsis,
+                              ),
+                            },
+                          ),
+                        ),
                       ),
                     ),
                     if (widget.showProjectContext) DataCell(Text(req['phaseName'] ?? '-')),

@@ -10,6 +10,7 @@ import 'package:primhub/ui/Shared_Custom/responsive_data_table.dart';
 import 'package:primhub/api/global_cache.dart';
 import 'package:primhub/ui/widgets/duration_formatter.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart' as DocumentsLogic;
+import 'package:flutter_html/flutter_html.dart';
 
 class RecentRequestsTable extends StatelessWidget {
   final List<Map<String, dynamic>> requests;
@@ -201,7 +202,27 @@ class _DesktopRequestTable extends StatelessWidget {
           if (AccessControl.isAdmin) DataCell(Text(alert['bpName']?.toString() ?? '')),
           if (AccessControl.isAdmin) DataCell(Text(alert['userName']?.toString() ?? '')),
           if (AccessControl.isAdmin) DataCell(Text(repName.toString())),
-          DataCell(Text(DocumentsLogic.stripHtmlTags(alert['descriptionClean'] ?? alert['description'] ?? '').length > 50 ? '${DocumentsLogic.stripHtmlTags(alert['descriptionClean'] ?? alert['description'] ?? '').substring(0, 50)}...' : DocumentsLogic.stripHtmlTags(alert['descriptionClean'] ?? alert['description'] ?? ''))),
+          DataCell(
+            Tooltip(
+              message: alert['descriptionClean'] ?? '',
+              waitDuration: const Duration(milliseconds: 500),
+              child: SizedBox(
+                width: 250,
+                child: Html(
+                  data: (alert['description'] ?? alert['descriptionClean'] ?? '').toString(),
+                  style: {
+                    "body": Style(
+                      margin: Margins.zero,
+                      padding: HtmlPaddings.zero,
+                      fontSize: FontSize(12),
+                      maxLines: 2,
+                      textOverflow: TextOverflow.ellipsis,
+                    ),
+                  },
+                ),
+              ),
+            ),
+          ),
           DataCell(Text(DurationFormatter.format((alert['qtySpent'] as num?)?.toDouble() ?? 0.0))),
           DataCell(Text(chipDesc)),
         ];

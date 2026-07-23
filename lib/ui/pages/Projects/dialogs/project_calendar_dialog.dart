@@ -6,6 +6,8 @@ import 'package:primhub/api/token.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
+import 'package:go_router/go_router.dart';
+import 'package:flutter/services.dart';
 
 class ProjectCalendarDialog extends StatefulWidget {
   final Map<String, dynamic> project;
@@ -24,6 +26,7 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
   DateTime? _projEnd;
   final Map<String, String> _uuidToTaskName = {};
   bool _isGanttView = false;
+  String _timeFilter = 'all';
   final ScrollController _verticalTasksController = ScrollController();
   final ScrollController _verticalBarsController = ScrollController();
   final ScrollController _horizontalHeaderController = ScrollController();
@@ -289,14 +292,29 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
                         key: ValueKey(currentIndex),
                         builder: (context) {
                           final req = dayRequests[currentIndex];
-                          final statusName =
-                              req['R_Status_Name'] ??
-                              (req['R_Status_ID'] is Map
-                                  ? req['R_Status_ID']['identifier']
-                                  : '');
-                          final priority = req['Priority'] is Map
-                              ? req['Priority']['identifier']
-                              : (req['Priority'] ?? 'Media');
+                          final statusName = cleanStatusName(
+                            req['status'] ??
+                                req['R_Status_Name'] ??
+                                (req['R_Status_ID'] is Map
+                                    ? (req['R_Status_ID']['identifier'] ??
+                                          req['R_Status_ID']['Name'])
+                                    : null) ??
+                                'Sin estado',
+                          );
+                          final priority =
+                              req['level'] ??
+                              (req['Priority'] is Map
+                                  ? (req['Priority']['identifier'] ??
+                                        req['Priority']['Name'])
+                                  : req['Priority']) ??
+                              'Media';
+
+                          final rawSummary = req['Summary'] ?? 'Sin asunto';
+                          String plainSummary = stripHtmlTags(rawSummary);
+                          if (plainSummary.length > 80)
+                            plainSummary =
+                                '${plainSummary.substring(0, 80)}...';
+
                           final uuid = req['Record_UU'];
                           final taskName = uuid != null
                               ? (_uuidToTaskName[uuid.toString()] ??
@@ -314,7 +332,7 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
                                       vertical: 8,
                                     ),
                                     title: Text(
-                                      req['Summary'] ?? 'Sin asunto',
+                                      plainSummary,
                                       style: const TextStyle(
                                         fontWeight: FontWeight.bold,
                                       ),
@@ -351,6 +369,28 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
                                         color: Colors.white,
                                         size: 20,
                                       ),
+                                    ),
+                                    trailing: IconButton(
+                                      icon: const Icon(Icons.open_in_new),
+                                      tooltip: 'Ver detalles de solicitud',
+                                      onPressed: () {
+                                        Navigator.of(context).pop();
+                                        final reqId =
+                                            (req['realId'] ??
+                                                    req['id'] ??
+                                                    (req['original'] != null
+                                                        ? req['original']['id']
+                                                        : ''))
+                                                .toString();
+                                        GoRouter.of(context).push(
+                                          '/request-updates/${Uri.encodeComponent(reqId)}',
+                                          extra: {
+                                            'docNo':
+                                                req['DocumentNo']?.toString() ??
+                                                req['id']?.toString(),
+                                          },
+                                        );
+                                      },
                                     ),
                                     isThreeLine: true,
                                   ),
@@ -426,217 +466,221 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
             height: isMobile ? null : MediaQuery.of(context).size.height * 0.75,
             decoration: BoxDecoration(
               color: colorScheme.surface,
-              borderRadius: isMobile ? BorderRadius.zero : BorderRadius.circular(24),
+              borderRadius: isMobile
+                  ? BorderRadius.zero
+                  : BorderRadius.circular(24),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                  // HEADER PREMIUM
-                  Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final bool isMobile = constraints.maxWidth < 600;
-                        
-                        final titleWidget = Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              widget.project['Name'] ?? 'Sin Nombre',
-                              style: theme.textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: colorScheme.primary,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            if (!_isGanttView)
-                              Text(
-                                '${_getMonthName(_focusedMonth.month)} ${_focusedMonth.year}',
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  color: colorScheme.outline,
-                                ),
-                              )
-                            else
-                              Text(
-                                'Diagrama de Gantt$ganttDateText',
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  color: colorScheme.outline,
-                                ),
-                              ),
-                          ],
-                        );
+                // HEADER PREMIUM
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final bool isMobile = constraints.maxWidth < 600;
 
-                        final navButtons = !_isGanttView ? Row(
+                      final titleWidget = Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.project['Name'] ?? 'Sin Nombre',
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.primary,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (!_isGanttView)
+                            Text(
+                              '${_getMonthName(_focusedMonth.month)} ${_focusedMonth.year}',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                color: colorScheme.outline,
+                              ),
+                            )
+                          else
+                            Text(
+                              'Diagrama de Gantt$ganttDateText',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                color: colorScheme.outline,
+                              ),
+                            ),
+                        ],
+                      );
+
+                      final navButtons = !_isGanttView
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _HeaderNavButton(
+                                  icon: Icons.chevron_left,
+                                  onPressed: () => setState(
+                                    () => _focusedMonth = DateTime(
+                                      _focusedMonth.year,
+                                      _focusedMonth.month - 1,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                _HeaderNavButton(
+                                  icon: Icons.today,
+                                  onPressed: () => setState(
+                                    () => _focusedMonth = DateTime.now(),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                _HeaderNavButton(
+                                  icon: Icons.chevron_right,
+                                  onPressed: () => setState(
+                                    () => _focusedMonth = DateTime(
+                                      _focusedMonth.year,
+                                      _focusedMonth.month + 1,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            )
+                          : const SizedBox.shrink();
+
+                      final toggleButtons = Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceContainerHighest
+                              .withOpacity(0.3),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            _HeaderNavButton(
-                              icon: Icons.chevron_left,
-                              onPressed: () => setState(
-                                () => _focusedMonth = DateTime(
-                                  _focusedMonth.year,
-                                  _focusedMonth.month - 1,
-                                ),
-                              ),
+                            _ViewToggleButton(
+                              isSelected: !_isGanttView,
+                              icon: Icons.calendar_month,
+                              label: isMobile ? '' : 'Calendario',
+                              onTap: () => setState(() => _isGanttView = false),
                             ),
-                            const SizedBox(width: 8),
-                            _HeaderNavButton(
-                              icon: Icons.today,
-                              onPressed: () =>
-                                  setState(() => _focusedMonth = DateTime.now()),
-                            ),
-                            const SizedBox(width: 8),
-                            _HeaderNavButton(
-                              icon: Icons.chevron_right,
-                              onPressed: () => setState(
-                                () => _focusedMonth = DateTime(
-                                  _focusedMonth.year,
-                                  _focusedMonth.month + 1,
-                                ),
-                              ),
+                            _ViewToggleButton(
+                              isSelected: _isGanttView,
+                              icon: Icons.bar_chart_outlined,
+                              label: isMobile ? '' : 'Gantt',
+                              onTap: () => setState(() => _isGanttView = true),
                             ),
                           ],
-                        ) : const SizedBox.shrink();
+                        ),
+                      );
 
-                        final toggleButtons = Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: colorScheme.surfaceContainerHighest
-                                .withOpacity(0.3),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _ViewToggleButton(
-                                isSelected: !_isGanttView,
-                                icon: Icons.calendar_month,
-                                label: isMobile ? '' : 'Calendario',
-                                onTap: () =>
-                                    setState(() => _isGanttView = false),
-                              ),
-                              _ViewToggleButton(
-                                isSelected: _isGanttView,
-                                icon: Icons.bar_chart_outlined,
-                                label: isMobile ? '' : 'Gantt',
-                                onTap: () =>
-                                    setState(() => _isGanttView = true),
-                              ),
-                            ],
-                          ),
-                        );
-
-                        if (isMobile) {
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              titleWidget,
-                              const SizedBox(height: 12),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  navButtons,
-                                  toggleButtons,
-                                ],
-                              ),
-                            ],
-                          );
-                        }
-
-                        return Row(
+                      if (isMobile) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(child: titleWidget),
-                            navButtons,
-                            const SizedBox(width: 16),
-                            toggleButtons,
+                            titleWidget,
+                            const SizedBox(height: 12),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [navButtons, toggleButtons],
+                            ),
                           ],
                         );
-                      },
-                    ),
-                  ),
+                      }
 
-                  // CALENDAR HEADER DAYS
-                  if (!_isGanttView) ...[
-                    Padding(
-                      padding: EdgeInsets.symmetric(horizontal: MediaQuery.of(context).size.width < 600 ? 8.0 : 24.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children:
-                            ['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM']
-                                .map(
-                                  (day) => Expanded(
-                                    child: Center(
-                                      child: Text(
-                                        day,
-                                        style: TextStyle(
-                                          color: colorScheme.outline,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 11,
-                                          letterSpacing: 1.1,
-                                        ),
+                      return Row(
+                        children: [
+                          Expanded(child: titleWidget),
+                          navButtons,
+                          const SizedBox(width: 16),
+                          toggleButtons,
+                        ],
+                      );
+                    },
+                  ),
+                ),
+
+                // CALENDAR HEADER DAYS
+                if (!_isGanttView) ...[
+                  Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: MediaQuery.of(context).size.width < 600
+                          ? 8.0
+                          : 24.0,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children:
+                          ['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM']
+                              .map(
+                                (day) => Expanded(
+                                  child: Center(
+                                    child: Text(
+                                      day,
+                                      style: TextStyle(
+                                        color: colorScheme.outline,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 11,
+                                        letterSpacing: 1.1,
                                       ),
                                     ),
                                   ),
-                                )
-                                .toList(),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-
-                  // MAIN CONTENT
-                  Expanded(
-                    child: Container(
-                      margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                      decoration: BoxDecoration(
-                        color: colorScheme.surface,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: colorScheme.outlineVariant.withOpacity(0.5),
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.03),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(20),
-                        child: _isGanttView
-                            ? _buildGanttView()
-                            : SingleChildScrollView(
-                                controller: _verticalTasksController,
-                                child: _buildCalendarGrid(),
-                              ),
-                      ),
+                                ),
+                              )
+                              .toList(),
                     ),
                   ),
+                  const SizedBox(height: 8),
+                ],
 
-                  // LEGEND
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    child: Wrap(
-                      spacing: 16,
-                      runSpacing: 8,
-                      alignment: WrapAlignment.center,
-                      children: [
-                        _buildLegendItem(
-                          colorScheme.primary.withOpacity(0.2),
-                          'Periodo Proyecto',
-                          isPill: true,
+                // MAIN CONTENT
+                Expanded(
+                  child: Container(
+                    margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    decoration: BoxDecoration(
+                      color: colorScheme.surface,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: colorScheme.outlineVariant.withOpacity(0.5),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.03),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
                         ),
-                        _buildLegendItem(const Color(0xFF4F47E5), 'Urgente'),
-                        _buildLegendItem(Colors.red.shade700, 'Alta'),
-                        _buildLegendItem(Colors.orange.shade800, 'Media'),
-                        _buildLegendItem(Colors.blue.shade700, 'Baja'),
-                        _buildLegendItem(Colors.grey.shade600, 'Menor'),
                       ],
                     ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: _isGanttView
+                          ? _buildGanttView()
+                          : SingleChildScrollView(
+                              controller: _verticalTasksController,
+                              child: _buildCalendarGrid(),
+                            ),
+                    ),
                   ),
-                ],
-              ),
-            );
+                ),
+
+                // LEGEND
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: Wrap(
+                    spacing: 16,
+                    runSpacing: 8,
+                    alignment: WrapAlignment.center,
+                    children: [
+                      _buildLegendItem(
+                        colorScheme.primary.withOpacity(0.2),
+                        'Periodo Proyecto',
+                        isPill: true,
+                      ),
+                      _buildLegendItem(const Color(0xFF4F47E5), 'Urgente'),
+                      _buildLegendItem(Colors.red.shade700, 'Alta'),
+                      _buildLegendItem(Colors.orange.shade800, 'Media'),
+                      _buildLegendItem(Colors.blue.shade700, 'Baja'),
+                      _buildLegendItem(Colors.grey.shade600, 'Menor'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
 
     if (isMobile) {
       return contentWidget;
@@ -679,14 +723,9 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
 
   List<Map<String, dynamic>> _getRequestsForDay(DateTime currentDayDate) {
     return _requests.where((req) {
-      if (req['_parsedStart'] == null || req['_parsedEnd'] == null)
-        return false;
-      DateTime start = req['_parsedStart'];
+      if (req['_parsedEnd'] == null) return false;
       DateTime end = req['_parsedEnd'];
-      return (currentDayDate.isAfter(start) ||
-              currentDayDate.isAtSameMomentAs(start)) &&
-          (currentDayDate.isBefore(end) ||
-              currentDayDate.isAtSameMomentAs(end));
+      return currentDayDate.isAtSameMomentAs(end);
     }).toList();
   }
 
@@ -795,98 +834,118 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
                               padding: const EdgeInsets.all(4.0),
                               child: isMobile
                                   ? Column(
-                            children: [
-                              Wrap(
-                                alignment: WrapAlignment.center,
-                                spacing: 2,
-                                runSpacing: 2,
-                                children: dayRequests.take(4).map((req) {
-                                  final priority = req['Priority'] is Map
-                                      ? req['Priority']['identifier']
-                                      : (req['Priority'] ?? 'Media');
-                                  final reqColor = _getPriorityColor(priority);
-                                  return Container(
-                                    width: 6,
-                                    height: 6,
-                                    decoration: BoxDecoration(
-                                      color: reqColor,
-                                      shape: BoxShape.circle,
-                                    ),
-                                  );
-                                }).toList(),
-                              ),
-                              if (dayRequests.length > 4)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 2.0),
-                                  child: Text(
-                                    '+${dayRequests.length - 4}',
-                                    style: TextStyle(
-                                      fontSize: 8,
-                                      fontWeight: FontWeight.bold,
-                                      color: colorScheme.primary,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          )
-                        : Column(
-                            children: [
-                              ...dayRequests.take(2).map((req) {
-                                final priority = req['Priority'] is Map
-                                    ? req['Priority']['identifier']
-                                    : (req['Priority'] ?? 'Media');
-                                final reqColor = _getPriorityColor(priority);
-                                return Container(
-                                  margin: const EdgeInsets.only(bottom: 2),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 4,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: reqColor.withOpacity(0.15),
-                                    borderRadius: BorderRadius.circular(4),
-                                    border: Border.all(
-                                      color: reqColor.withOpacity(0.3),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        width: 4,
-                                        height: 4,
-                                        decoration: BoxDecoration(
-                                          color: reqColor,
-                                          shape: BoxShape.circle,
+                                      children: [
+                                        Wrap(
+                                          alignment: WrapAlignment.center,
+                                          spacing: 2,
+                                          runSpacing: 2,
+                                          children: dayRequests.take(4).map((
+                                            req,
+                                          ) {
+                                            final priority =
+                                                req['Priority'] is Map
+                                                ? req['Priority']['identifier']
+                                                : (req['Priority'] ?? 'Media');
+                                            final reqColor = _getPriorityColor(
+                                              priority,
+                                            );
+                                            return Container(
+                                              width: 6,
+                                              height: 6,
+                                              decoration: BoxDecoration(
+                                                color: reqColor,
+                                                shape: BoxShape.circle,
+                                              ),
+                                            );
+                                          }).toList(),
                                         ),
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Expanded(
-                                        child: Text(
-                                          req['Summary'] ?? 'Solicitud',
-                                          style: TextStyle(
-                                            fontSize: 8,
-                                            color: reqColor,
-                                            fontWeight: FontWeight.bold,
+                                        if (dayRequests.length > 4)
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                              top: 2.0,
+                                            ),
+                                            child: Text(
+                                              '+${dayRequests.length - 4}',
+                                              style: TextStyle(
+                                                fontSize: 8,
+                                                fontWeight: FontWeight.bold,
+                                                color: colorScheme.primary,
+                                              ),
+                                            ),
                                           ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }),
-                              if (dayRequests.length > 2)
-                                Text(
-                                  '+${dayRequests.length - 2}',
-                                  style: TextStyle(
-                                    fontSize: 8,
-                                    fontWeight: FontWeight.bold,
-                                    color: colorScheme.primary,
-                                  ),
-                                ),
-                            ],
-                          ),
+                                      ],
+                                    )
+                                  : Column(
+                                      children: [
+                                        ...dayRequests.take(2).map((req) {
+                                          final priority =
+                                              req['Priority'] is Map
+                                              ? req['Priority']['identifier']
+                                              : (req['Priority'] ?? 'Media');
+                                          final reqColor = _getPriorityColor(
+                                            priority,
+                                          );
+                                          return Container(
+                                            margin: const EdgeInsets.only(
+                                              bottom: 2,
+                                            ),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 4,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: reqColor.withOpacity(0.15),
+                                              borderRadius:
+                                                  BorderRadius.circular(4),
+                                              border: Border.all(
+                                                color: reqColor.withOpacity(
+                                                  0.3,
+                                                ),
+                                              ),
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                Container(
+                                                  width: 4,
+                                                  height: 4,
+                                                  decoration: BoxDecoration(
+                                                    color: reqColor,
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Expanded(
+                                                  child: Text(
+                                                    stripHtmlTags(
+                                                      req['Summary'] ??
+                                                          'Solicitud',
+                                                    ),
+                                                    style: TextStyle(
+                                                      fontSize: 8,
+                                                      color: reqColor,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        }),
+                                        if (dayRequests.length > 2)
+                                          Text(
+                                            '+${dayRequests.length - 2}',
+                                            style: TextStyle(
+                                              fontSize: 8,
+                                              fontWeight: FontWeight.bold,
+                                              color: colorScheme.primary,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
                             ),
                           )
                         : const SizedBox.shrink(),
@@ -925,12 +984,28 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
     if (minDate == null || maxDate == null)
       return const Center(child: Text('Sin fechas válidas para el diagrama.'));
 
-    minDate = minDate.subtract(const Duration(days: 2));
-    maxDate = maxDate.add(const Duration(days: 5));
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    if (_timeFilter == 'this_week') {
+      final currentWeekday = today.weekday;
+      minDate = today.subtract(Duration(days: currentWeekday - 1));
+      maxDate = minDate.add(const Duration(days: 6));
+    } else if (_timeFilter == 'next_15_days') {
+      final currentWeekday = today.weekday;
+      minDate = today.subtract(Duration(days: currentWeekday - 1));
+      maxDate = minDate.add(const Duration(days: 13));
+    } else if (_timeFilter == 'this_month') {
+      minDate = DateTime(today.year, today.month, 1);
+      maxDate = DateTime(today.year, today.month + 1, 0);
+    } else {
+      minDate = minDate.subtract(const Duration(days: 2));
+      maxDate = maxDate.add(const Duration(days: 5));
+    }
 
     int totalDays = maxDate.difference(minDate).inDays + 1;
     const double dayWidth = 40.0;
-    const double rowHeight = 45.0;
+    const double rowHeight = 60.0;
     double chartWidth = totalDays * dayWidth;
 
     validReqs.sort(
@@ -939,226 +1014,237 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
       ),
     );
 
-    final double leftPanelWidth = MediaQuery.of(context).size.width < 600 ? 120.0 : 200.0;
+    final double leftPanelWidth = MediaQuery.of(context).size.width < 600
+        ? 120.0
+        : 200.0;
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // LEFT: TASK NAMES (Sticky horizontal, scrollable vertical)
-        Container(
-              width: leftPanelWidth,
-          decoration: BoxDecoration(
-            border: Border(
-              right: BorderSide(color: colorScheme.outlineVariant),
+    final legendRow = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      child: Row(
+        children: [
+          Expanded(
+            child: Wrap(
+              spacing: 16,
+              runSpacing: 8,
+              children: [
+                _buildLegendItem(
+                  colorScheme.primary.withOpacity(0.2),
+                  'Periodo Proyecto',
+                  isPill: true,
+                ),
+                _buildLegendItem(Colors.deepPurple, 'Urgente'),
+                _buildLegendItem(Colors.red.shade700, 'Alta'),
+                _buildLegendItem(Colors.orange.shade800, 'Media'),
+                _buildLegendItem(Colors.blue.shade700, 'Baja'),
+                _buildLegendItem(Colors.teal.shade600, 'Muy baja'),
+              ],
             ),
           ),
-          child: Column(
+          Wrap(
+            spacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Container(
-                height: 50,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainerHighest.withOpacity(0.3),
-                  border: Border(
-                    bottom: BorderSide(color: colorScheme.outlineVariant),
-                  ),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.today, size: 16),
+                label: const Text('Ir a Hoy'),
+                style: OutlinedButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
                 ),
-                child: const Text(
-                  'Actividad / Tarea',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                ),
+                onPressed: () => _scrollToToday(minDate),
               ),
-              Expanded(
-                child: Scrollbar(
-                  controller: _verticalTasksController,
-                  thumbVisibility: true,
-                  child: SingleChildScrollView(
-                    controller: _verticalTasksController,
-                    child: Column(
-                      children: validReqs.map((req) {
-                        final uuid = req['Record_UU'];
-                        final taskName = uuid != null
-                            ? (_uuidToTaskName[uuid.toString()] ?? 'Tarea')
-                            : 'General';
-                        return Container(
-                          height: rowHeight,
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          alignment: Alignment.centerLeft,
-                          decoration: BoxDecoration(
-                            border: Border(
-                              bottom: BorderSide(
-                                color: colorScheme.outlineVariant.withOpacity(
-                                  0.3,
-                                ),
-                              ),
-                            ),
-                          ),
-                          child: Text(
-                            '$taskName: ${req['Summary'] ?? ''}',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
+              PopupMenuButton<String>(
+                tooltip: 'Vista de tiempo',
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                onSelected: (val) {
+                  if (_timeFilter != val) {
+                    setState(() {
+                      _timeFilter = val;
+                    });
+                  }
+                },
+                itemBuilder: (context) => const [
+                  PopupMenuItem(value: 'all', child: Text('Todo')),
+                  PopupMenuItem(value: 'this_week', child: Text('Semanal')),
+                  PopupMenuItem(
+                    value: 'next_15_days',
+                    child: Text('Bi Semanal'),
+                  ),
+                  PopupMenuItem(value: 'this_month', child: Text('Mensual')),
+                ],
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: colorScheme.outlineVariant),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.filter_alt_outlined, size: 16),
+                      const SizedBox(width: 6),
+                      Text(
+                        _timeFilter == 'all'
+                            ? 'Todo'
+                            : _timeFilter == 'this_week'
+                            ? 'Semanal'
+                            : _timeFilter == 'next_15_days'
+                            ? 'Bi Semanal'
+                            : 'Mensual',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const Icon(Icons.arrow_drop_down, size: 16),
+                    ],
                   ),
                 ),
               ),
             ],
           ),
-        ),
-        // RIGHT: GANTT AREA (Scrollable horizontal)
+        ],
+      ),
+    );
+
+    return Column(
+      children: [
+        legendRow,
         Expanded(
-          child: Scrollbar(
-            controller: _horizontalBodyController,
-            thumbVisibility: true,
-            child: SingleChildScrollView(
-              controller: _horizontalBodyController,
-              scrollDirection: Axis.horizontal,
-              child: SizedBox(
-                width: chartWidth,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // LEFT: TASK NAMES (Sticky horizontal, scrollable vertical)
+              Container(
+                width: leftPanelWidth,
+                decoration: BoxDecoration(
+                  border: Border(
+                    right: BorderSide(color: colorScheme.outlineVariant),
+                  ),
+                ),
                 child: Column(
                   children: [
-                    // DATE HEADERS (Sticky vertical)
                     Container(
-                      color: colorScheme.surfaceContainerHighest.withOpacity(
-                        0.3,
-                      ),
                       height: 50,
-                      child: Row(
-                        children: List.generate(totalDays, (i) {
-                          final d = minDate!.add(Duration(days: i));
-                          final isWeekend = d.weekday == 6 || d.weekday == 7;
-                          return Container(
-                            width: dayWidth,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: isWeekend
-                                  ? colorScheme.outlineVariant.withOpacity(0.1)
-                                  : null,
-                              border: Border(
-                                right: BorderSide(
-                                  color: colorScheme.outlineVariant.withOpacity(
-                                    0.3,
-                                  ),
-                                ),
-                                bottom: BorderSide(
-                                  color: colorScheme.outlineVariant,
-                                ),
-                              ),
-                            ),
-                            child: Text(
-                              '${d.day}\n${_getMonthName(d.month).substring(0, 3)}',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 9,
-                                fontWeight: isWeekend
-                                    ? FontWeight.normal
-                                    : FontWeight.bold,
-                              ),
-                            ),
-                          );
-                        }),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: colorScheme.surfaceContainerHighest.withOpacity(
+                          0.3,
+                        ),
+                        border: Border(
+                          bottom: BorderSide(color: colorScheme.outlineVariant),
+                        ),
+                      ),
+                      child: const Text(
+                        'Actividad / Tarea',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
                       ),
                     ),
-                    // BARS AREA (Scrollable vertical)
                     Expanded(
                       child: Scrollbar(
-                        controller: _verticalBarsController,
+                        controller: _verticalTasksController,
                         thumbVisibility: true,
                         child: SingleChildScrollView(
-                          controller: _verticalBarsController,
-                          child: Stack(
-                            children: [
-                              // Weekend markers
-                              Row(
-                                children: List.generate(totalDays, (i) {
-                                  final d = minDate!.add(Duration(days: i));
-                                  return Container(
-                                    width: dayWidth,
-                                    height: validReqs.length * rowHeight,
-                                    decoration: BoxDecoration(
-                                      color: (d.weekday == 6 || d.weekday == 7)
-                                          ? colorScheme.outlineVariant
-                                                .withOpacity(0.05)
-                                          : null,
-                                      border: Border(
-                                        right: BorderSide(
-                                          color: colorScheme.outlineVariant
-                                              .withOpacity(0.1),
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                }),
-                              ),
-                              // Bars
-                              Column(
-                                children: validReqs.map((req) {
+                          controller: _verticalTasksController,
+                          child: Column(
+                            children: validReqs.map((req) {
+                              final uuid = req['Record_UU'];
+                              final taskName = uuid != null
+                                  ? (_uuidToTaskName[uuid.toString()] ??
+                                        'Tarea')
+                                  : 'General';
+                              return InkWell(
+                                onTap: () {
                                   DateTime start = req['_parsedStart'];
-                                  DateTime end = req['_parsedEnd'];
-                                  int startOffset = start
-                                      .difference(minDate!)
-                                      .inDays;
-                                  int duration =
-                                      end.difference(start).inDays + 1;
-                                  final color = _getPriorityColor(
-                                    req['Priority'] is Map
-                                        ? req['Priority']['identifier']
-                                        : (req['Priority'] ?? 'Media'),
-                                  );
-
-                                  return Container(
-                                    height: rowHeight,
-                                    decoration: BoxDecoration(
-                                      border: Border(
-                                        bottom: BorderSide(
-                                          color: colorScheme.outlineVariant
-                                              .withOpacity(0.3),
-                                        ),
+                                  _showDayDetails(context, start, [req]);
+                                },
+                                child: Container(
+                                  height: rowHeight,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                  ),
+                                  alignment: Alignment.centerLeft,
+                                  decoration: BoxDecoration(
+                                    border: Border(
+                                      bottom: BorderSide(
+                                        color: colorScheme.outlineVariant
+                                            .withOpacity(0.3),
                                       ),
                                     ),
-                                    child: Stack(
-                                      children: [
-                                        Positioned(
-                                          left: startOffset * dayWidth + 4,
-                                          width: (duration * dayWidth) - 8,
-                                          top: 10,
-                                          bottom: 10,
-                                          child: InkWell(
-                                            onTap: () => _showDayDetails(
-                                              context,
-                                              start,
-                                              _getRequestsForDay(start),
-                                            ),
-                                            child: Container(
-                                              decoration: BoxDecoration(
-                                                color: color,
-                                                borderRadius:
-                                                    BorderRadius.circular(20),
-                                                boxShadow: [
-                                                  BoxShadow(
-                                                    color: color.withOpacity(
-                                                      0.3,
-                                                    ),
-                                                    blurRadius: 4,
-                                                    offset: const Offset(0, 2),
-                                                  ),
-                                                ],
-                                              ),
+                                  ),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        taskName,
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          color: colorScheme.primary,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      Row(
+                                        children: [
+                                          Text(
+                                            '${req['DocumentNo'] ?? ''}',
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                              color: colorScheme.primary,
                                             ),
                                           ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                }).toList(),
-                              ),
-                            ],
+                                          const SizedBox(width: 4),
+                                          InkWell(
+                                            onTap: () {
+                                              Clipboard.setData(
+                                                ClipboardData(
+                                                  text:
+                                                      '${req['DocumentNo'] ?? ''}',
+                                                ),
+                                              );
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                const SnackBar(
+                                                  content: Text(
+                                                    'Ticket copiado',
+                                                  ),
+                                                  duration: Duration(
+                                                    seconds: 1,
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                            child: const Icon(
+                                              Icons.copy,
+                                              size: 10,
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      Text(
+                                        stripHtmlTags(req['Summary'] ?? ''),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }).toList(),
                           ),
                         ),
                       ),
@@ -1166,7 +1252,177 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
                   ],
                 ),
               ),
-            ),
+              // RIGHT: GANTT AREA (Scrollable horizontal)
+              Expanded(
+                child: Scrollbar(
+                  controller: _horizontalBodyController,
+                  thumbVisibility: true,
+                  child: SingleChildScrollView(
+                    controller: _horizontalBodyController,
+                    scrollDirection: Axis.horizontal,
+                    child: SizedBox(
+                      width: chartWidth,
+                      child: Column(
+                        children: [
+                          // DATE HEADERS (Sticky vertical)
+                          Container(
+                            color: colorScheme.surfaceContainerHighest
+                                .withOpacity(0.3),
+                            height: 50,
+                            child: Row(
+                              children: List.generate(totalDays, (i) {
+                                final d = minDate!.add(Duration(days: i));
+                                final isWeekend =
+                                    d.weekday == 6 || d.weekday == 7;
+                                return Container(
+                                  width: dayWidth,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: isWeekend
+                                        ? colorScheme.outlineVariant
+                                              .withOpacity(0.1)
+                                        : null,
+                                    border: Border(
+                                      right: BorderSide(
+                                        color: colorScheme.outlineVariant
+                                            .withOpacity(0.3),
+                                      ),
+                                      bottom: BorderSide(
+                                        color: colorScheme.outlineVariant,
+                                      ),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    '${d.day}\n${_getMonthName(d.month).substring(0, 3)}',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: isWeekend
+                                          ? FontWeight.normal
+                                          : FontWeight.bold,
+                                    ),
+                                  ),
+                                );
+                              }),
+                            ),
+                          ),
+                          // BARS AREA (Scrollable vertical)
+                          Expanded(
+                            child: Scrollbar(
+                              controller: _verticalBarsController,
+                              thumbVisibility: true,
+                              child: SingleChildScrollView(
+                                controller: _verticalBarsController,
+                                child: Stack(
+                                  children: [
+                                    // Weekend markers
+                                    Row(
+                                      children: List.generate(totalDays, (i) {
+                                        final d = minDate!.add(
+                                          Duration(days: i),
+                                        );
+                                        return Container(
+                                          width: dayWidth,
+                                          height: validReqs.length * rowHeight,
+                                          decoration: BoxDecoration(
+                                            color:
+                                                (d.weekday == 6 ||
+                                                    d.weekday == 7)
+                                                ? colorScheme.outlineVariant
+                                                      .withOpacity(0.05)
+                                                : null,
+                                            border: Border(
+                                              right: BorderSide(
+                                                color: colorScheme
+                                                    .outlineVariant
+                                                    .withOpacity(0.1),
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      }),
+                                    ),
+                                    // Bars
+                                    Column(
+                                      children: validReqs.map((req) {
+                                        DateTime start = req['_parsedStart'];
+                                        DateTime end = req['_parsedEnd'];
+                                        int startOffset = start
+                                            .difference(minDate!)
+                                            .inDays;
+                                        int duration =
+                                            end.difference(start).inDays + 1;
+                                        final color = _getPriorityColor(
+                                          req['Priority'] is Map
+                                              ? req['Priority']['identifier']
+                                              : (req['Priority'] ?? 'Media'),
+                                        );
+
+                                        return Container(
+                                          height: rowHeight,
+                                          decoration: BoxDecoration(
+                                            border: Border(
+                                              bottom: BorderSide(
+                                                color: colorScheme
+                                                    .outlineVariant
+                                                    .withOpacity(0.3),
+                                              ),
+                                            ),
+                                          ),
+                                          child: Stack(
+                                            children: [
+                                              Positioned(
+                                                left:
+                                                    startOffset * dayWidth + 4,
+                                                width:
+                                                    (duration * dayWidth) - 8,
+                                                top: 10,
+                                                bottom: 10,
+                                                child: InkWell(
+                                                  onTap: () => _showDayDetails(
+                                                    context,
+                                                    start,
+                                                    [req],
+                                                  ),
+                                                  child: Container(
+                                                    decoration: BoxDecoration(
+                                                      color: color,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            8,
+                                                          ),
+                                                      boxShadow: [
+                                                        BoxShadow(
+                                                          color: color
+                                                              .withOpacity(0.3),
+                                                          blurRadius: 4,
+                                                          offset: const Offset(
+                                                            0,
+                                                            2,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      }).toList(),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -1174,11 +1430,44 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
   }
 
   Color _getPriorityColor(String priority) {
-    if (priority == 'Urgente') return const Color(0xFF4F47E5);
-    if (priority == 'Alta') return Colors.red.shade700;
-    if (priority == 'Media') return Colors.orange.shade800;
-    if (priority == 'Baja') return Colors.blue.shade700;
-    return Colors.teal.shade600;
+    switch (priority) {
+      case 'Urgente':
+        return Colors.deepPurple;
+      case 'Alta':
+        return Colors.red.shade700;
+      case 'Media':
+        return Colors.orange.shade800;
+      case 'Baja':
+        return Colors.blue.shade700;
+      case 'Muy baja':
+        return Colors.teal.shade600;
+      default:
+        return Colors.blueGrey;
+    }
+  }
+
+  void _scrollToToday(DateTime? minDate) {
+    if (minDate == null) return;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (!_horizontalBodyController.hasClients) return;
+      final offsetDays = today.difference(minDate).inDays;
+      final offsetPixels =
+          (offsetDays * 40.0) -
+          (_horizontalBodyController.position.viewportDimension / 2) +
+          (40.0 / 2);
+
+      _horizontalBodyController.animateTo(
+        offsetPixels.clamp(
+          0.0,
+          _horizontalBodyController.position.maxScrollExtent,
+        ),
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+      );
+    });
   }
 }
 
@@ -1240,19 +1529,19 @@ class _ViewToggleButton extends StatelessWidget {
                   ? colorScheme.onPrimary
                   : colorScheme.onSurfaceVariant,
             ),
-              if (label.isNotEmpty) ...[
-                const SizedBox(width: 8),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: isSelected
-                        ? colorScheme.onPrimary
-                        : colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                  ),
+            if (label.isNotEmpty) ...[
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isSelected
+                      ? colorScheme.onPrimary
+                      : colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
                 ),
-              ]
+              ),
+            ],
           ],
         ),
       ),

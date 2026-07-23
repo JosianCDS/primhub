@@ -646,19 +646,23 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
     final summaryHtml = HtmlEditorUtils.deltaToHtml(_summaryQuillController.document);
     final subjectText = _subjectController.text.trim();
 
+    final String? originalResult = widget.request['result']?.toString() ?? '';
+    final String? originalSummary = (widget.request['description'] ?? '').toString();
+    final String? originalSubject = stripHtmlTags((widget.request['emailSubject'] ?? widget.request['summary'] ?? '').toString());
+
     final result = await updateRemoteRequest(
       id: widget.request['realId'],
       priority: _currentPriority,
       statusId: statusIdToSend,
       statusIdentifier: statusIdentifierToSend,
-      result: _resultController.text,
-      summary: summaryHtml,
+      result: _resultController.text != originalResult ? _resultController.text : null,
+      summary: summaryHtml != originalSummary ? summaryHtml : null,
       dateStartPlan: dateStartPlanToSend,
       dateCompletePlan: dateCompletePlanToSend,      
       qtySpent: qtySpentToSend,
       startDate: startDateToSend,
       closeDate: closeDateToSend,
-      emailSubject: subjectText,
+      emailSubject: subjectText != originalSubject ? subjectText : null,
       requestTypeId: _requestTypeMap[_selectedType],
       categoryId: _categoryMap[_selectedCategory],
       groupId: _groupMap[_selectedGroup],

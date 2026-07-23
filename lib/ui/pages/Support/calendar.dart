@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:flutter_html/flutter_html.dart';
+import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
+import 'package:go_router/go_router.dart';
 
 class CalendarContent extends StatefulWidget {
   final List<dynamic> requests;
-  const CalendarContent({super.key, required this.requests});
+  final Function(String)? onGoToRequest;
+  const CalendarContent({super.key, required this.requests, this.onGoToRequest});
 
   @override
   State<CalendarContent> createState() => _CalendarContentState();
@@ -136,10 +139,14 @@ class _CalendarContentState extends State<CalendarContent> {
   }
 
   Widget _buildDetailCard(Map<String, dynamic> req, ColorScheme colorScheme) {
-    final statusName = req['R_Status_Name'] ?? (req['R_Status_ID'] is Map ? req['R_Status_ID']['identifier'] : '');
-    final priority = req['Priority'] is Map ? req['Priority']['identifier'] : (req['Priority'] ?? 'Media');
-    final summary = req['Summary'] ?? 'Sin asunto';
+    final statusName = cleanStatusName(req['status'] ?? req['R_Status_Name'] ?? (req['R_Status_ID'] is Map ? (req['R_Status_ID']['identifier'] ?? req['R_Status_ID']['Name']) : null) ?? 'Sin estado');
+    final priority = req['level'] ?? (req['Priority'] is Map ? (req['Priority']['identifier'] ?? req['Priority']['Name']) : req['Priority']) ?? 'Media';
+    final rawSummary = req['Summary'] ?? 'Sin asunto';
     final description = req['description'] ?? req['Summary'] ?? 'Sin descripción';
+    
+    // Convert HTML summary to plain text for the short title
+    String plainSummary = stripHtmlTags(rawSummary);
+    if (plainSummary.length > 80) plainSummary = '${plainSummary.substring(0, 80)}...';
     
     return Container(
       key: ValueKey(req['id']),
@@ -170,10 +177,27 @@ class _CalendarContentState extends State<CalendarContent> {
                 'Ticket: ${req['DocumentNo'] ?? req['id']?.toString() ?? ''}',
                 style: TextStyle(color: colorScheme.outline, fontSize: 12),
               ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.open_in_new, size: 20),
+                tooltip: 'Ver detalles de solicitud',
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  final searchVal = req['DocumentNo']?.toString() ?? req['id']?.toString() ?? '';
+                  if (widget.onGoToRequest != null) {
+                    widget.onGoToRequest!(searchVal);
+                  } else {
+                    context.pushReplacement('/my-requests', extra: {'search': searchVal});
+                  }
+                },
+                color: colorScheme.primary,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
             ],
           ),
           const SizedBox(height: 12),
-          Text(summary, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          Text(plainSummary, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           Text('Estado: $statusName', style: TextStyle(color: colorScheme.primary, fontWeight: FontWeight.w500)),
           const Divider(height: 24),
@@ -201,10 +225,9 @@ class _CalendarContentState extends State<CalendarContent> {
 
   List<Map<String, dynamic>> _getRequestsForDay(DateTime currentDayDate) {
     return _processedRequests.where((req) {
-      if (req['_parsedStart'] == null || req['_parsedEnd'] == null) return false;
-      DateTime start = req['_parsedStart'];
+      if (req['_parsedEnd'] == null) return false;
       DateTime end = req['_parsedEnd'];
-      return (currentDayDate.isAfter(start) || currentDayDate.isAtSameMomentAs(start)) && (currentDayDate.isBefore(end) || currentDayDate.isAtSameMomentAs(end));
+      return currentDayDate.isAtSameMomentAs(end);
     }).toList();
   }
 
@@ -441,7 +464,7 @@ class _CalendarContentState extends State<CalendarContent> {
         ],
       ),
       child: Text(
-        req['Summary'] ?? 'Solicitud',
+        stripHtmlTags(req['Summary'] ?? 'Solicitud'),
         style: const TextStyle(
           fontSize: 10, 
           color: Colors.white, 

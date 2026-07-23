@@ -7,7 +7,8 @@ import 'package:primhub/api/global_cache.dart';
 
 class GanttContent extends StatefulWidget {
   final List<dynamic> requests;
-  const GanttContent({super.key, required this.requests});
+  final Function(String)? onGoToRequest;
+  const GanttContent({super.key, required this.requests, this.onGoToRequest});
 
   @override
   State<GanttContent> createState() => _GanttContentState();
@@ -248,8 +249,12 @@ class _GanttContentState extends State<GanttContent> {
                     onTap: () {
                       Navigator.pop(context); // Cerrar el modal
                       final searchVal = req['DocumentNo']?.toString() ?? req['id']?.toString() ?? '';
-                      // Ir a Mis Solicitudes (reemplazando para no apilar) y pasar el search
-                      context.pushReplacement('/my-requests', extra: {'search': searchVal});
+                      if (widget.onGoToRequest != null) {
+                        widget.onGoToRequest!(searchVal);
+                      } else {
+                        // Ir a Mis Solicitudes (reemplazando para no apilar) y pasar el search
+                        context.pushReplacement('/my-requests', extra: {'search': searchVal});
+                      }
                     },
                     borderRadius: BorderRadius.circular(4),
                     child: Container(

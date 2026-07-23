@@ -36,7 +36,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   late Animation<Offset> _slideAnimation;
   String _loadingMessage = 'PrimHub';
   int _logoClickCount = 0;
-  bool _showVersion = false;
+  bool _showVersion = !Envirioment.isProduction;
   String _buildVersion = 'v-.-.-';
 
   @override

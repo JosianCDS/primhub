@@ -37,7 +37,10 @@ void main() async {
 
   final savedUrl = prefs.getString('api_base_url');
   if (savedUrl != null) {
-    Endpoint.baseUrl = savedUrl;
+    final currentUrl = Uri.base.toString();
+    if (!currentUrl.contains('hubtest.primware.net') && !currentUrl.contains('hub.primware.net')) {
+      Endpoint.baseUrl = savedUrl;
+    }
   }
 
   runApp(const MainApp());
