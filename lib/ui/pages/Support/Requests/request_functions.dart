@@ -786,7 +786,12 @@ Future<List<Map<String, dynamic>>> fetchRequestUpdates(int requestId) async {
       } else {
         createdByName = createdBy?.toString() ?? '';
       }
-      return !createdByName.contains('System (deprecated)');
+      final isSystem = createdByName.contains('System (deprecated)');
+      
+      final confId = update['ConfidentialTypeEntry']?['id']?.toString() ?? update['ConfidentialTypeEntry']?.toString() ?? '';
+      final isInternal = confId == 'I';
+      
+      return !isSystem && !isInternal;
     }).toList();
   }
 

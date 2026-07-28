@@ -136,16 +136,14 @@ class _RequestUpdatesPageState extends State<RequestUpdatesPage> {
     final targetId = id ?? widget.requestId;
     setState(() {
       _updatesFuture = fetchRequestUpdates(targetId).then((list) {
-        // Filtrar actualizaciones de transferencia interna para clientes
-        if (!AccessControl.isAdmin) {
-          list = list.where((update) {
-            final result = update['Result']?.toString() ?? '';
-            if (result.contains('Solicitud ${widget.docNo} fue transferida')) {
-              return false;
-            }
-            return true;
-          }).toList();
-        }
+        // Filtrar actualizaciones de transferencia automática del backend
+        list = list.where((update) {
+          final result = update['Result']?.toString() ?? '';
+          if (result.contains('fue transferida')) {
+            return false;
+          }
+          return true;
+        }).toList();
 
         // Ordenar por fecha de creación descendente (más recientes arriba)
         list.sort((a, b) {
@@ -257,6 +255,15 @@ class _UpdateCard extends StatelessWidget {
     final formattedDate = created != null ? '${created.day}/${created.month}/${created.year} a las ${created.hour.toString().padLeft(2, '0')}:${created.minute.toString().padLeft(2, '0')}' : 'Fecha desconocida';
     final result = update['Result'] ?? 'Sin resultado.';
     final confidential = update['ConfidentialTypeEntry']?['identifier'] ?? 'N/A';
+    final confId = update['ConfidentialTypeEntry']?['id']?.toString() ?? update['ConfidentialTypeEntry']?.toString() ?? '';
+
+    final createdBy = update['CreatedBy'];
+    String createdByName = '';
+    if (createdBy is Map) {
+      createdByName = (createdBy['identifier'] ?? createdBy['Name'] ?? '').toString();
+    } else {
+      createdByName = createdBy?.toString() ?? 'Desconocido';
+    }
 
     final List<int> imageIds = [];
     for (String key in ['AD_Image_ID', 'AD_Image1_ID', 'AD_Image2_ID', 'AD_Image3_ID']) {
@@ -291,14 +298,20 @@ class _UpdateCard extends StatelessWidget {
                     Icon(Icons.account_circle, size: 20, color: colorScheme.primary),
                     const SizedBox(width: 8),
                     Text(
-                      formattedDate,
+                      'FROM: $createdByName - $formattedDate',
                       style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant, fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),
                 Wrap(
                   spacing: 4.0,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
+                    if (confId == 'I')
+                      Tooltip(
+                        message: 'Esta respuesta no es visible para el usuario',
+                        child: Icon(Icons.warning_amber_rounded, size: 16, color: Colors.orange),
+                      ),
                     _buildBadge(context, confidential, colorScheme.tertiaryContainer, colorScheme.onTertiaryContainer),
                   ],
                 ),
