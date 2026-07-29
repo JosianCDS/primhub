@@ -35,6 +35,7 @@ import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/api/api_http.dart' as http;
 import 'package:primhub/ui/pages/Projects/Projects_Widgets/file_preview_manager.dart';
 import 'package:primhub/ui/pages/Support/Requests/export_functions.dart';
+import 'package:primhub/ui/Shared_Custom/animated_copy_widget.dart';
 
 class SupportDashboardPage extends StatefulWidget {
   const SupportDashboardPage({super.key});
@@ -1615,24 +1616,11 @@ class _DesktopRecordTable extends StatelessWidget {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(record['id']?.toString() ?? ''),
-                  const SizedBox(width: 8),
-                  InkWell(
-                    borderRadius: BorderRadius.circular(4),
-                    onTap: () {
-                      Clipboard.setData(
-                        ClipboardData(text: record['id']?.toString() ?? ''),
-                      );
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Código copiado al portapapeles'),
-                        ),
-                      );
-                    },
-                    child: const Padding(
-                      padding: EdgeInsets.all(4.0),
-                      child: Icon(Icons.copy, size: 16, color: Colors.grey),
-                    ),
+                  AnimatedCopyWidget(
+                    textToCopy: record['id']?.toString() ?? '',
+                    snackBarMessage: 'Código copiado al portapapeles',
+                    leadingText: Text(record['id']?.toString() ?? ''),
+                    iconSize: 16,
                   ),
                 ],
               ),

@@ -25,6 +25,7 @@ import 'package:flutter/services.dart'; // Para Clipboard
 import 'package:primhub/api/global_cache.dart';
 import 'package:primhub/ui/pages/Projects/dialogs/project_calendar_dialog.dart';
 import 'package:primhub/ui/pages/Projects/Documents/project_form_page.dart';
+import 'package:primhub/ui/Shared_Custom/animated_copy_widget.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -535,24 +536,11 @@ class _HomePageState extends State<HomePage> {
                     title: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(documentNo),
-                        const SizedBox(width: 8),
-                        InkWell(
-                          borderRadius: BorderRadius.circular(4),
-                          onTap: () {
-                            Clipboard.setData(ClipboardData(text: documentNo));
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Código del plan copiado al portapapeles',
-                                ),
-                              ),
-                            );
-                          },
-                          child: const Padding(
-                            padding: EdgeInsets.all(4.0),
-                            child: Icon(Icons.copy, size: 16),
-                          ),
+                        AnimatedCopyWidget(
+                          textToCopy: documentNo,
+                          snackBarMessage: 'Código del plan copiado al portapapeles',
+                          leadingText: Text(documentNo),
+                          iconSize: 16,
                         ),
                       ],
                     ),

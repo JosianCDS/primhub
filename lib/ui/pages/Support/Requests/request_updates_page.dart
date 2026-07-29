@@ -500,10 +500,11 @@ class _AddUpdateDialogState extends State<_AddUpdateDialog> {
                   border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
                 ),
                 child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Html(
+                  child: SelectionArea(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Html(
                         data: widget.summary.replaceAll('&lt;', '<').replaceAll('&gt;', '>'),
                         style: {
                           "body": Style(
@@ -535,6 +536,7 @@ class _AddUpdateDialogState extends State<_AddUpdateDialog> {
                   ),
                 ),
               ),
+            ),
             ),
             QuillExpandableField(
               controller: _resultController,
@@ -836,9 +838,10 @@ class _RequestSummaryHeader extends StatelessWidget {
               ),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+            child: SelectionArea(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                 Text(
                   'RESUMEN DE LA SOLICITUD',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
@@ -886,7 +889,8 @@ class _RequestSummaryHeader extends StatelessWidget {
               ],
             ),
           ),
-          Padding(
+        ),
+        Padding(
             padding: const EdgeInsets.only(top: 4.0, right: 4.0),
             child: IconButton(
               icon: const Icon(Icons.zoom_out_map),
@@ -900,24 +904,12 @@ class _RequestSummaryHeader extends StatelessWidget {
                     content: SizedBox(
                       height: 400,
                       child: SingleChildScrollView(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Html(
-                              data: (details['Summary'] ?? details['summary'] ?? '').toString().replaceAll('&lt;', '<').replaceAll('&gt;', '>'),
-                              style: {
-                                "body": Style(
-                                  margin: Margins.zero,
-                                  padding: HtmlPaddings.zero,
-                                ),
-                              },
-                            ),
-                            if (description != 'Sin descripción adicional.') ...[
-                              const SizedBox(height: 16),
-                              const Divider(),
-                              const SizedBox(height: 16),
+                        child: SelectionArea(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
                               Html(
-                                data: description.replaceAll('&lt;', '<').replaceAll('&gt;', '>'),
+                                data: (details['Summary'] ?? details['summary'] ?? '').toString().replaceAll('&lt;', '<').replaceAll('&gt;', '>'),
                                 style: {
                                   "body": Style(
                                     margin: Margins.zero,
@@ -925,8 +917,22 @@ class _RequestSummaryHeader extends StatelessWidget {
                                   ),
                                 },
                               ),
+                              if (description != 'Sin descripción adicional.') ...[
+                                const SizedBox(height: 16),
+                                const Divider(),
+                                const SizedBox(height: 16),
+                                Html(
+                                  data: description.replaceAll('&lt;', '<').replaceAll('&gt;', '>'),
+                                  style: {
+                                    "body": Style(
+                                      margin: Margins.zero,
+                                      padding: HtmlPaddings.zero,
+                                    ),
+                                  },
+                                ),
+                              ],
                             ],
-                          ],
+                          ),
                         ),
                       ),
                     ),

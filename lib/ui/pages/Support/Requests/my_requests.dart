@@ -50,7 +50,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   bool _isLoading = true;
   bool _isAscending = false;
   bool _showHistory = false;
-  bool _showWithoutChipOnly = false;
+  ChipFilterMode _chipFilterMode = ChipFilterMode.mixed;
   bool _isInit = true;
   double? _contractedHours;
   double _consumedHours = 0.0;
@@ -877,9 +877,12 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
         }
 
         // --- FILTRO DE FICHAS DE PRODUCTO ---
-        if (AccessControl.isAdmin && _showWithoutChipOnly) {
+        if (AccessControl.isAdmin) {
           final int? parsedChipId = extractProductChipId(req);
-          if (parsedChipId != null) {
+          if (_chipFilterMode == ChipFilterMode.onlyWithChip && parsedChipId == null) {
+            return false;
+          }
+          if (_chipFilterMode == ChipFilterMode.onlyWithoutChip && parsedChipId != null) {
             return false;
           }
         }
@@ -917,22 +920,30 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
         if (_searchController.text.trim().isNotEmpty) {
           final search = _searchController.text.trim().toLowerCase();
           final docNo = (req['DocumentNo'] ?? '').toString().toLowerCase();
+          final summary = (req['Summary'] ?? '').toString().toLowerCase();
+          final emailSubject = (req['CDS_EmailSubject'] ?? '').toString().toLowerCase();
 
-          if (!docNo.contains(search)) return false;
+          if (!docNo.contains(search) && !summary.contains(search) && !emailSubject.contains(search)) return false;
         }
 
         return true;
       }).toList();
 
       // Ordenar globalmente antes de paginar:
-      // Primero por ficha de producto (los que tienen van arriba)
-      // Luego por fecha (ascendente o descendente según _isAscending)
       filteredRaw.sort((a, b) {
         final hasChipA = (extractProductChipId(a) != null) ? 1 : 0;
         final hasChipB = (extractProductChipId(b) != null) ? 1 : 0;
 
-        if (hasChipA != hasChipB) {
-          return hasChipB.compareTo(hasChipA);
+        if (AccessControl.isAdmin) {
+          if (_chipFilterMode == ChipFilterMode.withChipFirst) {
+            if (hasChipA != hasChipB) {
+              return hasChipB.compareTo(hasChipA); // 1 (has chip) comes before 0
+            }
+          } else if (_chipFilterMode == ChipFilterMode.withoutChipFirst) {
+            if (hasChipA != hasChipB) {
+              return hasChipA.compareTo(hasChipB); // 0 (no chip) comes before 1
+            }
+          }
         }
 
         // Obtener fechas para el orden secundario (por defecto descendente)
@@ -1763,10 +1774,10 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                             onShowCalendar: () =>
                                 setState(() => _showCalendar = !_showCalendar),
                             showCalendar: _showCalendar,
-                            showWithoutChipOnly: _showWithoutChipOnly,
-                            onToggleWithoutChip: () {
+                            chipFilterMode: _chipFilterMode,
+                            onChipFilterChanged: (newMode) {
                               setState(() {
-                                _showWithoutChipOnly = !_showWithoutChipOnly;
+                                _chipFilterMode = newMode;
                                 _currentPage = 0;
                               });
                               _refreshRequest(fetchNetwork: false);

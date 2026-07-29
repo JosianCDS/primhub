@@ -21,6 +21,7 @@ import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
 import 'package:primhub/ui/pages/Support/Requests/bulk_edit_request_dialog.dart';
 import 'dart:math';
 import 'package:flutter_html/flutter_html.dart';
+import 'package:primhub/ui/Shared_Custom/animated_copy_widget.dart';
 
 class RequestsDataTable extends StatefulWidget {
   final List<Map<String, dynamic>> requests;
@@ -179,18 +180,11 @@ class _RequestsDataTableState extends State<RequestsDataTable> {
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(req['id'].toString()),
-                          const SizedBox(width: 8),
-                          InkWell(
-                            borderRadius: BorderRadius.circular(4),
-                            onTap: () {
-                              Clipboard.setData(ClipboardData(text: req['id'].toString()));
-                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Código copiado al portapapeles')));
-                            },
-                            child: const Padding(
-                              padding: EdgeInsets.all(4.0),
-                              child: Icon(Icons.copy, size: 16, color: Colors.grey),
-                            ),
+                          AnimatedCopyWidget(
+                            textToCopy: req['id'].toString(),
+                            snackBarMessage: 'Código copiado al portapapeles',
+                            leadingText: Text(req['id'].toString()),
+                            iconSize: 16,
                           ),
                         ],
                       ),

@@ -4,6 +4,7 @@ import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/global_cache.dart';
+import 'package:primhub/ui/Shared_Custom/animated_copy_widget.dart';
 
 class GanttContent extends StatefulWidget {
   final List<dynamic> requests;
@@ -459,14 +460,11 @@ class _GanttContentState extends State<GanttContent> {
                                         Text('${req['bpDescription']}', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: colorScheme.primary)),
                                       Row(
                                         children: [
-                                          Text('${req['DocumentNo'] ?? ''}', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: colorScheme.primary)),
-                                          const SizedBox(width: 4),
-                                          InkWell(
-                                            onTap: () {
-                                              Clipboard.setData(ClipboardData(text: '${req['DocumentNo'] ?? ''}'));
-                                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ticket copiado'), duration: Duration(seconds: 1)));
-                                            },
-                                            child: const Icon(Icons.copy, size: 10, color: Colors.grey),
+                                          AnimatedCopyWidget(
+                                            textToCopy: '${req['DocumentNo'] ?? ''}',
+                                            snackBarMessage: 'Ticket copiado',
+                                            leadingText: Text('${req['DocumentNo'] ?? ''}', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: colorScheme.primary)),
+                                            iconSize: 10,
                                           ),
                                         ],
                                       ),

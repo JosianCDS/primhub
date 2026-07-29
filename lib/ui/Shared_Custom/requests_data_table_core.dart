@@ -21,6 +21,7 @@ import 'package:primhub/ui/pages/Support/Requests/bulk_edit_request_dialog.dart'
 import 'dart:math';
 import 'package:primhub/ui/Shared_Custom/responsive_data_table.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
+import 'package:primhub/ui/Shared_Custom/animated_copy_widget.dart';
 
 class RequestsDataTableCore extends StatefulWidget {
   final List<Map<String, dynamic>> requests; // Aquí MyRequests pasará 'paginatedAlerts'
@@ -118,21 +119,10 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
           ),
         ),
         DataCell(
-          InkWell(
-            onTap: () {
-              Clipboard.setData(ClipboardData(text: alert['id']?.toString() ?? ''));
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Ticket copiado'), duration: Duration(seconds: 1))
-              );
-            },
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(alert['id']?.toString() ?? ''),
-                const SizedBox(width: 4),
-                const Icon(Icons.copy, size: 14, color: Colors.grey),
-              ],
-            ),
+          AnimatedCopyWidget(
+            textToCopy: alert['id']?.toString() ?? '',
+            snackBarMessage: 'Ticket copiado',
+            leadingText: Text(alert['id']?.toString() ?? ''),
           ),
         ),
         if (!isLaptop) ...[
@@ -396,13 +386,10 @@ class _RequestCard extends StatelessWidget {
                               style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.primary),
                             ),
                             const SizedBox(width: 4),
-                            InkWell(
-                              onTap: () {
-                                Clipboard.setData(ClipboardData(text: request['id'].toString()));
-                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ticket copiado al portapapeles')));
-                              },
-                              borderRadius: BorderRadius.circular(20),
-                              child: const Padding(padding: EdgeInsets.all(4.0), child: Icon(Icons.copy, size: 16)),
+                            AnimatedCopyWidget(
+                              textToCopy: request['id'].toString(),
+                              snackBarMessage: 'Ticket copiado al portapapeles',
+                              iconSize: 16,
                             ),
                           ],
                         ),

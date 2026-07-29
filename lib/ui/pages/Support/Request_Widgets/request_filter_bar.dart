@@ -4,6 +4,15 @@ import 'package:primhub/api/access_control.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart'; // Para priorityMap
 
+enum ChipFilterMode {
+  mixed,
+  withChipFirst,
+  withoutChipFirst,
+  onlyWithChip,
+  onlyWithoutChip,
+}
+
+
 class RequestFilterBar extends StatelessWidget {
   final TextEditingController searchController;
   final bool isAscending;
@@ -21,8 +30,8 @@ class RequestFilterBar extends StatelessWidget {
   final int activeFilterCount;
   final bool isLoading;
   final bool showCalendar; // Add showCalendar
-  final bool showWithoutChipOnly;
-  final VoidCallback? onToggleWithoutChip;
+  final ChipFilterMode chipFilterMode;
+  final ValueChanged<ChipFilterMode>? onChipFilterChanged;
   final VoidCallback? onExport; // Nuevo callback para exportar
   final Widget? counterWidget;
 
@@ -44,8 +53,8 @@ class RequestFilterBar extends StatelessWidget {
     required this.onShowCalendar,
     this.isLoading = false,
     this.showCalendar = false, // Default to false
-    this.showWithoutChipOnly = false,
-    this.onToggleWithoutChip,
+    this.chipFilterMode = ChipFilterMode.mixed,
+    this.onChipFilterChanged,
     this.onExport,
     this.counterWidget,
   });
@@ -117,25 +126,74 @@ class RequestFilterBar extends StatelessWidget {
             padding: const EdgeInsets.all(4),
             visualDensity: VisualDensity.compact,
           ),
+        if (AccessControl.isAdmin && onChipFilterChanged != null)
+          PopupMenuButton<ChipFilterMode>(
+            enabled: !isLoading,
+            initialValue: chipFilterMode,
+            onSelected: onChipFilterChanged,
+            offset: const Offset(0, 40),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: ChipFilterMode.mixed,
+                child: Text('Modo Mixto (Por defecto)'),
+              ),
+              const PopupMenuItem(
+                value: ChipFilterMode.withChipFirst,
+                child: Text('Con ficha primero'),
+              ),
+              const PopupMenuItem(
+                value: ChipFilterMode.withoutChipFirst,
+                child: Text('Sin ficha primero'),
+              ),
+              const PopupMenuItem(
+                value: ChipFilterMode.onlyWithChip,
+                child: Text('Solo con ficha de producto'),
+              ),
+              const PopupMenuItem(
+                value: ChipFilterMode.onlyWithoutChip,
+                child: Text('Solo sin ficha de producto'),
+              ),
+            ],
+            child: Chip(
+              backgroundColor: isLoading ? Theme.of(context).disabledColor.withOpacity(0.12) : null,
+              side: (!isLoading && chipFilterMode != ChipFilterMode.mixed)
+                  ? BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.5)
+                  : null,
+              labelStyle: TextStyle(
+                color: isLoading
+                    ? Theme.of(context).disabledColor
+                    : (chipFilterMode != ChipFilterMode.mixed
+                        ? Theme.of(context).colorScheme.primary
+                        : null),
+                fontWeight: (!isLoading && chipFilterMode != ChipFilterMode.mixed) ? FontWeight.bold : null,
+              ),
+              avatar: Icon(
+                Icons.filter_alt, 
+                size: 16,
+                color: isLoading
+                    ? Theme.of(context).disabledColor
+                    : (chipFilterMode != ChipFilterMode.mixed
+                        ? Theme.of(context).colorScheme.primary
+                        : null),
+              ),
+              label: SizedBox(
+                width: 165,
+                child: Text(
+                  _getChipFilterLabel(chipFilterMode),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+          ),
         ActionChip(
           avatar: Icon(
             isAscending ? Icons.arrow_downward : Icons.arrow_upward,
             size: 16,
           ),
           label: Text(isAscending ? 'Más antiguas primero' : 'Más recientes primero'),
-          onPressed: onSortChanged,
+          onPressed: isLoading ? null : onSortChanged,
         ),
-        if (AccessControl.isAdmin && onToggleWithoutChip != null)
-          ActionChip(
-            backgroundColor: showWithoutChipOnly ? Theme.of(context).colorScheme.primaryContainer : null,
-            labelStyle: TextStyle(
-              color: showWithoutChipOnly ? Theme.of(context).colorScheme.onPrimaryContainer : null,
-              fontWeight: showWithoutChipOnly ? FontWeight.bold : null,
-            ),
-            avatar: const Icon(Icons.block, size: 16),
-            label: const Text('Sin ficha'),
-            onPressed: onToggleWithoutChip,
-          ),
         if (!AccessControl.isSupport)
           ActionChip(
             avatar: const Icon(Icons.calendar_today, size: 16),
@@ -157,12 +215,12 @@ class RequestFilterBar extends StatelessWidget {
                     child: Text('$value filas'),
                   ))
               .toList(),
-          onChanged: onRowsPerPageChanged,
+          onChanged: isLoading ? null : onRowsPerPageChanged,
         ),
         TextButton.icon(
           icon: const Icon(Icons.filter_alt_off, size: 18),
           label: const Text('Limpiar'),
-          onPressed: onClearFilters,
+          onPressed: isLoading ? null : onClearFilters,
         ),
       ],
     );
@@ -188,7 +246,7 @@ class RequestFilterBar extends StatelessWidget {
                     width: isLargeScreen ? 400 : constraints.maxWidth,
                     child: CustomTextField(
                       controller: searchController,
-                      hintText: 'Buscar por número de ticket...',
+                      hintText: 'Buscar por ticket, asunto o descripción...',
                       prefixIcon: const Icon(Icons.search),
                     ),
                   ),
@@ -239,5 +297,20 @@ class RequestFilterBar extends StatelessWidget {
         );
       },
     );
+  }
+
+  String _getChipFilterLabel(ChipFilterMode mode) {
+    switch (mode) {
+      case ChipFilterMode.mixed:
+        return 'Estado de Fichas';
+      case ChipFilterMode.withChipFirst:
+        return 'Con ficha primero';
+      case ChipFilterMode.withoutChipFirst:
+        return 'Sin ficha primero';
+      case ChipFilterMode.onlyWithChip:
+        return 'Solo con ficha';
+      case ChipFilterMode.onlyWithoutChip:
+        return 'Solo sin ficha';
+    }
   }
 }
