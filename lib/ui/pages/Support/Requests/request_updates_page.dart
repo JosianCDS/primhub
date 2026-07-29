@@ -142,6 +142,11 @@ class _RequestUpdatesPageState extends State<RequestUpdatesPage> {
           if (result.contains('fue transferida')) {
             return false;
           }
+          if (result.toLowerCase().contains('from:')) {
+            if (!AccessControl.isAdmin) {
+              return false;
+            }
+          }
           return true;
         }).toList();
 
@@ -298,7 +303,7 @@ class _UpdateCard extends StatelessWidget {
                     Icon(Icons.account_circle, size: 20, color: colorScheme.primary),
                     const SizedBox(width: 8),
                     Text(
-                      'FROM: $createdByName - $formattedDate',
+                      '$createdByName - $formattedDate',
                       style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant, fontWeight: FontWeight.bold),
                     ),
                   ],
@@ -307,7 +312,7 @@ class _UpdateCard extends StatelessWidget {
                   spacing: 4.0,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    if (confId == 'I')
+                    if (confId == 'I' && result.toLowerCase().contains('from:'))
                       Tooltip(
                         message: 'Esta respuesta no es visible para el usuario',
                         child: Icon(Icons.warning_amber_rounded, size: 16, color: Colors.orange),

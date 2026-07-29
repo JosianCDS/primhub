@@ -99,50 +99,48 @@ class ProjectSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = Theme.of(context).colorScheme.primary;
-    final colorScheme = Theme.of(context).colorScheme;
+    String displayText;
 
-    return Wrap(
-      spacing: 8.0,
-      runSpacing: 8.0,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        InkWell(
-          onTap: projects.length > 1 ? () => _showMultiSelectProjects(context) : null,
-          borderRadius: BorderRadius.circular(8.0),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.filter_list_alt, size: 20, color: color),
-                const SizedBox(width: 8.0),
-                Text(
-                  'Filtrar Proyectos',
-                  style: TextStyle(fontSize: 16, color: color, fontWeight: FontWeight.w500),
+    if (selectedProjectIds.isEmpty) {
+      if (projects.isEmpty) return const SizedBox.shrink();
+      displayText = 'Ningún proyecto seleccionado';
+    } else if (selectedProjectIds.length == 1) {
+      final project = projects.firstWhere(
+        (p) => p['id'] == selectedProjectIds.first,
+        orElse: () => {'Name': 'Proyecto no encontrado'},
+      );
+      displayText = project['Name'] ?? 'Proyecto sin nombre';
+    } else if (selectedProjectIds.length == projects.length) {
+      displayText = 'Todos los proyectos seleccionados';
+    } else {
+      displayText = '${selectedProjectIds.length} proyectos seleccionados';
+    }
+
+    final color = Theme.of(context).colorScheme.primary;
+
+    return InkWell(
+      onTap: projects.length > 1 ? () => _showMultiSelectProjects(context) : null,
+      borderRadius: BorderRadius.circular(8.0),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        child: Row(
+          children: [
+            Icon(Icons.filter_list_alt, size: 20, color: color),
+            const SizedBox(width: 8.0),
+            Expanded(
+              child: Text(
+                displayText,
+                style: TextStyle(
+                  fontSize: 16,
+                  color: color,
+                  fontWeight: FontWeight.w500,
                 ),
-              ],
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
-          ),
+          ],
         ),
-        if (selectedProjectIds.isEmpty && projects.isNotEmpty) const Text('Ningún proyecto seleccionado', style: TextStyle(color: Colors.grey)),
-        ...selectedProjectIds.map((id) {
-          final project = projects.firstWhere((p) => p['id'] == id, orElse: () => {'Name': 'Proyecto no encontrado'});
-          final String projName = project['Name'] ?? 'Proyecto sin nombre';
-          return InputChip(
-            label: Text(projName, style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13)),
-            backgroundColor: colorScheme.surfaceContainerHighest.withOpacity(0.5),
-            deleteIconColor: colorScheme.onSurfaceVariant,
-            deleteButtonTooltipMessage: 'Quitar',
-            onDeleted: () {
-              final newSelection = List<int>.from(selectedProjectIds)..remove(id);
-              onSelectionChanged(newSelection);
-            },
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            side: BorderSide(color: colorScheme.outline.withOpacity(0.2)),
-          );
-        }),
-      ],
+      ),
     );
   }
 }

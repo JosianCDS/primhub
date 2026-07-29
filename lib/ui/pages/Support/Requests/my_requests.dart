@@ -17,6 +17,7 @@ import 'package:primhub/ui/pages/Support/Request_Widgets/request_filter_modal.da
 import 'package:primhub/ui/pages/Support/Requests/create_request_dialog.dart';
 import 'package:primhub/ui/pages/Support/Requests/edit_request_dialog.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
+import 'package:primhub/ui/pages/Support/Requests/export_functions.dart';
 import 'package:primhub/ui/pages/Support/Request_Widgets/request_stats_card.dart';
 import 'package:primhub/ui/pages/Support/Request_Widgets/request_filter_bar.dart';
 import 'package:primhub/ui/Shared_Custom/requests_data_table_core.dart';
@@ -281,19 +282,20 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     final theme = Theme.of(context);
 
     void addChip(String label, ActiveFilterType type) {
-      chips.add(
-        InputChip(
-          label: Text(label),
-          onDeleted: () => _removeFilter(type),
-          deleteButtonTooltipMessage: 'Quitar',
-          deleteIcon: const Icon(Icons.close, size: 18),
-          labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
-          backgroundColor: theme.colorScheme.surfaceContainerHighest
-              .withOpacity(0.5),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          side: BorderSide(color: theme.colorScheme.outline.withOpacity(0.2)),
-        ),
+      final isCurrentYearChip = type == ActiveFilterType.year && label == 'Año: Año Actual';
+      if (isCurrentYearChip) return; // Se renderiza en RequestFilterBar
+      
+      Widget chipWidget = InputChip(
+        label: Text(label),
+        onDeleted: () => _removeFilter(type),
+        deleteButtonTooltipMessage: 'Quitar',
+        deleteIcon: const Icon(Icons.close, size: 18),
+        labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+        backgroundColor: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        side: BorderSide(color: theme.colorScheme.outline.withOpacity(0.2)),
       );
+      chips.add(chipWidget);
     }
 
     if (_selectedYears.isNotEmpty) {
@@ -1159,6 +1161,104 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     }
   }
 
+  void _showExportModal() {
+    bool exportAll = false;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setStateModal) {
+          final int currentCount = _sortedRequests.length;
+          final int totalCount = _rawRequests.length;
+          
+          Future<void> handleExport(Function exportFunc) async {
+            List<Map<String, dynamic>> recordsToExport = _sortedRequests;
+            
+            if (exportAll) {
+              showDialog(
+                context: ctx,
+                barrierDismissible: false,
+                builder: (_) => const CustomModal(
+                  title: 'Procesando Datos',
+                  content: Center(child: CircularProgressIndicator()),
+                  actions: [],
+                ),
+              );
+              
+              final processedData = await processRequests(_rawRequests, _statusIdMap);
+              recordsToExport = List<Map<String, dynamic>>.from(processedData['requests']);
+              
+              if (ctx.mounted) Navigator.pop(ctx);
+            }
+            
+            if (recordsToExport.isEmpty) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('No hay registros para exportar')),
+                );
+              }
+              return;
+            }
+            
+            if (ctx.mounted) Navigator.pop(ctx);
+            exportFunc(recordsToExport, context, isMyRequests: true);
+          }
+
+          return CustomModal(
+            title: 'Exportar Solicitudes',
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Rango de exportación:', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                RadioListTile<bool>(
+                  title: Text('Solo esta página ($currentCount filas)'),
+                  value: false,
+                  groupValue: exportAll,
+                  onChanged: (val) => setStateModal(() => exportAll = val!),
+                  contentPadding: EdgeInsets.zero,
+                ),
+                RadioListTile<bool>(
+                  title: Text('Todas las filtradas ($totalCount filas)'),
+                  value: true,
+                  groupValue: exportAll,
+                  onChanged: (val) => setStateModal(() => exportAll = val!),
+                  contentPadding: EdgeInsets.zero,
+                ),
+                const Divider(),
+                const Text('Formato:', style: TextStyle(fontWeight: FontWeight.bold)),
+                ListTile(
+                  leading: const Icon(Icons.grid_on, color: Colors.green),
+                  title: const Text('Exportar a Excel (XLSX)'),
+                  onTap: () => handleExport(ExportFunctions.exportToExcel),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.insert_drive_file, color: Colors.blue),
+                  title: const Text('Exportar a CSV'),
+                  onTap: () => handleExport(ExportFunctions.exportToCsv),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.description, color: Colors.red),
+                  title: const Text('Exportar a PDF'),
+                  onTap: () => handleExport(ExportFunctions.exportToPdf),
+                ),
+              ],
+            ),
+            actions: [
+              CustomButton(
+                text: 'Cancelar',
+                onPressed: () => Navigator.pop(ctx),
+                backgroundColor: Colors.red,
+                textColor: Colors.white,
+              ),
+            ],
+          );
+        }
+      ),
+    );
+  }
+
   void _editRequest(Map<String, dynamic> req) async {
     if (!AccessControl.canManageRequests) {
       // Mostrar solo lectura de los detalles para soporte
@@ -1657,6 +1757,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                             rowsPerPage: _rowsPerPage,
                             showHistory: _showHistory,
                             selectedYears: _selectedYears,
+                            onExport: _showExportModal,
                             onShowYearFilter: _showYearFilterModal,
                             onShowFilters: _showFilterModal,
                             onShowCalendar: () =>
@@ -1724,6 +1825,25 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                               });
                               _refreshRequest(fetchNetwork: false);
                             },
+                            counterWidget: Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 4.0),
+                                  child: Text(
+                                    '$_totalRecords solicitudes encontradas en total',
+                                    style: Theme.of(context).textTheme.titleMedium,
+                                  ),
+                                ),
+                                if (_selectedYears.length == 1 &&
+                                    _selectedYears.first == DateTime.now().year)
+                                  const Text(
+                                    "Mostrando solicitudes del año actual.",
+                                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                                  ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -1739,24 +1859,6 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               _buildActiveFilterChips(),
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 8.0),
-                                child: Text(
-                                  '$_totalRecords solicitudes encontradas en total',
-                                  style: Theme.of(
-                                    context,
-                                  ).textTheme.titleMedium,
-                                ),
-                              ),
-                              if (_selectedYears.length == 1 &&
-                                  _selectedYears.first == DateTime.now().year)
-                                const Padding(
-                                  padding: EdgeInsets.only(bottom: 4.0),
-                                  child: Text(
-                                    "Mostrando solicitudes del año actual. Use el filtro de año para ver más años.",
-                                    style: TextStyle(color: Colors.grey),
-                                  ),
-                                ),
                             ],
                           ),
                         ),

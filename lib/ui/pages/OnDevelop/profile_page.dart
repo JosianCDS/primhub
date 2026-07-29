@@ -272,14 +272,16 @@ class _ProfilePageState extends State<ProfilePage> {
                   children: [
                     CircleAvatar(
                       radius: 50,
-                      backgroundColor: const Color(0xFF649E49), // Verde del logo
+                      backgroundColor: Theme.of(context).colorScheme.primaryContainer,
                       backgroundImage: _profileImageBytes != null ? MemoryImage(_profileImageBytes!) : null,
                       onBackgroundImageError: _profileImageBytes != null
                           ? (exception, stackTrace) {
                               if (mounted) setState(() => _profileImageBytes = null);
                             }
                           : null,
-                      child: _profileImageBytes != null ? null : Text(username.isNotEmpty ? username[0].toUpperCase() : 'U', style: const TextStyle(fontSize: 40, color: Colors.white)),
+                      child: _profileImageBytes != null
+                          ? null
+                          : Icon(Icons.person_rounded, size: 56, color: Theme.of(context).colorScheme.onPrimaryContainer),
                     ),
                   ],
                 ),

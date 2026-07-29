@@ -135,54 +135,75 @@ class _CustomDrawerState extends State<CustomDrawer> {
               child: ListView(
                 padding: EdgeInsets.zero,
                 children: [
-                  DrawerHeader(
-                    decoration: BoxDecoration(color: theme.drawerTheme.backgroundColor ?? colorScheme.surface),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: theme.drawerTheme.backgroundColor ?? colorScheme.surface,
+                      border: Border(bottom: Divider.createBorderSide(context, color: theme.dividerColor ?? colorScheme.outlineVariant)),
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 24,
-                              backgroundColor: colorScheme.primaryContainer,
-                              backgroundImage: _profileImageBytes != null ? MemoryImage(_profileImageBytes!) : null,
-                              child: _profileImageBytes != null ? null : Icon(Icons.person_rounded, size: 28, color: colorScheme.onPrimaryContainer),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisAlignment: MainAxisAlignment.center,
+                        Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () {
+                              Navigator.pop(context);
+                              context.push('/profile');
+                            },
+                            hoverColor: colorScheme.primary.withOpacity(0.05),
+                            splashColor: colorScheme.primary.withOpacity(0.1),
+                            highlightColor: colorScheme.primary.withOpacity(0.05),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
+                              child: Row(
                                 children: [
-                                  Text(
-                                    _username.isNotEmpty ? _username : 'Nombre',
-                                    style: TextStyle(color: colorScheme.onSurface, fontSize: 18, fontWeight: FontWeight.bold),
-                                    overflow: TextOverflow.ellipsis,
+                                  CircleAvatar(
+                                    radius: 24,
+                                    backgroundColor: colorScheme.primaryContainer,
+                                    backgroundImage: _profileImageBytes != null ? MemoryImage(_profileImageBytes!) : null,
+                                    child: _profileImageBytes != null ? null : Icon(Icons.person_rounded, size: 28, color: colorScheme.onPrimaryContainer),
                                   ),
-                                  Text(
-                                    _role.isNotEmpty ? _role : 'Rol',
-                                    style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12),
-                                    overflow: TextOverflow.ellipsis,
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Text(
+                                          _username.isNotEmpty ? _username : 'Nombre',
+                                          style: TextStyle(color: colorScheme.onSurface, fontSize: 18, fontWeight: FontWeight.bold),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        Text(
+                                          _role.isNotEmpty ? _role : 'Rol',
+                                          style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ],
                               ),
                             ),
-                          ],
+                          ),
                         ),
                         if (!AccessControl.isAdmin) ...[
-                          const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              Icon(Icons.business_rounded, color: colorScheme.primary, size: 16),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  _client.isNotEmpty ? _client : 'Tu Empresa',
-                                  style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 14, fontWeight: FontWeight.w500),
+                          const SizedBox(height: 8),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                            child: Row(
+                              children: [
+                                Icon(Icons.business_rounded, color: colorScheme.primary, size: 16),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    _client.isNotEmpty ? _client : 'Tu Empresa',
+                                    style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 14, fontWeight: FontWeight.w500),
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ],
                       ],

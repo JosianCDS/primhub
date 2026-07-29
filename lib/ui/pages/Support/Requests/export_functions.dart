@@ -11,6 +11,7 @@ import 'package:printing/printing.dart';
 import 'package:universal_html/html.dart' as html;
 import 'package:primhub/ui/widgets/duration_formatter.dart';
 import 'package:primhub/api/global_cache.dart';
+import 'package:primhub/api/access_control.dart';
 
 import 'package:primhub/api/token.dart';
 
@@ -22,12 +23,25 @@ class ExportFunctions {
         .replaceAll('‘', "'")
         .replaceAll('’', "'")
         .replaceAll('–', '-')
-        .replaceAll('—', '-');
+        .replaceAll('—', '-')
+        .replaceAll('•', '*')
+        .replaceAll('\u2022', '*');
   }
 
-  static List<List<String>> _prepareData(List<Map<String, dynamic>> requests) {
+  static List<List<String>> _prepareData(List<Map<String, dynamic>> requests, {bool isMyRequests = false, bool isPdf = false}) {
     final List<List<String>> rows = [];
-    rows.add(['Ticket', 'Descripción', 'Estado', 'Horas Consumidas', 'Ficha de Producto']);
+    if (isMyRequests) {
+      List<String> headers = ['Ticket', 'Estado'];
+      if (AccessControl.isAdmin || AccessControl.isSupport) headers.add('Tipo de Solicitud');
+      headers.addAll(['Categoría', 'Asunto', 'Prioridad']);
+      if (AccessControl.isAdmin) {
+        headers.addAll(['Tercero', 'Usuario', 'Rep. Comercial']);
+      }
+      headers.addAll(['Descripción', 'Horas Consumidas', 'Ficha de Producto']);
+      rows.add(headers);
+    } else {
+      rows.add(['Ticket', 'Descripción', 'Estado', 'Horas Consumidas', 'Ficha de Producto']);
+    }
 
     for (var req in requests) {
       final double h = (req['qtySpent'] as num?)?.toDouble() ?? 0.0;
@@ -49,14 +63,81 @@ class ExportFunctions {
 
       String description = (req['descriptionClean'] ?? '').toString().replaceAll('\n', ' ').replaceAll('\r', '');
       description = _sanitizeText(description);
+      if (isPdf && description.length > 300) {
+        description = description.substring(0, 297) + '...';
+      }
 
-      rows.add([
-        req['id']?.toString() ?? '',
-        description,
-        _sanitizeText((req['status'] ?? '').toString()),
-        hours,
-        _sanitizeText(chipDesc),
-      ]);
+      if (isMyRequests) {
+        final original = req['original'] as Map<String, dynamic>? ?? {};
+        
+        final catData = original['R_Category_ID'];
+        String catName = '';
+        int? catId;
+        if (catData is Map) catId = (catData['id'] as num?)?.toInt();
+        else if (catData is num) catId = catData.toInt();
+        
+        if (catId != null) {
+          final catInCache = GlobalCache.rawCategories.firstWhere(
+            (c) => (c['id'] as num?)?.toInt() == catId,
+            orElse: () => <String, dynamic>{},
+          );
+          if (catInCache.isNotEmpty && catInCache['showinprimhub'] == true) {
+            catName = catInCache['Name']?.toString() ?? catInCache['identifier']?.toString() ?? '';
+          }
+        }
+        final finalCatName = catName.isNotEmpty ? catName : 'Sin Categoría';
+        
+        String asunto = req['emailSubject']?.toString() ?? original['Summary']?.toString() ?? '';
+        if (isPdf && asunto.length > 150) {
+          asunto = asunto.substring(0, 147) + '...';
+        }
+        
+        final prioData = original['Priority'];
+        final priority = prioData is Map ? (prioData['Name'] ?? prioData['identifier'] ?? '') : prioData?.toString() ?? '';
+        
+        final bpData = original['C_BPartner_ID'];
+        final bpName = bpData is Map ? (bpData['Name'] ?? bpData['identifier'] ?? '') : '';
+        
+        final userData = original['AD_User_ID'];
+        final userName = userData is Map ? (userData['Name'] ?? userData['identifier'] ?? '') : '';
+        
+        final repData = original['SalesRep_ID'];
+        final repName = repData is Map ? (repData['Name'] ?? repData['identifier'] ?? '') : '';
+        
+        List<String> row = [
+          req['id']?.toString() ?? '',
+          _sanitizeText((req['status'] ?? '').toString()),
+        ];
+        if (AccessControl.isAdmin || AccessControl.isSupport) {
+          row.add(_sanitizeText(req['situation']?.toString() ?? 'Sin tipo'));
+        }
+        row.addAll([
+          _sanitizeText(finalCatName),
+          _sanitizeText(asunto),
+          _sanitizeText(priority),
+        ]);
+        if (AccessControl.isAdmin) {
+          row.addAll([
+            _sanitizeText(bpName.toString()),
+            _sanitizeText(userName.toString()),
+            _sanitizeText(repName.toString()),
+          ]);
+        }
+        row.addAll([
+          description,
+          hours,
+          _sanitizeText(chipDesc),
+        ]);
+        rows.add(row);
+      } else {
+        rows.add([
+          req['id']?.toString() ?? '',
+          description,
+          _sanitizeText((req['status'] ?? '').toString()),
+          hours,
+          _sanitizeText(chipDesc),
+        ]);
+      }
     }
 
     return rows;
@@ -96,9 +177,9 @@ class ExportFunctions {
     }
   }
 
-  static Future<void> exportToCsv(List<Map<String, dynamic>> requests, BuildContext context) async {
+  static Future<void> exportToCsv(List<Map<String, dynamic>> requests, BuildContext context, {bool isMyRequests = false}) async {
     try {
-      final rows = _prepareData(requests);
+      final rows = _prepareData(requests, isMyRequests: isMyRequests, isPdf: false);
       rows.add([]);
       rows.add(['Generado desde Primhub']);
       
@@ -114,9 +195,9 @@ class ExportFunctions {
     }
   }
 
-  static Future<void> exportToExcel(List<Map<String, dynamic>> requests, BuildContext context) async {
+  static Future<void> exportToExcel(List<Map<String, dynamic>> requests, BuildContext context, {bool isMyRequests = false}) async {
     try {
-      final rows = _prepareData(requests);
+      final rows = _prepareData(requests, isMyRequests: isMyRequests, isPdf: false);
       var excel = Excel.createExcel();
       Sheet sheetObject = excel['Horas_Soporte'];
       excel.setDefaultSheet('Horas_Soporte');
@@ -141,9 +222,9 @@ class ExportFunctions {
     }
   }
 
-  static Future<void> exportToPdf(List<Map<String, dynamic>> requests, BuildContext context) async {
+  static Future<void> exportToPdf(List<Map<String, dynamic>> requests, BuildContext context, {bool isMyRequests = false}) async {
     try {
-      final rows = _prepareData(requests);
+      final rows = _prepareData(requests, isMyRequests: isMyRequests, isPdf: true);
       final pdf = pw.Document(
         title: 'Reporte de Horas de Soporte',
         author: 'Primhub',
@@ -189,29 +270,52 @@ class ExportFunctions {
                 ),
               ),
               pw.SizedBox(height: 20),
-              pw.TableHelper.fromTextArray(
-                context: ctx,
-                data: rows,
-                headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white),
-                headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey800),
-                rowDecoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: PdfColors.blueGrey100, width: .5))),
-                cellAlignment: pw.Alignment.centerLeft,
-                cellAlignments: {
-                  0: pw.Alignment.center,
-                  2: pw.Alignment.center,
-                  3: pw.Alignment.center,
-                  4: pw.Alignment.center,
-                },
-                columnWidths: const {
-                  0: pw.FlexColumnWidth(1),
-                  1: pw.FlexColumnWidth(4),
-                  2: pw.FlexColumnWidth(1.5),
-                  3: pw.FlexColumnWidth(1.5),
-                  4: pw.FlexColumnWidth(2),
-                },
-                cellStyle: const pw.TextStyle(fontSize: 10),
-                headerHeight: 25,
-                cellHeight: 20,
+              pw.Builder(
+                builder: (context) {
+                  Map<int, pw.TableColumnWidth> widths = {};
+                  if (isMyRequests) {
+                    final headerRow = rows.first;
+                    for (int i = 0; i < headerRow.length; i++) {
+                      final h = headerRow[i];
+                      if (h == 'Descripción') {
+                        widths[i] = const pw.FlexColumnWidth(3);
+                      } else if (h == 'Asunto') {
+                        widths[i] = const pw.FlexColumnWidth(2);
+                      } else if (h == 'Ticket' || h == 'Estado' || h == 'Horas Consumidas') {
+                        widths[i] = const pw.FlexColumnWidth(0.8);
+                      } else {
+                        widths[i] = const pw.FlexColumnWidth(1.2);
+                      }
+                    }
+                  } else {
+                    widths = {
+                      0: const pw.FlexColumnWidth(1),
+                      1: const pw.FlexColumnWidth(4),
+                      2: const pw.FlexColumnWidth(1.5),
+                      3: const pw.FlexColumnWidth(1.5),
+                      4: const pw.FlexColumnWidth(2),
+                    };
+                  }
+                  
+                  return pw.TableHelper.fromTextArray(
+                    context: ctx,
+                    data: rows,
+                    headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: isMyRequests ? 7 : 10),
+                    headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey800),
+                    rowDecoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: PdfColors.blueGrey100, width: .5))),
+                    cellAlignment: pw.Alignment.centerLeft,
+                    cellAlignments: isMyRequests ? null : {
+                      0: pw.Alignment.center,
+                      2: pw.Alignment.center,
+                      3: pw.Alignment.center,
+                      4: pw.Alignment.center,
+                    },
+                    columnWidths: widths,
+                    cellStyle: pw.TextStyle(fontSize: isMyRequests ? 6 : 10),
+                    headerHeight: isMyRequests ? 20 : 25,
+                    cellHeight: isMyRequests ? 15 : 20,
+                  );
+                }
               ),
             ];
           },

@@ -6,6 +6,7 @@ import 'package:primhub/api/token.dart';
 import 'package:primhub/api/api_utils.dart';
 import 'package:primhub/ui/pages/Home/Home_Controller/home_controller.dart';
 import 'package:primhub/ui/pages/Home/Home_Widgets/project_dashboard_cards.dart';
+import 'package:primhub/ui/pages/Home/Home_Widgets/dotted_create_card.dart';
 import 'package:primhub/ui/pages/Home/Home_Widgets/recent_requests_table.dart';
 import 'package:primhub/ui/pages/Home/Home_Widgets/support_cards.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
@@ -13,7 +14,6 @@ import 'package:primhub/ui/Shared_Custom/custom_container.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/widgets/duration_formatter.dart';
-import '../../Shared_Custom/cardcustom.dart' show CardCustom;
 import '../../widgets/custom_drawer.dart';
 import 'package:primhub/ui/widgets/project_bottom_nav.dart';
 import 'package:primhub/ui/widgets/project_sidebar.dart';
@@ -24,6 +24,7 @@ import 'package:primhub/ui/Shared_Custom/help_icon.dart';
 import 'package:flutter/services.dart'; // Para Clipboard
 import 'package:primhub/api/global_cache.dart';
 import 'package:primhub/ui/pages/Projects/dialogs/project_calendar_dialog.dart';
+import 'package:primhub/ui/pages/Projects/Documents/project_form_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -923,12 +924,17 @@ class _HomePageState extends State<HomePage> {
                                       )
                                       .toList();
 
-                                  if (activeProjects.isEmpty)
+                                  final bool showCreateCard = AccessControl.isAdmin && 
+                                      (_controller.selectedProjectIds.isEmpty || 
+                                       _controller.selectedProjectIds.length == _controller.projects.length);
+
+                                  if (activeProjects.isEmpty && !showCreateCard)
                                     return const SizedBox.shrink();
 
+                                  int totalItems = activeProjects.length + (showCreateCard ? 1 : 0);
                                   int columns = (constraints.maxWidth / 360).floor();
                                   if (columns < 1) columns = 1;
-                                  if (columns > activeProjects.length) columns = activeProjects.length;
+                                  if (columns > totalItems) columns = totalItems;
 
                                   double spacing = 20;
                                   double itemWidth =
@@ -952,40 +958,62 @@ class _HomePageState extends State<HomePage> {
                                       alignment: WrapAlignment.center,
                                       crossAxisAlignment:
                                           WrapCrossAlignment.center,
-                                      children: activeProjects.map((proj) {
-                                        final projId = proj['id'] is int
-                                            ? proj['id'] as int
-                                            : int.tryParse(
-                                                    proj['id'].toString(),
-                                                  ) ??
-                                                  0;
-                                        final hasMetrics =
-                                            _controller
-                                                .projectStats[projId]?['hasMetrics'] ??
-                                            false;
-                                        return SizedBox(
-                                          width: itemWidth,
-                                          child: ProjectFullCard(
-                                            project: proj,
-                                            stats:
-                                                _controller
-                                                    .projectStats[projId] ??
-                                                {},
-                                            hasMetrics: hasMetrics,
-                                            onCalendarTap: () => showDialog(
-                                              context: context,
-                                              builder: (context) =>
-                                                  ProjectCalendarDialog(
-                                                    project: proj,
+                                      children: [
+                                        if (showCreateCard)
+                                          SizedBox(
+                                            width: itemWidth,
+                                            child: DottedCreateCard(
+                                              title: 'Crear Proyecto',
+                                              height: 332,
+                                              onTap: () async {
+                                                final result = await Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder: (context) => const ProjectFormPage(),
                                                   ),
-                                            ),
-                                            onMetricsTap: () => context.push(
-                                              '/metrics',
-                                              extra: {'projectId': projId},
+                                                );
+                                                if (result == true) {
+                                                  // Si se creó exitosamente, refrescamos los datos
+                                                  await _controller.initData(forceRefresh: true);
+                                                }
+                                              },
                                             ),
                                           ),
-                                        );
-                                      }).toList(),
+                                        ...activeProjects.map((proj) {
+                                          final projId = proj['id'] is int
+                                              ? proj['id'] as int
+                                              : int.tryParse(
+                                                      proj['id'].toString(),
+                                                    ) ??
+                                                    0;
+                                          final hasMetrics =
+                                              _controller
+                                                  .projectStats[projId]?['hasMetrics'] ??
+                                              false;
+                                          return SizedBox(
+                                            width: itemWidth,
+                                            child: ProjectFullCard(
+                                              project: proj,
+                                              stats:
+                                                  _controller
+                                                      .projectStats[projId] ??
+                                                  {},
+                                              hasMetrics: hasMetrics,
+                                              onCalendarTap: () => showDialog(
+                                                context: context,
+                                                builder: (context) =>
+                                                    ProjectCalendarDialog(
+                                                      project: proj,
+                                                    ),
+                                              ),
+                                              onMetricsTap: () => context.push(
+                                                '/metrics',
+                                                extra: {'projectId': projId},
+                                              ),
+                                            ),
+                                          );
+                                        }).toList(),
+                                      ],
                                     ),
                                   );
                                 },
@@ -1053,21 +1081,46 @@ class _HomePageState extends State<HomePage> {
                                   if (AccessControl.isAdmin &&
                                       bpsToRender.isEmpty &&
                                       !_controller.isLoading) {
-                                  return Center(
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 40.0,
-                                      ),
-                                      child: Text(
-                                        "Selecciona el tercero para ver su informacion",
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodyLarge
-                                            ?.copyWith(
-                                              color: textColor.withOpacity(0.6),
+                                  return Column(
+                                    children: [
+                                      Wrap(
+                                        spacing: 20,
+                                        runSpacing: 20,
+                                        alignment: WrapAlignment.center,
+                                        children: [
+                                          SizedBox(
+                                            width: 350,
+                                            child: DottedCreateCard(
+                                              title: 'Crear Ficha',
+                                              height: 278,
+                                              onTap: () {
+                                                if (context.mounted) {
+                                                  ScaffoldMessenger.of(context).showSnackBar(
+                                                    const SnackBar(content: Text('Formulario en construcción...')),
+                                                  );
+                                                }
+                                              },
                                             ),
+                                          ),
+                                        ],
                                       ),
-                                    ),
+                                      Center(
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 40.0,
+                                          ),
+                                          child: Text(
+                                            "Selecciona el tercero para ver su informacion",
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodyLarge
+                                                ?.copyWith(
+                                                  color: textColor.withOpacity(0.6),
+                                                ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   );
                                 }
 
@@ -1077,7 +1130,24 @@ class _HomePageState extends State<HomePage> {
                                       spacing: 20,
                                       runSpacing: 20,
                                       alignment: WrapAlignment.center,
-                                      children: _controller.supportProductChips
+                                      children: [
+                                        if (AccessControl.isAdmin)
+                                          SizedBox(
+                                            width: 350,
+                                            child: DottedCreateCard(
+                                              title: 'Crear Ficha',
+                                              height: 278, // Match UnifiedSupportCard intrinsic height
+                                              onTap: () {
+                                                // TODO: Navigate to Ficha de Producto form
+                                                if (context.mounted) {
+                                                  ScaffoldMessenger.of(context).showSnackBar(
+                                                    const SnackBar(content: Text('Formulario en construcción...')),
+                                                  );
+                                                }
+                                              },
+                                            ),
+                                          ),
+                                        ..._controller.supportProductChips
                                           .where((chip) {
                                             final rawBp = chip['C_BPartner_ID'];
                                             final chipBpId = rawBp is Map
@@ -1206,6 +1276,7 @@ class _HomePageState extends State<HomePage> {
                                             );
                                           })
                                           .toList(),
+                                      ],
                                     ),
                                   ],
                                 );

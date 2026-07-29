@@ -790,10 +790,6 @@ Future<List<Map<String, dynamic>>> fetchRequestUpdates(int requestId) async {
       
       final confId = update['ConfidentialTypeEntry']?['id']?.toString() ?? update['ConfidentialTypeEntry']?.toString() ?? '';
       final isInternal = confId == 'I';
-
-      if (AccessControl.isSupport) {
-        return !isSystem;
-      }
       
       return !isSystem && !isInternal;
     }).toList();

@@ -23,6 +23,8 @@ class RequestFilterBar extends StatelessWidget {
   final bool showCalendar; // Add showCalendar
   final bool showWithoutChipOnly;
   final VoidCallback? onToggleWithoutChip;
+  final VoidCallback? onExport; // Nuevo callback para exportar
+  final Widget? counterWidget;
 
   const RequestFilterBar({
     super.key,
@@ -44,13 +46,18 @@ class RequestFilterBar extends StatelessWidget {
     this.showCalendar = false, // Default to false
     this.showWithoutChipOnly = false,
     this.onToggleWithoutChip,
+    this.onExport,
+    this.counterWidget,
   });
 
   @override
   Widget build(BuildContext context) {
+    final double buttonWidth = 190.0;
+    
     final buttons = Wrap(
       spacing: 12.0,
-      runSpacing: 8.0,
+      runSpacing: 12.0,
+      alignment: WrapAlignment.end,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         if (!AccessControl.isRealSupport)
@@ -61,15 +68,25 @@ class RequestFilterBar extends StatelessWidget {
             backgroundColor: Theme.of(context).colorScheme.tertiary,
             textColor: Theme.of(context).colorScheme.onTertiary,
           ),
-        if (AccessControl.canCreateRequests)
-          CustomButton(text: 'Crear Solicitud', onPressed: isLoading ? null : onAddRequest, icon: Icons.add),
         CustomButton(
-          text: showHistory ? 'Ver Activas' : 'Ver Bitácora',
-          onPressed: isLoading ? null : onToggleHistory,
-          icon: showHistory ? Icons.list : Icons.history,
-          backgroundColor: Theme.of(context).colorScheme.secondary,
-          textColor: Theme.of(context).colorScheme.onSecondary,
+            text: showHistory ? 'Ver Activas' : 'Ver Bitácora',
+            onPressed: isLoading ? null : onToggleHistory,
+            icon: showHistory ? Icons.list : Icons.history,
+            backgroundColor: Theme.of(context).colorScheme.secondary,
+            textColor: Theme.of(context).colorScheme.onSecondary,
         ),
+        if (AccessControl.canCreateRequests)
+          CustomButton(
+            text: 'Crear Solicitud',
+            onPressed: isLoading ? null : onAddRequest,
+            icon: Icons.add,
+          ),
+        if (onExport != null)
+          CustomButton(
+            text: 'Exportar',
+            onPressed: isLoading ? null : onExport,
+            icon: Icons.download,
+          ),
       ],
     );
 
@@ -108,6 +125,7 @@ class RequestFilterBar extends StatelessWidget {
           label: Text(isAscending ? 'Más antiguas primero' : 'Más recientes primero'),
           onPressed: onSortChanged,
         ),
+/*
         if (AccessControl.isAdmin && onToggleWithoutChip != null)
           ActionChip(
             backgroundColor: showWithoutChipOnly ? Theme.of(context).colorScheme.primaryContainer : null,
@@ -119,6 +137,7 @@ class RequestFilterBar extends StatelessWidget {
             label: const Text('Sin ficha'),
             onPressed: onToggleWithoutChip,
           ),
+*/
         if (!AccessControl.isSupport)
           ActionChip(
             avatar: const Icon(Icons.calendar_today, size: 16),
@@ -162,13 +181,38 @@ class RequestFilterBar extends StatelessWidget {
             spacing: 16.0,
             runSpacing: 12.0,
             children: [
-              SizedBox(
-                width: isLargeScreen ? 400 : constraints.maxWidth,
-                child: CustomTextField(
-                  controller: searchController,
-                  hintText: 'Buscar por número de ticket...',
-                  prefixIcon: const Icon(Icons.search),
-                ),
+              Wrap(
+                spacing: 12.0,
+                runSpacing: 12.0,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  SizedBox(
+                    width: isLargeScreen ? 400 : constraints.maxWidth,
+                    child: CustomTextField(
+                      controller: searchController,
+                      hintText: 'Buscar por número de ticket...',
+                      prefixIcon: const Icon(Icons.search),
+                    ),
+                  ),
+                  if (selectedYears.length == 1 && selectedYears.first == DateTime.now().year)
+                    Chip(
+                      label: const Text('Año: Año Actual'),
+                      labelStyle: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      backgroundColor: Theme.of(context)
+                          .colorScheme
+                          .surfaceContainerHighest
+                          .withOpacity(0.5),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      side: BorderSide(
+                        color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+                      ),
+                    ),
+                ],
               ),
               buttons,
             ],
@@ -180,7 +224,18 @@ class RequestFilterBar extends StatelessWidget {
           children: [
             topRow,
             const SizedBox(height: 12),
-            filterChips,
+            if (counterWidget != null)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(child: filterChips),
+                  const SizedBox(width: 16),
+                  counterWidget!,
+                ],
+              )
+            else
+              filterChips,
             const SizedBox(height: 8),
           ],
         );
