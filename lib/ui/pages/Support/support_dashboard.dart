@@ -106,7 +106,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
   void _onViewModeChanged() async {
     // Asegurar que _initData se llama después del frame actual para evitar setState durante la construcción.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _initData();
+      if (mounted) _initData(forceSync: true);
     });
   }
 
@@ -143,7 +143,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
     }
   }
 
-  Future<void> _initData() async {
+  Future<void> _initData({bool forceSync = false}) async {
     if (AccessControl.isAdmin && _bPartners.isEmpty) {
       setState(() {
         _isLoadingBPartners = true;
@@ -151,13 +151,11 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
     }
 
     try {
-      // Forzar sincronización de GlobalCache para tener los últimos datos (ej. renombramientos de fichas)
-      await GlobalCache.syncData(force: true);
+      await GlobalCache.syncData(force: forceSync);
 
-      if (AccessControl.isAdmin && _bPartners.isEmpty) {
-        // Obtenemos la lista cruda de la API
-        // Fetch all BPs with their flags to apply consistent filtering
-        final allBps = await ProjectsLogic().fetchBPartners();
+      if (AccessControl.isAdmin) {
+        // Obtenemos la lista ya cacheada que solo trae clientes activos de soporte
+        final allBps = GlobalCache.bPartners;
 
         if (mounted) {
           setState(() {
@@ -219,11 +217,6 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
   }
 
   Future<void> _fetchProductChips() async {
-    if (_selectedBpId == null) {
-      if (mounted) setState(() => _productChips = []);
-      return;
-    }
-
     // Usamos GlobalCache para ser consistentes con el Home
     final fetchedChips = GlobalCache.productChips.where((chip) {
       final rawBp = chip['C_BPartner_ID'];
@@ -232,7 +225,12 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
           : (rawBp as num?)?.toInt();
 
       final isActive = chip['IsActive'] == 'Y' || chip['IsActive'] == true;
-      return chipBpId == _selectedBpId && isActive;
+      if (!isActive) return false;
+
+      if (_selectedBpId != null) {
+        return chipBpId == _selectedBpId;
+      }
+      return true; // Mostrar todas las fichas si no hay un BP seleccionado
     }).toList();
 
     if (mounted) {
@@ -1264,7 +1262,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                                 (chip['available'] as num?)?.toDouble() ?? 0.0;
                           }
                         } else {
-                          available = contracted - consumed - inProgress;
+                          available = contracted - consumed;
                         }
 
                         return SupportSummaryPremium(
@@ -1284,7 +1282,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                               }
                             });
                           },
-                          onRefresh: () => _initData(),
+                          onRefresh: () => _initData(forceSync: true),
                           allowRename: true,
                           emptyMessage:
                               AccessControl.isAdmin && _selectedBpId == null
@@ -1335,11 +1333,12 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                             }),
                             onExport: _showExportModal,
                           ),
+                          const Divider(),
                           // CONTROLES DE PAGINACIÓN (ARRIBA)
                           Container(
                             padding: const EdgeInsets.symmetric(vertical: 8),
                             child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              mainAxisAlignment: MainAxisAlignment.end,
                               children: [
                                 Text(
                                   '${totalItems == 0 ? 0 : (_currentPage * _rowsPerPage) + 1} - ${((_currentPage + 1) * _rowsPerPage < totalItems) ? (_currentPage + 1) * _rowsPerPage : totalItems} de $totalItems',
@@ -1347,7 +1346,9 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
+                                const SizedBox(width: 16),
                                 Row(
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
                                     IconButton(
                                       icon: const Icon(Icons.chevron_left),
@@ -1366,7 +1367,6 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                               ],
                             ),
                           ),
-                          const Divider(),
                           const SizedBox(height: 16),
                           AnimatedSwitcher(
                             duration: const Duration(milliseconds: 300),
@@ -1460,89 +1460,79 @@ class _SupportDashboardFilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 400,
-              child: CustomTextField(
-                controller: searchController,
-                hintText: searchType == 'ticket' ? 'Buscar por ticket...' : (searchType == 'desc' ? 'Buscar por descripción...' : 'Buscar por ticket o descripción...'),
-                prefixIcon: const Icon(Icons.search),
-              ),
-            ),
-            const SizedBox(width: 8),
-            SizedBox(
-              width: 150,
-              child: CustomDropdown<String>(
-                value: searchType,
-                items: const [
-                  DropdownMenuItem(value: 'all', child: Text('Ambos')),
-                  DropdownMenuItem(value: 'ticket', child: Text('Ticket')),
-                  DropdownMenuItem(value: 'desc', child: Text('Descripción')),
-                ],
-                onChanged: (val) {
-                  if (val != null) onSearchTypeChanged(val);
-                },
-              ),
-            ),
-          ],
+        SizedBox(
+          width: 400,
+          child: CustomTextField(
+            controller: searchController,
+            hintText: searchType == 'ticket' ? 'Buscar por ticket...' : (searchType == 'desc' ? 'Buscar por descripción...' : 'Buscar por ticket o descripción...'),
+            prefixIcon: const Icon(Icons.search),
+          ),
         ),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 16.0,
-          runSpacing: 8.0,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            CustomButton(
-              text: 'Exportar Tabla Actual',
-              onPressed: onExport,
-              icon: Icons.download,
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 150,
+          child: CustomDropdown<String>(
+            value: searchType,
+            items: const [
+              DropdownMenuItem(value: 'all', child: Text('Ambos')),
+              DropdownMenuItem(value: 'ticket', child: Text('Ticket')),
+              DropdownMenuItem(value: 'desc', child: Text('Descripción')),
+            ],
+            onChanged: (val) {
+              if (val != null) onSearchTypeChanged(val);
+            },
+          ),
+        ),
+        const SizedBox(width: 16),
+        if (!AccessControl.isSupport)
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            child: ActionChip(
+              avatar: const Icon(Icons.calendar_today, size: 16),
+              label: Text(() {
+                if (selectedYears.isEmpty) return 'Año: Todos';
+                if (selectedYears.length == 1) {
+                  if (selectedYears.first == DateTime.now().year) return 'Año: Actual';
+                  return 'Año: ${selectedYears.first}';
+                }
+                return 'Años: ${selectedYears.length}';
+              }()),
+              onPressed: onShowYearFilter,
             ),
-            // Eliminado el botón de "Filtros" (BPartner) para administradores ya que existe el selector global superior.
-            if (!AccessControl.isSupport)
-              ActionChip(
-                avatar: const Icon(Icons.calendar_today, size: 16),
-                label: Text(() {
-                  if (selectedYears.isEmpty) return 'Año: Todos';
-                  if (selectedYears.length == 1) {
-                    if (selectedYears.first == DateTime.now().year)
-                      return 'Año: Actual';
-                    return 'Año: ${selectedYears.first}';
-                  }
-                  return 'Años: ${selectedYears.length}';
-                }()),
-                onPressed: onShowYearFilter,
-              ),
-            ActionChip(
-              avatar: Icon(
-                isAscending ? Icons.arrow_upward : Icons.arrow_downward,
-                size: 16,
-              ),
-              label: Text(isAscending ? 'Más antiguas' : 'Más recientes'),
-              onPressed: onSortChanged,
-            ),
-            DropdownButton<int>(
-              value: rowsPerPage,
-              items: [10, 25, 50, 100]
-                  .map(
-                    (int value) => DropdownMenuItem<int>(
-                      value: value,
-                      child: Text('$value filas'),
-                    ),
-                  )
-                  .toList(),
-              onChanged: onRowsPerPageChanged,
-            ),
-            IconButton(
-              icon: const Icon(Icons.filter_alt_off),
-              onPressed: onClearFilters,
-              tooltip: 'Limpiar filtros',
-            ),
-          ],
+          ),
+        ActionChip(
+          avatar: Icon(
+            isAscending ? Icons.arrow_upward : Icons.arrow_downward,
+            size: 16,
+          ),
+          label: Text(isAscending ? 'Más antiguas' : 'Más recientes'),
+          onPressed: onSortChanged,
+        ),
+        const SizedBox(width: 16),
+        DropdownButton<int>(
+          value: rowsPerPage,
+          items: [10, 25, 50, 100]
+              .map((int value) => DropdownMenuItem<int>(
+                    value: value,
+                    child: Text('$value filas'),
+                  ))
+              .toList(),
+          onChanged: onRowsPerPageChanged,
+        ),
+        const SizedBox(width: 8),
+        IconButton(
+          icon: const Icon(Icons.filter_alt_off),
+          onPressed: onClearFilters,
+          tooltip: 'Limpiar filtros',
+        ),
+        const Spacer(),
+        CustomButton(
+          text: 'Exportar Tabla Actual',
+          onPressed: onExport,
+          icon: Icons.download,
         ),
       ],
     );

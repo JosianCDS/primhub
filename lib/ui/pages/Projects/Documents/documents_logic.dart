@@ -11,6 +11,7 @@ import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/auth_api.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/endpoint/endpoint.dart';
+import 'package:primhub/api/global_cache.dart';
 
 // Creacion de un proyecto
 class ProjectsLogic {
@@ -272,16 +273,19 @@ class ProjectsLogic {
   }
 
   Future<List<dynamic>> fetchBPartners() async {
+    if (GlobalCache.bPartners.isNotEmpty) {
+      return GlobalCache.bPartners;
+    }
     return await _safeFetchPaginated(
-      '${Endpoint.cBPartner}?\$orderby=Name',
+      '${Endpoint.cBPartner}?\$filter=IsCustomer eq true and IsActive eq true&\$orderby=Name',
       'terceros genéricos',
     );
   }
 
   /// Específico para Soporte: Solo Clientes activos (Filtro base)
   Future<List<dynamic>> fetchSupportPartners() async {
-    // Exigimos que sea Cliente, esté Activo y NO sea Colaborador
-    const String filter = "IsCustomer eq true and IsActive eq true and IsEmployee eq 'N'";
+    // Exigimos que sea Cliente y esté Activo
+    const String filter = "IsCustomer eq true and IsActive eq true";
     final List<dynamic> raw = await _safeFetchPaginated(
       '${Endpoint.cBPartner}?\$filter=$filter&\$orderby=Name',
       'terceros soporte raw',

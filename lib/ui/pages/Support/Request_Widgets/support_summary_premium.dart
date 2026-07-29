@@ -237,6 +237,17 @@ class SupportSummaryPremium extends StatelessWidget {
                         final String serviceFinish =
                             chip['service_finish_date'] ?? 'N/A';
 
+                        String bpName = 'Sin Tercero';
+                        final rawBp = chip['C_BPartner_ID'];
+                        if (rawBp is Map) {
+                          bpName = (rawBp['identifier'] ?? rawBp['Name'] ?? 'Sin Tercero').toString();
+                        } else if (rawBp != null) {
+                          bpName = 'Tercero $rawBp';
+                        }
+                        if (bpName.length > 30) {
+                          bpName = '${bpName.substring(0, 30)}...';
+                        }
+
                         return InkWell(
                           onTap: () => onChipTap?.call(chipId),
                           borderRadius: BorderRadius.circular(20),
@@ -319,6 +330,17 @@ class SupportSummaryPremium extends StatelessWidget {
                                       color: isSelected 
                                           ? (isDark ? Colors.white70 : const Color(0xFF4338CA))
                                           : colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    bpName,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                      color: isSelected 
+                                          ? (isDark ? Colors.white : const Color(0xFF1E1B4B))
+                                          : (isDark ? Colors.white70 : Colors.black87),
                                     ),
                                   ),
                                   const Spacer(),

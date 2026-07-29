@@ -125,7 +125,6 @@ class RequestFilterBar extends StatelessWidget {
           label: Text(isAscending ? 'Más antiguas primero' : 'Más recientes primero'),
           onPressed: onSortChanged,
         ),
-/*
         if (AccessControl.isAdmin && onToggleWithoutChip != null)
           ActionChip(
             backgroundColor: showWithoutChipOnly ? Theme.of(context).colorScheme.primaryContainer : null,
@@ -137,7 +136,6 @@ class RequestFilterBar extends StatelessWidget {
             label: const Text('Sin ficha'),
             onPressed: onToggleWithoutChip,
           ),
-*/
         if (!AccessControl.isSupport)
           ActionChip(
             avatar: const Icon(Icons.calendar_today, size: 16),
