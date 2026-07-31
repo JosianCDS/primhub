@@ -101,17 +101,23 @@ class ContractApi {
       filter = "$filter and ($bpFilter)";
     }
 
-    final String baseUrl = "$endpoint?\$filter=$filter";
+    // Expandimos M_Product_ID para obtener showinprimhub
+    final String baseUrl = "$endpoint?\$filter=$filter&\$expand=M_Product_ID";
 
     try {
       final records = await _fetchPaginated(baseUrl);
       
-      // Filtramos localmente: debe contener 'soporte' Y 'tecnico' (sin importar acentos)
+      // Filtramos localmente: debe tener showinprimhub == true
       final supportRecords = records.where((r) {
         final mProductId = r['M_Product_ID'];
         if (mProductId is Map) {
+          // Primero intentamos validar por el campo directo si existe
+          if (mProductId.containsKey('showinprimhub')) {
+            return mProductId['showinprimhub'] == true || mProductId['showinprimhub'] == 'Y';
+          }
+          // Fallback por nombre por si el caché o endpoint aún no retorna la columna
           final name = _normalizeForSearch((mProductId['identifier'] ?? '').toString());
-          return name.contains('soporte') && name.contains('tecnico');
+          return name.contains('soport');
         }
         return false;
       }).toList();
@@ -129,21 +135,29 @@ class ContractApi {
     final String endpoint =
         "${Endpoint.baseUrl}/api/v1/models/$productChipEndpoint";
 
-    // Solo pedimos los activos y expandimos C_BPartner_ID
+    // Solo pedimos los activos y expandimos C_BPartner_ID y M_Product_ID
     final String baseUrl =
-        "$endpoint?\$filter=(IsActive eq 'Y' or IsActive eq true)&\$expand=C_BPartner_ID(\$select=Name,IsActive)";
+        "$endpoint?\$filter=(IsActive eq 'Y' or IsActive eq true)&\$expand=C_BPartner_ID(\$select=Name,IsActive),M_Product_ID";
 
     try {
       final records = await _fetchPaginated(baseUrl);
       final Map<int, Map<String, dynamic>> bPartners = {};
 
       for (var record in records) {
-        // Filtrado local: debe contener 'soporte' Y 'tecnico'
+        // Filtrado local: debe tener showinprimhub == true
         final mProductId = record['M_Product_ID'];
         if (mProductId is! Map) continue;
         
-        final prodName = _normalizeForSearch((mProductId['identifier'] ?? '').toString());
-        if (!prodName.contains('soporte') || !prodName.contains('tecnico')) continue;
+        bool isSupport = false;
+        if (mProductId.containsKey('showinprimhub')) {
+          isSupport = mProductId['showinprimhub'] == true || mProductId['showinprimhub'] == 'Y';
+        } else {
+          // Fallback
+          final prodName = _normalizeForSearch((mProductId['identifier'] ?? '').toString());
+          isSupport = prodName.contains('soport');
+        }
+        
+        if (!isSupport) continue;
 
         final bpInfo = record['C_BPartner_ID'];
         if (bpInfo != null && bpInfo['id'] != null) {

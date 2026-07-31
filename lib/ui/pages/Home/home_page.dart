@@ -26,6 +26,7 @@ import 'package:primhub/api/global_cache.dart';
 import 'package:primhub/ui/pages/Projects/dialogs/project_calendar_dialog.dart';
 import 'package:primhub/ui/pages/Projects/Documents/project_form_page.dart';
 import 'package:primhub/ui/Shared_Custom/animated_copy_widget.dart';
+import 'package:primhub/ui/pages/Support/Requests/product_chip_form_dialog.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -1081,11 +1082,14 @@ class _HomePageState extends State<HomePage> {
                                             child: DottedCreateCard(
                                               title: 'Crear Ficha',
                                               height: 278,
-                                              onTap: () {
-                                                if (context.mounted) {
-                                                  ScaffoldMessenger.of(context).showSnackBar(
-                                                    const SnackBar(content: Text('Formulario en construcción...')),
-                                                  );
+                                              onTap: () async {
+                                                final result = await showDialog<bool>(
+                                                  context: context,
+                                                  builder: (_) => const ProductChipFormDialog(),
+                                                );
+                                                if (result == true && context.mounted) {
+                                                  // Optional: Reload product chips
+                                                  _controller.initData(forceRefresh: true);
                                                 }
                                               },
                                             ),
@@ -1125,12 +1129,13 @@ class _HomePageState extends State<HomePage> {
                                             child: DottedCreateCard(
                                               title: 'Crear Ficha',
                                               height: 278, // Match UnifiedSupportCard intrinsic height
-                                              onTap: () {
-                                                // TODO: Navigate to Ficha de Producto form
-                                                if (context.mounted) {
-                                                  ScaffoldMessenger.of(context).showSnackBar(
-                                                    const SnackBar(content: Text('Formulario en construcción...')),
-                                                  );
+                                              onTap: () async {
+                                                final result = await showDialog<bool>(
+                                                  context: context,
+                                                  builder: (_) => const ProductChipFormDialog(),
+                                                );
+                                                if (result == true && context.mounted) {
+                                                  _controller.initData(forceRefresh: true);
                                                 }
                                               },
                                             ),

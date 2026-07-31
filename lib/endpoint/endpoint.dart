@@ -1,7 +1,7 @@
 class Envirioment {
   static bool get isProduction {
     final url = Uri.base.toString();
-    if (url.contains('hubtest.primware.net')) {
+    if (url.contains('hubtest.primware.net') || url.contains('localhost') || url.contains('127.0.0.1')) {
       return false;
     }
     return true;
@@ -13,12 +13,14 @@ class Endpoint {
 
   static String _getInitialBaseUrl() {
     final url = Uri.base.toString();
-    if (url.contains('hubtest.primware.net')) {
+    if (url.contains('localhost') || url.contains('127.0.0.1')) {
+      return "https://demo.primware.net";
+    } else if (url.contains('hubtest.primware.net')) {
       return "https://primhub.primware.net";
     } else if (url.contains('hub.primware.net')) {
       return "https://erp.primware.net";
     }
-    return isProduction ? "https://erp.primware.net" : "https://primhub.primware.net";
+    return Envirioment.isProduction ? "https://erp.primware.net" : "https://primhub.primware.net";
   }
 
   static bool get isProduction => Envirioment.isProduction;
@@ -26,6 +28,9 @@ class Endpoint {
   static String get request => "$baseUrl/api/v1/models/R_Request";
   static String get order => "$baseUrl/api/v1/models/C_Order";
   static String get productChip => "$baseUrl/api/v1/models/C_BPartner_Product_Chip";
+  static String get mProduct => "$baseUrl/api/v1/models/M_Product";
+  static String get priceList => "$baseUrl/api/v1/models/M_PriceList";
+  static String get adRefList => "$baseUrl/api/v1/models/AD_Ref_List";
   static String get cBPartner => "$baseUrl/api/v1/models/C_BPartner";
   static String get adUser => "$baseUrl/api/v1/models/AD_User";
   static String get primConfig => "$baseUrl/api/v1/models/Prim_Config";
