@@ -1083,13 +1083,19 @@ class _HomePageState extends State<HomePage> {
                                               title: 'Crear Ficha',
                                               height: 278,
                                               onTap: () async {
-                                                final result = await showDialog<bool>(
+                                                final result = await showDialog<dynamic>(
                                                   context: context,
                                                   builder: (_) => const ProductChipFormDialog(),
                                                 );
-                                                if (result == true && context.mounted) {
-                                                  // Optional: Reload product chips
-                                                  _controller.initData(forceRefresh: true);
+                                                if (result != null && context.mounted) {
+                                                  if (result is int) {
+                                                    await GlobalCache.syncData(force: true);
+                                                    if (context.mounted) {
+                                                      _controller.updateSelectedSupportBps([result]);
+                                                    }
+                                                  } else {
+                                                    _controller.initData(forceRefresh: true);
+                                                  }
                                                 }
                                               },
                                             ),
@@ -1130,12 +1136,19 @@ class _HomePageState extends State<HomePage> {
                                               title: 'Crear Ficha',
                                               height: 278, // Match UnifiedSupportCard intrinsic height
                                               onTap: () async {
-                                                final result = await showDialog<bool>(
+                                                final result = await showDialog<dynamic>(
                                                   context: context,
                                                   builder: (_) => const ProductChipFormDialog(),
                                                 );
-                                                if (result == true && context.mounted) {
-                                                  _controller.initData(forceRefresh: true);
+                                                if (result != null && context.mounted) {
+                                                  if (result is int) {
+                                                    await GlobalCache.syncData(force: true);
+                                                    if (context.mounted) {
+                                                      _controller.updateSelectedSupportBps([result]);
+                                                    }
+                                                  } else {
+                                                    _controller.initData(forceRefresh: true);
+                                                  }
                                                 }
                                               },
                                             ),
@@ -1287,7 +1300,8 @@ class _HomePageState extends State<HomePage> {
                               ),
                               child: RecentRequestsTable(
                                 requests: _controller.recentRequests,
-                                isLoading: _controller.isLoading,
+                                isLoading: _controller.isLoading || _controller.validationLoading,
+                                selectedBpIds: _controller.selectedSupportBpIds,
                                 onEdit: _showRequestDetails,
                               ),
                             ),

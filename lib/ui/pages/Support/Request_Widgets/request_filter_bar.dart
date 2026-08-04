@@ -61,43 +61,7 @@ class RequestFilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double buttonWidth = 190.0;
-    
-    final buttons = Wrap(
-      spacing: 12.0,
-      runSpacing: 12.0,
-      alignment: WrapAlignment.end,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        if (!AccessControl.isRealSupport)
-          CustomButton(
-            text: showCalendar ? 'Ver Lista' : 'Calendario/Gantt',
-            onPressed: isLoading ? null : onShowCalendar,
-            icon: showCalendar ? Icons.list_alt : Icons.calendar_month,
-            backgroundColor: Theme.of(context).colorScheme.tertiary,
-            textColor: Theme.of(context).colorScheme.onTertiary,
-          ),
-        CustomButton(
-            text: showHistory ? 'Ver Activas' : 'Ver Bitácora',
-            onPressed: isLoading ? null : onToggleHistory,
-            icon: showHistory ? Icons.list : Icons.history,
-            backgroundColor: Theme.of(context).colorScheme.secondary,
-            textColor: Theme.of(context).colorScheme.onSecondary,
-        ),
-        if (AccessControl.canCreateRequests)
-          CustomButton(
-            text: 'Crear Solicitud',
-            onPressed: isLoading ? null : onAddRequest,
-            icon: Icons.add,
-          ),
-        if (onExport != null)
-          CustomButton(
-            text: 'Exportar',
-            onPressed: isLoading ? null : onExport,
-            icon: Icons.download,
-          ),
-      ],
-    );
+
 
     final filterChips = Wrap(
       spacing: 16.0,
@@ -229,48 +193,117 @@ class RequestFilterBar extends StatelessWidget {
       builder: (context, constraints) {
         final bool isLargeScreen = constraints.maxWidth >= 600;
 
+        final buttons = Wrap(
+          spacing: 12.0,
+          runSpacing: 12.0,
+          alignment: isLargeScreen ? WrapAlignment.end : WrapAlignment.start,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            if (!AccessControl.isRealSupport)
+              CustomButton(
+                text: showCalendar ? 'Ver Lista' : 'Calendario/Gantt',
+                onPressed: isLoading ? null : onShowCalendar,
+                icon: showCalendar ? Icons.list_alt : Icons.calendar_month,
+                backgroundColor: Theme.of(context).colorScheme.tertiary,
+                textColor: Theme.of(context).colorScheme.onTertiary,
+              ),
+            CustomButton(
+                text: showHistory ? 'Ver Activas' : 'Ver Bitácora',
+                onPressed: isLoading ? null : onToggleHistory,
+                icon: showHistory ? Icons.list : Icons.history,
+                backgroundColor: Theme.of(context).colorScheme.secondary,
+                textColor: Theme.of(context).colorScheme.onSecondary,
+            ),
+            if (AccessControl.canCreateRequests)
+              CustomButton(
+                text: 'Crear Solicitud',
+                onPressed: isLoading ? null : onAddRequest,
+                icon: Icons.add,
+              ),
+            if (onExport != null)
+              CustomButton(
+                text: 'Exportar',
+                onPressed: isLoading ? null : onExport,
+                icon: Icons.download,
+              ),
+          ],
+        );
+
         Widget topRow = SizedBox(
           width: double.infinity,
-          child: Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 16.0,
-            runSpacing: 12.0,
+          child: Row(
             children: [
-              Wrap(
-                spacing: 12.0,
-                runSpacing: 12.0,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  SizedBox(
-                    width: isLargeScreen ? 400 : constraints.maxWidth,
-                    child: CustomTextField(
-                      controller: searchController,
-                      hintText: 'Buscar por ticket, asunto o descripción...',
-                      prefixIcon: const Icon(Icons.search),
-                    ),
-                  ),
-                  if (selectedYears.length == 1 && selectedYears.first == DateTime.now().year)
-                    Chip(
-                      label: const Text('Año: Año Actual'),
-                      labelStyle: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      backgroundColor: Theme.of(context)
-                          .colorScheme
-                          .surfaceContainerHighest
-                          .withOpacity(0.5),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      side: BorderSide(
-                        color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
-                      ),
-                    ),
-                ],
+              Expanded(
+                child: CustomTextField(
+                  controller: searchController,
+                  hintText: isLargeScreen ? 'Buscar por ticket, asunto o descripción...' : 'Buscar...',
+                  prefixIcon: const Icon(Icons.search),
+                ),
               ),
-              buttons,
+              const SizedBox(width: 12),
+              if (selectedYears.length == 1 && selectedYears.first == DateTime.now().year)
+                Padding(
+                  padding: const EdgeInsets.only(right: 12.0),
+                  child: Chip(
+                    label: Text(isLargeScreen ? 'Año: Año Actual' : 'Año Actual'),
+                    labelStyle: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w500,
+                      fontSize: isLargeScreen ? 14 : 12,
+                    ),
+                    backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    side: BorderSide(color: Theme.of(context).colorScheme.outline.withOpacity(0.2)),
+                  ),
+                ),
+              // Envolver los botones en un horizontal scroll para que nunca hagan overflow si la pantalla es muy pequeña
+              Flexible(
+                flex: 0, // No expandir, solo tomar su espacio original
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      if (!AccessControl.isRealSupport)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8.0),
+                          child: CustomButton(
+                            text: showCalendar ? 'Ver Lista' : 'Calendario/Gantt',
+                            onPressed: isLoading ? null : onShowCalendar,
+                            icon: showCalendar ? Icons.list_alt : Icons.calendar_month,
+                            backgroundColor: Theme.of(context).colorScheme.tertiary,
+                            textColor: Theme.of(context).colorScheme.onTertiary,
+                          ),
+                        ),
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8.0),
+                        child: CustomButton(
+                            text: showHistory ? 'Ver Activas' : 'Ver Bitácora',
+                         
+                            onPressed: isLoading ? null : onToggleHistory,
+                            icon: showHistory ? Icons.list : Icons.history,
+                            backgroundColor: Theme.of(context).colorScheme.secondary,
+                            textColor: Theme.of(context).colorScheme.onSecondary,
+                        ),
+                      ),
+                      if (AccessControl.canCreateRequests)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8.0),
+                          child: CustomButton(
+                            text: 'Crear Solicitud',
+                            onPressed: isLoading ? null : onAddRequest,
+                            icon: Icons.add,
+                          ),
+                        ),
+                      if (onExport != null)
+                        CustomButton(
+                          text: 'Exportar',
+                          onPressed: isLoading ? null : onExport,
+                          icon: Icons.download,
+                        ),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
         );

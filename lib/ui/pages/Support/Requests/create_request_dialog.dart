@@ -52,7 +52,13 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
   final TextEditingController _dateCompleteController = TextEditingController();
   final TextEditingController _qtyUsedController = TextEditingController();
   final TextEditingController _subjectController = TextEditingController();
+  final TextEditingController _errorUserController = TextEditingController();
+  final TextEditingController _errorRoleController = TextEditingController();
+  final TextEditingController _errorTimeController = TextEditingController();
+  final TextEditingController _errorWindowController = TextEditingController();
+  final TextEditingController _errorServerUrlController = TextEditingController();
 
+  String? _selectedEnvironment;
   String _selectedPriority = 'Media';
   String? _selectedType;
   String _selectedStatus = 'Recibida';
@@ -127,6 +133,11 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     _dateCompleteController.dispose();
     _qtyUsedController.dispose();
     _subjectController.dispose();
+    _errorUserController.dispose();
+    _errorRoleController.dispose();
+    _errorTimeController.dispose();
+    _errorWindowController.dispose();
+    _errorServerUrlController.dispose();
     super.dispose();
   }
 
@@ -664,7 +675,9 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                       child: Text(
                         file != null
                             ? file.name
-                            : 'Adjunto ${index + 1} (Sin archivo)',
+                            : index == 0
+                                ? 'Adjunto ${index + 1} (Evidencia Obligatoria) (Sin archivo)'
+                                : 'Adjunto ${index + 1} (Sin archivo)',
                         style: TextStyle(
                           color: file != null
                               ? theme.colorScheme.onSurface
@@ -867,6 +880,25 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
       return;
     }
 
+    if (_selectedEnvironment == null || 
+        _errorServerUrlController.text.trim().isEmpty || 
+        _errorUserController.text.trim().isEmpty || 
+        _errorRoleController.text.trim().isEmpty || 
+        _errorTimeController.text.trim().isEmpty || 
+        _errorWindowController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Por favor llene todos los datos del problema (obligatorios)'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    if (_evidences[0] == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('El Adjunto 1 es obligatorio como evidencia del problema'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
     if (!AccessControl.canCreateRequests) return;
     if (_isLoadingStatuses ||
         _isLoadingTypes ||
@@ -1044,7 +1076,17 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     final url = Uri.parse(Endpoint.request);
     double qty = double.tryParse(_qtyUsedController.text) ?? 0.0;
 
-    final summaryHtml = HtmlEditorUtils.deltaToHtml(_summaryQuillController.document);
+    final String structuredInfo = '''
+<p><strong>Entorno donde se presenta el problema:</strong> ${_selectedEnvironment ?? ''}</p>
+<p><strong>URL del servidor (Link):</strong> ${_errorServerUrlController.text.trim()}</p>
+<p><strong>Usuario al que se le presentó el problema:</strong> ${_errorUserController.text.trim()}</p>
+<p><strong>Rol con que se presentó el problema:</strong> ${_errorRoleController.text.trim()}</p>
+<p><strong>Hora aproximada de la incidencia:</strong> ${_errorTimeController.text.trim()}</p>
+<p><strong>Ventana/Reporte donde Ocurre el Fallo:</strong> ${_errorWindowController.text.trim()}</p>
+<br/>
+''';
+
+    final summaryHtml = structuredInfo + HtmlEditorUtils.deltaToHtml(_summaryQuillController.document);
     final subjectText = _subjectController.text.trim();
 
     final Map<String, dynamic> data = {
@@ -1610,8 +1652,53 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                 ],
               ],
 
+              // DATOS DEL PROBLEMA
+              const Text('Datos del Problema (Obligatorios)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              const SizedBox(height: 12),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: CustomDropdown<String>(
+                      value: _selectedEnvironment,
+                      items: const [
+                        DropdownMenuItem(value: 'test', child: Text('Test (Pruebas)')),
+                        DropdownMenuItem(value: 'producción', child: Text('Producción')),
+                      ],
+                      onChanged: (val) => setState(() => _selectedEnvironment = val),
+                      label: 'Entorno donde se presenta el problema *',
+                      hintText: 'Seleccione el entorno',
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: CustomTextField(
+                      controller: _errorServerUrlController, 
+                      label: 'URL del servidor (Link) *'
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(child: CustomTextField(controller: _errorUserController, label: 'Usuario afectado *')),
+                  const SizedBox(width: 16),
+                  Expanded(child: CustomTextField(controller: _errorRoleController, label: 'Rol afectado *')),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(child: CustomTextField(controller: _errorTimeController, label: 'Hora aprox. de la incidencia *', hintText: 'Ej: 14:30 o 2:30 PM')),
+                  const SizedBox(width: 16),
+                  Expanded(child: CustomTextField(controller: _errorWindowController, label: 'Ventana/Reporte del fallo *')),
+                ],
+              ),
+              const SizedBox(height: 24),
+
               // RESUMEN Y ADJUNTOS (Campos comunes)
-              const Text('Descripción / Resumen *', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              const Text('Descripción (Qué intentaba hacer) *', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
               const SizedBox(height: 8),
               QuillExpandableField(
                 controller: _summaryQuillController,

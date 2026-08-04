@@ -17,8 +17,9 @@ class RecentRequestsTable extends StatelessWidget {
   final List<Map<String, dynamic>> requests;
   final bool isLoading;
   final Function(Map<String, dynamic>) onEdit;
+  final List<int>? selectedBpIds;
 
-  const RecentRequestsTable({super.key, required this.requests, required this.isLoading, required this.onEdit});
+  const RecentRequestsTable({super.key, required this.requests, required this.isLoading, required this.onEdit, this.selectedBpIds});
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +45,10 @@ class RecentRequestsTable extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           Center(
-            child: CustomButton(text: 'Ver todas las solicitudes', onPressed: () => context.push('/my-requests')),
+            child: CustomButton(text: 'Ver todas las solicitudes', onPressed: () => context.push('/my-requests', extra: {
+              if (selectedBpIds != null && selectedBpIds!.isNotEmpty)
+                'bpIds': selectedBpIds,
+            })),
           ),
         ],
       ),

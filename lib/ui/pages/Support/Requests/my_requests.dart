@@ -188,6 +188,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
           statuses: initialStatuses,
           levels: args['selectedLevel'] != null ? [args['selectedLevel']] : [],
           productChipIds: args['chipId'] != null ? [args['chipId']] : [],
+          bpIds: args['bpIds'] != null ? List<int>.from(args['bpIds']) : (args['bpId'] != null ? [args['bpId']] : []),
         );
 
         if (args['search'] != null) {
@@ -311,14 +312,22 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     for (final bpId in _filters.bpIds) {
       String? bpName = _bpNameCache[bpId];
       if (bpName == null) {
-        final found = _bPartners.firstWhere(
+        var found = _bPartners.firstWhere(
           (bp) => (bp['id'] as num?)?.toInt() == bpId,
           orElse: () => <String, dynamic>{},
         );
-        bpName = found.isNotEmpty
-            ? (found['Name'] ?? 'ID: $bpId')
-            : 'ID: $bpId';
-        _bpNameCache[bpId] = bpName!;
+        if (found.isEmpty) {
+          found = GlobalCache.allBPartners.firstWhere(
+            (bp) => (bp['id'] as num?)?.toInt() == bpId,
+            orElse: () => <String, dynamic>{},
+          );
+        }
+        if (found.isNotEmpty) {
+          bpName = found['Name'] ?? 'ID: $bpId';
+          _bpNameCache[bpId] = bpName!;
+        } else {
+          bpName = _isLoading ? 'Cargando...' : 'ID: $bpId';
+        }
       }
       addChip('Tercero: $bpName', ActiveFilterType.bp);
     }

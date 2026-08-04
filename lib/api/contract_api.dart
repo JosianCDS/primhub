@@ -111,10 +111,20 @@ class ContractApi {
       final supportRecords = records.where((r) {
         final mProductId = r['M_Product_ID'];
         if (mProductId is Map) {
-          // Primero intentamos validar por el campo directo si existe
-          if (mProductId.containsKey('showinprimhub')) {
-            return mProductId['showinprimhub'] == true || mProductId['showinprimhub'] == 'Y';
+          // Buscamos la llave 'showinprimhub' ignorando mayúsculas y minúsculas
+          String? showKey;
+          for (var key in mProductId.keys) {
+            if (key.toLowerCase() == 'showinprimhub') {
+              showKey = key;
+              break;
+            }
           }
+
+          if (showKey != null) {
+            final val = mProductId[showKey];
+            return val == true || val == 'Y';
+          }
+
           // Fallback por nombre por si el caché o endpoint aún no retorna la columna
           final name = _normalizeForSearch((mProductId['identifier'] ?? '').toString());
           return name.contains('soport');
@@ -149,8 +159,17 @@ class ContractApi {
         if (mProductId is! Map) continue;
         
         bool isSupport = false;
-        if (mProductId.containsKey('showinprimhub')) {
-          isSupport = mProductId['showinprimhub'] == true || mProductId['showinprimhub'] == 'Y';
+        String? showKey;
+        for (var key in mProductId.keys) {
+          if (key.toLowerCase() == 'showinprimhub') {
+            showKey = key;
+            break;
+          }
+        }
+
+        if (showKey != null) {
+          final val = mProductId[showKey];
+          isSupport = val == true || val == 'Y';
         } else {
           // Fallback
           final prodName = _normalizeForSearch((mProductId['identifier'] ?? '').toString());

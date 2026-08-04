@@ -25,6 +25,24 @@ Future<List<Map<String, dynamic>>> fetchContactsForBPartner(int bPartnerId) asyn
   return [];
 }
 
+Future<List<Map<String, dynamic>>> fetchLocationsForBPartner(int bPartnerId) async {
+  try {
+    final uri = Uri.parse('${Endpoint.baseUrl}/api/v1/models/C_BPartner_Location?\$filter=C_BPartner_ID eq $bPartnerId and IsActive eq true');
+    final response = await http.get(uri, headers: {
+      'Authorization': Token.token,
+      'Content-Type': 'application/json',
+    });
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(utf8.decode(response.bodyBytes));
+      return List<Map<String, dynamic>>.from(data['records'] ?? []);
+    }
+  } catch (e) {
+    CurrentLogMessage.add('Error fetchLocationsForBPartner: $e', level: 'ERROR', tag: 'product_chip');
+  }
+  return [];
+}
+
 Future<List<Map<String, dynamic>>> fetchSupportProducts() async {
   try {
     final uri = Uri.parse('${Endpoint.mProduct}?\$filter=IsActive eq true and showinprimhub eq true&\$top=100');
@@ -85,28 +103,35 @@ Future<Map<String, dynamic>> saveProductChip({
   required BuildContext context,
   required int bPartnerId,
   required int adUserId,
+  required int locationId,
   required int productId,
   required double qty,
   required String description,
   required String frequencyType,
   required String contractNo,
   required String serviceStartDate,
-  required String serviceFinishDate,
+  String? serviceFinishDate,
   required int priceListId,
 }) async {
   try {
     final Map<String, dynamic> payload = {
+      if (Token.organitation != null) 'AD_Org_ID': {'id': Token.organitation},
       'C_BPartner_ID': {'id': bPartnerId},
+      'Bill_BPartner_ID': {'id': bPartnerId}, // Tercero a Facturar
       'AD_User_ID': {'id': adUserId},
+      'Bill_User_ID': {'id': adUserId}, // Contacto de Facturación
+      'Bill_Location_ID': {'id': locationId}, // Dirección de Factura
       'M_Product_ID': {'id': productId},
       'Qty': qty,
       'Description': description,
       'FrequencyType': frequencyType,
       'contract_no': contractNo,
       'service_start_date': serviceStartDate,
-      'service_finish_date': serviceFinishDate,
       'M_PriceList_ID': {'id': priceListId},
     };
+    if (serviceFinishDate != null) {
+      payload['service_finish_date'] = serviceFinishDate;
+    }
 
     final response = await http.post(
       Uri.parse(Endpoint.productChip),

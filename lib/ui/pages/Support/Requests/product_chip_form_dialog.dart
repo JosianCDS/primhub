@@ -144,6 +144,7 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
   // Selected values
   int? _selectedBPartnerId;
   int? _selectedContactId;
+  int? _selectedLocationId;
   int? _selectedProductId;
   String? _selectedFrequencyType;
   int? _selectedPriceListId;
@@ -158,6 +159,7 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
 
   // Lists
   List<Map<String, dynamic>> _contacts = [];
+  List<Map<String, dynamic>> _locations = [];
   List<Map<String, dynamic>> _products = [];
   List<Map<String, dynamic>> _frequencies = [];
   List<Map<String, dynamic>> _priceLists = [];
@@ -166,6 +168,26 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
   void initState() {
     super.initState();
     _loadInitialData();
+    _qtyController.addListener(_onFieldChanged);
+    _descriptionController.addListener(_onFieldChanged);
+    _contractNoController.addListener(_onFieldChanged);
+  }
+
+  void _onFieldChanged() {
+    setState(() {});
+  }
+
+  bool get _isFormValid {
+    return _selectedBPartnerId != null &&
+           _selectedContactId != null &&
+           _selectedLocationId != null &&
+           _selectedProductId != null &&
+           _selectedFrequencyType != null &&
+           _selectedPriceListId != null &&
+           _serviceStartDate != null &&
+           _qtyController.text.trim().isNotEmpty &&
+           _descriptionController.text.trim().isNotEmpty &&
+           _contractNoController.text.trim().isNotEmpty;
   }
 
   @override
@@ -206,13 +228,18 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
     });
 
     final contacts = await fetchContactsForBPartner(bPartnerId);
+    final locations = await fetchLocationsForBPartner(bPartnerId);
     if (!mounted) return;
     
     setState(() {
       _contacts = contacts;
-      // Auto-select if only one contact exists
+      _locations = locations;
+      // Auto-select if only one exists
       if (_contacts.length == 1) {
         _selectedContactId = (_contacts.first['id'] as num?)?.toInt();
+      }
+      if (_locations.length == 1) {
+        _selectedLocationId = (_locations.first['id'] as num?)?.toInt();
       }
     });
   }
@@ -257,6 +284,10 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
       ToastMessage.show(context: context, message: 'Debe seleccionar un Contacto de Facturación', type: ToastType.warning);
       return;
     }
+    if (_selectedLocationId == null) {
+      ToastMessage.show(context: context, message: 'Debe seleccionar una Dirección de Factura', type: ToastType.warning);
+      return;
+    }
     if (_selectedProductId == null) {
       ToastMessage.show(context: context, message: 'Debe seleccionar un Producto', type: ToastType.warning);
       return;
@@ -267,6 +298,10 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
     }
     if (_selectedPriceListId == null) {
       ToastMessage.show(context: context, message: 'Debe seleccionar una Lista de Precios', type: ToastType.warning);
+      return;
+    }
+    if (_contractNoController.text.trim().isEmpty) {
+      ToastMessage.show(context: context, message: 'Debe ingresar el N° de Contrato', type: ToastType.warning);
       return;
     }
     if (_serviceStartDate == null) {
@@ -282,13 +317,16 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
       context: context,
       bPartnerId: _selectedBPartnerId!,
       adUserId: _selectedContactId!,
+      locationId: _selectedLocationId!,
       productId: _selectedProductId!,
       qty: qty,
       description: _descriptionController.text.trim(),
       frequencyType: _selectedFrequencyType!,
       contractNo: _contractNoController.text.trim(),
       serviceStartDate: "${_serviceStartDate!.year}-${_serviceStartDate!.month.toString().padLeft(2,'0')}-${_serviceStartDate!.day.toString().padLeft(2,'0')} 00:00:00",
-      serviceFinishDate: "${_serviceFinishDate!.year}-${_serviceFinishDate!.month.toString().padLeft(2,'0')}-${_serviceFinishDate!.day.toString().padLeft(2,'0')} 00:00:00",
+      serviceFinishDate: _serviceFinishDate != null 
+          ? "${_serviceFinishDate!.year}-${_serviceFinishDate!.month.toString().padLeft(2,'0')}-${_serviceFinishDate!.day.toString().padLeft(2,'0')} 00:00:00"
+          : null,
       priceListId: _selectedPriceListId!,
     );
 
@@ -298,7 +336,7 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
     
     if (result['success'] == true) {
       ToastMessage.show(context: context, message: 'Ficha de producto creada exitosamente', type: ToastType.success);
-      Navigator.of(context).pop(true);
+      Navigator.of(context).pop(_selectedBPartnerId);
     } else {
       ToastMessage.show(context: context, message: result['message'], type: ToastType.failure);
     }
@@ -330,6 +368,8 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
+              Text('1. Información Principal', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary)),
+              const SizedBox(height: 16),
               // FILA 1: Tercero y Contacto
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -387,19 +427,36 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
                   ),
                 ],
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
               
-              // FILA 2: Nombre de Ficha y Producto
+              // FILA 2: Dirección y Producto
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
                     flex: 1,
-                    child: CustomTextField(
-                      controller: _descriptionController,
-                      label: 'Nombre de la Ficha de Producto *',
-                      prefixIcon: Icon(Icons.label_outline, color: Theme.of(context).colorScheme.primary),
-                      validator: (value) => value == null || value.trim().isEmpty ? 'Requerido' : null,
+                    child: _buildSearchableField<int>(
+                      label: 'Dirección de Factura *',
+                      hintText: 'Seleccionar...',
+                      value: _selectedLocationId,
+                      isLoading: _isLoading,
+                      isDisabled: _locations.isEmpty,
+                      prefixIcon: Icons.location_on_outlined,
+                      displayText: _selectedLocationId != null
+                          ? (_locations.firstWhere((l) => l['id'] == _selectedLocationId, orElse: () => {})['Name'] ?? 'Desconocido')
+                          : '',
+                      onTap: () {
+                        _openSearchModal<int>(
+                          title: 'Dirección de Factura',
+                          items: _locations,
+                          currentValue: _selectedLocationId,
+                          getTitle: (item) => item['Name'] ?? item['name'] ?? 'Desconocido',
+                          getValue: (item) => (item['id'] as num).toInt(),
+                          onSelected: (val) {
+                            setState(() => _selectedLocationId = val);
+                          },
+                        );
+                      },
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -431,26 +488,25 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
                   ),
                 ],
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
               
-              // FILA 3: Cantidad y Tipo de Frecuencia
+              // FILA 3: Descripción
+              CustomTextField(
+                controller: _descriptionController,
+                label: 'Nombre de la Ficha de Producto *',
+                prefixIcon: Icon(Icons.label_outline, color: Theme.of(context).colorScheme.primary),
+                validator: (value) => value == null || value.trim().isEmpty ? 'Requerido' : null,
+              ),
+              
+              const Divider(height: 48),
+              
+              Text('2. Facturación y Contrato', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary)),
+              const SizedBox(height: 16),
+
+              // FILA 4: Frecuencia y Lista de Precios
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    flex: 1,
-                    child: CustomTextField(
-                      controller: _qtyController,
-                      label: 'Cantidad *',
-                      prefixIcon: Icon(Icons.numbers, color: Theme.of(context).colorScheme.primary),
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-                      ],
-                      validator: (value) => value == null || value.trim().isEmpty ? 'Requerido' : null,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
                   Expanded(
                     flex: 1,
                     child: _buildSearchableField<String>(
@@ -477,14 +533,7 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
                       },
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 24),
-
-              // FILA 4: Lista de Precios y N° de Contrato
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+                  const SizedBox(width: 16),
                   Expanded(
                     flex: 1,
                     child: _buildSearchableField<int>(
@@ -511,20 +560,42 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
                       },
                     ),
                   ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              
+              // FILA 5: Cantidad y N° Contrato
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    flex: 1,
+                    child: CustomTextField(
+                      controller: _qtyController,
+                      label: 'Cantidad *',
+                      prefixIcon: Icon(Icons.numbers, color: Theme.of(context).colorScheme.primary),
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                      ],
+                      validator: (value) => value == null || value.trim().isEmpty ? 'Requerido' : null,
+                    ),
+                  ),
                   const SizedBox(width: 16),
                   Expanded(
                     flex: 1,
                     child: CustomTextField(
                       controller: _contractNoController,
-                      label: 'N° de Contrato',
+                      label: 'N° de Contrato *',
                       prefixIcon: Icon(Icons.receipt_long_outlined, color: Theme.of(context).colorScheme.primary),
+                      validator: (value) => value == null || value.trim().isEmpty ? 'Requerido' : null,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
               
-              // FILA 5: Fechas
+              // FILA 6: Fechas
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -542,7 +613,7 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
                         child: Text(
                           _serviceStartDate != null 
                               ? "${_serviceStartDate!.day}/${_serviceStartDate!.month}/${_serviceStartDate!.year}"
-                              : 'Seleccione',
+                              : 'Seleccionar fecha',
                           style: TextStyle(
                             fontSize: 16,
                             color: _serviceStartDate != null ? Theme.of(context).colorScheme.onSurface : Colors.grey[600],
@@ -566,7 +637,7 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
                         child: Text(
                           _serviceFinishDate != null 
                               ? "${_serviceFinishDate!.day}/${_serviceFinishDate!.month}/${_serviceFinishDate!.year}"
-                              : 'Opcional',
+                              : 'Seleccionar fecha',
                           style: TextStyle(
                             fontSize: 16,
                             color: _serviceFinishDate != null ? Theme.of(context).colorScheme.onSurface : Colors.grey[600],
@@ -588,8 +659,9 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
         ),
         CustomButton(
           text: 'Crear Ficha',
-          onPressed: _saveForm,
+          onPressed: _isFormValid ? _saveForm : null,
           isLoading: _isSaving,
+          backgroundColor: _isFormValid ? Theme.of(context).colorScheme.primary : Colors.grey,
         ),
       ],
     );

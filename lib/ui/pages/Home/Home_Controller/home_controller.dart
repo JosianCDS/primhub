@@ -647,6 +647,19 @@ class HomeController extends ChangeNotifier {
     selectedSupportBpIds = ids;
     savedSelectedSupportBpIds = List.from(ids);
     
+    // Asegurarse de que el BPartner esté en la lista para que el Dropdown no diga "Tercero no encontrado"
+    for (var id in ids) {
+      if (!supportBPartners.any((bp) => bp['id'] == id)) {
+        final found = GlobalCache.allBPartners.firstWhere(
+          (bp) => bp['id'] == id, 
+          orElse: () => <String, dynamic>{}
+        );
+        if (found.isNotEmpty) {
+          supportBPartners.add(found);
+        }
+      }
+    }
+
     // Cargar historial específico desde el servidor para cada tercero seleccionado
     List<Future> fetches = [];
     for (var id in ids) {

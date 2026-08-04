@@ -6,6 +6,7 @@ import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart'; // Para CustomTextField
 import 'package:primhub/api/contract_api.dart';
 import 'package:primhub/ui/Shared_Custom/custom_skeleton.dart';
+import 'package:primhub/api/global_cache.dart';
 
 class SupportSummaryPremium extends StatelessWidget {
   final double contractedHours;
@@ -242,7 +243,18 @@ class SupportSummaryPremium extends StatelessWidget {
                         if (rawBp is Map) {
                           bpName = (rawBp['identifier'] ?? rawBp['Name'] ?? 'Sin Tercero').toString();
                         } else if (rawBp != null) {
-                          bpName = 'Tercero $rawBp';
+                          final bpId = (rawBp is num) ? rawBp.toInt() : int.tryParse(rawBp.toString()) ?? 0;
+                          var found = GlobalCache.allBPartners.firstWhere(
+                            (bp) => bp['id'] == bpId,
+                            orElse: () => <String, dynamic>{},
+                          );
+                          if (found.isEmpty) {
+                            found = GlobalCache.bPartners.firstWhere(
+                              (bp) => bp['id'] == bpId,
+                              orElse: () => <String, dynamic>{},
+                            );
+                          }
+                          bpName = found.isNotEmpty ? (found['Name'] ?? 'Tercero $bpId') : 'Tercero $bpId';
                         }
                         if (bpName.length > 30) {
                           bpName = '${bpName.substring(0, 30)}...';
