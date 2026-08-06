@@ -13,6 +13,8 @@ class Token {
   static int? primConfigId;
   static int? organitation;
   static int? warehouseID;
+  static String? userName;
+  static String? password;
 
   static Future<void> clear() async {
     preAuth = null;
@@ -25,6 +27,8 @@ class Token {
     primConfigId = null;
     organitation = null;
     warehouseID = null;
+    userName = null;
+    password = null;
     
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -40,6 +44,7 @@ class Token {
       await prefs.remove('token_warehouse');
       await prefs.remove('token_primconfig');
       await prefs.remove('token_primconfig_id');
+      await prefs.remove('last_token_generated_at');
     } catch (_) {}
   }
 

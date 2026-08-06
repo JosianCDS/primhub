@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:primhub/api/auth_api.dart';
 import 'package:primhub/api/session_manager.dart';
 import 'package:primhub/api/token.dart';
@@ -6,28 +7,47 @@ import 'package:go_router/go_router.dart';
 import 'package:primhub/api/global_cache.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Maneja los errores 401 intentando refrescar el token.
 /// Si el refresco falla, muestra un diálogo de sesión expirada.
 ///
 /// Devuelve `true` si la sesión fue refrescada (y la llamada original puede ser reintentada),
 /// `false` en caso contrario.
+Completer<bool>? _refreshCompleter;
+
 Future<bool> handleTokenRefresh() async {
-  if (Token.refreshToken == null || Token.refreshToken!.isEmpty) {
+  if (Token.userName == null || Token.password == null) {
     return false;
   }
 
-  // Asume que la función refreshToken existe en auth_api.dart
-  final response = await refreshToken(Token.refreshToken!);
-  if (response.containsKey('token')) {
-    Token.auth = response['token'];
-    if (response.containsKey('refresh_token')) {
-      Token.refreshToken = response['refresh_token'];
+  // Si ya hay un auto-login en progreso, las demás peticiones esperan a que este termine
+  if (_refreshCompleter != null) {
+    return await _refreshCompleter!.future;
+  }
+
+  // Bloqueamos futuras peticiones marcando que un refresco está en curso
+  _refreshCompleter = Completer<bool>();
+
+  try {
+    // Hacer el Auto-Login transparente usando el usuario y contraseña guardados en memoria
+    final success = await autoLogin();
+    if (success) {
+      _refreshCompleter!.complete(true);
+      return true; // Refrescado exitosamente, se puede reintentar la llamada.
+    } else {
+      SessionManager().showSessionExpiredDialog();
+      _refreshCompleter!.complete(false);
+      return false; // El refresco falló.
     }
-    return true; // Refrescado, se puede reintentar la llamada.
-  } else {
-    SessionManager().showSessionExpiredDialog();
-    return false; // El refresco falló.
+  } catch (e) {
+    if (!_refreshCompleter!.isCompleted) {
+      _refreshCompleter!.complete(false);
+    }
+    return false;
+  } finally {
+    // Liberamos el candado para que dentro de 60 minutos se pueda volver a hacer
+    _refreshCompleter = null;
   }
 }
 
@@ -55,4 +75,36 @@ Future<void> showLogoutConfirmation(BuildContext context) async {
       GoRouter.of(navContext).go('/login');
     }
   }
+}
+
+const String _lastTokenGeneratedAtKey = 'last_token_generated_at';
+const int _tokenReuseWindowMinutes = 40;
+
+Future<void> saveLastTokenGeneratedAt() async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setString(_lastTokenGeneratedAtKey, DateTime.now().toIso8601String());
+}
+
+Future<DateTime?> _getLastTokenGeneratedAt() async {
+  final prefs = await SharedPreferences.getInstance();
+  final rawValue = prefs.getString(_lastTokenGeneratedAtKey);
+  if (rawValue == null || rawValue.isEmpty) return null;
+  return DateTime.tryParse(rawValue);
+}
+
+Future<bool> canReuseCurrentToken() async {
+  if (Token.auth == null || Token.auth!.trim().isEmpty) return false;
+  
+  final lastGeneratedAt = await _getLastTokenGeneratedAt();
+  if (lastGeneratedAt == null) return false;
+
+  final minutesSinceLastToken = DateTime.now().difference(lastGeneratedAt).inMinutes;
+  
+  final canReuse = minutesSinceLastToken < _tokenReuseWindowMinutes;
+  return canReuse;
+}
+
+// Validación preventiva desactivada (retorna inmediatamente) para dejar que el token se venza naturalmente en iDempiere
+Future<void> preemptiveTokenCheck() async {
+  // Ya no hacemos nada aquí. Esperamos al 401 real.
 }

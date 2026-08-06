@@ -8,6 +8,7 @@ import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/contract_api.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:primhub/api/api_utils.dart';
 
 import '../ui/pages/Login/login.dart';
 
@@ -74,10 +75,11 @@ Future<bool> finalizeLogin(String username, String password, Map<String, dynamic
       final responseBody = jsonDecode(response.body);
       Token.auth = responseBody['token'];
       Token.refreshToken = responseBody['refresh_token'];
-      //--------------------------------------------------
-      //borrar, esto es para una prueba con garden admin.
+      Token.userName = username;
+      Token.password = password;
+      await saveLastTokenGeneratedAt();
+      
       User.name = username; // Establecer User.name con el nombre de usuario
-      //--------------------------------------------------
 
       User.userID = responseBody['userId'];
       User.cBPartnerID = await getPartnerID(userId: User.userID!);
@@ -140,10 +142,58 @@ Future<bool> finalizeLogin(String username, String password, Map<String, dynamic
   return false;
 }
 
-// Refrescar Token
+// Auto-Login transparente para reemplazar el refresco de token fallido de iDempiere
+Future<bool> autoLogin() async {
+  if (Token.userName == null || Token.password == null) return false;
+  try {
+    final body = {
+      "userName": Token.userName,
+      "password": Token.password,
+      "parameters": {
+        "clientId": Token.client,
+        "roleId": Token.rol,
+        "organizationId": Token.organitation,
+        "warehouseId": Token.warehouseID,
+        "language": "es_PA"
+      }
+    };
+    
+    final response = await post(
+      Uri.parse(Endpoint.authTokens), 
+      headers: {'Content-Type': 'application/json'}, 
+      body: jsonEncode(body)
+    );
+    
+    if (response.statusCode == 200) {
+      final responseBody = jsonDecode(response.body);
+      Token.auth = responseBody['token'];
+      Token.refreshToken = responseBody['refresh_token'];
+      await saveLastTokenGeneratedAt();
+      
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('auth_token', Token.auth ?? '');
+      await prefs.setString('refresh_token', Token.refreshToken ?? '');
+      return true;
+    }
+  } catch (e) {
+  }
+  return false;
+}
+
+// Refrescar Token (Original - Actualmente descartado por error 401 del servidor)
 Future<Map<String, dynamic>> refreshToken(String refreshToken) async {
   try {
-    final response = await put(Uri.parse(Endpoint.authTokens), headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $refreshToken'});
+    final response = await post(
+      Uri.parse(Endpoint.authTokens), 
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $refreshToken'},
+      body: jsonEncode({
+        "clientId": Token.client,
+        "roleId": Token.rol,
+        "organizationId": Token.organitation,
+        "warehouseId": Token.warehouseID,
+        "language": "es_PA"
+      }),
+    );
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       Token.auth = data['token'];
@@ -154,6 +204,7 @@ Future<Map<String, dynamic>> refreshToken(String refreshToken) async {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('auth_token', Token.auth ?? '');
       await prefs.setString('refresh_token', Token.refreshToken ?? '');
+      await saveLastTokenGeneratedAt();
       
       return data;
     }

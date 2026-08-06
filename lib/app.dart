@@ -151,23 +151,28 @@ class MainApp extends StatelessWidget {
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: AppThemes.themeModeNotifier,
       builder: (context, themeMode, child) {
-        return MaterialApp.router(
-          routerConfig: _router,
-          title: 'PrimHub',
-          debugShowCheckedModeBanner: false,
-          theme: AppThemes.lightTheme,
-          darkTheme: AppThemes.darkTheme,
-          themeMode: themeMode,
-          localizationsDelegates: const [
-            GlobalMaterialLocalizations.delegate,
-            GlobalWidgetsLocalizations.delegate,
-            GlobalCupertinoLocalizations.delegate,
-            FlutterQuillLocalizations.delegate,
-          ],
-          supportedLocales: const [
-            Locale('en', ''),
-            Locale('es', ''),
-          ],
+        return Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: (_) => SessionManager().resetInactivityTimer(),
+          onPointerMove: (_) => SessionManager().resetInactivityTimer(),
+          child: MaterialApp.router(
+            routerConfig: _router,
+            title: 'PrimHub',
+            debugShowCheckedModeBanner: false,
+            theme: AppThemes.lightTheme,
+            darkTheme: AppThemes.darkTheme,
+            themeMode: themeMode,
+            localizationsDelegates: const [
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+              FlutterQuillLocalizations.delegate,
+            ],
+            supportedLocales: const [
+              Locale('en', ''),
+              Locale('es', ''),
+            ],
+          ),
         );
       },
     );

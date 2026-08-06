@@ -22,9 +22,71 @@ class SessionManager {
 
   bool _isDialogShowing = false;
   Timer? _keepAliveTimer;
+  Timer? _inactivityTimer;
+  DateTime _lastActivityTime = DateTime.now();
+
+  /// Resetea el reloj de inactividad (se llama con cada clic o movimiento ligero del usuario)
+  void resetInactivityTimer() {
+    _lastActivityTime = DateTime.now();
+  }
+  
+  /// Inicia el comprobador de inactividad (se llama al iniciar sesión)
+  void startInactivityTimer() {
+    _inactivityTimer?.cancel();
+    _lastActivityTime = DateTime.now();
+    _inactivityTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
+      if (Token.auth == null) {
+        timer.cancel();
+        return;
+      }
+      
+      final diff = DateTime.now().difference(_lastActivityTime);
+      if (diff.inMinutes >= 50) {
+        _logoutDueToInactivity();
+      }
+    });
+  }
+
+  Future<void> _logoutDueToInactivity() async {
+    await Token.clear();
+    GlobalCache.clear();
+    stopKeepAliveTimer();
+    
+    final context = navigatorKey.currentContext;
+    if (context != null && context.mounted) {
+      GoRouter.of(context).go('/login');
+      
+      // Damos un pequeño respiro para que GoRouter termine la transición
+      // antes de lanzar el modal, para que no quede enterrado.
+      Future.delayed(const Duration(milliseconds: 500), () {
+        final newContext = navigatorKey.currentContext;
+        if (newContext != null) {
+          showDialog(
+            context: newContext,
+            barrierDismissible: false,
+            builder: (_) => CustomModal(
+              title: 'Sesión Cerrada',
+              width: 400,
+              content: const Padding(
+                padding: EdgeInsets.symmetric(vertical: 20.0),
+                child: Text('Por su seguridad, la sesión ha expirado debido a inactividad (50 minutos).'),
+              ),
+              actions: [
+                CustomButton(
+                  text: 'Aceptar',
+                  onPressed: () => Navigator.of(newContext).pop(),
+                ),
+              ],
+            ),
+          );
+        }
+      });
+    }
+  }
 
   /// Inicia el temporizador para refrescar la sesión automáticamente cada 30 minutos.
   void startKeepAliveTimer() {
+    startInactivityTimer(); // <--- Arranca el detector de inactividad al loguearse
     _keepAliveTimer?.cancel();
     _keepAliveTimer = Timer.periodic(const Duration(minutes: 57), (timer) async {
       if (Token.auth != null && Token.auth!.isNotEmpty) {
@@ -60,10 +122,12 @@ class SessionManager {
     });
   }
 
-  /// Detiene el temporizador de refresco de sesión.
+  /// Detiene ambos temporizadores
   void stopKeepAliveTimer() {
     _keepAliveTimer?.cancel();
     _keepAliveTimer = null;
+    _inactivityTimer?.cancel();
+    _inactivityTimer = null;
   }
 
   /// Muestra un diálogo no descartable que indica que la sesión ha expirado,
