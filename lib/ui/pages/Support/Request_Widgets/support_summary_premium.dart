@@ -99,13 +99,13 @@ class SupportSummaryPremium extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 12),
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 8,
+                            crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
-                              if (attachmentCarousel != null) ...[
+                              if (attachmentCarousel != null)
                                 attachmentCarousel!,
-                                const SizedBox(width: 12),
-                              ],
                               Container(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 16,

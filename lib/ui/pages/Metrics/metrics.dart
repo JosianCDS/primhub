@@ -482,9 +482,6 @@ class _MetricsPageState extends State<MetricsPage> {
       if (GlobalCache.isDataLoaded) {
         // Extraer desde la caché pre-cargada
         rawRequests = GlobalCache.requests.where((req) {
-          bool isActive = req['IsActive'] == true || req['IsActive'] == 'Y';
-          if (!isActive) return false;
-
           int? bpId = req['C_BPartner_ID'] is Map
               ? req['C_BPartner_ID']['id']
               : req['C_BPartner_ID'];
@@ -502,17 +499,20 @@ class _MetricsPageState extends State<MetricsPage> {
           return true;
         }).toList();
       } else {
-        String filter = "IsActive eq true";
+        List<String> conditions = [];
+        conditions.add("(C_Project_ID eq null and Record_UU eq null)");
+        
         if (!AccessControl.isAdmin && User.cBPartnerID != null) {
-          filter += " and C_BPartner_ID eq ${User.cBPartnerID}";
+          conditions.add("(C_BPartner_ID eq ${User.cBPartnerID})");
         } else if (AccessControl.isAdmin && _supportSelectedBpId != null) {
-          filter += " and C_BPartner_ID eq $_supportSelectedBpId";
+          conditions.add("(C_BPartner_ID eq $_supportSelectedBpId)");
         }
+        
+        String filter = conditions.join(" and ");
         String expand =
             "R_Status_ID(\$select=Name,IsOpen),Priority(\$select=Name)";
         final fetchedRequests = await fetchRequest(
           filter: filter,
-          top: 500,
           expand: expand,
         );
         rawRequests = fetchedRequests.where((req) {
@@ -520,7 +520,13 @@ class _MetricsPageState extends State<MetricsPage> {
         }).toList();
       }
 
-      final Map<String, double> priorityCounts = {};
+      final Map<String, double> priorityCounts = {
+        'Urgente': 0,
+        'Alta': 0,
+        'Media': 0,
+        'Baja': 0,
+        'Muy baja': 0,
+      };
       final Map<String, double> statusCounts = {};
 
       for (var req in rawRequests) {
@@ -567,12 +573,17 @@ class _MetricsPageState extends State<MetricsPage> {
           continue;
         }
 
-        // Prioridad robusta
-        String priorityStr = req['Priority'] is Map
-            ? (req['Priority']['identifier'] ??
-                  req['Priority']['Name'] ??
-                  'Media')
-            : (req['Priority']?.toString() ?? '5');
+        // Prioridad robusta - Siempre leer desde la Categoría para tickets de Soporte
+        var rawPriority;
+        final categoryId = req['R_Category_ID'] is Map ? req['R_Category_ID']['id'] : req['R_Category_ID'];
+        if (categoryId != null) {
+          final cat = GlobalCache.rawCategories.firstWhere((c) => c['id'] == categoryId, orElse: () => {});
+          if (cat.isNotEmpty) {
+            rawPriority = cat['Priority'] is Map ? cat['Priority']['id'] : cat['Priority'];
+          }
+        }
+
+        String priorityStr = rawPriority != null ? rawPriority.toString() : '5';
 
         String priority = 'Media';
         final pLower = priorityStr.toLowerCase();
@@ -584,8 +595,8 @@ class _MetricsPageState extends State<MetricsPage> {
           priority = 'Media';
         else if (pLower.contains('baja') || priorityStr == '7')
           priority = 'Baja';
-        else if (pLower.contains('menor') || priorityStr == '9')
-          priority = 'Menor';
+        else if (pLower.contains('muy baja') || pLower.contains('menor') || priorityStr == '9')
+          priority = 'Muy baja';
         else
           priority = priorityStr;
 
@@ -600,7 +611,7 @@ class _MetricsPageState extends State<MetricsPage> {
             'Alta',
             'Media',
             'Baja',
-            'Menor',
+            'Muy baja',
           ].where((p) => priorityCounts.containsKey(p)).toList();
           _supportPriorityValues = _supportPriorityLabels
               .map((p) => priorityCounts[p]!)
@@ -1273,6 +1284,7 @@ class _MetricsPageState extends State<MetricsPage> {
               icon: Icons.confirmation_number_rounded,
               color: Colors.indigo,
               width: cardWidth,
+              tooltip: 'Muestra el total histórico de tus solicitudes activas vinculadas a fichas de horas.',
             ),
             _KPICard(
               title: 'Tickets Críticos',
@@ -1280,6 +1292,7 @@ class _MetricsPageState extends State<MetricsPage> {
               icon: Icons.warning_amber_rounded,
               color: Colors.red,
               width: cardWidth,
+              tooltip: 'Muestra el total de solicitudes activas de prioridad Urgente o Alta vinculadas a fichas de horas.',
             ),
           ],
         );
@@ -1618,7 +1631,12 @@ class _MetricsPageState extends State<MetricsPage> {
               _supportStatusValues,
               _supportStatusLabels,
               donutColors2,
+              initialHiddenLabels: const ['Archivada'],
             ),
+      action: const Tooltip(
+        message: 'Muestra el estado histórico de tus solicitudes activas vinculadas a fichas de horas. Puedes hacer clic en los estados de la leyenda para ocultarlos o mostrarlos.',
+        child: Icon(Icons.info_outline, color: Colors.grey, size: 20),
+      ),
     );
 
     final List<Color> priorityColors = _supportPriorityLabels.map((p) {
@@ -1640,6 +1658,10 @@ class _MetricsPageState extends State<MetricsPage> {
               colors: priorityColors,
               tooltipSuffix: 'sol.',
             ),
+      action: const Tooltip(
+        message: 'Muestra la prioridad de tus solicitudes activas vinculadas a fichas de horas.',
+        child: Icon(Icons.info_outline, color: Colors.grey, size: 20),
+      ),
     );
 
     return Column(
@@ -1669,6 +1691,7 @@ class _MetricsPageState extends State<MetricsPage> {
     List<Color> colors, {
     String suffix = 'sol.',
     Function(String label)? onSliceTapped,
+    List<String> initialHiddenLabels = const [],
   }) {
     return _DonutWithLegendWidget(
       values: values,
@@ -1676,12 +1699,14 @@ class _MetricsPageState extends State<MetricsPage> {
       colors: colors,
       suffix: suffix,
       onSliceTapped: onSliceTapped,
+      initialHiddenLabels: initialHiddenLabels,
     );
   }
 
-  Widget _buildChartCard(String title, double height, Widget child) =>
+  Widget _buildChartCard(String title, double height, Widget child, {Widget? action}) =>
       CustomContainer(
         title: title,
+        action: action,
         child: SizedBox(height: height, child: child),
       );
 
@@ -1879,6 +1904,7 @@ class _DonutWithLegendWidget extends StatefulWidget {
   final List<Color> colors;
   final String suffix;
   final Function(String label)? onSliceTapped;
+  final List<String> initialHiddenLabels;
 
   const _DonutWithLegendWidget({
     required this.values,
@@ -1886,6 +1912,7 @@ class _DonutWithLegendWidget extends StatefulWidget {
     required this.colors,
     this.suffix = 'sol.',
     this.onSliceTapped,
+    this.initialHiddenLabels = const [],
   });
 
   @override
@@ -1897,10 +1924,12 @@ class _DonutWithLegendWidgetState extends State<_DonutWithLegendWidget> {
   final ScrollController _scrollController = ScrollController();
   bool _showTopArrow = false;
   bool _showBottomArrow = false;
+  late Set<String> _hiddenLabels;
 
   @override
   void initState() {
     super.initState();
+    _hiddenLabels = Set<String>.from(widget.initialHiddenLabels);
     _scrollController.addListener(_updateArrows);
     // Evaluar las flechas justo después del primer renderizado
     WidgetsBinding.instance.addPostFrameCallback((_) => _updateArrows());
@@ -1940,14 +1969,30 @@ class _DonutWithLegendWidgetState extends State<_DonutWithLegendWidget> {
       builder: (context, constraints) {
         final isNarrow = constraints.maxWidth < 450;
 
+        final List<double> visibleValues = [];
+        final List<String> visibleLabels = [];
+        final List<Color> visibleColors = [];
+        int? hoveredVisibleIndex;
+    
+        for (int i = 0; i < widget.labels.length; i++) {
+          if (!_hiddenLabels.contains(widget.labels[i])) {
+            if (_hoveredIndex == i) {
+              hoveredVisibleIndex = visibleLabels.length;
+            }
+            visibleValues.add(widget.values[i]);
+            visibleLabels.add(widget.labels[i]);
+            visibleColors.add(widget.colors[i % widget.colors.length]);
+          }
+        }
+
         final donutWidget = SizedBox(
           height: isNarrow ? 140 : double.infinity,
           child: CustomDonutChart(
-            values: widget.values,
-            labels: widget.labels,
-            colors: widget.colors,
+            values: visibleValues,
+            labels: visibleLabels,
+            colors: visibleColors,
             onSliceTapped: widget.onSliceTapped,
-            hoveredIndex: _hoveredIndex,
+            hoveredIndex: hoveredVisibleIndex,
           ),
         );
 
@@ -1966,17 +2011,16 @@ class _DonutWithLegendWidgetState extends State<_DonutWithLegendWidget> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: List.generate(widget.labels.length, (i) {
+                      final isHidden = _hiddenLabels.contains(widget.labels[i]);
                       final val = widget.values[i];
-                      final total = widget.values.reduce((a, b) => a + b);
-                      final pct = total > 0 ? (val / total * 100) : 0.0;
+                      final total = visibleValues.isEmpty ? 0.0 : visibleValues.reduce((a, b) => a + b);
+                      final pct = (!isHidden && total > 0) ? (val / total * 100) : 0.0;
 
                       final isHovered = _hoveredIndex == i;
                       final isAnyHovered = _hoveredIndex != null;
-                      final textLabel =
-                          '${widget.labels[i]}\n${val.toInt()} ${widget.suffix} (${pct.toStringAsFixed(1)}%)';
 
                       return Tooltip(
-                        message: textLabel,
+                        message: '${widget.labels[i]}\n${val.toInt()} ${widget.suffix} (${pct.toStringAsFixed(1)}%)',
                         waitDuration: const Duration(milliseconds: 500),
                         child: MouseRegion(
                           cursor: SystemMouseCursors.click,
@@ -1984,8 +2028,13 @@ class _DonutWithLegendWidgetState extends State<_DonutWithLegendWidget> {
                           onExit: (_) => setState(() => _hoveredIndex = null),
                           child: GestureDetector(
                             onTap: () {
-                              if (widget.onSliceTapped != null)
-                                widget.onSliceTapped!(widget.labels[i]);
+                              setState(() {
+                                if (_hiddenLabels.contains(widget.labels[i])) {
+                                  _hiddenLabels.remove(widget.labels[i]);
+                                } else {
+                                  _hiddenLabels.add(widget.labels[i]);
+                                }
+                              });
                             },
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 200),
@@ -1995,9 +2044,8 @@ class _DonutWithLegendWidgetState extends State<_DonutWithLegendWidget> {
                               ),
                               margin: const EdgeInsets.only(bottom: 4.0),
                               decoration: BoxDecoration(
-                                color: isHovered
-                                    ? widget.colors[i % widget.colors.length]
-                                          .withOpacity(0.1)
+                                color: isHovered && !isHidden
+                                    ? widget.colors[i % widget.colors.length].withOpacity(0.1)
                                     : Colors.transparent,
                                 borderRadius: BorderRadius.circular(8),
                               ),
@@ -2005,39 +2053,35 @@ class _DonutWithLegendWidgetState extends State<_DonutWithLegendWidget> {
                                 children: [
                                   AnimatedContainer(
                                     duration: const Duration(milliseconds: 200),
-                                    width: isHovered ? 16 : 12,
-                                    height: isHovered ? 16 : 12,
+                                    width: isHovered && !isHidden ? 16 : 12,
+                                    height: isHovered && !isHidden ? 16 : 12,
                                     decoration: BoxDecoration(
-                                      color: isAnyHovered && !isHovered
+                                      color: isHidden
                                           ? Colors.grey.withOpacity(0.3)
-                                          : widget.colors[i %
-                                                widget.colors.length],
+                                          : (isAnyHovered && !isHovered
+                                              ? Colors.grey.withOpacity(0.3)
+                                              : widget.colors[i % widget.colors.length]),
                                       shape: BoxShape.circle,
                                     ),
                                   ),
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: AnimatedDefaultTextStyle(
-                                      duration: const Duration(
-                                        milliseconds: 200,
-                                      ),
+                                      duration: const Duration(milliseconds: 200),
                                       style: TextStyle(
-                                        fontSize: 11,
-                                        height: 1.2,
-                                        fontWeight: isHovered
+                                        fontSize: 12,
+                                        fontWeight: isHovered && !isHidden
                                             ? FontWeight.bold
                                             : FontWeight.normal,
-                                        color: isAnyHovered && !isHovered
-                                            ? Theme.of(context)
-                                                  .colorScheme
-                                                  .onSurface
-                                                  .withOpacity(0.4)
-                                            : Theme.of(
-                                                context,
-                                              ).colorScheme.onSurface,
+                                        color: isHidden
+                                            ? Colors.grey
+                                            : (isAnyHovered && !isHovered
+                                                ? Colors.grey
+                                                : Theme.of(context).colorScheme.onSurface),
+                                        decoration: isHidden ? TextDecoration.lineThrough : null,
                                       ),
                                       child: Text(
-                                        textLabel,
+                                        '${widget.labels[i]}\n${val.toInt()} ${widget.suffix} (${pct.toStringAsFixed(1)}%)',
                                         maxLines: 2,
                                         overflow: TextOverflow.ellipsis,
                                       ),
@@ -2128,6 +2172,7 @@ class _KPICard extends StatelessWidget {
   final IconData icon;
   final Color color;
   final double width;
+  final String? tooltip;
 
   const _KPICard({
     required this.title,
@@ -2135,6 +2180,7 @@ class _KPICard extends StatelessWidget {
     required this.icon,
     required this.color,
     required this.width,
+    this.tooltip,
   });
 
   @override
@@ -2171,15 +2217,28 @@ class _KPICard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: colorScheme.onSurface.withOpacity(0.5),
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: colorScheme.onSurface.withOpacity(0.5),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (tooltip != null) ...[
+                      const SizedBox(width: 4),
+                      Tooltip(
+                        message: tooltip!,
+                        child: Icon(Icons.info_outline, size: 14, color: colorScheme.onSurface.withOpacity(0.4)),
+                      ),
+                    ],
+                  ],
                 ),
                 const SizedBox(height: 4),
                 Text(

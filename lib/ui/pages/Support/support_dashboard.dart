@@ -1461,81 +1461,182 @@ class _SupportDashboardFilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        SizedBox(
-          width: 400,
-          child: CustomTextField(
-            controller: searchController,
-            hintText: searchType == 'ticket' ? 'Buscar por ticket...' : (searchType == 'desc' ? 'Buscar por descripción...' : 'Buscar por ticket o descripción...'),
-            prefixIcon: const Icon(Icons.search),
-          ),
-        ),
-        const SizedBox(width: 8),
-        SizedBox(
-          width: 150,
-          child: CustomDropdown<String>(
-            value: searchType,
-            items: const [
-              DropdownMenuItem(value: 'all', child: Text('Ambos')),
-              DropdownMenuItem(value: 'ticket', child: Text('Ticket')),
-              DropdownMenuItem(value: 'desc', child: Text('Descripción')),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bool isLargeScreen = constraints.maxWidth >= 800;
+
+        if (isLargeScreen) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                flex: 2,
+                child: CustomTextField(
+                  controller: searchController,
+                  hintText: searchType == 'ticket' ? 'Buscar por ticket...' : (searchType == 'desc' ? 'Buscar por descripción...' : 'Buscar por ticket o descripción...'),
+                  prefixIcon: const Icon(Icons.search),
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 140,
+                child: CustomDropdown<String>(
+                  value: searchType,
+                  items: const [
+                    DropdownMenuItem(value: 'all', child: Text('Ambos')),
+                    DropdownMenuItem(value: 'ticket', child: Text('Ticket')),
+                    DropdownMenuItem(value: 'desc', child: Text('Descripción')),
+                  ],
+                  onChanged: (val) {
+                    if (val != null) onSearchTypeChanged(val);
+                  },
+                ),
+              ),
+              const SizedBox(width: 16),
+              Flexible(
+                flex: 3,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      if (!AccessControl.isSupport)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 16.0),
+                          child: ActionChip(
+                            avatar: const Icon(Icons.calendar_today, size: 16),
+                            label: Text(() {
+                              if (selectedYears.isEmpty) return 'Año: Todos';
+                              if (selectedYears.length == 1) {
+                                if (selectedYears.first == DateTime.now().year) return 'Año: Actual';
+                                return 'Año: ${selectedYears.first}';
+                              }
+                              return 'Años: ${selectedYears.length}';
+                            }()),
+                            onPressed: onShowYearFilter,
+                          ),
+                        ),
+                      ActionChip(
+                        avatar: Icon(
+                          isAscending ? Icons.arrow_upward : Icons.arrow_downward,
+                          size: 16,
+                        ),
+                        label: Text(isAscending ? 'Más antiguas' : 'Más recientes'),
+                        onPressed: onSortChanged,
+                      ),
+                      const SizedBox(width: 16),
+                      DropdownButton<int>(
+                        value: rowsPerPage,
+                        items: [10, 25, 50, 100]
+                            .map((int value) => DropdownMenuItem<int>(
+                                  value: value,
+                                  child: Text('$value filas'),
+                                ))
+                            .toList(),
+                        onChanged: onRowsPerPageChanged,
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.filter_alt_off),
+                        onPressed: onClearFilters,
+                        tooltip: 'Limpiar filtros',
+                      ),
+                      const SizedBox(width: 16),
+                      CustomButton(
+                        text: 'Exportar Tabla Actual',
+                        onPressed: onExport,
+                        icon: Icons.download,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ],
-            onChanged: (val) {
-              if (val != null) onSearchTypeChanged(val);
-            },
-          ),
-        ),
-        const SizedBox(width: 16),
-        if (!AccessControl.isSupport)
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: ActionChip(
-              avatar: const Icon(Icons.calendar_today, size: 16),
-              label: Text(() {
-                if (selectedYears.isEmpty) return 'Año: Todos';
-                if (selectedYears.length == 1) {
-                  if (selectedYears.first == DateTime.now().year) return 'Año: Actual';
-                  return 'Año: ${selectedYears.first}';
-                }
-                return 'Años: ${selectedYears.length}';
-              }()),
-              onPressed: onShowYearFilter,
+          );
+        }
+
+        // Diseño para móviles
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: CustomTextField(
+                    controller: searchController,
+                    hintText: 'Buscar...',
+                    prefixIcon: const Icon(Icons.search),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 2,
+                  child: CustomDropdown<String>(
+                    value: searchType,
+                    items: const [
+                      DropdownMenuItem(value: 'all', child: Text('Ambos')),
+                      DropdownMenuItem(value: 'ticket', child: Text('Ticket')),
+                      DropdownMenuItem(value: 'desc', child: Text('Desc')),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) onSearchTypeChanged(val);
+                    },
+                  ),
+                ),
+              ],
             ),
-          ),
-        ActionChip(
-          avatar: Icon(
-            isAscending ? Icons.arrow_upward : Icons.arrow_downward,
-            size: 16,
-          ),
-          label: Text(isAscending ? 'Más antiguas' : 'Más recientes'),
-          onPressed: onSortChanged,
-        ),
-        const SizedBox(width: 16),
-        DropdownButton<int>(
-          value: rowsPerPage,
-          items: [10, 25, 50, 100]
-              .map((int value) => DropdownMenuItem<int>(
-                    value: value,
-                    child: Text('$value filas'),
-                  ))
-              .toList(),
-          onChanged: onRowsPerPageChanged,
-        ),
-        const SizedBox(width: 8),
-        IconButton(
-          icon: const Icon(Icons.filter_alt_off),
-          onPressed: onClearFilters,
-          tooltip: 'Limpiar filtros',
-        ),
-        const Spacer(),
-        CustomButton(
-          text: 'Exportar Tabla Actual',
-          onPressed: onExport,
-          icon: Icons.download,
-        ),
-      ],
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8.0,
+              runSpacing: 8.0,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                if (!AccessControl.isSupport)
+                  ActionChip(
+                    avatar: const Icon(Icons.calendar_today, size: 16),
+                    label: Text(() {
+                      if (selectedYears.isEmpty) return 'Año: Todos';
+                      if (selectedYears.length == 1) {
+                        if (selectedYears.first == DateTime.now().year) return 'Año: Actual';
+                        return 'Año: ${selectedYears.first}';
+                      }
+                      return 'Años: ${selectedYears.length}';
+                    }()),
+                    onPressed: onShowYearFilter,
+                  ),
+                ActionChip(
+                  avatar: Icon(
+                    isAscending ? Icons.arrow_upward : Icons.arrow_downward,
+                    size: 16,
+                  ),
+                  label: Text(isAscending ? 'Más antiguas' : 'Más recientes'),
+                  onPressed: onSortChanged,
+                ),
+                DropdownButton<int>(
+                  value: rowsPerPage,
+                  items: [10, 25, 50, 100]
+                      .map((int value) => DropdownMenuItem<int>(
+                            value: value,
+                            child: Text('$value filas'),
+                          ))
+                      .toList(),
+                  onChanged: onRowsPerPageChanged,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.filter_alt_off),
+                  onPressed: onClearFilters,
+                  tooltip: 'Limpiar filtros',
+                ),
+                CustomButton(
+                  text: 'Exportar',
+                  onPressed: onExport,
+                  icon: Icons.download,
+                ),
+              ],
+            ),
+          ],
+        );
+      },
     );
   }
 }

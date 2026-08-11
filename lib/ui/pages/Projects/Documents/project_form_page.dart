@@ -19,6 +19,9 @@ class ProjectFormPage extends StatefulWidget {
 class _ProjectFormPageState extends State<ProjectFormPage> {
   final _formKey = GlobalKey<FormState>();
   final ProjectsLogic _logic = ProjectsLogic();
+  bool _isActive = true;
+  String _projectLineLevel = 'P';
+
   bool _isLoading = false;
   bool get _isNewProject => widget.project == null;
   bool get _isReactivation => !_isNewProject;
@@ -54,7 +57,6 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
   int? _mPriceListVersionId;
   int? _cPaymentTermId;
   String? _projInvoiceRule;
-  bool _isActive = true;
   DateTime? _dateContract;
   DateTime? _dateFinish;
 
@@ -153,7 +155,17 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
 
     _plannedAmtController.text = (p['PlannedAmt'] ?? 0.0).toString();
     _plannedQtyController.text = (p['PlannedQty'] ?? 0).toString();
+    _plannedMarginAmtController.text = (p['PlannedMarginAmt'] ?? 0.0).toString();
+    _committedAmtController.text = (p['CommittedAmt'] ?? 0.0).toString();
+    _committedQtyController.text = (p['CommittedQty'] ?? 0).toString();
+    _invoicedAmtController.text = (p['InvoicedAmt'] ?? 0.0).toString();
+    _invoicedQtyController.text = (p['InvoicedQty'] ?? 0).toString();
     _projectBalanceController.text = (p['ProjectBalanceAmt'] ?? 0.0).toString();
+
+    _projectLineLevel = p['ProjectLineLevel']?['id'] ?? 'P';
+
+    _cPaymentTermId = _parseId(p['C_PaymentTerm_ID']);
+    _paymentTermController.text = p['C_PaymentTerm_ID']?['identifier'] ?? '';
   }
 
   Future<void> _loadDependencies() async {
@@ -206,9 +218,37 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
             _invoiceRules = [
               {'id': 'I', 'name': 'Cant. Comprometida'},
               {'id': 'P', 'name': 'Cant. de Producto'},
-              {'id': 'N', 'name': 'Ninguno'},
+              {'id': '-', 'name': 'Ninguno'},
               {'id': 'T', 'name': 'Tiempo y Material'},
             ];
+          }
+
+          if (_isNewProject) {
+            if (_cCurrencyId == null) {
+              final balboa = _currencies.firstWhere((c) => c['id'] == 197 || c['C_Currency_ID'] == 197, orElse: () => null);
+              if (balboa != null) {
+                _cCurrencyId = balboa['id'] ?? balboa['C_Currency_ID'];
+                _currencyController.text = balboa['ISO_Code'] ?? balboa['identifier'] ?? 'Balboa';
+              } else {
+                _cCurrencyId = 197;
+                _currencyController.text = 'Balboa';
+              }
+            }
+            if (_projInvoiceRule == null) {
+              String ruleId = '-';
+              String ruleName = 'Ninguno';
+              
+              for (final r in _invoiceRules) {
+                if (r['id'] == '-' || r['name'] == 'Ninguno') {
+                  ruleId = r['id'] ?? '-';
+                  ruleName = r['name'] ?? 'Ninguno';
+                  break;
+                }
+              }
+              
+              _projInvoiceRule = ruleId;
+              _invoiceRuleController.text = ruleName;
+            }
           }
 
           _isLoading = false;
@@ -247,7 +287,7 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
       "Description": _descriptionController.text.trim(),
       "Value": _valueController.text.trim(),
       "IsActive": _isActive,
-      "ProjectLineLevel": "T",
+      "ProjectLineLevel": _projectLineLevel,
       if (_dateContract != null)
         "DateContract":
             "${_dateContract!.toIso8601String().split('T')[0]} 00:00:00.0",
@@ -330,6 +370,8 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
                             _buildDatesAndCurrencySection(),
                             const SizedBox(height: 24),
                             _buildFinancialDetailsSection(),
+                            const SizedBox(height: 24),
+                            _buildHistorySection(),
                             const SizedBox(height: 48),
                           ],
                         ),
@@ -348,9 +390,11 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
       children: [
         Icon(icon, color: colorScheme.primary, size: 24),
         const SizedBox(width: 12),
-        Text(
-          title,
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        Expanded(
+          child: Text(
+            title,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
         ),
       ],
     );
@@ -459,6 +503,19 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
           ),
           const SizedBox(height: 16),
           _buildSearchField(
+            label: 'Término de Pago',
+            controller: _paymentTermController,
+            items: _paymentTerms,
+            idKey: 'id',
+            displayKey: 'Name',
+            icon: Icons.payment_rounded,
+            onSelected: (id, name) => setState(() {
+              _cPaymentTermId = _parseId(id);
+              _paymentTermController.text = name;
+            }),
+          ),
+          const SizedBox(height: 16),
+          _buildSearchField(
             label: 'Regla de Factura *',
             controller: _invoiceRuleController,
             items: _invoiceRules,
@@ -504,8 +561,25 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
                   }),
           ),
           const SizedBox(height: 16),
+          DropdownButtonFormField<String>(
+            value: _projectLineLevel,
+            decoration: InputDecoration(
+              labelText: 'Nivel de Línea',
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              prefixIcon: const Icon(Icons.account_tree_outlined),
+            ),
+            items: const [
+              DropdownMenuItem(value: 'P', child: Text('Proyecto')),
+              DropdownMenuItem(value: 'A', child: Text('Fase')),
+              DropdownMenuItem(value: 'T', child: Text('Tarea')),
+            ],
+            onChanged: _isReactivation ? null : (val) {
+              if (val != null) setState(() => _projectLineLevel = val);
+            },
+          ),
+          const SizedBox(height: 16),
           _buildDatePicker(
-            'Fecha Contrato',
+            'Fecha de Inicio de proyecto',
             _dateContract,
             (d) => setState(() => _dateContract = d),
           ),
@@ -527,25 +601,11 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildSectionHeader(
-            'Detalles Financieros',
+            'Totales',
             Icons.monetization_on_outlined,
           ),
           const SizedBox(height: 24),
           _buildFinancialGrid(),
-          const SizedBox(height: 20),
-          CustomTextField(
-            controller: _projectBalanceController,
-            label: 'Balance del Proyecto',
-            prefixIcon: const Icon(
-              Icons.account_balance_wallet_rounded,
-              color: Colors.green,
-              size: 20,
-            ),
-            keyboardType: TextInputType.number,
-            readOnly: true,
-            filled: true,
-            fillColor: Colors.green.withOpacity(0.05),
-          ),
         ],
       ),
     );
@@ -560,7 +620,7 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
           runSpacing: 16,
           children: [
             _buildFinancialItem(
-              'Importe Planeado',
+              'Total Planeado',
               _plannedAmtController,
               Icons.payments_outlined,
               isWide,
@@ -574,21 +634,71 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
               constraints.maxWidth,
             ),
             _buildFinancialItem(
-              'Importe Comprometido',
+              'Total Comprometido',
               _committedAmtController,
               Icons.handshake_outlined,
               isWide,
               constraints.maxWidth,
             ),
             _buildFinancialItem(
-              'Cantidad Comprometida',
+              'Cantidad Cometida',
               _committedQtyController,
               Icons.assignment_turned_in_outlined,
               isWide,
               constraints.maxWidth,
             ),
             _buildFinancialItem(
-              'Importe Facturado',
+              'Margen Planeado',
+              _plannedMarginAmtController,
+              Icons.trending_up_rounded,
+              isWide,
+              constraints.maxWidth,
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildHistorySection() {
+    return CustomContainer(
+      elevation: 2,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionHeader(
+            'Historia',
+            Icons.history_rounded,
+          ),
+          const SizedBox(height: 24),
+          _buildHistoryGrid(),
+          const SizedBox(height: 20),
+          CustomTextField(
+            controller: _projectBalanceController,
+            label: 'Balance del Proyecto',
+            prefixIcon: const Icon(
+              Icons.account_balance_wallet_rounded,
+              color: Colors.green,
+              size: 20,
+            ),
+            keyboardType: TextInputType.number,
+            readOnly: _isReactivation,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHistoryGrid() {
+    final bool isWide = MediaQuery.of(context).size.width > 600;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Wrap(
+          spacing: 16,
+          runSpacing: 16,
+          children: [
+            _buildFinancialItem(
+              'Cuenta Facturada',
               _invoicedAmtController,
               Icons.receipt_long_outlined,
               isWide,
@@ -598,13 +708,6 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
               'Cantidad Facturada',
               _invoicedQtyController,
               Icons.fact_check_outlined,
-              isWide,
-              constraints.maxWidth,
-            ),
-            _buildFinancialItem(
-              'Margen Planeado',
-              _plannedMarginAmtController,
-              Icons.trending_up_rounded,
               isWide,
               constraints.maxWidth,
             ),

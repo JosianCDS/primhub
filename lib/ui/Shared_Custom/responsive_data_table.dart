@@ -5,8 +5,10 @@ import 'package:flutter/foundation.dart';
 class ResponsiveDataColumn {
   final String label;
   final bool numeric;
+  final String? sortKey;
+  final Widget? suffixIcon;
 
-  const ResponsiveDataColumn({required this.label, this.numeric = false});
+  const ResponsiveDataColumn({required this.label, this.numeric = false, this.sortKey, this.suffixIcon});
 }
 
 /// A responsive data table that shows a split view (fixed/scrollable) on desktop
@@ -24,8 +26,11 @@ class ResponsiveDataTable<T> extends StatefulWidget {
   final Function(bool? selected)? onSelectAll;
   final int Function(T item) getId;
   final bool showCheckboxColumn;
+  final String? sortKey;
+  final bool sortAscending;
+  final void Function(String)? onSort;
 
-  const ResponsiveDataTable({super.key, required this.items, this.fixedColumns = const [], required this.scrollableColumns, required this.fixedCellBuilder, required this.scrollableCellBuilder, required this.mobileCardBuilder, this.onRowTap, this.selectedIds = const {}, this.onSelectChanged, this.onSelectAll, required this.getId, this.showCheckboxColumn = false});
+  const ResponsiveDataTable({super.key, required this.items, this.fixedColumns = const [], required this.scrollableColumns, required this.fixedCellBuilder, required this.scrollableCellBuilder, required this.mobileCardBuilder, this.onRowTap, this.selectedIds = const {}, this.onSelectChanged, this.onSelectAll, required this.getId, this.showCheckboxColumn = false, this.sortKey, this.sortAscending = true, this.onSort});
 
   @override
   State<ResponsiveDataTable<T>> createState() => _ResponsiveDataTableState<T>();
@@ -68,6 +73,15 @@ class _ResponsiveDataTableState<T> extends State<ResponsiveDataTable<T>> {
   }
 
   @override
+  void didUpdateWidget(ResponsiveDataTable<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.sortKey != widget.sortKey || oldWidget.sortAscending != widget.sortAscending) {
+      _cachedFixedRows = null;
+      _cachedScrollableRows = null;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -90,6 +104,38 @@ class _ResponsiveDataTableState<T> extends State<ResponsiveDataTable<T>> {
   Widget _buildDesktopTable() {
     final theme = Theme.of(context);
 
+    int? fixedSortColumnIndex;
+    int? scrollableSortColumnIndex;
+    
+    int fixedOffset = widget.showCheckboxColumn ? 1 : 0;
+    
+    for (int i = 0; i < widget.fixedColumns.length; i++) {
+       if (widget.fixedColumns[i].sortKey != null && widget.fixedColumns[i].sortKey == widget.sortKey) {
+          fixedSortColumnIndex = i + fixedOffset;
+       }
+    }
+    for (int i = 0; i < widget.scrollableColumns.length; i++) {
+       if (widget.scrollableColumns[i].sortKey != null && widget.scrollableColumns[i].sortKey == widget.sortKey) {
+          scrollableSortColumnIndex = i;
+       }
+    }
+
+    Widget buildLabel(ResponsiveDataColumn c) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(c.label),
+          if (c.suffixIcon != null) ...[
+            const SizedBox(width: 4),
+            c.suffixIcon!,
+          ] else if (c.sortKey != null && c.sortKey != widget.sortKey) ...[
+            const SizedBox(width: 4),
+            Icon(Icons.unfold_more, size: 16, color: theme.colorScheme.onSurface.withOpacity(0.5)),
+          ],
+        ],
+      );
+    }
+
     // --- Define Columns ---
     final List<DataColumn> allFixedColumns = [];
     if (widget.showCheckboxColumn) {
@@ -99,9 +145,17 @@ class _ResponsiveDataTableState<T> extends State<ResponsiveDataTable<T>> {
         ),
       );
     }
-    allFixedColumns.addAll(widget.fixedColumns.map((c) => DataColumn(label: Text(c.label), numeric: c.numeric)));
+    allFixedColumns.addAll(widget.fixedColumns.map((c) => DataColumn(
+      label: buildLabel(c), 
+      numeric: c.numeric,
+      onSort: c.sortKey != null && widget.onSort != null ? (index, _) => widget.onSort!(c.sortKey!) : null,
+    )));
 
-    final allScrollableColumns = widget.scrollableColumns.map((c) => DataColumn(label: Text(c.label), numeric: c.numeric)).toList();
+    final allScrollableColumns = widget.scrollableColumns.map((c) => DataColumn(
+      label: buildLabel(c), 
+      numeric: c.numeric,
+      onSort: c.sortKey != null && widget.onSort != null ? (index, _) => widget.onSort!(c.sortKey!) : null,
+    )).toList();
 
     // --- Build Rows ---
     final bool shouldRebuildRows = _cachedFixedRows == null ||
@@ -212,7 +266,14 @@ class _ResponsiveDataTableState<T> extends State<ResponsiveDataTable<T>> {
             scrollDirection: Axis.horizontal,
             child: DataTableTheme(
               data: scrollableDataTableTheme,
-              child: DataTable(showCheckboxColumn: widget.showCheckboxColumn, onSelectAll: widget.onSelectAll, columns: allScrollableColumns, rows: scrollableRows),
+              child: DataTable(
+                showCheckboxColumn: widget.showCheckboxColumn, 
+                onSelectAll: widget.onSelectAll, 
+                columns: allScrollableColumns, 
+                rows: scrollableRows,
+                sortColumnIndex: scrollableSortColumnIndex,
+                sortAscending: widget.sortAscending,
+              ),
             ),
           ),
         ),
@@ -239,6 +300,8 @@ class _ResponsiveDataTableState<T> extends State<ResponsiveDataTable<T>> {
                     showCheckboxColumn: false, // Handled manually
                     columns: allFixedColumns,
                     rows: fixedRows,
+                    sortColumnIndex: fixedSortColumnIndex,
+                    sortAscending: widget.sortAscending,
                   ),
                 ),
               ),
@@ -277,7 +340,10 @@ class _ResponsiveDataTableState<T> extends State<ResponsiveDataTable<T>> {
                             child: DataTable(
                                 showCheckboxColumn: false,
                                 columns: allScrollableColumns,
-                                rows: scrollableRows),
+                                rows: scrollableRows,
+                                sortColumnIndex: scrollableSortColumnIndex,
+                                sortAscending: widget.sortAscending,
+                            ),
                           ),
                         ),
                       ),

@@ -63,22 +63,33 @@ class RequestFilterBar extends StatelessWidget {
   Widget build(BuildContext context) {
 
 
-    final filterChips = Wrap(
-      spacing: 16.0,
-      runSpacing: 8.0,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        CustomButton(
-          text: 'Filtros',
-          onPressed: isLoading ? null : onShowFilters,
-          icon: Icons.filter_list,
-          backgroundColor: activeFilterCount > 0
-              ? Theme.of(context).colorScheme.primaryContainer
-              : null,
-          textColor: activeFilterCount > 0
-              ? Theme.of(context).colorScheme.onPrimaryContainer
-              : null,
-        ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bool isLargeScreen = constraints.maxWidth >= 600;
+
+        final filterChips = Wrap(
+          spacing: 16.0,
+          runSpacing: 8.0,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            if (!isLargeScreen && AccessControl.canCreateRequests)
+              CustomButton(
+                text: 'Crear Solicitud',
+                onPressed: isLoading ? null : onAddRequest,
+                icon: Icons.add,
+              ),
+            CustomButton(
+              text: 'Filtros',
+              onPressed: isLoading ? null : onShowFilters,
+              icon: Icons.filter_list,
+              backgroundColor: activeFilterCount > 0
+                  ? Theme.of(context).colorScheme.primaryContainer
+                  : null,
+              textColor: activeFilterCount > 0
+                  ? Theme.of(context).colorScheme.onPrimaryContainer
+                  : null,
+            ),
+
         if (activeFilterCount > 0)
           Chip(
             label: Text('$activeFilterCount'),
@@ -150,14 +161,7 @@ class RequestFilterBar extends StatelessWidget {
               ),
             ),
           ),
-        ActionChip(
-          avatar: Icon(
-            isAscending ? Icons.arrow_downward : Icons.arrow_upward,
-            size: 16,
-          ),
-          label: Text(isAscending ? 'Más antiguas primero' : 'Más recientes primero'),
-          onPressed: isLoading ? null : onSortChanged,
-        ),
+
         if (!AccessControl.isSupport)
           ActionChip(
             avatar: const Icon(Icons.calendar_today, size: 16),
@@ -189,111 +193,103 @@ class RequestFilterBar extends StatelessWidget {
       ],
     );
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final bool isLargeScreen = constraints.maxWidth >= 600;
-
-        final buttons = Wrap(
-          spacing: 12.0,
-          runSpacing: 12.0,
-          alignment: isLargeScreen ? WrapAlignment.end : WrapAlignment.start,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            if (!AccessControl.isRealSupport)
-              CustomButton(
-                text: showCalendar ? 'Ver Lista' : 'Calendario/Gantt',
-                onPressed: isLoading ? null : onShowCalendar,
-                icon: showCalendar ? Icons.list_alt : Icons.calendar_month,
-                backgroundColor: Theme.of(context).colorScheme.tertiary,
-                textColor: Theme.of(context).colorScheme.onTertiary,
-              ),
-            CustomButton(
-                text: showHistory ? 'Ver Activas' : 'Ver Bitácora',
-                onPressed: isLoading ? null : onToggleHistory,
-                icon: showHistory ? Icons.list : Icons.history,
-                backgroundColor: Theme.of(context).colorScheme.secondary,
-                textColor: Theme.of(context).colorScheme.onSecondary,
-            ),
-            if (AccessControl.canCreateRequests)
-              CustomButton(
-                text: 'Crear Solicitud',
-                onPressed: isLoading ? null : onAddRequest,
-                icon: Icons.add,
-              ),
-            if (onExport != null)
-              CustomButton(
-                text: 'Exportar',
-                onPressed: isLoading ? null : onExport,
-                icon: Icons.download,
-              ),
-          ],
-        );
-
-        Widget topRow = SizedBox(
-          width: double.infinity,
-          child: Row(
-            children: [
-              Expanded(
-                child: CustomTextField(
-                  controller: searchController,
-                  hintText: isLargeScreen ? 'Buscar por ticket, asunto o descripción...' : 'Buscar...',
-                  prefixIcon: const Icon(Icons.search),
-                ),
-              ),
-              const SizedBox(width: 12),
-              if (selectedYears.length == 1 && selectedYears.first == DateTime.now().year)
-                Padding(
-                  padding: const EdgeInsets.only(right: 12.0),
-                  child: Chip(
-                    label: Text(isLargeScreen ? 'Año: Año Actual' : 'Año Actual'),
-                    labelStyle: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w500,
-                      fontSize: isLargeScreen ? 14 : 12,
+        Widget topRow = isLargeScreen
+            ? SizedBox(
+                width: double.infinity,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: CustomTextField(
+                        controller: searchController,
+                        hintText: 'Buscar por ticket, asunto o descripción...',
+                        prefixIcon: const Icon(Icons.search),
+                      ),
                     ),
-                    backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.5),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    side: BorderSide(color: Theme.of(context).colorScheme.outline.withOpacity(0.2)),
-                  ),
-                ),
-              // Envolver los botones en un horizontal scroll para que nunca hagan overflow si la pantalla es muy pequeña
-              Flexible(
-                flex: 0, // No expandir, solo tomar su espacio original
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      if (!AccessControl.isRealSupport)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8.0),
-                          child: CustomButton(
-                            text: showCalendar ? 'Ver Lista' : 'Calendario/Gantt',
-                            onPressed: isLoading ? null : onShowCalendar,
-                            icon: showCalendar ? Icons.list_alt : Icons.calendar_month,
-                            backgroundColor: Theme.of(context).colorScheme.tertiary,
-                            textColor: Theme.of(context).colorScheme.onTertiary,
+                    const SizedBox(width: 12),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (!AccessControl.isRealSupport)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 8.0),
+                              child: CustomButton(
+                                text: showCalendar ? 'Ver Lista' : 'Calendario/Gantt',
+                                onPressed: isLoading ? null : onShowCalendar,
+                                icon: showCalendar ? Icons.list_alt : Icons.calendar_month,
+                                backgroundColor: Theme.of(context).colorScheme.tertiary,
+                                textColor: Theme.of(context).colorScheme.onTertiary,
+                              ),
+                            ),
+                          Padding(
+                            padding: const EdgeInsets.only(left: 8.0),
+                            child: CustomButton(
+                              text: showHistory ? 'Ver Activas' : 'Ver Histórico',
+                              onPressed: isLoading ? null : onToggleHistory,
+                              icon: showHistory ? Icons.list : Icons.history,
+                              backgroundColor: Theme.of(context).colorScheme.secondary,
+                              textColor: Theme.of(context).colorScheme.onSecondary,
+                            ),
                           ),
-                        ),
-                      Padding(
-                        padding: const EdgeInsets.only(right: 8.0),
-                        child: CustomButton(
-                            text: showHistory ? 'Ver Activas' : 'Ver Bitácora',
-                         
-                            onPressed: isLoading ? null : onToggleHistory,
-                            icon: showHistory ? Icons.list : Icons.history,
-                            backgroundColor: Theme.of(context).colorScheme.secondary,
-                            textColor: Theme.of(context).colorScheme.onSecondary,
+                          if (AccessControl.canCreateRequests)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 8.0),
+                              child: CustomButton(
+                                text: 'Crear Solicitud',
+                                onPressed: isLoading ? null : onAddRequest,
+                                icon: Icons.add,
+                              ),
+                            ),
+                          if (onExport != null)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 8.0),
+                              child: CustomButton(
+                                text: 'Exportar Tabla',
+                                onPressed: isLoading ? null : onExport,
+                                icon: Icons.download,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: CustomTextField(
+                          controller: searchController,
+                          hintText: 'Buscar...',
+                          prefixIcon: const Icon(Icons.search),
                         ),
                       ),
-                      if (AccessControl.canCreateRequests)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8.0),
-                          child: CustomButton(
-                            text: 'Crear Solicitud',
-                            onPressed: isLoading ? null : onAddRequest,
-                            icon: Icons.add,
-                          ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8.0,
+                    runSpacing: 8.0,
+                    children: [
+                      if (!AccessControl.isRealSupport)
+                        CustomButton(
+                          text: showCalendar ? 'Ver Lista' : 'Calendario/Gantt',
+                          onPressed: isLoading ? null : onShowCalendar,
+                          icon: showCalendar ? Icons.list_alt : Icons.calendar_month,
+                          backgroundColor: Theme.of(context).colorScheme.tertiary,
+                          textColor: Theme.of(context).colorScheme.onTertiary,
                         ),
+                      CustomButton(
+                        text: showHistory ? 'Ver Activas' : 'Ver Bitácora',
+                        onPressed: isLoading ? null : onToggleHistory,
+                        icon: showHistory ? Icons.list : Icons.history,
+                        backgroundColor: Theme.of(context).colorScheme.secondary,
+                        textColor: Theme.of(context).colorScheme.onSecondary,
+                      ),
                       if (onExport != null)
                         CustomButton(
                           text: 'Exportar',
@@ -302,11 +298,8 @@ class RequestFilterBar extends StatelessWidget {
                         ),
                     ],
                   ),
-                ),
-              ),
-            ],
-          ),
-        );
+                ],
+              );
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -314,15 +307,27 @@ class RequestFilterBar extends StatelessWidget {
             topRow,
             const SizedBox(height: 12),
             if (counterWidget != null)
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(child: filterChips),
-                  const SizedBox(width: 16),
-                  counterWidget!,
-                ],
-              )
+              isLargeScreen
+                  ? Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(child: filterChips),
+                        const SizedBox(width: 16),
+                        counterWidget!,
+                      ],
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        filterChips,
+                        const SizedBox(height: 12),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: counterWidget!,
+                        ),
+                      ],
+                    )
             else
               filterChips,
             const SizedBox(height: 8),

@@ -192,11 +192,7 @@ class GlobalCache {
       
       final isRepById = userBpId != null && repBpIds.contains(userBpId);
       
-      final rawIsRep = user['IsSalesRep'] ?? user['isSalesRep'];
-      final isRepStr = rawIsRep?.toString().trim().toLowerCase();
-      bool userIsRep = isRepStr == 'true' || isRepStr == 'y';
-      
-      return isRepById || userIsRep;
+      return isRepById;
     }).toList();
 
     if (salesReps.isEmpty && users.isNotEmpty) {

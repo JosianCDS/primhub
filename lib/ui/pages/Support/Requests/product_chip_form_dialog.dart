@@ -16,7 +16,7 @@ class ProductChipFormDialog extends StatefulWidget {
 
 class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
   final _formKey = GlobalKey<FormState>();
-  
+
   bool _isLoading = true;
   bool _isSaving = false;
 
@@ -44,7 +44,9 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
             child: StatefulBuilder(
               builder: (context, setStateDialog) {
                 final filteredItems = items.where((item) {
-                  return getTitle(item).toLowerCase().contains(searchQuery.toLowerCase());
+                  return getTitle(
+                    item,
+                  ).toLowerCase().contains(searchQuery.toLowerCase());
                 }).toList();
 
                 return Column(
@@ -52,23 +54,35 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
                   children: [
                     Text(
                       'Seleccionar $title *',
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w400),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w400,
+                      ),
                     ),
                     const SizedBox(height: 16),
                     TextField(
                       decoration: const InputDecoration(
                         prefixIcon: Icon(Icons.filter_list, color: Colors.grey),
                         hintText: 'Filtrar...',
-                        enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
-                        focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.blue)),
+                        enabledBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(color: Colors.grey),
+                        ),
+                        focusedBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(color: Colors.blue),
+                        ),
                       ),
-                      onChanged: (val) => setStateDialog(() => searchQuery = val),
+                      onChanged: (val) =>
+                          setStateDialog(() => searchQuery = val),
                     ),
                     const SizedBox(height: 16),
                     Expanded(
                       child: ListView.separated(
                         itemCount: filteredItems.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1, color: Colors.grey, thickness: 0.3),
+                        separatorBuilder: (_, __) => const Divider(
+                          height: 1,
+                          color: Colors.grey,
+                          thickness: 0.3,
+                        ),
                         itemBuilder: (context, index) {
                           final item = filteredItems[index];
                           final itemValue = getValue(item);
@@ -76,10 +90,21 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
 
                           return ListTile(
                             contentPadding: EdgeInsets.zero,
-                            tileColor: isSelected ? Colors.grey.withOpacity(0.1) : null,
-                            title: Text(getTitle(item), style: const TextStyle(fontSize: 14)),
+                            tileColor: isSelected
+                                ? Colors.grey.withOpacity(0.1)
+                                : null,
+                            title: Text(
+                              getTitle(item),
+                              style: const TextStyle(fontSize: 14),
+                            ),
                             subtitle: getSubtitle != null
-                                ? Text(getSubtitle(item), style: const TextStyle(fontSize: 12, color: Colors.grey))
+                                ? Text(
+                                    getSubtitle(item),
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey,
+                                    ),
+                                  )
                                 : null,
                             onTap: () => Navigator.of(context).pop(itemValue),
                           );
@@ -114,9 +139,14 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
       child: InputDecorator(
         decoration: InputDecoration(
           labelText: label,
-          prefixIcon: prefixIcon != null ? Icon(prefixIcon, color: Theme.of(context).colorScheme.primary) : null,
+          prefixIcon: prefixIcon != null
+              ? Icon(prefixIcon, color: Theme.of(context).colorScheme.primary)
+              : null,
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 14,
+          ),
           floatingLabelBehavior: FloatingLabelBehavior.always,
           suffixIcon: isLoading
               ? Transform.scale(
@@ -153,7 +183,7 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
   final TextEditingController _qtyController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _contractNoController = TextEditingController();
-  
+
   DateTime? _serviceStartDate;
   DateTime? _serviceFinishDate;
 
@@ -179,15 +209,15 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
 
   bool get _isFormValid {
     return _selectedBPartnerId != null &&
-           _selectedContactId != null &&
-           _selectedLocationId != null &&
-           _selectedProductId != null &&
-           _selectedFrequencyType != null &&
-           _selectedPriceListId != null &&
-           _serviceStartDate != null &&
-           _qtyController.text.trim().isNotEmpty &&
-           _descriptionController.text.trim().isNotEmpty &&
-           _contractNoController.text.trim().isNotEmpty;
+        _selectedContactId != null &&
+        _selectedLocationId != null &&
+        _selectedProductId != null &&
+        _selectedFrequencyType != null &&
+        _selectedPriceListId != null &&
+        _serviceStartDate != null &&
+        _qtyController.text.trim().isNotEmpty &&
+        _descriptionController.text.trim().isNotEmpty &&
+        _contractNoController.text.trim().isNotEmpty;
   }
 
   @override
@@ -200,7 +230,7 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
 
   Future<void> _loadInitialData() async {
     setState(() => _isLoading = true);
-    
+
     // Ejecutar en paralelo las llamadas a la API que no dependen del BPartner
     final results = await Future.wait([
       fetchSupportProducts(),
@@ -220,7 +250,7 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
 
   Future<void> _onBPartnerSelected(int? bPartnerId) async {
     if (bPartnerId == null) return;
-    
+
     setState(() {
       _selectedBPartnerId = bPartnerId;
       _selectedContactId = null;
@@ -230,7 +260,7 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
     final contacts = await fetchContactsForBPartner(bPartnerId);
     final locations = await fetchLocationsForBPartner(bPartnerId);
     if (!mounted) return;
-    
+
     setState(() {
       _contacts = contacts;
       _locations = locations;
@@ -245,23 +275,24 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
   }
 
   Future<void> _selectDate(BuildContext context, bool isStart) async {
-    final DateTime initialDate = isStart 
+    final DateTime initialDate = isStart
         ? (_serviceStartDate ?? DateTime.now())
         : (_serviceFinishDate ?? (_serviceStartDate ?? DateTime.now()));
-        
+
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: initialDate,
       firstDate: DateTime(2000),
       lastDate: DateTime(2101),
     );
-    
+
     if (picked != null) {
       setState(() {
         if (isStart) {
           _serviceStartDate = picked;
           // Ensure finish date is not before start date
-          if (_serviceFinishDate != null && _serviceFinishDate!.isBefore(picked)) {
+          if (_serviceFinishDate != null &&
+              _serviceFinishDate!.isBefore(picked)) {
             _serviceFinishDate = null;
           }
         } else {
@@ -275,44 +306,76 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
-    
+
     if (_selectedBPartnerId == null) {
-      ToastMessage.show(context: context, message: 'Debe seleccionar un Tercero', type: ToastType.warning);
+      ToastMessage.show(
+        context: context,
+        message: 'Debe seleccionar un Tercero',
+        type: ToastType.warning,
+      );
       return;
     }
     if (_selectedContactId == null) {
-      ToastMessage.show(context: context, message: 'Debe seleccionar un Contacto de Facturación', type: ToastType.warning);
+      ToastMessage.show(
+        context: context,
+        message: 'Debe seleccionar un Contacto de Facturación',
+        type: ToastType.warning,
+      );
       return;
     }
     if (_selectedLocationId == null) {
-      ToastMessage.show(context: context, message: 'Debe seleccionar una Dirección de Factura', type: ToastType.warning);
+      ToastMessage.show(
+        context: context,
+        message: 'Debe seleccionar una Dirección de Factura',
+        type: ToastType.warning,
+      );
       return;
     }
     if (_selectedProductId == null) {
-      ToastMessage.show(context: context, message: 'Debe seleccionar un Producto', type: ToastType.warning);
+      ToastMessage.show(
+        context: context,
+        message: 'Debe seleccionar un Producto',
+        type: ToastType.warning,
+      );
       return;
     }
     if (_selectedFrequencyType == null) {
-      ToastMessage.show(context: context, message: 'Debe seleccionar un Tipo de Frecuencia', type: ToastType.warning);
+      ToastMessage.show(
+        context: context,
+        message: 'Debe seleccionar un Tipo de Frecuencia',
+        type: ToastType.warning,
+      );
       return;
     }
     if (_selectedPriceListId == null) {
-      ToastMessage.show(context: context, message: 'Debe seleccionar una Lista de Precios', type: ToastType.warning);
+      ToastMessage.show(
+        context: context,
+        message: 'Debe seleccionar una Lista de Precios',
+        type: ToastType.warning,
+      );
       return;
     }
     if (_contractNoController.text.trim().isEmpty) {
-      ToastMessage.show(context: context, message: 'Debe ingresar el N° de Contrato', type: ToastType.warning);
+      ToastMessage.show(
+        context: context,
+        message: 'Debe ingresar el N° de Contrato',
+        type: ToastType.warning,
+      );
       return;
     }
     if (_serviceStartDate == null) {
-      ToastMessage.show(context: context, message: 'Debe seleccionar la fecha de inicio', type: ToastType.warning);
+      ToastMessage.show(
+        context: context,
+        message: 'Debe seleccionar la fecha de inicio',
+        type: ToastType.warning,
+      );
       return;
     }
 
     setState(() => _isSaving = true);
-    
+
     final qty = double.tryParse(_qtyController.text.trim()) ?? 1.0;
-    
+
     final result = await saveProductChip(
       context: context,
       bPartnerId: _selectedBPartnerId!,
@@ -323,22 +386,31 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
       description: _descriptionController.text.trim(),
       frequencyType: _selectedFrequencyType!,
       contractNo: _contractNoController.text.trim(),
-      serviceStartDate: "${_serviceStartDate!.year}-${_serviceStartDate!.month.toString().padLeft(2,'0')}-${_serviceStartDate!.day.toString().padLeft(2,'0')} 00:00:00",
-      serviceFinishDate: _serviceFinishDate != null 
-          ? "${_serviceFinishDate!.year}-${_serviceFinishDate!.month.toString().padLeft(2,'0')}-${_serviceFinishDate!.day.toString().padLeft(2,'0')} 00:00:00"
+      serviceStartDate:
+          "${_serviceStartDate!.year}-${_serviceStartDate!.month.toString().padLeft(2, '0')}-${_serviceStartDate!.day.toString().padLeft(2, '0')} 00:00:00",
+      serviceFinishDate: _serviceFinishDate != null
+          ? "${_serviceFinishDate!.year}-${_serviceFinishDate!.month.toString().padLeft(2, '0')}-${_serviceFinishDate!.day.toString().padLeft(2, '0')} 00:00:00"
           : null,
       priceListId: _selectedPriceListId!,
     );
 
     if (!mounted) return;
-    
+
     setState(() => _isSaving = false);
-    
+
     if (result['success'] == true) {
-      ToastMessage.show(context: context, message: 'Ficha de producto creada exitosamente', type: ToastType.success);
+      ToastMessage.show(
+        context: context,
+        message: 'Ficha de producto creada exitosamente',
+        type: ToastType.success,
+      );
       Navigator.of(context).pop(_selectedBPartnerId);
     } else {
-      ToastMessage.show(context: context, message: result['message'], type: ToastType.failure);
+      ToastMessage.show(
+        context: context,
+        message: result['message'],
+        type: ToastType.failure,
+      );
     }
   }
 
@@ -357,6 +429,24 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
 
     // Preparar BPartners
     final bPartners = GlobalCache.bPartners;
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
+    Widget buildPair(Widget w1, Widget w2) {
+      if (isMobile) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [w1, const SizedBox(height: 16), w2],
+        );
+      }
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: w1),
+          const SizedBox(width: 16),
+          Expanded(child: w2),
+        ],
+      );
+    }
 
     return CustomModal(
       title: 'Nueva Ficha de Producto',
@@ -368,285 +458,326 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('1. Información Principal', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary)),
+              Text(
+                '1. Información Principal',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
               const SizedBox(height: 16),
               // FILA 1: Tercero y Contacto
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    flex: 1,
-                    child: _buildSearchableField<int>(
-                      label: 'Tercero Asociado *',
-                      hintText: 'Seleccionar...',
-                      value: _selectedBPartnerId,
-                      isLoading: false,
-                      isDisabled: false,
-                      prefixIcon: Icons.business,
-                      displayText: _selectedBPartnerId != null 
-                          ? (GlobalCache.bPartners.firstWhere((b) => b['id'] == _selectedBPartnerId, orElse: () => {})['Name'] ?? 'Desconocido')
-                          : '',
-                      onTap: () {
-                        _openSearchModal<int>(
-                          title: 'Tercero Asociado',
-                          items: GlobalCache.bPartners,
-                          currentValue: _selectedBPartnerId,
-                          getTitle: (item) => item['Name'] ?? item['name'] ?? 'Desconocido',
-                          getValue: (item) => (item['id'] as num).toInt(),
-                          onSelected: _onBPartnerSelected,
-                        );
+              buildPair(
+                _buildSearchableField<int>(
+                  label: 'Tercero Asociado *',
+                  hintText: 'Seleccionar...',
+                  value: _selectedBPartnerId,
+                  isLoading: false,
+                  isDisabled: false,
+                  prefixIcon: Icons.business,
+                  displayText: _selectedBPartnerId != null
+                      ? (GlobalCache.bPartners.firstWhere(
+                              (b) => b['id'] == _selectedBPartnerId,
+                              orElse: () => {},
+                            )['Name'] ??
+                            'Desconocido')
+                      : '',
+                  onTap: () {
+                    _openSearchModal<int>(
+                      title: 'Tercero Asociado',
+                      items: GlobalCache.bPartners,
+                      currentValue: _selectedBPartnerId,
+                      getTitle: (item) =>
+                          item['Name'] ?? item['name'] ?? 'Desconocido',
+                      getValue: (item) => (item['id'] as num).toInt(),
+                      onSelected: _onBPartnerSelected,
+                    );
+                  },
+                ),
+                _buildSearchableField<int>(
+                  label: 'Contacto de Facturación *',
+                  hintText: 'Seleccionar...',
+                  value: _selectedContactId,
+                  isLoading: _isLoading,
+                  isDisabled: _contacts.isEmpty,
+                  prefixIcon: Icons.person_outline,
+                  displayText: _selectedContactId != null
+                      ? (_contacts.firstWhere(
+                              (c) => c['id'] == _selectedContactId,
+                              orElse: () => {},
+                            )['Name'] ??
+                            'Desconocido')
+                      : '',
+                  onTap: () {
+                    _openSearchModal<int>(
+                      title: 'Contacto de Facturación',
+                      items: _contacts,
+                      currentValue: _selectedContactId,
+                      getTitle: (item) =>
+                          item['Name'] ?? item['name'] ?? 'Desconocido',
+                      getValue: (item) => (item['id'] as num).toInt(),
+                      onSelected: (val) {
+                        setState(() => _selectedContactId = val);
                       },
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    flex: 1,
-                    child: _buildSearchableField<int>(
-                      label: 'Contacto de Facturación *',
-                      hintText: 'Seleccionar...',
-                      value: _selectedContactId,
-                      isLoading: _isLoading,
-                      isDisabled: _contacts.isEmpty,
-                      prefixIcon: Icons.person_outline,
-                      displayText: _selectedContactId != null
-                          ? (_contacts.firstWhere((c) => c['id'] == _selectedContactId, orElse: () => {})['Name'] ?? 'Desconocido')
-                          : '',
-                      onTap: () {
-                        _openSearchModal<int>(
-                          title: 'Contacto de Facturación',
-                          items: _contacts,
-                          currentValue: _selectedContactId,
-                          getTitle: (item) => item['Name'] ?? item['name'] ?? 'Desconocido',
-                          getValue: (item) => (item['id'] as num).toInt(),
-                          onSelected: (val) {
-                            setState(() => _selectedContactId = val);
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                ],
+                    );
+                  },
+                ),
               ),
               const SizedBox(height: 16),
-              
+
               // FILA 2: Dirección y Producto
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    flex: 1,
-                    child: _buildSearchableField<int>(
-                      label: 'Dirección de Factura *',
-                      hintText: 'Seleccionar...',
-                      value: _selectedLocationId,
-                      isLoading: _isLoading,
-                      isDisabled: _locations.isEmpty,
-                      prefixIcon: Icons.location_on_outlined,
-                      displayText: _selectedLocationId != null
-                          ? (_locations.firstWhere((l) => l['id'] == _selectedLocationId, orElse: () => {})['Name'] ?? 'Desconocido')
-                          : '',
-                      onTap: () {
-                        _openSearchModal<int>(
-                          title: 'Dirección de Factura',
-                          items: _locations,
-                          currentValue: _selectedLocationId,
-                          getTitle: (item) => item['Name'] ?? item['name'] ?? 'Desconocido',
-                          getValue: (item) => (item['id'] as num).toInt(),
-                          onSelected: (val) {
-                            setState(() => _selectedLocationId = val);
-                          },
-                        );
+              buildPair(
+                _buildSearchableField<int>(
+                  label: 'Dirección de Factura *',
+                  hintText: 'Seleccionar...',
+                  value: _selectedLocationId,
+                  isLoading: _isLoading,
+                  isDisabled: _locations.isEmpty,
+                  prefixIcon: Icons.location_on_outlined,
+                  displayText: _selectedLocationId != null
+                      ? (_locations.firstWhere(
+                              (l) => l['id'] == _selectedLocationId,
+                              orElse: () => {},
+                            )['Name'] ??
+                            'Desconocido')
+                      : '',
+                  onTap: () {
+                    _openSearchModal<int>(
+                      title: 'Dirección de Factura',
+                      items: _locations,
+                      currentValue: _selectedLocationId,
+                      getTitle: (item) =>
+                          item['Name'] ?? item['name'] ?? 'Desconocido',
+                      getValue: (item) => (item['id'] as num).toInt(),
+                      onSelected: (val) {
+                        setState(() => _selectedLocationId = val);
                       },
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    flex: 1,
-                    child: _buildSearchableField<int>(
-                      label: 'Producto (Soporte) *',
-                      hintText: 'Seleccionar...',
-                      value: _selectedProductId,
-                      isLoading: _isLoading,
-                      isDisabled: _products.isEmpty,
-                      prefixIcon: Icons.inventory_2_outlined,
-                      displayText: _selectedProductId != null
-                          ? (_products.firstWhere((p) => p['id'] == _selectedProductId, orElse: () => {})['Name'] ?? 'Desconocido')
-                          : '',
-                      onTap: () {
-                        _openSearchModal<int>(
-                          title: 'Producto (Soporte)',
-                          items: _products,
-                          currentValue: _selectedProductId,
-                          getTitle: (item) => item['Name'] ?? item['name'] ?? 'Desconocido',
-                          getValue: (item) => (item['id'] as num).toInt(),
-                          onSelected: (val) {
-                            setState(() => _selectedProductId = val);
-                          },
-                        );
+                    );
+                  },
+                ),
+                _buildSearchableField<int>(
+                  label: 'Producto (Soporte) *',
+                  hintText: 'Seleccionar...',
+                  value: _selectedProductId,
+                  isLoading: _isLoading,
+                  isDisabled: _products.isEmpty,
+                  prefixIcon: Icons.inventory_2_outlined,
+                  displayText: _selectedProductId != null
+                      ? (_products.firstWhere(
+                              (p) => p['id'] == _selectedProductId,
+                              orElse: () => {},
+                            )['Name'] ??
+                            'Desconocido')
+                      : '',
+                  onTap: () {
+                    _openSearchModal<int>(
+                      title: 'Producto (Soporte)',
+                      items: _products,
+                      currentValue: _selectedProductId,
+                      getTitle: (item) =>
+                          item['Name'] ?? item['name'] ?? 'Desconocido',
+                      getValue: (item) => (item['id'] as num).toInt(),
+                      onSelected: (val) {
+                        setState(() => _selectedProductId = val);
                       },
-                    ),
-                  ),
-                ],
+                    );
+                  },
+                ),
               ),
               const SizedBox(height: 16),
-              
+
               // FILA 3: Descripción
               CustomTextField(
                 controller: _descriptionController,
                 label: 'Nombre de la Ficha de Producto *',
-                prefixIcon: Icon(Icons.label_outline, color: Theme.of(context).colorScheme.primary),
-                validator: (value) => value == null || value.trim().isEmpty ? 'Requerido' : null,
+                prefixIcon: Icon(
+                  Icons.label_outline,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                validator: (value) =>
+                    value == null || value.trim().isEmpty ? 'Requerido' : null,
               ),
-              
+
               const Divider(height: 48),
-              
-              Text('2. Facturación y Contrato', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary)),
+
+              Text(
+                '2. Facturación y Contrato',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
               const SizedBox(height: 16),
 
               // FILA 4: Frecuencia y Lista de Precios
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    flex: 1,
-                    child: _buildSearchableField<String>(
-                      label: 'Tipo de Frecuencia *',
-                      hintText: 'Seleccionar...',
-                      value: _selectedFrequencyType,
-                      isLoading: _isLoading,
-                      isDisabled: false,
-                      prefixIcon: Icons.update,
-                      displayText: _selectedFrequencyType != null
-                          ? ((_frequencies.isNotEmpty ? _frequencies : [{'Value': 'M', 'Name': 'Mensual'}, {'Value': 'A', 'Name': 'Anual'}, {'Value': 'H', 'Name': 'Por Hora'}]).firstWhere((f) => f['Value'] == _selectedFrequencyType, orElse: () => {})['Name'] ?? 'Desconocido')
-                          : '',
-                      onTap: () {
-                        _openSearchModal<String>(
-                          title: 'Tipo de Frecuencia',
-                          items: _frequencies.isNotEmpty ? _frequencies : [{'Value': 'M', 'Name': 'Mensual'}, {'Value': 'A', 'Name': 'Anual'}, {'Value': 'H', 'Name': 'Por Hora'}],
-                          currentValue: _selectedFrequencyType,
-                          getTitle: (item) => item['Name'] ?? item['name'] ?? 'Desconocido',
-                          getValue: (item) => item['Value']?.toString() ?? '',
-                          onSelected: (val) {
-                            setState(() => _selectedFrequencyType = val);
-                          },
-                        );
+              buildPair(
+                _buildSearchableField<String>(
+                  label: 'Tipo de Frecuencia *',
+                  hintText: 'Seleccionar...',
+                  value: _selectedFrequencyType,
+                  isLoading: _isLoading,
+                  isDisabled: false,
+                  prefixIcon: Icons.update,
+                  displayText: _selectedFrequencyType != null
+                      ? ((_frequencies.isNotEmpty
+                                    ? _frequencies
+                                    : [
+                                        {'Value': 'M', 'Name': 'Mensual'},
+                                        {'Value': 'A', 'Name': 'Anual'},
+                                        {'Value': 'H', 'Name': 'Por Hora'},
+                                      ])
+                                .firstWhere(
+                                  (f) => f['Value'] == _selectedFrequencyType,
+                                  orElse: () => {},
+                                )['Name'] ??
+                            'Desconocido')
+                      : '',
+                  onTap: () {
+                    _openSearchModal<String>(
+                      title: 'Tipo de Frecuencia',
+                      items: _frequencies.isNotEmpty
+                          ? _frequencies
+                          : [
+                              {'Value': 'M', 'Name': 'Mensual'},
+                              {'Value': 'A', 'Name': 'Anual'},
+                              {'Value': 'H', 'Name': 'Por Hora'},
+                            ],
+                      currentValue: _selectedFrequencyType,
+                      getTitle: (item) =>
+                          item['Name'] ?? item['name'] ?? 'Desconocido',
+                      getValue: (item) => item['Value']?.toString() ?? '',
+                      onSelected: (val) {
+                        setState(() => _selectedFrequencyType = val);
                       },
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    flex: 1,
-                    child: _buildSearchableField<int>(
-                      label: 'Lista de Precios *',
-                      hintText: 'Seleccionar...',
-                      value: _selectedPriceListId,
-                      isLoading: false,
-                      isDisabled: false,
-                      prefixIcon: Icons.request_quote_outlined,
-                      displayText: _selectedPriceListId != null
-                          ? (_priceLists.firstWhere((pl) => pl['id'] == _selectedPriceListId, orElse: () => {})['Name'] ?? 'Desconocido')
-                          : '',
-                      onTap: () {
-                        _openSearchModal<int>(
-                          title: 'Lista de Precios',
-                          items: _priceLists,
-                          currentValue: _selectedPriceListId,
-                          getTitle: (item) => item['Name'] ?? item['name'] ?? 'Desconocido',
-                          getValue: (item) => (item['id'] as num).toInt(),
-                          onSelected: (val) {
-                            setState(() => _selectedPriceListId = val);
-                          },
-                        );
+                    );
+                  },
+                ),
+                _buildSearchableField<int>(
+                  label: 'Lista de Precios *',
+                  hintText: 'Seleccionar...',
+                  value: _selectedPriceListId,
+                  isLoading: false,
+                  isDisabled: false,
+                  prefixIcon: Icons.request_quote_outlined,
+                  displayText: _selectedPriceListId != null
+                      ? (_priceLists.firstWhere(
+                              (pl) => pl['id'] == _selectedPriceListId,
+                              orElse: () => {},
+                            )['Name'] ??
+                            'Desconocido')
+                      : '',
+                  onTap: () {
+                    _openSearchModal<int>(
+                      title: 'Lista de Precios',
+                      items: _priceLists,
+                      currentValue: _selectedPriceListId,
+                      getTitle: (item) =>
+                          item['Name'] ?? item['name'] ?? 'Desconocido',
+                      getValue: (item) => (item['id'] as num).toInt(),
+                      onSelected: (val) {
+                        setState(() => _selectedPriceListId = val);
                       },
-                    ),
-                  ),
-                ],
+                    );
+                  },
+                ),
               ),
               const SizedBox(height: 16),
-              
+
               // FILA 5: Cantidad y N° Contrato
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    flex: 1,
-                    child: CustomTextField(
-                      controller: _qtyController,
-                      label: 'Cantidad *',
-                      prefixIcon: Icon(Icons.numbers, color: Theme.of(context).colorScheme.primary),
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-                      ],
-                      validator: (value) => value == null || value.trim().isEmpty ? 'Requerido' : null,
-                    ),
+              buildPair(
+                CustomTextField(
+                  controller: _qtyController,
+                  label: 'Cantidad *',
+                  prefixIcon: Icon(
+                    Icons.numbers,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    flex: 1,
-                    child: CustomTextField(
-                      controller: _contractNoController,
-                      label: 'N° de Contrato *',
-                      prefixIcon: Icon(Icons.receipt_long_outlined, color: Theme.of(context).colorScheme.primary),
-                      validator: (value) => value == null || value.trim().isEmpty ? 'Requerido' : null,
-                    ),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
                   ),
-                ],
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                  ],
+                  validator: (value) => value == null || value.trim().isEmpty
+                      ? 'Requerido'
+                      : null,
+                ),
+                CustomTextField(
+                  controller: _contractNoController,
+                  label: 'N° de Contrato *',
+                  prefixIcon: Icon(
+                    Icons.receipt_long_outlined,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  validator: (value) => value == null || value.trim().isEmpty
+                      ? 'Requerido'
+                      : null,
+                ),
               ),
               const SizedBox(height: 16),
-              
+
               // FILA 6: Fechas
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    flex: 1,
-                    child: InkWell(
-                      onTap: () => _selectDate(context, true),
-                      child: InputDecorator(
-                        decoration: InputDecoration(
-                          labelText: 'Inicio de Servicio *',
-                          prefixIcon: Icon(Icons.calendar_today, color: Theme.of(context).colorScheme.primary),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                        ),
-                        child: Text(
-                          _serviceStartDate != null 
-                              ? "${_serviceStartDate!.day}/${_serviceStartDate!.month}/${_serviceStartDate!.year}"
-                              : 'Seleccionar fecha',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: _serviceStartDate != null ? Theme.of(context).colorScheme.onSurface : Colors.grey[600],
-                          ),
-                        ),
+              buildPair(
+                InkWell(
+                  onTap: () => _selectDate(context, true),
+                  child: InputDecorator(
+                    decoration: InputDecoration(
+                      labelText: 'Inicio de Servicio *',
+                      prefixIcon: Icon(
+                        Icons.calendar_today,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 14,
+                      ),
+                    ),
+                    child: Text(
+                      _serviceStartDate != null
+                          ? "${_serviceStartDate!.day}/${_serviceStartDate!.month}/${_serviceStartDate!.year}"
+                          : 'Seleccionar fecha',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: _serviceStartDate != null
+                            ? Theme.of(context).colorScheme.onSurface
+                            : Colors.grey[600],
                       ),
                     ),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    flex: 1,
-                    child: InkWell(
-                      onTap: () => _selectDate(context, false),
-                      child: InputDecorator(
-                        decoration: InputDecoration(
-                          labelText: 'Fin de Servicio',
-                          prefixIcon: Icon(Icons.event_busy, color: Theme.of(context).colorScheme.primary),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                        ),
-                        child: Text(
-                          _serviceFinishDate != null 
-                              ? "${_serviceFinishDate!.day}/${_serviceFinishDate!.month}/${_serviceFinishDate!.year}"
-                              : 'Seleccionar fecha',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: _serviceFinishDate != null ? Theme.of(context).colorScheme.onSurface : Colors.grey[600],
-                          ),
-                        ),
+                ),
+                InkWell(
+                  onTap: () => _selectDate(context, false),
+                  child: InputDecorator(
+                    decoration: InputDecoration(
+                      labelText: 'Fin de Servicio',
+                      prefixIcon: Icon(
+                        Icons.event_busy,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 14,
+                      ),
+                    ),
+                    child: Text(
+                      _serviceFinishDate != null
+                          ? "${_serviceFinishDate!.day}/${_serviceFinishDate!.month}/${_serviceFinishDate!.year}"
+                          : 'Seleccionar fecha',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: _serviceFinishDate != null
+                            ? Theme.of(context).colorScheme.onSurface
+                            : Colors.grey[600],
                       ),
                     ),
                   ),
-                ],
+                ),
               ),
             ],
           ),
@@ -661,7 +792,9 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
           text: 'Crear Ficha',
           onPressed: _isFormValid ? _saveForm : null,
           isLoading: _isSaving,
-          backgroundColor: _isFormValid ? Theme.of(context).colorScheme.primary : Colors.grey,
+          backgroundColor: _isFormValid
+              ? Theme.of(context).colorScheme.primary
+              : Colors.grey,
         ),
       ],
     );

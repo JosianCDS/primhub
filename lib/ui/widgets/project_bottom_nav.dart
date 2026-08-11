@@ -14,10 +14,10 @@ class ProjectBottomNav extends StatelessWidget {
 
     if (AccessControl.isSupport) {
       routes.add('/my-requests');
-      destinations.add(const NavigationDestination(icon: Icon(Icons.help_outline), selectedIcon: Icon(Icons.help), label: 'Mis Solicitudes'));
+      destinations.add(const NavigationDestination(icon: Icon(Icons.help_outline), selectedIcon: Icon(Icons.help), label: 'Solicitudes'));
 
       routes.add('/support');
-      destinations.add(const NavigationDestination(icon: Icon(Icons.schedule_outlined), selectedIcon: Icon(Icons.schedule), label: 'Dashboard de Horas'));
+      destinations.add(const NavigationDestination(icon: Icon(Icons.schedule_outlined), selectedIcon: Icon(Icons.schedule), label: 'Horas'));
     }
 
     if (AccessControl.isProject) {

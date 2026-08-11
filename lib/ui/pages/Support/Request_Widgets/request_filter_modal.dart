@@ -344,7 +344,7 @@ class _RequestFilterModalState extends State<RequestFilterModal> {
               ),
               const SizedBox(height: 16),
             ],
-            if (!AccessControl.isSupport) ...[
+            if (AccessControl.isAdmin || !AccessControl.isSupport) ...[
               Row(
                 children: [
                   Expanded(
@@ -463,7 +463,10 @@ class _RequestFilterModalState extends State<RequestFilterModal> {
                     isDisabled: false,
                     onTap: () => _openMultiSelectSearchModal(
                       title: 'Estado',
-                      items: widget.statusIdMap.entries.toList(),
+                      items: widget.statusIdMap.entries.where((e) {
+                        final keyLower = e.key.toLowerCase();
+                        return keyLower != 'terminada' && keyLower != 'por iniciar';
+                      }).toList(),
                       currentValues: _tempFilter.statusIds.map((id) => id.toString()).toList(),
                       getTitle: (item) => (item as MapEntry<String, int>).key,
                       getValue: (item) => (item as MapEntry<String, int>).value.toString(),

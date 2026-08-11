@@ -8,7 +8,7 @@ import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 
 class ProjectCreateDialog extends StatefulWidget {
   final List<dynamic> projects;
-  final Function(String value, String name, String description, int? bpId, String dateContract, String dateFinish, int? projectTypeId) onCreateProject;
+  final Function(String value, String name, String description, int? bpId, String dateContract, String dateFinish, int? projectTypeId, String level) onCreateProject;
   final Function(int projectId, String name, String desc) onCreatePhase;
   final Function(int phaseId, String name, String desc) onCreateTask;
 
@@ -33,6 +33,7 @@ class _ProjectCreateDialogState extends State<ProjectCreateDialog> {
   int? selectedProjectId;
   int? selectedPhaseId;
   int? selectedProjectTypeId;
+  String selectedProjectLineLevel = 'P';
 
   @override
   void initState() {
@@ -117,6 +118,23 @@ class _ProjectCreateDialogState extends State<ProjectCreateDialog> {
                 onChanged: (val) => setState(() => selectedBpId = val),
               ),
               const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: selectedProjectLineLevel,
+                decoration: InputDecoration(
+                  labelText: 'Nivel de Línea',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  prefixIcon: const Icon(Icons.account_tree_outlined),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'P', child: Text('Proyecto')),
+                  DropdownMenuItem(value: 'A', child: Text('Fase')),
+                  DropdownMenuItem(value: 'T', child: Text('Tarea')),
+                ],
+                onChanged: (val) {
+                  if (val != null) setState(() => selectedProjectLineLevel = val);
+                },
+              ),
+              const SizedBox(height: 16),
               Row(
                 children: [
                   Expanded(
@@ -128,7 +146,7 @@ class _ProjectCreateDialogState extends State<ProjectCreateDialog> {
                         }
                       },
                       child: AbsorbPointer(
-                        child: CustomTextField(controller: dateContractController, label: 'Fecha Contrato', hintText: 'YYYY-MM-DD', prefixIcon: const Icon(Icons.calendar_today)),
+                        child: CustomTextField(controller: dateContractController, label: 'Fecha de Inicio de proyecto', hintText: 'YYYY-MM-DD', prefixIcon: const Icon(Icons.calendar_today)),
                       ),
                     ),
                   ),
@@ -213,7 +231,7 @@ class _ProjectCreateDialogState extends State<ProjectCreateDialog> {
           onPressed: () {
             if (creationType == 'Project') {
               if (nameController.text.isNotEmpty && valueController.text.isNotEmpty) {
-                widget.onCreateProject(valueController.text, nameController.text, descController.text, selectedBpId, dateContractController.text, dateFinishController.text, selectedProjectTypeId);
+                widget.onCreateProject(valueController.text, nameController.text, descController.text, selectedBpId, dateContractController.text, dateFinishController.text, selectedProjectTypeId, selectedProjectLineLevel);
                 Navigator.pop(context);
               }
             } else if (creationType == 'Phase') {
