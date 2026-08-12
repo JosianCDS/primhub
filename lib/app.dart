@@ -10,6 +10,7 @@ import 'package:primhub/ui/pages/Home/home_page.dart';
 import 'package:primhub/ui/pages/OnDevelop/knowledge_base.dart';
 import 'package:primhub/ui/pages/Projects/Projects_Widgets/project_requests_view.dart';
 import 'package:primhub/ui/pages/Metrics/metrics_requests_page.dart';
+import 'package:primhub/ui/pages/Metrics/rep_workload_page.dart';
 import 'package:primhub/ui/pages/Login/login.dart';
 import 'package:primhub/ui/pages/Login/reset_password_page.dart';
 import 'package:primhub/ui/pages/Login/login_selection_page.dart';
@@ -91,6 +92,10 @@ final _router = GoRouter(
     GoRoute(
       path: '/metrics',
       pageBuilder: (context, state) => NoTransitionPage(key: state.pageKey, child: const MetricsPage()),
+    ),
+    GoRoute(
+      path: '/rep-workload',
+      pageBuilder: (context, state) => NoTransitionPage(key: state.pageKey, child: const RepWorkloadPage()),
     ),
     GoRoute(
       path: '/metric-requests',

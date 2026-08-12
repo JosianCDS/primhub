@@ -46,6 +46,7 @@ class _SplashLoadingPageState extends State<SplashLoadingPage> with SingleTicker
         if (now >= exp) {
           final refreshed = await handleTokenRefresh();
           if (!refreshed) {
+            if (mounted) context.go('/login');
             return;
           }
         }
@@ -54,7 +55,14 @@ class _SplashLoadingPageState extends State<SplashLoadingPage> with SingleTicker
 
     // 2. Fase 1 (Datos Esenciales): Esperamos a que termine. Es vital para que 
     // la app no muestre listas vacías en dispositivos móviles más lentos.
-    await GlobalCache.syncData(force: true);
+    try {
+      await GlobalCache.syncData(force: true);
+    } catch (e) {
+      // Si falla la sincronización por un error de red o timeout, 
+      // continuamos para no dejar al usuario atrapado en el Splash Screen.
+      // La app mostrará listas vacías y el usuario podrá reintentar manualmente.
+      debugPrint("Error crítico en GlobalCache.syncData durante Splash Screen: $e");
+    }
 
     // 3. Fase 2 (Datos Históricos): Le damos un tiempo límite razonable en el splash. 
     // Si excede este tiempo, navegará al Home y la carga continuará en background.

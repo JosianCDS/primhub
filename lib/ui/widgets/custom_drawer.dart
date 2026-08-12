@@ -328,12 +328,36 @@ class _CustomDrawerState extends State<CustomDrawer> {
                       );
                     },
                   ),
+                  
+                  if (AccessControl.isAdmin)
+                    HoverListTile(
+                      builder: (isHovered) {
+                        bool isSelected = widget.currentRoute == '/rep-workload';
+                        return Material(
+                          color: Colors.transparent,
+                          child: ListTile(
+                            selected: isSelected,
+                            selectedTileColor: colorScheme.primary.withOpacity(0.2),
+                            tileColor: isHovered ? Colors.blue.withOpacity(0.1) : Colors.transparent,
+                            leading: Icon(Icons.grid_view_rounded, color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant),
+                            title: Text(
+                              'Treemap',
+                              style: TextStyle(color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurface, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal),
+                            ),
+                            onTap: () {
+                              Navigator.pop(context);
+                              context.push('/rep-workload');
+                            },
+                          ),
+                        );
+                      },
+                    ),
 
                   if (AccessControl.isSupport)
                     Theme(
                       data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
                       child: ExpansionTile(
-                        leading: Icon(Icons.folder_shared_rounded, color: colorScheme.onSurfaceVariant),
+                        leading: Icon(Icons.folder_shared, color: colorScheme.onSurfaceVariant),
                         title: Text(
                           AccessControl.isAdmin ? 'Documentos de Soporte' : 'Documentos',
                           style: TextStyle(color: colorScheme.onSurface),
@@ -350,7 +374,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                                   selected: isSelected,
                                   selectedTileColor: colorScheme.primary.withOpacity(0.2),
                                   tileColor: isHovered ? Colors.blue.withOpacity(0.1) : Colors.transparent,
-                                  leading: Icon(Icons.insert_drive_file_outlined, color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant),
+                                  leading: Icon(Icons.description_rounded, color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant),
                                   title: Text(
                                     'General',
                                     style: TextStyle(color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurface, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal),
@@ -373,7 +397,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                                   selected: isSelected,
                                   selectedTileColor: colorScheme.primary.withOpacity(0.2),
                                   tileColor: isHovered ? Colors.blue.withOpacity(0.1) : Colors.transparent,
-                                  leading: Icon(Icons.insert_drive_file_outlined, color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant),
+                                  leading: Icon(Icons.description_rounded, color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant),
                                   title: Text(
                                     'Seguimiento',
                                     style: TextStyle(color: isHovered || isSelected ? colorScheme.primary : colorScheme.onSurface, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal),

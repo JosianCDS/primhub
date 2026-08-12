@@ -141,6 +141,20 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     super.dispose();
   }
 
+  bool get _isFormValid {
+    if (widget.linkedRecordUU == null && AccessControl.isAdmin && _selectedBpId == null) return false;
+    if (_subjectController.text.trim().isEmpty) return false;
+    if (_summaryQuillController.document.toPlainText().trim().isEmpty) return false;
+    if (_selectedEnvironment == null) return false;
+    if (_errorServerUrlController.text.trim().isEmpty) return false;
+    if (_errorUserController.text.trim().isEmpty) return false;
+    if (_errorRoleController.text.trim().isEmpty) return false;
+    if (_errorTimeController.text.trim().isEmpty) return false;
+    if (_errorWindowController.text.trim().isEmpty) return false;
+    if (_evidences[0] == null) return false;
+    return true;
+  }
+
   Future<void> _fetchProductChips() async {
     if (_selectedBpId == null) {
       if (mounted) setState(() => _isLoadingProducts = false);
@@ -274,7 +288,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                 ? resolvedBpId
                 : (widget.linkedProjectId != null
                       ? resolvedBpId
-                      : _bPartnersList.first['id']);
+                      : null);
           }
           _selectedBpId = newSelectedBpId;
 
@@ -1727,10 +1741,23 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
               : () => Navigator.of(context).pop(false),
           child: const Text('Cancelar'),
         ),
-        CustomButton(
-          text: 'Enviar Solicitud',
-          onPressed: _submitForm,
-          isLoading: _isSubmitting,
+        AnimatedBuilder(
+          animation: Listenable.merge([
+            _subjectController,
+            _summaryQuillController,
+            _errorServerUrlController,
+            _errorUserController,
+            _errorRoleController,
+            _errorTimeController,
+            _errorWindowController,
+          ]),
+          builder: (context, child) {
+            return CustomButton(
+              text: 'Enviar Solicitud',
+              onPressed: (_isFormValid && !_isSubmitting) ? _submitForm : null,
+              isLoading: _isSubmitting,
+            );
+          },
         ),
       ],
     );

@@ -185,14 +185,50 @@ class GlobalCache {
 
     // Necesitamos encontrar los usuarios que pertenecen a estos representantes
     salesReps = allProcessedUsers.where((user) {
-      final userBpData = user['C_BPartner_ID'];
-      final userBpId = (userBpData is Map)
-          ? (userBpData['id'] as num?)?.toInt()
-          : (userBpData is num ? userBpData.toInt() : null);
-      
-      final isRepById = userBpId != null && repBpIds.contains(userBpId);
-      
-      return isRepById;
+      try {
+        final userBpData = user['C_BPartner_ID'];
+        final userBpId = (userBpData is Map)
+            ? (userBpData['id'] as num?)?.toInt()
+            : (userBpData is num ? userBpData.toInt() : null);
+        
+        final isRepById = userBpId != null && repBpIds.contains(userBpId);
+        
+        if (!isRepById) return false;
+
+        // Filtrar contactos adicionales (ej. esposas, asistentes) comparando el nombre del User con el del BPartner
+        final bp = rawSalesReps.firstWhere((b) => b['id'] == userBpId, orElse: () => <String, dynamic>{});
+        final bpName = (bp['Name'] ?? '').toString().toLowerCase();
+        final userName = (user['Name'] ?? '').toString().toLowerCase();
+
+        if (bpName.isNotEmpty && userName.isNotEmpty) {
+          final userParts = userName.split(RegExp(r'\s+')).where((p) => p.length > 2).toList();
+          bool hasMatch = false;
+          
+          for (final p in userParts) {
+            if (bpName.contains(p)) {
+              hasMatch = true;
+              break;
+            }
+          }
+          
+          if (!hasMatch) {
+            final bpParts = bpName.split(RegExp(r'\s+')).where((p) => p.length > 2).toList();
+            for (final p in bpParts) {
+              if (userName.contains(p)) {
+                hasMatch = true;
+                break;
+              }
+            }
+          }
+          
+          return hasMatch;
+        }
+        
+        return true;
+      } catch (e) {
+        // En caso de cualquier error (por ej. casting estricto en dart2js web)
+        return true;
+      }
     }).toList();
 
     if (salesReps.isEmpty && users.isNotEmpty) {

@@ -189,6 +189,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
           levels: args['selectedLevel'] != null ? [args['selectedLevel']] : [],
           productChipIds: args['chipId'] != null ? [args['chipId']] : [],
           bpIds: args['bpIds'] != null ? List<int>.from(args['bpIds']) : (args['bpId'] != null ? [args['bpId']] : []),
+          salesRepIds: args['salesRepId'] != null ? [args['salesRepId']] : [],
         );
 
         if (args['search'] != null) {
