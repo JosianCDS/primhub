@@ -132,6 +132,9 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
       } else if (_sortKey == 'task') {
         valA = a['taskName']?.toString() ?? '';
         valB = b['taskName']?.toString() ?? '';
+      } else if (_sortKey == 'created') {
+        valA = (a['original'] as Map?)?['Created']?.toString() ?? a['created']?.toString() ?? '';
+        valB = (b['original'] as Map?)?['Created']?.toString() ?? b['created']?.toString() ?? '';
       }
 
       int cmp = 0;
@@ -315,6 +318,8 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
           label: 'Ficha de Producto',
           sortKey: 'productChip',
         ),
+      if (AccessControl.isAdmin)
+        const ResponsiveDataColumn(label: 'Creado', sortKey: 'created'),
     ];
 
     List<DataCell> buildScrollableCells(Map<String, dynamic> alert) {
@@ -379,6 +384,25 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
           } else {
             chipDesc = alert['productChipName']?.toString() ?? 'Ficha $cIdNum';
           }
+        }
+      }
+
+      final createdRaw = original['Created']?.toString() ?? alert['created']?.toString() ?? '';
+      String createdFormatted = createdRaw;
+      if (createdRaw.isNotEmpty) {
+        try {
+          final dt = DateTime.parse(createdRaw);
+          final day = dt.day.toString().padLeft(2, '0');
+          final month = dt.month.toString().padLeft(2, '0');
+          final year = dt.year.toString();
+          final hour24 = dt.hour;
+          final minute = dt.minute.toString().padLeft(2, '0');
+          final ampm = hour24 >= 12 ? 'PM' : 'AM';
+          final hour12 = hour24 > 12 ? hour24 - 12 : (hour24 == 0 ? 12 : hour24);
+          final hourStr = hour12.toString().padLeft(2, '0');
+          createdFormatted = '$day/$month/$year $hourStr:$minute $ampm';
+        } catch (e) {
+          createdFormatted = createdRaw.length >= 19 ? createdRaw.substring(0, 19) : createdRaw;
         }
       }
 
@@ -469,6 +493,7 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
           ),
         ),
         if (!widget.showProjectContext) DataCell(Text(chipDesc)),
+        if (AccessControl.isAdmin) DataCell(Text(createdFormatted)),
       ];
     }
 

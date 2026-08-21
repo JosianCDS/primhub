@@ -580,6 +580,18 @@ class _MetricsPageState extends State<MetricsPage> {
 
         if (rawStatusName.isEmpty) rawStatusName = 'Desconocido';
 
+        // NUEVO FILTRO: Solo admitir estados cuya categoría contenga "Soporte"
+        final int? statusId = statusObj is Map ? (statusObj['id'] as num?)?.toInt() : (statusObj is num ? statusObj.toInt() : null);
+        if (statusId != null) {
+          int? statusCatId = GlobalCache.statusCategoryMap[statusId];
+          String? catName = statusCatId != null ? GlobalCache.statusCategoryNameMap[statusCatId] : null;
+          if (catName == null || !catName.toLowerCase().contains('soporte')) {
+            continue; // Saltar si la categoría de estado no contiene "soporte"
+          }
+        } else {
+          continue; // Saltar si no hay estado válido
+        }
+
         String cleanStatus = rawStatusName.contains('_')
             ? rawStatusName.split('_').last.trim()
             : rawStatusName.trim();

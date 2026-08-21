@@ -63,16 +63,16 @@ abstract final class DeferredRegistry {
   }
 
   static Widget homePage() =>
-      DeferredRoutePage(loadLibrary: loadHome, builder: home.buildHomePage);
+      DeferredRoutePage(loadLibrary: loadHome, builder: () => home.buildHomePage());
   static Widget splashPage() =>
-      DeferredRoutePage(loadLibrary: loadHome, builder: home.buildSplashPage);
+      DeferredRoutePage(loadLibrary: loadHome, builder: () => home.buildSplashPage());
   static Widget supportPage() => DeferredRoutePage(
     loadLibrary: loadSupport,
-    builder: support.buildSupportPage,
+    builder: () => support.buildSupportPage(),
   );
   static Widget myRequestsPage() => DeferredRoutePage(
     loadLibrary: loadSupport,
-    builder: support.buildMyRequestsPage,
+    builder: () => support.buildMyRequestsPage(),
   );
   static Widget requestUpdatesPage(int id, String docNo) => DeferredRoutePage(
     loadLibrary: loadSupport,
@@ -80,7 +80,7 @@ abstract final class DeferredRegistry {
   );
   static Widget deliverablesPage() => DeferredRoutePage(
     loadLibrary: loadProjects,
-    builder: projects.buildDeliverablesPage,
+    builder: () => projects.buildDeliverablesPage(),
   );
   static Widget projectRequestsPage(
     int? projectId,
@@ -105,11 +105,15 @@ abstract final class DeferredRegistry {
       );
   static Widget metricsPage() => DeferredRoutePage(
     loadLibrary: loadMetrics,
-    builder: metrics.buildMetricsPage,
+    builder: () => metrics.buildMetricsPage(),
   );
   static Widget repWorkloadPage() => DeferredRoutePage(
     loadLibrary: loadMetrics,
-    builder: metrics.buildRepWorkloadPage,
+    builder: () => metrics.buildRepWorkloadPage(),
+  );
+  static Widget clientWorkloadPage() => DeferredRoutePage(
+    loadLibrary: loadMetrics,
+    builder: () => metrics.buildClientWorkloadPage(),
   );
   static Widget metricRequestsPage(
     int? projectId,
@@ -122,15 +126,15 @@ abstract final class DeferredRegistry {
   );
   static Widget knowledgeBasePage() => DeferredRoutePage(
     loadLibrary: loadSecondary,
-    builder: secondary.buildKnowledgeBasePage,
+    builder: () => secondary.buildKnowledgeBasePage(),
   );
   static Widget marketplacePage() => DeferredRoutePage(
     loadLibrary: loadSecondary,
-    builder: secondary.buildMarketplacePage,
+    builder: () => secondary.buildMarketplacePage(),
   );
   static Widget profilePage() => DeferredRoutePage(
     loadLibrary: loadSecondary,
-    builder: secondary.buildProfilePage,
+    builder: () => secondary.buildProfilePage(),
   );
   static Widget bPartnerDocumentsPage(String viewType) => DeferredRoutePage(
     loadLibrary: loadSecondary,
@@ -138,6 +142,6 @@ abstract final class DeferredRegistry {
   );
   static Widget resetPasswordPage() => DeferredRoutePage(
     loadLibrary: loadResetPassword,
-    builder: reset_password.buildResetPasswordPage,
+    builder: () => reset_password.buildResetPasswordPage(),
   );
 }

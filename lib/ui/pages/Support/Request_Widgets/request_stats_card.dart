@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:primhub/ui/widgets/duration_formatter.dart';
+import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
+import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 
 class RequestStatsCard extends StatelessWidget {
   final double? contractedHours;
@@ -60,6 +62,39 @@ class RequestStatsCard extends StatelessWidget {
                 style: theme.textTheme.labelLarge?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: isInsufficient ? colorScheme.error : colorScheme.onSurface,
+                ),
+              ),
+              const SizedBox(width: 4),
+              InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => CustomModal(
+                      title: 'Estado de Horas',
+                      width: 450,
+                      content: const Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Para que el tiempo de una solicitud se registre, esta debe estar vinculada a una Ficha de Producto.'),
+                          SizedBox(height: 12),
+                          Text('• Consumidas: Horas de solicitudes que ya están Cerradas. Estas horas se descuentan definitivamente del saldo de tu ficha y forman parte del histórico y del Dashboard de Horas.'),
+                          SizedBox(height: 8),
+                          Text('• Estimadas (En Proceso): Horas de solicitudes que siguen activas o en proceso. Se retienen del saldo de forma preventiva para evitar excesos, pero no se descuentan definitivamente hasta que se cierre el ticket.'),
+                          SizedBox(height: 8),
+                          Text('• Disponibles: Horas restantes (libres) que aún tienes disponibles para utilizar.'),
+                        ],
+                      ),
+                      actions: [
+                        CustomButton(text: 'Entendido', onPressed: () => Navigator.pop(context)),
+                      ],
+                    ),
+                  );
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(4.0),
+                  child: Icon(Icons.info_outline, color: colorScheme.primary, size: 16),
                 ),
               ),
               const Spacer(),

@@ -90,9 +90,11 @@ String stripHtmlTags(String htmlString) {
       .trim();
 }
 
-/// Limpia los nombres de estado eliminando prefijos numéricos como '10_'
+/// Limpia los nombres de estado eliminando prefijos numéricos como '10_' y sufijos únicos
 String cleanStatusName(String name) {
-  return name.replaceAll(RegExp(r'^\d+_'), '').trim();
+  name = name.replaceAll(RegExp(r'^\d+_'), '').trim();
+  name = name.replaceAll(RegExp(r'#_\d+$'), '').trim();
+  return name;
 }
 
 double? tryGetDouble(Map<String, dynamic> map, List<String> keys) {
@@ -400,12 +402,6 @@ Future<Map<String, dynamic>> fetchStatusesWithMetadata() async {
     if (response.statusCode == 200) {
       final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
       List<dynamic> records = List<dynamic>.from(jsonResponse['records'] ?? []);
-      
-      final excludedStatuses = ['Terminada', 'Open', 'Por Iniciar'];
-      records = records.where((r) {
-        final name = r['Name']?.toString().trim() ?? '';
-        return !excludedStatuses.contains(name);
-      }).toList();
 
       records.sort((a, b) {
         final seqA = (a['SeqNo'] as num?)?.toInt() ?? 9999;
@@ -415,27 +411,58 @@ Future<Map<String, dynamic>> fetchStatusesWithMetadata() async {
 
       final Map<String, int> nameToId = {};
       final Map<int, bool> idToIsFinalClose = {};
+      final Map<int, int> idToCategoryId = {};
+      final Map<int, String> categoryIdToName = {};
+      final Map<int, int> categoryCounters = {};
       
-      int counter = 1;
+      int noCategoryCounter = 1;
+      
       for (var r in records) {
         final originalName = r['Name']?.toString().trim() ?? '';
         if (originalName.isEmpty) continue;
         final id = (r['id'] as num).toInt();
+        final rawIsClosed = r['IsClosed'] ?? r['isClosed'];
+        final isClosedStr = rawIsClosed?.toString().trim().toLowerCase();
+        bool isClosed = isClosedStr == 'true' || isClosedStr == 'y' || rawIsClosed == true;
+        
         final rawIsFinalClose = r['IsFinalClose'] ?? r['isFinalClose'];
         final isFinalCloseStr = rawIsFinalClose?.toString().trim().toLowerCase();
-        bool isFinalClose = isFinalCloseStr == 'true' || isFinalCloseStr == 'y' || rawIsFinalClose == true;
+        bool isFinalClose = isFinalCloseStr == 'true' || isFinalCloseStr == 'y' || rawIsFinalClose == true || isClosed;
         
-        final formattedName = "$counter. $originalName";
+        final categoryIdRaw = r['R_StatusCategory_ID'] ?? r['r_StatusCategory_ID'] ?? r['r_statuscategory_id'];
+        int? categoryId;
+        String? categoryName;
+        if (categoryIdRaw is Map) {
+          categoryId = (categoryIdRaw['id'] as num?)?.toInt();
+          categoryName = categoryIdRaw['identifier']?.toString();
+        } else if (categoryIdRaw is num) {
+          categoryId = categoryIdRaw.toInt();
+        }
+        
+        int currentCounter;
+        if (categoryId != null) {
+          currentCounter = (categoryCounters[categoryId] ?? 0) + 1;
+          categoryCounters[categoryId] = currentCounter;
+        } else {
+          currentCounter = noCategoryCounter++;
+        }
+        
+        final formattedName = "$currentCounter. $originalName#_$id";
         nameToId[formattedName] = id;
         idToIsFinalClose[id] = isFinalClose;
-        counter++;
+        if (categoryId != null) {
+          idToCategoryId[id] = categoryId;
+          if (categoryName != null) {
+            categoryIdToName[categoryId] = categoryName;
+          }
+        }
       }
-      return {'nameToId': nameToId, 'idToIsFinalClose': idToIsFinalClose};
+      return {'nameToId': nameToId, 'idToIsFinalClose': idToIsFinalClose, 'idToCategoryId': idToCategoryId, 'categoryIdToName': categoryIdToName};
     }
   } catch (e) {
 // [Mantenimiento] Log removido:     debugPrint("Error fetching statuses: $e");
   }
-  return {'nameToId': <String, int>{}, 'idToIsFinalClose': <int, bool>{}};
+  return {'nameToId': <String, int>{}, 'idToIsFinalClose': <int, bool>{}, 'idToCategoryId': <int, int>{}};
 }
 
 Future<Map<String, int>> fetchStatuses() async {
@@ -443,7 +470,7 @@ Future<Map<String, int>> fetchStatuses() async {
   return data['nameToId'] as Map<String, int>;
 }
 
-Future<Map<String, int>> fetchRequestTypes() async {
+Future<Map<String, dynamic>> fetchRequestTypesWithMetadata() async {
   try {
     final response = await http.get(
       Uri.parse('${Endpoint.baseUrl}/api/v1/models/R_RequestType'),
@@ -455,12 +482,33 @@ Future<Map<String, int>> fetchRequestTypes() async {
     if (response.statusCode == 200) {
       final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
       final records = jsonResponse['records'] as List;
-      return {for (var r in records) r['Name'].toString().trim(): r['id'] as int};
+      
+      final Map<String, int> nameToId = {};
+      final Map<int, int> idToCategoryId = {};
+      
+      for (var r in records) {
+        final name = r['Name'].toString().trim();
+        final id = r['id'] as int;
+        nameToId[name] = id;
+        
+        final categoryIdRaw = r['R_StatusCategory_ID'];
+        if (categoryIdRaw is Map) {
+          idToCategoryId[id] = (categoryIdRaw['id'] as num).toInt();
+        } else if (categoryIdRaw is num) {
+          idToCategoryId[id] = categoryIdRaw.toInt();
+        }
+      }
+      return {'nameToId': nameToId, 'idToCategoryId': idToCategoryId};
     }
   } catch (e) {
 // [Mantenimiento] Log removido:     debugPrint("Error fetching request types: $e");
   }
-  return {};
+  return {'nameToId': <String, int>{}, 'idToCategoryId': <int, int>{}};
+}
+
+Future<Map<String, int>> fetchRequestTypes() async {
+  final data = await fetchRequestTypesWithMetadata();
+  return data['nameToId'] as Map<String, int>;
 }
 
 Future<List<Map<String, dynamic>>> fetchCategories({bool? isPrimhub}) async {
@@ -1239,16 +1287,11 @@ Future<void> sendRequestStatusEmail({
     */
     final uri = Uri.parse('${Endpoint.baseUrl}/api/v1/processes/sendmailtextcds');
     
-    // TRUCO MAESTRO: Usamos R_RequestUpdate para que jale los adjuntos físicos (solo para 1000017)
-    // Para 1000015 (Crear) y 1000016 (Cambio Estado), forzamos R_Request porque R_RequestUpdate 
-    // NO tiene el campo R_Status_ID, lo cual rompe la etiqueta @R_Status_ID<R_Status.Name>@
-    String targetTableName = 'R_Request';
-    String targetRecordId = requestId.toString();
-    
-    if (mailTextId == 1000017 && updateId != null) {
-      targetTableName = 'R_RequestUpdate';
-      targetRecordId = updateId.toString();
-    }
+    // TRUCO MAESTRO: Usamos R_RequestUpdate para que jale los adjuntos físicos (Solo para actualizaciones)
+    // Para 1000016 (Cambio de Estado) y 1000015 (Nueva Solicitud), siempre forzamos la tabla R_Request
+    final bool useUpdateTable = (updateId != null && mailTextId == 1000017);
+    final String targetTableName = useUpdateTable ? 'R_RequestUpdate' : 'R_Request';
+    final String targetRecordId = useUpdateTable ? updateId.toString() : requestId.toString();
 
     // Determinar los destinatarios: Usuario de la solicitud y Representante Comercial (si existe)
     Set<int> targetUsers = {};

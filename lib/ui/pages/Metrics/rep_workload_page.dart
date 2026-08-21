@@ -247,7 +247,7 @@ class _RepWorkloadPageState extends State<RepWorkloadPage> {
             onPressed: () => context.go('/metrics'),
           ),
         ),
-        title: const Text('Treemap por Representante'),
+        title: const Text('Carga por Representante'),
         centerTitle: true,
         backgroundColor: colorScheme.primary,
         elevation: 0,

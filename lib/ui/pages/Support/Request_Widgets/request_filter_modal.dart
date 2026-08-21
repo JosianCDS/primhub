@@ -230,14 +230,47 @@ class _RequestFilterModalState extends State<RequestFilterModal> {
     }
   }
 
-  Future<void> _openMultiSelectSearchModal({required String title, required List<dynamic> items, required List<String> currentValues, required String Function(dynamic) getTitle, String? Function(dynamic)? getSubtitle, required String Function(dynamic) getValue, required void Function(List<String>) onSelected}) async {
-    final List<String>? result = await showDialog<List<String>>(
-      context: context,
-      builder: (context) {
-        return _MultiSelectSearchDialog(title: title, items: items, initialSelectedValues: currentValues, getTitle: getTitle, getSubtitle: getSubtitle, getValue: getValue);
-      },
-    );
+  List<MapEntry<String, int>> _getFilteredStatusesForModal() {
+    Set<int> targetCategories = {};
+    for (int reqTypeId in _tempFilter.requestTypeIds) {
+      int? catId = GlobalCache.requestTypeCategoryMap[reqTypeId];
+      if (catId != null) {
+        targetCategories.add(catId);
+      }
+    }
 
+    return widget.statusIdMap.entries.where((e) {
+      if (targetCategories.isEmpty) return true;
+      
+      int? statusCat = GlobalCache.statusCategoryMap[e.value];
+      if (statusCat == null) return true;
+      
+      return targetCategories.contains(statusCat);
+    }).toList();
+  }
+
+  Future<void> _openMultiSelectSearchModal({
+    required String title, 
+    required List<dynamic> items, 
+    required List<String> currentValues, 
+    required String Function(dynamic) getTitle, 
+    String? Function(dynamic)? getSubtitle, 
+    required String Function(dynamic) getValue, 
+    String? Function(dynamic)? getGroupTab,
+    required void Function(List<String>) onSelected
+  }) async {
+    final result = await showDialog<List<String>>(
+      context: context,
+      builder: (context) => _MultiSelectSearchDialog(
+        title: title, 
+        items: items, 
+        initialSelectedValues: currentValues, 
+        getTitle: getTitle, 
+        getSubtitle: getSubtitle, 
+        getValue: getValue,
+        getGroupTab: getGroupTab,
+      ),
+    );
     if (result != null) {
       onSelected(result);
     }
@@ -314,7 +347,44 @@ class _RequestFilterModalState extends State<RequestFilterModal> {
     }
 
     return CustomModal(
-      title: 'Filtrar Solicitudes',
+      titleWidget: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('Filtrar Solicitudes', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+          const SizedBox(width: 8),
+          IconButton(
+            icon: const Icon(Icons.info_outline, color: Colors.blue, size: 22),
+            tooltip: '¿Cómo funcionan estos filtros?',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (context) => CustomModal(
+                  title: 'Interacción de Filtros',
+                  width: 450,
+                  content: const Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Algunos filtros dependen de otros para mostrar resultados precisos:'),
+                      SizedBox(height: 12),
+                      Text('• Tercero → Usuarios:\n  Seleccionado: Muestra solo los usuarios de ese tercero.\n  Sin seleccionar: Muestra a todos los usuarios.'),
+                      SizedBox(height: 12),
+                      Text('• Tercero → Fichas de Producto:\n  Seleccionado: Muestra las fichas asociadas al tercero.\n  Sin seleccionar: Si eres administrador, esta opción se desactiva hasta elegir un tercero. Para otros roles, muestra sus fichas.'),
+                      SizedBox(height: 12),
+                      Text('• Tipo de Solicitud → Estado:\n  Seleccionado: Muestra solo los estados válidos para esa solicitud.\n  Sin seleccionar: Muestra todos los estados disponibles agrupados por categoría.'),
+                    ],
+                  ),
+                  actions: [
+                    CustomButton(text: 'Entendido', onPressed: () => Navigator.pop(context)),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
+      ),
       width: 500,
       content: SingleChildScrollView(
         child: Column(
@@ -457,19 +527,22 @@ class _RequestFilterModalState extends State<RequestFilterModal> {
                     hintText: 'Todos',
                     values: widget.statusIdMap.entries
                         .where((e) => _tempFilter.statusIds.contains(e.value))
-                        .map((e) => e.key)
+                        .map((e) => cleanStatusName(e.key))
                         .toList(),
                     isLoading: _isLoadingMetadata && widget.statusIdMap.isEmpty,
                     isDisabled: false,
                     onTap: () => _openMultiSelectSearchModal(
                       title: 'Estado',
-                      items: widget.statusIdMap.entries.where((e) {
-                        final keyLower = e.key.toLowerCase();
-                        return keyLower != 'terminada' && keyLower != 'por iniciar';
-                      }).toList(),
+                      items: _getFilteredStatusesForModal(),
                       currentValues: _tempFilter.statusIds.map((id) => id.toString()).toList(),
-                      getTitle: (item) => (item as MapEntry<String, int>).key,
+                      getTitle: (item) => cleanStatusName((item as MapEntry<String, int>).key),
                       getValue: (item) => (item as MapEntry<String, int>).value.toString(),
+                      getGroupTab: (item) {
+                        int statusId = (item as MapEntry<String, int>).value;
+                        int? statusCat = GlobalCache.statusCategoryMap[statusId];
+                        if (statusCat == null) return 'Otros';
+                        return GlobalCache.statusCategoryNameMap[statusCat] ?? 'Otros';
+                      },
                       onSelected: (vals) => setState(() => _tempFilter = _tempFilter.copyWith(
                         statusIds: vals.map((v) => int.parse(v)).toList()
                       )),
@@ -580,8 +653,18 @@ class _MultiSelectSearchDialog extends StatefulWidget {
   final String Function(dynamic) getTitle;
   final String? Function(dynamic)? getSubtitle;
   final String Function(dynamic) getValue;
+  final String? Function(dynamic)? getGroupTab;
 
-  const _MultiSelectSearchDialog({super.key, required this.title, required this.items, required this.initialSelectedValues, required this.getTitle, this.getSubtitle, required this.getValue});
+  const _MultiSelectSearchDialog({
+    super.key, 
+    required this.title, 
+    required this.items, 
+    required this.initialSelectedValues, 
+    required this.getTitle, 
+    this.getSubtitle, 
+    required this.getValue,
+    this.getGroupTab,
+  });
 
   @override
   State<_MultiSelectSearchDialog> createState() => __MultiSelectSearchDialogState();
@@ -604,10 +687,69 @@ class __MultiSelectSearchDialogState extends State<_MultiSelectSearchDialog> {
       return widget.getTitle(item).toLowerCase().contains(_searchQuery.toLowerCase());
     }).toList();
 
+    Map<String, List<dynamic>>? groupedItems;
+    List<String> tabs = [];
+    if (widget.getGroupTab != null) {
+      groupedItems = {};
+      for (var item in filteredItems) {
+        final group = widget.getGroupTab!(item) ?? 'Otros';
+        groupedItems.putIfAbsent(group, () => []).add(item);
+      }
+      tabs = groupedItems.keys.toList()..sort();
+    }
+
+    Widget buildList(List<dynamic> itemsToDisplay) {
+      return ListView.separated(
+        itemCount: itemsToDisplay.length,
+        separatorBuilder: (_, __) => const Divider(height: 1, color: Colors.grey, thickness: 0.3),
+        itemBuilder: (context, index) {
+          final item = itemsToDisplay[index];
+          final itemValue = widget.getValue(item).toLowerCase().trim();
+          final isSelected = _tempSelectedValues.contains(itemValue);
+
+          return CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(widget.getTitle(item), style: const TextStyle(fontSize: 14)),
+            subtitle: widget.getSubtitle != null && widget.getSubtitle!(item) != null 
+                ? Text(widget.getSubtitle!(item)!, style: const TextStyle(fontSize: 12, color: Colors.grey)) 
+                : null,
+            value: isSelected,
+            onChanged: (bool? selected) => setState(() => selected == true ? _tempSelectedValues.add(itemValue) : _tempSelectedValues.remove(itemValue)),
+          );
+        },
+      );
+    }
+
+    Widget listWidget;
+    if (groupedItems != null && tabs.length > 1) {
+      listWidget = DefaultTabController(
+        length: tabs.length,
+        child: Column(
+          children: [
+            TabBar(
+              isScrollable: true,
+              labelColor: Theme.of(context).colorScheme.primary,
+              unselectedLabelColor: Colors.grey,
+              tabAlignment: TabAlignment.start,
+              tabs: tabs.map((t) => Tab(text: t)).toList(),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: TabBarView(
+                children: tabs.map((t) => buildList(groupedItems![t]!)).toList(),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      listWidget = buildList(filteredItems);
+    }
+
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: Container(
-        width: 400,
+        width: 500, // Widened slightly to accommodate tabs
         height: MediaQuery.of(context).size.height * 0.7,
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -625,25 +767,7 @@ class __MultiSelectSearchDialogState extends State<_MultiSelectSearchDialog> {
               onChanged: (val) => setState(() => _searchQuery = val),
             ),
             const SizedBox(height: 16),
-            Expanded(
-              child: ListView.separated(
-                itemCount: filteredItems.length,
-                separatorBuilder: (_, __) => const Divider(height: 1, color: Colors.grey, thickness: 0.3),
-                itemBuilder: (context, index) {
-                  final item = filteredItems[index];
-                  final itemValue = widget.getValue(item).toLowerCase().trim(); // Normalize item value for comparison
-                  final isSelected = _tempSelectedValues.contains(itemValue);
-
-                  return CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(widget.getTitle(item), style: const TextStyle(fontSize: 14)),
-                    subtitle: widget.getSubtitle != null && widget.getSubtitle!(item) != null ? Text(widget.getSubtitle!(item)!, style: const TextStyle(fontSize: 12, color: Colors.grey)) : null,
-                    value: isSelected,
-                    onChanged: (bool? selected) => setState(() => selected == true ? _tempSelectedValues.add(itemValue) : _tempSelectedValues.remove(itemValue)),
-                  );
-                },
-              ),
-            ),
+            Expanded(child: listWidget),
             const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,

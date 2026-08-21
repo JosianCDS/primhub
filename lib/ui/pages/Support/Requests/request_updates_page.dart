@@ -177,6 +177,9 @@ class _RequestUpdatesPageState extends State<RequestUpdatesPage> {
             : (_requestDetails?['C_BPartner_ID'] as num?)?.toInt() ?? _requestDetails?['bpId'],
         summary: (_requestDetails?['Summary'] ?? _requestDetails?['summary'] ?? widget.docNo).toString(),
         description: _memoizedDescription ?? 'Cargando...',
+        requestTypeId: _requestDetails?['R_RequestType_ID'] is Map
+            ? (_requestDetails!['R_RequestType_ID']['id'] as num?)?.toInt()
+            : (_requestDetails?['R_RequestType_ID'] as num?)?.toInt(),
       ),
     );
 
@@ -384,6 +387,7 @@ class _AddUpdateDialog extends StatefulWidget {
   final int? bPartnerId;
   final String summary;
   final String description;
+  final int? requestTypeId;
 
   const _AddUpdateDialog({
     required this.requestId,
@@ -392,6 +396,7 @@ class _AddUpdateDialog extends StatefulWidget {
     this.bPartnerId,
     required this.summary,
     required this.description,
+    this.requestTypeId,
   });
 
   @override
@@ -408,11 +413,39 @@ class _AddUpdateDialogState extends State<_AddUpdateDialog> {
   @override
   void initState() {
     super.initState();
-    if (widget.currentStatusId != null && GlobalCache.statuses.containsValue(widget.currentStatusId)) {
+    final filtered = _getFilteredStatuses();
+    if (widget.currentStatusId != null && filtered.containsValue(widget.currentStatusId)) {
       _newStatusId = widget.currentStatusId;
     } else {
       _newStatusId = null;
     }
+  }
+
+  Map<String, int> _getFilteredStatuses() {
+    if (GlobalCache.statuses.isEmpty) return GlobalCache.statuses;
+    
+    int? currentRequestTypeId = widget.requestTypeId;
+    if (currentRequestTypeId == null) return GlobalCache.statuses;
+    
+    int? targetCategoryId = GlobalCache.requestTypeCategoryMap[currentRequestTypeId];
+    
+    if (targetCategoryId == null) return GlobalCache.statuses;
+    
+    final filtered = <String, int>{};
+    for (var entry in GlobalCache.statuses.entries) {
+      int statusId = entry.value;
+      int? statusCategory = GlobalCache.statusCategoryMap[statusId];
+      if (statusCategory == targetCategoryId) {
+        filtered[entry.key] = statusId;
+      }
+    }
+    
+    if (widget.currentStatusId != null && GlobalCache.statuses.containsValue(widget.currentStatusId)) {
+       final currentKey = GlobalCache.statuses.keys.firstWhere((k) => GlobalCache.statuses[k] == widget.currentStatusId);
+       filtered[currentKey] = widget.currentStatusId!;
+    }
+    
+    return filtered.isNotEmpty ? filtered : GlobalCache.statuses;
   }
 
   Future<void> _pickFile(int index) async {
@@ -477,7 +510,7 @@ class _AddUpdateDialogState extends State<_AddUpdateDialog> {
 
           if (customerBpId > 0 || (widget.adUserId != null && widget.adUserId! > 0)) {
             if (statusChanged) {
-              // Si el estado cambió, se envía plantilla de Cambio de Estado
+              // Si el estado cambió, se envía plantilla de Cambio de Estado (1000016)
               sendRequestStatusEmail(
                 requestId: widget.requestId,
                 adUserId: widget.adUserId ?? 0,
@@ -487,18 +520,18 @@ class _AddUpdateDialogState extends State<_AddUpdateDialog> {
                 oldStatusName: oldStatusName,
                 updateId: result['id'],
               );
-            } else {
-              // Si el estado no cambió pero hay actualización, se envía plantilla de Actualización
-              sendRequestStatusEmail(
-                requestId: widget.requestId,
-                adUserId: widget.adUserId ?? 0,
-                bPartnerId: customerBpId,
-                mailTextId: 1000017,
-                updateText: resultHtml,
-                oldStatusName: oldStatusName,
-                updateId: result['id'],
-              );
             }
+            
+            // SIEMPRE enviamos la de actualización (1000017) porque estamos en el diálogo de crear actualización
+            sendRequestStatusEmail(
+              requestId: widget.requestId,
+              adUserId: widget.adUserId ?? 0,
+              bPartnerId: customerBpId,
+              mailTextId: 1000017,
+              updateText: resultHtml,
+              oldStatusName: oldStatusName,
+              updateId: result['id'],
+            );
           }
         } catch (_) {}
         // --- FIN Lógica Correos ---
@@ -626,7 +659,7 @@ class _AddUpdateDialogState extends State<_AddUpdateDialog> {
                     child: CustomDropdown<int>(
                       label: 'Estado',
                       value: _newStatusId,
-                      items: GlobalCache.statuses.entries.map((e) => DropdownMenuItem<int>(
+                      items: _getFilteredStatuses().entries.map((e) => DropdownMenuItem<int>(
                         value: e.value,
                         child: Text(cleanStatusName(e.key)),
                       )).toList(),

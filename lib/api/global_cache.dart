@@ -21,8 +21,11 @@ class GlobalCache {
   static List<dynamic> users = [];
   static Map<String, int> statuses = {};
   static Map<int, bool> statusIsFinalCloseMap = {};
+  static Map<int, int> statusCategoryMap = {}; // R_Status_ID -> R_StatusCategory_ID
+  static Map<int, String> statusCategoryNameMap = {}; // R_StatusCategory_ID -> Name
   static List<Map<String, dynamic>> salesReps = [];
   static Map<String, int> requestTypes = {};
+  static Map<int, int> requestTypeCategoryMap = {}; // R_RequestType_ID -> R_StatusCategory_ID
   static Map<String, int> categories = {};
   static List<Map<String, dynamic>> rawCategories = [];
   static Map<String, int> groups = {};
@@ -51,7 +54,7 @@ class GlobalCache {
 
     final List<Future<dynamic>> fetchFutures = [
       fetchStatusesWithMetadata(), // 0
-      fetchRequestTypes(), // 1
+      fetchRequestTypesWithMetadata(), // 1
       fetchCategories(), // 2
       fetchGroups(), // 3
       ProjectsLogic().fetchUsers(), // 4
@@ -98,8 +101,12 @@ class GlobalCache {
     final statusData = futures[0] as Map<String, dynamic>;
     statuses = statusData['nameToId'] as Map<String, int>;
     statusIsFinalCloseMap = statusData['idToIsFinalClose'] as Map<int, bool>;
+    statusCategoryMap = statusData['idToCategoryId'] as Map<int, int>;
+    statusCategoryNameMap = statusData['categoryIdToName'] as Map<int, String>;
     
-    requestTypes = futures[1] as Map<String, int>;
+    final requestTypeData = futures[1] as Map<String, dynamic>;
+    requestTypes = requestTypeData['nameToId'] as Map<String, int>;
+    requestTypeCategoryMap = requestTypeData['idToCategoryId'] as Map<int, int>;
     
     final catList = futures[2] as List<Map<String, dynamic>>;
     rawCategories = catList;
@@ -394,7 +401,10 @@ class GlobalCache {
     users.clear();
     salesReps.clear();
     statuses.clear();
+    statusIsFinalCloseMap.clear();
+    statusCategoryMap.clear();
     requestTypes.clear();
+    requestTypeCategoryMap.clear();
     categories.clear();
     groups.clear();
     

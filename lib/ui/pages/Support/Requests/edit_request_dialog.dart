@@ -249,6 +249,54 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
     super.dispose();
   }
 
+  Map<String, int> _getFilteredStatuses() {
+    if (_requestTypeMap.isEmpty || _statusIdMap.isEmpty) return _statusIdMap;
+    
+    int? currentRequestTypeId = _selectedType != null ? _requestTypeMap[_selectedType] : null;
+    if (currentRequestTypeId == null) return _statusIdMap;
+    
+    int? targetCategoryId = GlobalCache.requestTypeCategoryMap[currentRequestTypeId];
+    
+    if (targetCategoryId == null) return _statusIdMap;
+    
+    final filtered = <String, int>{};
+    for (var entry in _statusIdMap.entries) {
+      int statusId = entry.value;
+      int? statusCategory = GlobalCache.statusCategoryMap[statusId];
+      if (statusCategory == targetCategoryId) {
+        filtered[entry.key] = statusId;
+      }
+    }
+    
+    if (_currentStatus.isNotEmpty && _statusIdMap.containsKey(_currentStatus)) {
+      filtered[_currentStatus] = _statusIdMap[_currentStatus]!;
+    }
+    
+    return filtered.isNotEmpty ? filtered : _statusIdMap;
+  }
+
+  void _validateSelectedStatus() {
+    final filtered = _getFilteredStatuses();
+    if (filtered.isEmpty) return;
+    
+    if (!filtered.containsKey(_currentStatus)) {
+      if (AccessControl.isRealSupport) {
+        _currentStatus = filtered.keys.firstWhere(
+          (k) => k.toLowerCase().contains('recibida'),
+          orElse: () => filtered.keys.firstWhere(
+            (k) => k.toLowerCase().contains('open'),
+            orElse: () => filtered.keys.first,
+          ),
+        );
+      } else {
+        _currentStatus = filtered.keys.firstWhere(
+          (k) => k.toLowerCase().contains('open'),
+          orElse: () => filtered.keys.first,
+        );
+      }
+    }
+  }
+
   Future<void> _fetchStatuses() async {
     try {
       final mapData = await fetchStatuses();
@@ -266,6 +314,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                 }
               }
             }
+            _validateSelectedStatus();
           }
         });
       }
@@ -310,6 +359,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                 );
               }
             }
+            _validateSelectedStatus();
           });
         }
       }
@@ -1055,8 +1105,9 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final List<String> statusItems = _statusIdMap.isNotEmpty
-        ? _statusIdMap.keys.toList()
+    final filteredStatuses = _getFilteredStatuses();
+    final List<String> statusItems = filteredStatuses.isNotEmpty
+        ? filteredStatuses.keys.toList()
         : ['1_Open', '2_Waiting on customer', '3_Closed', '9_Final Close'];
     if (_currentStatus.isNotEmpty && !statusItems.contains(_currentStatus)) {
       statusItems.add(_currentStatus);
@@ -1297,8 +1348,12 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                           currentValue: _selectedType,
                           getTitle: (item) => item.toString(),
                           getValue: (item) => item.toString(),
-                          onSelected: (val) =>
-                              setState(() => _selectedType = val),
+                          onSelected: (val) {
+                            setState(() {
+                              _selectedType = val;
+                              _validateSelectedStatus();
+                            });
+                          },
                         ),
                       ),
                     ),

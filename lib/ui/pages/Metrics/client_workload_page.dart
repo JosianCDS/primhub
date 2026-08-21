@@ -248,7 +248,7 @@ class _ClientWorkloadPageState extends State<ClientWorkloadPage> {
             onPressed: () => context.go('/metrics'),
           ),
         ),
-        title: const Text('Treemap por Tercero'),
+        title: const Text('Carga de por Tercero'),
         centerTitle: true,
         backgroundColor: colorScheme.primary,
         elevation: 0,

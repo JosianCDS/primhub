@@ -29,6 +29,11 @@ class BulkEditRequestDialog extends StatefulWidget {
 class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
   bool _isLoading = true;
   bool _isSaving = false;
+  int? _processingId;
+  int _successCount = 0;
+  int _errorCount = 0;
+  int _currentIndex = 0;
+  Map<String, String> _currentChangesMap = {};
 
   String? _selectedType;
   String? _selectedCategory;
@@ -180,7 +185,7 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
       final chipName = _productChips.firstWhere((c) => c['id'] == _selectedProductChipId, orElse: () => <String,dynamic>{})['Name']?.toString() ?? 'Ficha $_selectedProductChipId';
       changes['Ficha de Producto'] = chipName;
     }
-    if (_selectedStatus != null) changes['Estado'] = _selectedStatus!;
+    if (_selectedStatus != null) changes['Estado'] = cleanStatusName(_selectedStatus!);
     if (_selectedBpId != null) {
       final bpName =
           _bPartnersList
@@ -259,11 +264,23 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
 
     if (confirm != true) return;
 
-    setState(() => _isSaving = true);
-    int successCount = 0;
-    int errorCount = 0;
+    setState(() {
+      _isSaving = true;
+      _successCount = 0;
+      _errorCount = 0;
+      _currentIndex = 0;
+      _currentChangesMap = changes;
+    });
 
-    for (final id in widget.selectedIds) {
+    for (int i = 0; i < widget.selectedIds.length; i++) {
+      final id = widget.selectedIds.elementAt(i);
+      if (!mounted) break;
+      
+      setState(() {
+        _processingId = id;
+        _currentIndex = i + 1;
+      });
+
       final result = await updateRemoteRequest(
         id: id,
         productChipId: _selectedProductChipId,
@@ -283,25 +300,100 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
 
       if (result['success'] == true) {
         await GlobalCache.syncSingleRequest(id);
-        successCount++;
+        if (mounted) setState(() => _successCount++);
       } else {
-        errorCount++;
+        if (mounted) setState(() => _errorCount++);
       }
     }
 
     if (mounted) {
-      setState(() => _isSaving = false);
+      await Future.delayed(const Duration(milliseconds: 600)); // Pequeña pausa para que el usuario vea que terminó
+      if (!mounted) return;
+      
+      setState(() {
+        _isSaving = false;
+        _processingId = null;
+      });
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Edición masiva completada: $successCount exitosos, $errorCount errores.',
+            'Edición masiva completada: $_successCount exitosos, $_errorCount errores.',
           ),
-          backgroundColor: errorCount > 0 ? Colors.orange : Colors.green,
+          backgroundColor: _errorCount > 0 ? Colors.orange : Colors.green,
         ),
       );
       widget.onSaved();
     }
+  }
+
+  Widget _buildSingleSearchableField({
+    required String label,
+    required String hintText,
+    required String? valueText,
+    required bool isLoading,
+    required bool isDisabled,
+    required VoidCallback onTap,
+  }) {
+    String displayText = valueText ?? hintText;
+
+    return InkWell(
+      onTap: (isLoading || isDisabled) ? null : onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+          floatingLabelBehavior: FloatingLabelBehavior.always,
+          suffixIcon: isLoading 
+            ? Transform.scale(scale: 0.5, child: const CircularProgressIndicator(strokeWidth: 3)) 
+            : const Icon(Icons.search),
+        ),
+        isEmpty: valueText == null,
+        child: Text(
+          displayText,
+          style: TextStyle(
+            fontSize: 16, 
+            color: (isLoading || isDisabled || valueText == null) 
+              ? Colors.grey[600] 
+              : Theme.of(context).colorScheme.onSurface,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+    );
+  }
+
+  void _openSingleSelectSearchModal({
+    required String title,
+    required List<dynamic> items,
+    required dynamic currentValue,
+    required String Function(dynamic) getTitle,
+    String? Function(dynamic)? getSubtitle,
+    String? Function(dynamic)? getGroupTab,
+    required void Function(dynamic) onSelected,
+  }) {
+    showDialog<dynamic>(
+      context: context,
+      builder: (ctx) => _SingleSelectSearchDialog(
+        title: title,
+        items: items,
+        initialSelectedItem: currentValue,
+        getTitle: getTitle,
+        getSubtitle: getSubtitle,
+        getGroupTab: getGroupTab,
+      ),
+    ).then((selected) {
+      if (selected != null) {
+        if (selected == 'CLEAR_SELECTION') {
+          onSelected(null);
+        } else {
+          onSelected(selected);
+        }
+      }
+    });
   }
 
   @override
@@ -315,8 +407,142 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
         ),
       );
 
+    if (_isSaving) {
+      final request = _processingId != null 
+          ? GlobalCache.requests.firstWhere((r) => r['id'] == _processingId, orElse: () => <String, dynamic>{}) 
+          : <String, dynamic>{};
+      final documentNo = request['DocumentNo']?.toString() ?? 'Cargando...';
+      final summary = request['Summary']?.toString() ?? '';
+
+      return CustomModal(
+        title: 'Aplicando Cambios...',
+        width: 500,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Procesando solicitud $_currentIndex de ${widget.selectedIds.length}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 16),
+            LinearProgressIndicator(value: widget.selectedIds.isEmpty ? 0 : _currentIndex / widget.selectedIds.length),
+            const SizedBox(height: 24),
+            if (_processingId != null) ...[
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Theme.of(context).colorScheme.outline.withOpacity(0.5)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.sync, color: Colors.blue),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Ticket #$documentNo', style: const TextStyle(fontWeight: FontWeight.bold)),
+                          Text(summary, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text('Aplicando los siguientes cambios:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: _currentChangesMap.entries.map((e) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4.0),
+                    child: RichText(
+                      text: TextSpan(
+                        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13),
+                        children: [
+                          TextSpan(text: '${e.key}: ', style: const TextStyle(fontWeight: FontWeight.bold)),
+                          TextSpan(text: e.value),
+                        ],
+                      ),
+                    ),
+                  )).toList(),
+                ),
+              ),
+            ],
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                Column(
+                  children: [
+                    const Icon(Icons.check_circle, color: Colors.green),
+                    const SizedBox(height: 4),
+                    Text('$_successCount Exitosos'),
+                  ],
+                ),
+                Column(
+                  children: [
+                    const Icon(Icons.error, color: Colors.red),
+                    const SizedBox(height: 4),
+                    Text('$_errorCount Errores'),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: const [], // Sin botones mientras se guarda
+      );
+    }
+
     return CustomModal(
-      title: 'Edición Masiva (${widget.selectedIds.length} Solicitudes)',
+      titleWidget: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('Edición Masiva (${widget.selectedIds.length} Solicitudes)', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+          const SizedBox(width: 8),
+          IconButton(
+            icon: const Icon(Icons.info_outline, color: Colors.blue, size: 22),
+            tooltip: '¿Cómo funciona la edición masiva?',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (context) => CustomModal(
+                  title: 'Interacción y Reglas',
+                  width: 450,
+                  content: const Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('• Los campos en "-- No modificar --" mantendrán su valor original en todas las solicitudes.'),
+                      SizedBox(height: 12),
+                      Text('• Solo los campos a los que les asignes un valor serán actualizados. Si seleccionas más de uno, todos los cambios se aplicarán a cada una de las solicitudes seleccionadas.'),
+                      SizedBox(height: 12),
+                      Text('Dependencias de campos:', style: TextStyle(fontWeight: FontWeight.bold)),
+                      SizedBox(height: 8),
+                      Text('• Tercero → Fichas de Producto:\n  Al seleccionar un Tercero, las fichas se filtran automáticamente. Si las solicitudes seleccionadas pertenecen a varios terceros distintos, la edición de la ficha se bloquea.'),
+                      SizedBox(height: 8),
+                      Text('• Tipo de Solicitud → Estado:\n  Al seleccionar un Tipo de Solicitud, la lista de Estados se filtra para mostrar solo los correspondientes a esa categoría.'),
+                    ],
+                  ),
+                  actions: [
+                    CustomButton(text: 'Entendido', onPressed: () => Navigator.pop(context)),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
+      ),
       width: 600,
       content: SingleChildScrollView(
         child: Column(
@@ -436,19 +662,59 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
               ],
             ),
             const SizedBox(height: 16),
-            CustomDropdown<String?>(
+            _buildSingleSearchableField(
               label: 'Estado',
-              value: _selectedStatus,
-              items: [
-                const DropdownMenuItem(
-                  value: null,
-                  child: Text('-- No modificar --'),
-                ),
-                ..._statusIdMap.keys.map(
-                  (k) => DropdownMenuItem(value: k, child: Text(k)),
-                ),
-              ],
-              onChanged: (val) => setState(() => _selectedStatus = val),
+              hintText: '-- No modificar --',
+              valueText: _selectedStatus != null ? cleanStatusName(_selectedStatus!) : null,
+              isLoading: _isLoading,
+              isDisabled: false,
+              onTap: () {
+                var entries = _statusIdMap.entries.toList();
+                if (_selectedType != null) {
+                  final int? reqTypeId = _requestTypeMap[_selectedType];
+                  if (reqTypeId != null) {
+                    int? catId = GlobalCache.requestTypeCategoryMap[reqTypeId];
+                    if (catId != null) {
+                      entries = entries.where((e) {
+                        int? statusCat = GlobalCache.statusCategoryMap[e.value];
+                        return statusCat == null || statusCat == catId;
+                      }).toList();
+                    }
+                  }
+                }
+                
+                MapEntry<String, int>? selectedItem;
+                if (_selectedStatus != null) {
+                  try {
+                    selectedItem = entries.firstWhere((e) => e.key == _selectedStatus);
+                  } catch (_) {
+                    selectedItem = MapEntry(_selectedStatus!, _statusIdMap[_selectedStatus!] ?? 0);
+                    entries.add(selectedItem);
+                  }
+                }
+
+                _openSingleSelectSearchModal(
+                  title: 'Estado',
+                  items: entries,
+                  currentValue: selectedItem,
+                  getTitle: (item) => cleanStatusName((item as MapEntry<String, int>).key),
+                  getGroupTab: (item) {
+                    int statusId = (item as MapEntry<String, int>).value;
+                    int? statusCat = GlobalCache.statusCategoryMap[statusId];
+                    if (statusCat == null) return 'Otros';
+                    return GlobalCache.statusCategoryNameMap[statusCat] ?? 'Otros';
+                  },
+                  onSelected: (val) {
+                    setState(() {
+                      if (val != null) {
+                        _selectedStatus = (val as MapEntry<String, int>).key;
+                      } else {
+                        _selectedStatus = null;
+                      }
+                    });
+                  },
+                );
+              },
             ),
             const SizedBox(height: 16),
             Row(
@@ -531,3 +797,152 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
     );
   }
 }
+
+class _SingleSelectSearchDialog extends StatefulWidget {
+  final String title;
+  final List<dynamic> items;
+  final dynamic initialSelectedItem;
+  final String Function(dynamic) getTitle;
+  final String? Function(dynamic)? getSubtitle;
+  final String? Function(dynamic)? getGroupTab;
+
+  const _SingleSelectSearchDialog({
+    super.key, 
+    required this.title, 
+    required this.items, 
+    this.initialSelectedItem, 
+    required this.getTitle, 
+    this.getSubtitle, 
+    this.getGroupTab,
+  });
+
+  @override
+  State<_SingleSelectSearchDialog> createState() => _SingleSelectSearchDialogState();
+}
+
+class _SingleSelectSearchDialogState extends State<_SingleSelectSearchDialog> {
+  dynamic _tempSelectedItem;
+  String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _tempSelectedItem = widget.initialSelectedItem;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filteredItems = widget.items.where((item) {
+      return widget.getTitle(item).toLowerCase().contains(_searchQuery.toLowerCase());
+    }).toList();
+
+    Map<String, List<dynamic>>? groupedItems;
+    List<String> tabs = [];
+    if (widget.getGroupTab != null) {
+      groupedItems = {};
+      for (var item in filteredItems) {
+        final group = widget.getGroupTab!(item) ?? 'Otros';
+        groupedItems.putIfAbsent(group, () => []).add(item);
+      }
+      tabs = groupedItems.keys.toList()..sort();
+    }
+
+    Widget buildList(List<dynamic> itemsToDisplay, {bool isFirstTab = false}) {
+      return ListView.separated(
+        itemCount: itemsToDisplay.length + (isFirstTab ? 1 : 0),
+        separatorBuilder: (_, __) => const Divider(height: 1, color: Colors.grey, thickness: 0.3),
+        itemBuilder: (context, index) {
+          if (isFirstTab && index == 0) {
+            return RadioListTile<dynamic>(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('-- No modificar --', style: TextStyle(fontSize: 14, fontStyle: FontStyle.italic)),
+              value: 'CLEAR_SELECTION',
+              groupValue: _tempSelectedItem == null ? 'CLEAR_SELECTION' : _tempSelectedItem,
+              onChanged: (val) {
+                setState(() => _tempSelectedItem = null);
+              },
+            );
+          }
+          final actualIndex = isFirstTab ? index - 1 : index;
+          final item = itemsToDisplay[actualIndex];
+
+          return RadioListTile<dynamic>(
+            contentPadding: EdgeInsets.zero,
+            title: Text(widget.getTitle(item), style: const TextStyle(fontSize: 14)),
+            subtitle: widget.getSubtitle != null && widget.getSubtitle!(item) != null 
+                ? Text(widget.getSubtitle!(item)!, style: const TextStyle(fontSize: 12, color: Colors.grey)) 
+                : null,
+            value: item,
+            groupValue: _tempSelectedItem,
+            onChanged: (val) {
+              setState(() => _tempSelectedItem = val);
+            },
+          );
+        },
+      );
+    }
+
+    Widget listWidget;
+    if (groupedItems != null && tabs.length > 1) {
+      listWidget = DefaultTabController(
+        length: tabs.length,
+        child: Column(
+          children: [
+            TabBar(
+              isScrollable: true,
+              labelColor: Theme.of(context).colorScheme.primary,
+              unselectedLabelColor: Colors.grey,
+              tabAlignment: TabAlignment.start,
+              tabs: tabs.map((t) => Tab(text: t)).toList(),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: TabBarView(
+                children: tabs.asMap().entries.map((e) => buildList(groupedItems![e.value]!, isFirstTab: e.key == 0)).toList(),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      listWidget = buildList(filteredItems, isFirstTab: true);
+    }
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: Container(
+        width: 500,
+        height: MediaQuery.of(context).size.height * 0.7,
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Seleccionar ${widget.title}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w400)),
+            const SizedBox(height: 16),
+            TextField(
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.filter_list, color: Colors.grey),
+                hintText: 'Filtrar...',
+                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
+                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.blue)),
+              ),
+              onChanged: (val) => setState(() => _searchQuery = val),
+            ),
+            const SizedBox(height: 16),
+            Expanded(child: listWidget),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(onPressed: () => Navigator.of(context).pop(null), child: const Text('Cancelar')),
+                const SizedBox(width: 8),
+                CustomButton(text: 'Aplicar', onPressed: () => Navigator.of(context).pop(_tempSelectedItem == null ? 'CLEAR_SELECTION' : _tempSelectedItem)),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+

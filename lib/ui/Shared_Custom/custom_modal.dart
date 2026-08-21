@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 class CustomModal extends StatelessWidget {
   final String? title;
+  final Widget? titleWidget;
   final Widget? content;
   final List<Widget>? actions;
   final double? width;
@@ -9,7 +10,7 @@ class CustomModal extends StatelessWidget {
   final EdgeInsetsGeometry padding;
   final bool scrollable;
 
-  const CustomModal({super.key, this.title, this.content, this.actions, this.width, this.height, this.padding = const EdgeInsets.all(24.0), this.scrollable = true});
+  const CustomModal({super.key, this.title, this.titleWidget, this.content, this.actions, this.width, this.height, this.padding = const EdgeInsets.all(24.0), this.scrollable = true});
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +38,12 @@ class CustomModal extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Título fijo arriba
-            if (title != null)
+            if (titleWidget != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                child: titleWidget!,
+              )
+            else if (title != null)
               Padding(
                 padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
                 child: Text(title!, style: theme.textTheme.titleLarge),
