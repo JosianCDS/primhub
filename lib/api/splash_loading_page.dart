@@ -46,6 +46,8 @@ class _SplashLoadingPageState extends State<SplashLoadingPage> with SingleTicker
         if (now >= exp) {
           final refreshed = await handleTokenRefresh();
           if (!refreshed) {
+            await Token.clear();
+            GlobalCache.clear();
             if (mounted) context.go('/login');
             return;
           }

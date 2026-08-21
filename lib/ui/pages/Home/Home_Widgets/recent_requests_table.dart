@@ -113,11 +113,6 @@ class _DesktopRequestTable extends StatelessWidget {
                   builder: (context) => DocumentsLogic.RequestAttachmentsDialog(requestId: alert['realId'] ?? alert['original']['id'], documentNo: alert['code'] ?? ''),
                 ),
               ),
-              IconButton(
-                tooltip: AccessControl.canManageRequests ? 'Editar' : 'Ver Detalles',
-                icon: Icon(AccessControl.canManageRequests ? Icons.edit : Icons.visibility),
-                onPressed: () => onEdit(alert),
-              ),
             ],
           ),
         ),
@@ -327,7 +322,6 @@ class _RecentRequestCard extends StatelessWidget {
                       if (value == 'go') {
                         GoRouter.of(context).push('/my-requests', extra: {'search': request['code']});
                       }
-                      if (value == 'edit') onEdit(request);
                     },
                     itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
                       const PopupMenuItem<String>(
@@ -341,10 +335,6 @@ class _RecentRequestCard extends StatelessWidget {
                       const PopupMenuItem<String>(
                         value: 'attachments',
                         child: ListTile(leading: Icon(Icons.attach_file), title: Text('Adjuntos')),
-                      ),
-                      PopupMenuItem<String>(
-                        value: 'edit',
-                        child: ListTile(leading: Icon(AccessControl.canManageRequests ? Icons.edit : Icons.visibility), title: Text(AccessControl.canManageRequests ? 'Editar' : 'Ver Detalles')),
                       ),
                     ],
                   ),

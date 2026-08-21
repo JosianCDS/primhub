@@ -14,6 +14,7 @@ import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ImagesManagment/fecthAttachments.dart';
 import 'package:primhub/ImagesManagment/downloadAttachments.dart';
 import 'package:primhub/ui/pages/Projects/Projects_Widgets/file_preview_manager.dart';
+import 'package:primhub/ui/pages/Support/Requests/email_templates.dart';
 
 // --- MAPAS DE REFERENCIA ---
 
@@ -398,19 +399,36 @@ Future<Map<String, dynamic>> fetchStatusesWithMetadata() async {
     );
     if (response.statusCode == 200) {
       final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
-      final records = jsonResponse['records'] as List;
+      List<dynamic> records = List<dynamic>.from(jsonResponse['records'] ?? []);
+      
+      final excludedStatuses = ['Terminada', 'Open', 'Por Iniciar'];
+      records = records.where((r) {
+        final name = r['Name']?.toString().trim() ?? '';
+        return !excludedStatuses.contains(name);
+      }).toList();
+
+      records.sort((a, b) {
+        final seqA = (a['SeqNo'] as num?)?.toInt() ?? 9999;
+        final seqB = (b['SeqNo'] as num?)?.toInt() ?? 9999;
+        return seqA.compareTo(seqB);
+      });
+
       final Map<String, int> nameToId = {};
       final Map<int, bool> idToIsFinalClose = {};
+      
+      int counter = 1;
       for (var r in records) {
-        final name = r['Name']?.toString().trim() ?? '';
-        if (name.isEmpty) continue;
+        final originalName = r['Name']?.toString().trim() ?? '';
+        if (originalName.isEmpty) continue;
         final id = (r['id'] as num).toInt();
         final rawIsFinalClose = r['IsFinalClose'] ?? r['isFinalClose'];
         final isFinalCloseStr = rawIsFinalClose?.toString().trim().toLowerCase();
         bool isFinalClose = isFinalCloseStr == 'true' || isFinalCloseStr == 'y' || rawIsFinalClose == true;
         
-        nameToId[name] = id;
+        final formattedName = "$counter. $originalName";
+        nameToId[formattedName] = id;
         idToIsFinalClose[id] = isFinalClose;
+        counter++;
       }
       return {'nameToId': nameToId, 'idToIsFinalClose': idToIsFinalClose};
     }
@@ -445,7 +463,7 @@ Future<Map<String, int>> fetchRequestTypes() async {
   return {};
 }
 
-Future<List<Map<String, dynamic>>> fetchCategories() async {
+Future<List<Map<String, dynamic>>> fetchCategories({bool? isPrimhub}) async {
   try {
     final url = Uri.parse('${Endpoint.baseUrl}/api/v1/models/R_Category');
 // [Mantenimiento] Log removido:     debugPrint("Fetching ALL Categories from: $url");
@@ -468,8 +486,12 @@ Future<List<Map<String, dynamic>>> fetchCategories() async {
         if (map['Priority'] is Map) {
           map['Priority'] = map['Priority']['id'];
         }
-        // Asegurar que showinprimhub sea booleano
-        map['showinprimhub'] = map['showinprimhub'] == true || map['showinprimhub']?.toString().toLowerCase() == 'true';
+        // Asegurar que showinprimhub sea booleano, ignorando mayúsculas y minúsculas
+        final rawShow = map.entries
+            .firstWhere((e) => e.key.toLowerCase() == 'showinprimhub',
+                orElse: () => const MapEntry('showinprimhub', null))
+            .value;
+        map['showinprimhub'] = rawShow == true || rawShow?.toString().toLowerCase() == 'true';
         return map;
       }).toList();
     } else {
@@ -576,15 +598,18 @@ Future<Map<String, dynamic>> processRequests(List<dynamic> requests, Map<String,
     int? statusId = statusIdFromReq;
 
     if (statusId != null) {
-      if (SUPPORT_STATUS_MAPPING.containsKey(statusId)) {
-        status = cleanStatusName(SUPPORT_STATUS_MAPPING[statusId]!);
-      } else if (statusIdMap.isNotEmpty) {
+      bool foundInMap = false;
+      if (statusIdMap.isNotEmpty) {
         for (var entry in statusIdMap.entries) {
           if (entry.value == statusId) {
             status = cleanStatusName(entry.key);
+            foundInMap = true;
             break;
           }
         }
+      }
+      if (!foundInMap && SUPPORT_STATUS_MAPPING.containsKey(statusId)) {
+        status = cleanStatusName(SUPPORT_STATUS_MAPPING[statusId]!);
       }
     }
 
@@ -944,11 +969,12 @@ Future<Map<String, dynamic>> createRequestUpdate({
     if (!allUploadsOk) {
       return {
         'success': true, 
-        'message': 'Actualización creada, pero algunos archivos no se pudieron subir.'
+        'message': 'Actualización creada, pero algunos archivos no se pudieron subir.',
+        'id': newRecordId
       };
     }
 
-    return {'success': true, 'message': 'Actualización creada con éxito'};
+    return {'success': true, 'message': 'Actualización creada con éxito', 'id': newRecordId};
   } catch (e) {
     return {'success': false, 'message': e.toString()};
   }
@@ -1137,3 +1163,125 @@ class _RequestAttachmentsDialogState extends State<RequestAttachmentsDialog> {
   }
 }
 
+Future<void> sendRequestStatusEmail({
+  required int requestId,
+  required int bPartnerId,
+  required int adUserId,
+  required int mailTextId,
+  String? updateText,
+  String? oldStatusName,
+  int? updateId,
+}) async {
+  try {
+    int finalUserId = User.userID ?? 0;
+    if (finalUserId <= 0) return;
+
+    // 1. Obtener detalles de la solicitud de la caché
+    Map<String, dynamic>? req;
+    for (var r in GlobalCache.requests) {
+      if (r['id']?.toString() == requestId.toString()) {
+        req = r;
+        break;
+      }
+    }
+    if (req == null) {
+      for (var projList in GlobalCache.projectRequestsCache.values) {
+        for (var r in projList) {
+          if (r['id']?.toString() == requestId.toString()) {
+            req = r;
+            break;
+          }
+        }
+        if (req != null) break;
+      }
+    }
+
+    String documentNo = req?['DocumentNo']?.toString() ?? requestId.toString();
+
+    // 2. Obtener el nombre del estado actual
+    String statusName = 'Actualizado';
+    if (req != null) {
+      int currentStatusId = req['R_Status_ID'] is Map ? req['R_Status_ID']['id'] : req['R_Status_ID'] ?? 0;
+      for (var entry in GlobalCache.statuses.entries) {
+        if (entry.value == currentStatusId) {
+          statusName = entry.key;
+          break;
+        }
+      }
+    }
+
+    // 3. Obtener el nombre del usuario receptor
+    String userName = User.name ?? 'Usuario';
+
+    // 4. Construir Asunto y Título
+    String mailSubject = "Actualización en solicitud: $documentNo";
+    String emailTitle = "Actualización en solicitud $documentNo";
+    
+    if (mailTextId == 1000015) {
+      mailSubject = "Nueva Solicitud: $documentNo";
+      emailTitle = "Solicitud Recibida $documentNo";
+    } else if (mailTextId == 1000017) {
+      mailSubject = "Cambio de Estado en solicitud: $documentNo";
+      emailTitle = "Actualización en solicitud $documentNo";
+    }
+
+    // 5. Construir el HTML usando la clase dedicada en Flutter
+    // (COMENTADO TEMPORALMENTE MIENTRAS SE MIGRAN LAS PLANTILLAS A IDEMPIERE)
+    /*
+    String htmlBody = EmailTemplates.buildRequestUpdateEmail(
+      emailTitle: emailTitle,
+      userName: userName,
+      documentNo: documentNo,
+      statusName: statusName,
+      updateText: updateText,
+      oldStatusName: oldStatusName,
+    );
+    */
+    final uri = Uri.parse('${Endpoint.baseUrl}/api/v1/processes/sendmailtextcds');
+    
+    // TRUCO MAESTRO: Usamos R_RequestUpdate para que jale los adjuntos físicos y 
+    // en iDempiere usamos llaves foráneas ej: @R_Request_ID<R_Request.Summary>@
+    final String targetTableName = updateId != null ? 'R_RequestUpdate' : 'R_Request';
+    final String targetRecordId = updateId != null ? updateId.toString() : requestId.toString();
+
+    // Determinar los destinatarios: Usuario de la solicitud y Representante Comercial (si existe)
+    Set<int> targetUsers = {};
+    if (adUserId > 0) targetUsers.add(adUserId);
+    
+    if (req != null) {
+      int? repId = req['SalesRep_ID'] is Map ? (req['SalesRep_ID']['id'] as num?)?.toInt() : (req['SalesRep_ID'] as num?)?.toInt();
+      if (repId != null && repId > 0) {
+        targetUsers.add(repId);
+      }
+    }
+
+    if (targetUsers.isEmpty) return; // No hay a quien enviar
+
+    // Enviar el correo a cada destinatario único ejecutando el proceso de Lirion
+    for (int targetUserId in targetUsers) {
+      final payload = {
+        'recordID': targetRecordId,
+        'TableName': targetTableName,
+        'AD_UserTo_ID': targetUserId.toString(),
+        'R_MailText_ID': mailTextId.toString(),
+      };
+
+      final response = await http.post(
+        uri,
+        headers: {
+          'Authorization': Token.token,
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(payload),
+      );
+      
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        CurrentLogMessage.add('sendRequestStatusEmail exitoso para usuario $targetUserId. Respuesta: ${response.body}', level: 'INFO', tag: 'sendRequestStatusEmail');
+      } else {
+        CurrentLogMessage.add('sendRequestStatusEmail falló para usuario $targetUserId: ${response.statusCode}, ${response.body}', level: 'ERROR', tag: 'sendRequestStatusEmail');
+      }
+    }
+  } catch (e) {
+    // [Mantenimiento] Log removido: debugPrint('Excepción enviando correo: $e');
+  }
+}

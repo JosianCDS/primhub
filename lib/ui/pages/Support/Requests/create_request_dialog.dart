@@ -56,7 +56,8 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
   final TextEditingController _errorRoleController = TextEditingController();
   final TextEditingController _errorTimeController = TextEditingController();
   final TextEditingController _errorWindowController = TextEditingController();
-  final TextEditingController _errorServerUrlController = TextEditingController();
+  final TextEditingController _errorServerUrlController =
+      TextEditingController();
 
   String? _selectedEnvironment;
   String _selectedPriority = 'Media';
@@ -92,6 +93,30 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
 
   List<PlatformFile?> _evidences = [null, null, null, null];
 
+  bool get _isProjectRequest =>
+      widget.linkedProjectId != null ||
+      widget.linkedTaskId != null ||
+      _selectedProjectId != null;
+
+  bool get _requiresAdditionalFields {
+    if (_selectedCategory == null || _categoryRecords.isEmpty) return false;
+    final cat = _categoryRecords.firstWhere(
+      (c) => c['Name'] == _selectedCategory,
+      orElse: () => <String, dynamic>{},
+    );
+    if (cat.isEmpty) return false;
+
+    // Ignorar mayúsculas y minúsculas
+    final rawVal = cat.entries
+        .firstWhere(
+            (e) =>
+                e.key.toLowerCase() ==
+                'primhub_additional_category_textfields',
+            orElse: () => const MapEntry('', null))
+        .value;
+    return rawVal == true || rawVal?.toString().toLowerCase() == 'true';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -106,7 +131,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
 
     final payload = Token.decodePayload(Token.token);
     final currentUserId = payload['AD_User_ID'];
-    
+
     // Si viene vinculado a una tarea, pre-llenar el asunto
     if (widget.linkedRecordUU != null) {
       _subjectController.text = 'Solicitud de Tarea';
@@ -142,16 +167,25 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
   }
 
   bool get _isFormValid {
-    if (widget.linkedRecordUU == null && AccessControl.isAdmin && _selectedBpId == null) return false;
+    if (widget.linkedRecordUU == null &&
+        AccessControl.isAdmin &&
+        _selectedBpId == null)
+      return false;
     if (_subjectController.text.trim().isEmpty) return false;
-    if (_summaryQuillController.document.toPlainText().trim().isEmpty) return false;
-    if (_selectedEnvironment == null) return false;
-    if (_errorServerUrlController.text.trim().isEmpty) return false;
-    if (_errorUserController.text.trim().isEmpty) return false;
-    if (_errorRoleController.text.trim().isEmpty) return false;
-    if (_errorTimeController.text.trim().isEmpty) return false;
-    if (_errorWindowController.text.trim().isEmpty) return false;
-    if (_evidences[0] == null) return false;
+
+    if (!_isProjectRequest) {
+      if (_summaryQuillController.document.toPlainText().trim().isEmpty) {
+        return false;
+      }
+      // [Temporal] Campos no obligatorios
+      // if (_selectedEnvironment == null) return false;
+      // if (_errorServerUrlController.text.trim().isEmpty) return false;
+      // if (_errorUserController.text.trim().isEmpty) return false;
+      // if (_errorRoleController.text.trim().isEmpty) return false;
+      // if (_errorTimeController.text.trim().isEmpty) return false;
+      // if (_errorWindowController.text.trim().isEmpty) return false;
+      // if (_evidences[0] == null) return false;
+    }
     return true;
   }
 
@@ -162,8 +196,9 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     }
     if (mounted) setState(() => _isLoadingProducts = true);
     try {
-      final fetchedChips =
-          await ContractApi.getSupportProductChips(bPartnerId: _selectedBpId);
+      final fetchedChips = await ContractApi.getSupportProductChips(
+        bPartnerId: _selectedBpId,
+      );
       if (mounted) {
         setState(() {
           _productChips = fetchedChips.where((c) {
@@ -172,7 +207,11 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
           }).toList();
           // Si solo hay 1 ficha, se coloca automáticamente (independiente del rol)
           if (_productChips.length == 1) {
-            _selectedProductChipId = ((_productChips.first['id'] ?? _productChips.first['C_BPartner_Product_Chip_ID']) as num?)?.toInt();
+            _selectedProductChipId =
+                ((_productChips.first['id'] ??
+                            _productChips.first['C_BPartner_Product_Chip_ID'])
+                        as num?)
+                    ?.toInt();
           }
         });
       }
@@ -232,11 +271,15 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
         bps = await logic.fetchBPartners();
       }
 
-      int? newSelectedBpId = _selectedBpId ?? resolvedBpId ?? (AccessControl.isAdmin ? null : User.cBPartnerID);
+      int? newSelectedBpId =
+          _selectedBpId ??
+          resolvedBpId ??
+          (AccessControl.isAdmin ? null : User.cBPartnerID);
 
       // Si el tercero seleccionado no está en la lista bps, intentamos buscarlo de forma individual para obtener su nombre real
       String? fetchedSingleBpName;
-      if (newSelectedBpId != null && !bps.any((bp) => bp['id'] == newSelectedBpId)) {
+      if (newSelectedBpId != null &&
+          !bps.any((bp) => bp['id'] == newSelectedBpId)) {
         try {
           var singleBpRes = await http.get(
             Uri.parse('${Endpoint.cBPartner}/$newSelectedBpId?\$select=Name'),
@@ -245,7 +288,9 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
           if (singleBpRes.statusCode == 401) {
             if (await handleTokenRefresh()) {
               singleBpRes = await http.get(
-                Uri.parse('${Endpoint.cBPartner}/$newSelectedBpId?\$select=Name'),
+                Uri.parse(
+                  '${Endpoint.cBPartner}/$newSelectedBpId?\$select=Name',
+                ),
                 headers: {'Authorization': Token.token},
               );
             }
@@ -270,13 +315,15 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
             bool isCustomer = isCustomerStr == 'true' || isCustomerStr == 'y';
             if (rawCustomer == null) isCustomer = true;
 
-            final isSpecificAdmin = name.trim().toUpperCase().contains('LA CASA DEL SOFTWARE') ||
-                                    bp['C_BPartner_UU'] == 'e4e48cad-f8f8-4f61-954c-60f431bd5d95' ||
-                                    bp['Record_UU'] == 'e4e48cad-f8f8-4f61-954c-60f431bd5d95' ||
-                                    bp['UUID'] == 'e4e48cad-f8f8-4f61-954c-60f431bd5d95' ||
-                                    bp['uuid'] == 'e4e48cad-f8f8-4f61-954c-60f431bd5d95';
+            final isSpecificAdmin =
+                name.trim().toUpperCase().contains('LA CASA DEL SOFTWARE') ||
+                bp['C_BPartner_UU'] == 'e4e48cad-f8f8-4f61-954c-60f431bd5d95' ||
+                bp['Record_UU'] == 'e4e48cad-f8f8-4f61-954c-60f431bd5d95' ||
+                bp['UUID'] == 'e4e48cad-f8f8-4f61-954c-60f431bd5d95' ||
+                bp['uuid'] == 'e4e48cad-f8f8-4f61-954c-60f431bd5d95';
 
-            return !name.startsWith('~') && ((isCustomer && !isVendor) || isSpecificAdmin);
+            return !name.startsWith('~') &&
+                ((isCustomer && !isVendor) || isSpecificAdmin);
           }).toList();
 
           _isLoadingBPartners = false;
@@ -286,9 +333,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                 resolvedBpId != null &&
                     _bPartnersList.any((bp) => bp['id'] == resolvedBpId)
                 ? resolvedBpId
-                : (widget.linkedProjectId != null
-                      ? resolvedBpId
-                      : null);
+                : (widget.linkedProjectId != null ? resolvedBpId : null);
           }
           _selectedBpId = newSelectedBpId;
 
@@ -313,38 +358,27 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
 
   Future<void> _fetchStatuses() async {
     try {
-      final response = await http.get(
-        Uri.parse('${Endpoint.baseUrl}/api/v1/models/R_Status'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': Token.token,
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
-        final records = jsonResponse['records'] as List;
-        if (mounted) {
-          setState(() {
-            _statusIdMap = {for (var r in records) r['Name']: r['id']};
-            _isLoadingStatuses = false;
-             if (AccessControl.isRealSupport && _statusIdMap.isNotEmpty) {
-              _selectedStatus = _statusIdMap.keys.firstWhere(
-                (k) => k.toLowerCase().contains('recibida'),
-                orElse: () => _statusIdMap.keys.firstWhere(
-                  (k) => k.toLowerCase().contains('open'),
-                  orElse: () => _statusIdMap.keys.first,
-                ),
-              );
-            } else if (!_statusIdMap.containsKey(_selectedStatus) &&
-                _statusIdMap.isNotEmpty) {
-              _selectedStatus = _statusIdMap.keys.firstWhere(
+      final mapData = await fetchStatusesWithMetadata();
+      if (mounted) {
+        setState(() {
+          _statusIdMap = mapData['nameToId'] as Map<String, int>;
+          _isLoadingStatuses = false;
+          if (AccessControl.isRealSupport && _statusIdMap.isNotEmpty) {
+            _selectedStatus = _statusIdMap.keys.firstWhere(
+              (k) => k.toLowerCase().contains('recibida'),
+              orElse: () => _statusIdMap.keys.firstWhere(
                 (k) => k.toLowerCase().contains('open'),
                 orElse: () => _statusIdMap.keys.first,
-              );
-            }
-          });
-        }
+              ),
+            );
+          } else if (!_statusIdMap.containsKey(_selectedStatus) &&
+              _statusIdMap.isNotEmpty) {
+            _selectedStatus = _statusIdMap.keys.firstWhere(
+              (k) => k.toLowerCase().contains('open'),
+              orElse: () => _statusIdMap.keys.first,
+            );
+          }
+        });
       }
     } catch (e) {
     } finally {
@@ -355,16 +389,23 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
 
   Future<void> _fetchRequestTypes() async {
     try {
-      final response = await http.get(Uri.parse('${Endpoint.baseUrl}/api/v1/models/R_RequestType'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+      final response = await http.get(
+        Uri.parse('${Endpoint.baseUrl}/api/v1/models/R_RequestType'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': Token.token,
+        },
+      );
       if (response.statusCode == 200) {
         final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
         final records = jsonResponse['records'] as List;
-        final bool isProject = widget.linkedRecordUU != null && widget.linkedRecordUU!.isNotEmpty;
+        final bool isProject =
+            widget.linkedRecordUU != null && widget.linkedRecordUU!.isNotEmpty;
 
         if (mounted) {
           setState(() {
             _requestTypeMap = {for (var r in records) r['Name']: r['id']};
-            
+
             // Establecer tipo por defecto según el contexto
             if (_requestTypeMap.isNotEmpty) {
               if (AccessControl.isRealSupport) {
@@ -384,7 +425,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                 );
               }
             }
-            
+
             _isLoadingTypes = false;
           });
         }
@@ -417,38 +458,52 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                   children: [
                     Padding(
                       padding: EdgeInsets.all(8.0),
-                      child: Text('Categoría / Síntoma',
-                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                      child: Text(
+                        'Categoría / Síntoma',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
                     ),
                     Padding(
                       padding: EdgeInsets.all(8.0),
-                      child: Text('Justificación Técnica',
-                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                      child: Text(
+                        'Justificación Técnica',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
                     ),
                   ],
                 ),
-                ..._categoryRecords.map((cat) => TableRow(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Text(cat['Name'] ?? '',
-                              style: const TextStyle(fontWeight: FontWeight.w500)),
+                ..._categoryRecords.map(
+                  (cat) => TableRow(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Text(
+                          cat['Name'] ?? '',
+                          style: const TextStyle(fontWeight: FontWeight.w500),
                         ),
-                        Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Text(cat['Description'] ?? 'Sin descripción técnica disponible.'),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Text(
+                          cat['Description'] ??
+                              'Sin descripción técnica disponible.',
                         ),
-                      ],
-                    )),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
         ),
         actions: [
-          CustomButton(
-            text: 'Cerrar',
-            onPressed: () => Navigator.pop(context),
-          ),
+          CustomButton(text: 'Cerrar', onPressed: () => Navigator.pop(context)),
         ],
       ),
     );
@@ -456,9 +511,11 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
 
   Future<void> _fetchCategories() async {
     try {
+      final bool isProject =
+          widget.linkedRecordUU != null && widget.linkedRecordUU!.isNotEmpty;
+
       final allRecords = await fetchCategories();
-      final bool isProject = widget.linkedRecordUU != null && widget.linkedRecordUU!.isNotEmpty;
-      
+
       // Filtrar categorías según el contexto:
       // Si es Proyecto: mostrar las que tienen showinprimhub = false
       // Si es Soporte: mostrar las que tienen showinprimhub = true
@@ -472,18 +529,17 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
           _categoryRecords = records;
           _categoryMap = {for (var r in records) r['Name']: r['id']};
           _categoryPriorityMap = {
-            for (var r in records)
-              r['Name']: r['Priority']?.toString() ?? '5'
+            for (var r in records) r['Name']: r['Priority']?.toString() ?? '5',
           };
-            if (_selectedCategory == null &&
-                _categoryMap.isNotEmpty &&
-                AccessControl.isAdmin) {
-              _selectedCategory = _categoryMap.keys.first;
-            }
-            _isLoadingCategories = false;
-          });
-        }
-      } catch (e) {
+          if (_selectedCategory == null &&
+              _categoryMap.isNotEmpty &&
+              AccessControl.isAdmin) {
+            _selectedCategory = _categoryMap.keys.first;
+          }
+          _isLoadingCategories = false;
+        });
+      }
+    } catch (e) {
       if (mounted) setState(() => _isLoadingCategories = false);
     }
   }
@@ -557,8 +613,6 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     }
   }
 
-
-
   final Map<String, String> _priorityMap = {
     'Urgente': '1',
     'Alta': '3',
@@ -604,6 +658,18 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
       withData: true,
     );
     if (result != null && result.files.isNotEmpty) {
+      if (result.files.first.size > 5 * 1024 * 1024) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'El archivo excede el tamaño máximo permitido de 5 MB.',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
       if (result.files.first.bytes == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -689,9 +755,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                       child: Text(
                         file != null
                             ? file.name
-                            : index == 0
-                                ? 'Adjunto ${index + 1} (Evidencia Obligatoria) (Sin archivo)'
-                                : 'Adjunto ${index + 1} (Sin archivo)',
+                            : 'Adjunto ${index + 1} (Sin archivo)',
                         style: TextStyle(
                           color: file != null
                               ? theme.colorScheme.onSurface
@@ -885,32 +949,35 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     final bool isFullAccess = AccessControl.isAdmin;
 
     if (!_formKey.currentState!.validate()) return;
-    
+
     final summaryText = _summaryQuillController.document.toPlainText().trim();
-    if (summaryText.isEmpty) {
+    if (!_isProjectRequest && summaryText.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor ingrese una descripción'), backgroundColor: Colors.red),
+        const SnackBar(
+          content: Text('Por favor ingrese una descripción'),
+          backgroundColor: Colors.red,
+        ),
       );
       return;
     }
 
-    if (_selectedEnvironment == null || 
-        _errorServerUrlController.text.trim().isEmpty || 
-        _errorUserController.text.trim().isEmpty || 
-        _errorRoleController.text.trim().isEmpty || 
-        _errorTimeController.text.trim().isEmpty || 
-        _errorWindowController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor llene todos los datos del problema (obligatorios)'), backgroundColor: Colors.red),
-      );
-      return;
-    }
-
-    if (_evidences[0] == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('El Adjunto 1 es obligatorio como evidencia del problema'), backgroundColor: Colors.red),
-      );
-      return;
+    if (_requiresAdditionalFields) {
+      if (_selectedEnvironment == null ||
+          _errorServerUrlController.text.trim().isEmpty ||
+          _errorUserController.text.trim().isEmpty ||
+          _errorRoleController.text.trim().isEmpty ||
+          _errorTimeController.text.trim().isEmpty ||
+          _errorWindowController.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Por favor llene todos los datos adicionales (obligatorios)',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
     }
 
     if (!AccessControl.canCreateRequests) return;
@@ -925,7 +992,9 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     double qty = double.tryParse(_qtyUsedController.text) ?? 0.0;
 
     // Notificación de Ficha de Producto preferible (ya no es obligatorio)
-    if (widget.linkedRecordUU == null && _selectedProductChipId == null && !AccessControl.isRealSupport) {
+    if (widget.linkedRecordUU == null &&
+        _selectedProductChipId == null &&
+        !AccessControl.isRealSupport) {
       final bool? continueWithoutChip = await showDialog<bool>(
         context: context,
         builder: (context) => CustomModal(
@@ -959,28 +1028,43 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
       try {
         if (bpId != null) {
           if (_selectedProductChipId != null) {
-            final selectedChip = _productChips.firstWhere((c) => c['id'] == _selectedProductChipId, orElse: () => {});
+            final selectedChip = _productChips.firstWhere(
+              (c) => c['id'] == _selectedProductChipId,
+              orElse: () => {},
+            );
             if (selectedChip.isNotEmpty) {
-              final double chipTotalQty = (selectedChip['Qty'] as num?)?.toDouble() ?? 0.0;
+              final double chipTotalQty =
+                  (selectedChip['Qty'] as num?)?.toDouble() ?? 0.0;
 
               // Fetch all requests linked to THIS SPECIFIC CHIP
-              final chipRequests = await fetchRequest(filter: "C_BPartner_Product_Chip_ID eq $_selectedProductChipId");
+              final chipRequests = await fetchRequest(
+                filter: "C_BPartner_Product_Chip_ID eq $_selectedProductChipId",
+              );
               double totalEstimatedAndConsumedForChip = 0.0;
 
               for (var req in chipRequests) {
-                if (req['Record_UU'] != null && req['Record_UU'].toString().isNotEmpty) continue;
-                
+                if (req['Record_UU'] != null &&
+                    req['Record_UU'].toString().isNotEmpty)
+                  continue;
+
                 // Sumamos QtySpent (consumidas) o QtyPlan (en progreso)
-                totalEstimatedAndConsumedForChip += (req['QtySpent'] as num?)?.toDouble() ?? (req['QtyPlan'] as num?)?.toDouble() ?? 0.0;
+                totalEstimatedAndConsumedForChip +=
+                    (req['QtySpent'] as num?)?.toDouble() ??
+                    (req['QtyPlan'] as num?)?.toDouble() ??
+                    0.0;
               }
 
               if (totalEstimatedAndConsumedForChip + qty > chipTotalQty) {
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: Text('La solicitud consumirá más horas de las que tiene disponible dicha ficha de producto. Disponibles: ${DurationFormatter.format(chipTotalQty - totalEstimatedAndConsumedForChip)} h, Intentando registrar: ${DurationFormatter.format(qty)} h'),
-                    backgroundColor: Colors.red,
-                    duration: const Duration(seconds: 5)
-                  ));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'La solicitud consumirá más horas de las que tiene disponible dicha ficha de producto. Disponibles: ${DurationFormatter.format(chipTotalQty - totalEstimatedAndConsumedForChip)} h, Intentando registrar: ${DurationFormatter.format(qty)} h',
+                      ),
+                      backgroundColor: Colors.red,
+                      duration: const Duration(seconds: 5),
+                    ),
+                  );
                   setState(() => _isSubmitting = false);
                 }
                 return;
@@ -1010,20 +1094,25 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
       return;
     }
 
+    final bool hasEvidence = _evidences.any((e) => e != null);
+    final String confirmMessage = hasEvidence
+        ? '¿Seguro quiere continuar? Al enviar la solicitud esta no puede ser editada por usted, compruebe que toda la información y/o adjuntos sean correctos antes de continuar.'
+        : 'El equipo de soporte o desarrollo puede atender su solicitud más rápido si adjunta algún tipo de evidencia o información adicional que pueda ser de utilidad.\n\n¿Seguro quiere continuar sin adjuntos? Al enviar la solicitud esta no puede ser editada por usted.';
+
     final bool? confirm = await showDialog<bool>(
       context: context,
       builder: (context) => CustomModal(
         title: 'Confirmar Solicitud',
-        content: const Text(
-          '¿Seguro quiere continuar? Al enviar la solicitud esta no puede ser editada por usted, compruebe que toda la información y/o adjuntos sean correctos antes de continuar.',
-        ),
+        content: Text(confirmMessage),
         actions: [
           TextButton(
-            onPressed: _isSubmitting ? null : () {
-              if (Navigator.of(context).canPop()) {
-                Navigator.of(context).pop(false);
-              }
-            },
+            onPressed: _isSubmitting
+                ? null
+                : () {
+                    if (Navigator.of(context).canPop()) {
+                      Navigator.of(context).pop(false);
+                    }
+                  },
             child: const Text('Revisar'),
           ),
           CustomButton(
@@ -1090,17 +1179,24 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     final url = Uri.parse(Endpoint.request);
     double qty = double.tryParse(_qtyUsedController.text) ?? 0.0;
 
-    final String structuredInfo = '''
-<p><strong>Entorno donde se presenta el problema:</strong> ${_selectedEnvironment ?? ''}</p>
+    String summaryHtml = HtmlEditorUtils.deltaToHtml(
+      _summaryQuillController.document,
+    );
+
+    // Agregar campos adicionales estructurados al resumen HTML si la categoría lo requiere
+    if (_requiresAdditionalFields) {
+      final String structuredInfo =
+          '''
+<p><strong>Entorno de la solicitud:</strong> ${_selectedEnvironment ?? ''}</p>
 <p><strong>URL del servidor (Link):</strong> ${_errorServerUrlController.text.trim()}</p>
-<p><strong>Usuario al que se le presentó el problema:</strong> ${_errorUserController.text.trim()}</p>
-<p><strong>Rol con que se presentó el problema:</strong> ${_errorRoleController.text.trim()}</p>
-<p><strong>Hora aproximada de la incidencia:</strong> ${_errorTimeController.text.trim()}</p>
-<p><strong>Ventana/Reporte donde Ocurre el Fallo:</strong> ${_errorWindowController.text.trim()}</p>
+<p><strong>Usuario implicado:</strong> ${_errorUserController.text.trim()}</p>
+<p><strong>Rol implicado:</strong> ${_errorRoleController.text.trim()}</p>
+<p><strong>Hora aprox. del evento:</strong> ${_errorTimeController.text.trim()}</p>
+<p><strong>Ventana/Reporte asociado:</strong> ${_errorWindowController.text.trim()}</p>
 <br/>
 ''';
-
-    final summaryHtml = structuredInfo + HtmlEditorUtils.deltaToHtml(_summaryQuillController.document);
+      summaryHtml = structuredInfo + summaryHtml;
+    }
     final subjectText = _subjectController.text.trim();
 
     final Map<String, dynamic> data = {
@@ -1113,8 +1209,6 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
             : openStatusId,
       },
     };
-
-
 
     if (subjectText.isNotEmpty) {
       data['CDS_EmailSubject'] = subjectText;
@@ -1136,7 +1230,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
 
     // --- Lógica segura para asignar SalesRep_ID ---
     int? repIdToAssign;
-    
+
     // 1. Si es admin, el valor seleccionado tiene prioridad.
     if (isFullAccess) {
       repIdToAssign = _selectedSalesRepId;
@@ -1169,7 +1263,8 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     }
 
     if (_selectedBpId != null) data['C_BPartner_ID'] = {'id': _selectedBpId};
-    if (_selectedProductChipId != null) data['C_BPartner_Product_Chip_ID'] = {'id': _selectedProductChipId};
+    if (_selectedProductChipId != null)
+      data['C_BPartner_Product_Chip_ID'] = {'id': _selectedProductChipId};
 
     // Vinculación directa de IDs del Proyecto en el payload nativo
     if (widget.linkedProjectId != null) {
@@ -1252,6 +1347,26 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
           }
 
           await GlobalCache.syncSingleRequest(newId);
+
+          // Disparar correo de "Nueva Solicitud" (Plantilla 1000015)
+          try {
+            int adUserId = 0;
+            if (data['AD_User_ID'] != null) {
+              adUserId = data['AD_User_ID'] is Map ? data['AD_User_ID']['id'] : data['AD_User_ID'];
+            } else {
+              adUserId = User.userID ?? 0;
+            }
+            int customerBpId = _selectedBpId ?? User.cBPartnerID ?? 0;
+
+            if (adUserId > 0 || customerBpId > 0) {
+              sendRequestStatusEmail(
+                requestId: newId,
+                adUserId: adUserId,
+                bPartnerId: customerBpId,
+                mailTextId: 1000015,
+              );
+            }
+          } catch (_) {}
         }
       } catch (_) {}
 
@@ -1304,37 +1419,38 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                       isDisabled: !isFullAccess,
                       displayText:
                           _selectedBpId != null &&
-                                  _bPartnersList.any(
-                                    (bp) => bp['id'] == _selectedBpId,
-                                  )
-                              ? _bPartnersList.firstWhere(
-                                    (bp) => bp['id'] == _selectedBpId,
-                                  )['Name'] ??
-                                  ''
-                              : '',
+                              _bPartnersList.any(
+                                (bp) => bp['id'] == _selectedBpId,
+                              )
+                          ? _bPartnersList.firstWhere(
+                                  (bp) => bp['id'] == _selectedBpId,
+                                )['Name'] ??
+                                ''
+                          : '',
                       errorMessage: _selectedBpId == null
                           ? 'Debe seleccionar un tercero.'
                           : null,
                       onTap: () => _openSearchModal<int>(
-                                title: 'Tercero',
-                                items: _bPartnersList
-                                    .where((bp) => bp['id'] != null)
-                                    .toList(),
-                                currentValue: _selectedBpId,
-                                getTitle: (item) => item['Name'] ?? 'Sin Nombre',
-                                getValue: (item) => item['id'] as int,
-                                onSelected: (val) {
-                                  setState(() {
-                                    _selectedBpId = val;
-                                    _selectedUserId = null; // Reseteamos usuario al cambiar tercero
-                                    _selectedProductChipId = null;
-                                    _users = [];
-                                    _isLoadingUsers = true;
-                                  });
-                                  _fetchUsers();
-                                  _fetchProductChips();
-                                },
-                              ),
+                        title: 'Tercero',
+                        items: _bPartnersList
+                            .where((bp) => bp['id'] != null)
+                            .toList(),
+                        currentValue: _selectedBpId,
+                        getTitle: (item) => item['Name'] ?? 'Sin Nombre',
+                        getValue: (item) => item['id'] as int,
+                        onSelected: (val) {
+                          setState(() {
+                            _selectedBpId = val;
+                            _selectedUserId =
+                                null; // Reseteamos usuario al cambiar tercero
+                            _selectedProductChipId = null;
+                            _users = [];
+                            _isLoadingUsers = true;
+                          });
+                          _fetchUsers();
+                          _fetchProductChips();
+                        },
+                      ),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -1346,35 +1462,36 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                           : 'Seleccione Usuario',
                       value: _selectedUserId,
                       isLoading: _isLoadingUsers,
-                      isDisabled: !isFullAccess || _selectedBpId == null || _isLoadingUsers,
+                      isDisabled:
+                          !isFullAccess ||
+                          _selectedBpId == null ||
+                          _isLoadingUsers,
                       displayText:
                           _selectedUserId != null &&
-                                  _users.any(
-                                    (u) =>
-                                        (u['AD_User_ID'] ?? u['id']) ==
-                                        _selectedUserId,
-                                  )
-                              ? _users.firstWhere(
-                                      (u) =>
-                                          (u['AD_User_ID'] ?? u['id']) ==
-                                          _selectedUserId,
-                                    )['Name'] ??
-                                    ''
-                              : (User.name ?? ''),
+                              _users.any(
+                                (u) =>
+                                    (u['AD_User_ID'] ?? u['id']) ==
+                                    _selectedUserId,
+                              )
+                          ? _users.firstWhere(
+                                  (u) =>
+                                      (u['AD_User_ID'] ?? u['id']) ==
+                                      _selectedUserId,
+                                )['Name'] ??
+                                ''
+                          : (User.name ?? ''),
                       onTap: () => _openSearchModal<int>(
-                                title: 'Usuario',
-                                items: _users
-                                    .where(
-                                      (u) => (u['AD_User_ID'] ?? u['id']) != null,
-                                    )
-                                    .toList(),
-                                currentValue: _selectedUserId,
-                                getTitle: (item) => item['Name'] ?? 'Sin Nombre',
-                                getValue: (item) =>
-                                    (item['AD_User_ID'] ?? item['id']) as int,
-                                onSelected: (val) =>
-                                    setState(() => _selectedUserId = val),
-                              ),
+                        title: 'Usuario',
+                        items: _users
+                            .where((u) => (u['AD_User_ID'] ?? u['id']) != null)
+                            .toList(),
+                        currentValue: _selectedUserId,
+                        getTitle: (item) => item['Name'] ?? 'Sin Nombre',
+                        getValue: (item) =>
+                            (item['AD_User_ID'] ?? item['id']) as int,
+                        onSelected: (val) =>
+                            setState(() => _selectedUserId = val),
+                      ),
                     ),
                   ),
                 ],
@@ -1384,142 +1501,152 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                    Expanded(
-                      child: _buildSearchableField<String>(
-                        label: 'Tipo de Solicitud',
-                        hintText: 'Seleccione Tipo',
-                        value: _selectedType,
-                        isLoading: _isLoadingTypes,
-                        isDisabled: AccessControl.isRealSupport,
-                        displayText: _selectedType ?? '',
-                        onTap: () => _openSearchModal<String>(
-                          title: 'Tipo de Solicitud',
-                          items: _requestTypeMap.keys.toList(),
-                          currentValue: _selectedType,
-                          getTitle: (item) => item.toString(),
-                          getValue: (item) => item.toString(),
-                          onSelected: (val) =>
-                              setState(() => _selectedType = val),
-                        ),
+                  Expanded(
+                    child: _buildSearchableField<String>(
+                      label: 'Tipo de Solicitud',
+                      hintText: 'Seleccione Tipo',
+                      value: _selectedType,
+                      isLoading: _isLoadingTypes,
+                      isDisabled: AccessControl.isRealSupport,
+                      displayText: _selectedType ?? '',
+                      onTap: () => _openSearchModal<String>(
+                        title: 'Tipo de Solicitud',
+                        items: _requestTypeMap.keys.toList(),
+                        currentValue: _selectedType,
+                        getTitle: (item) => item.toString(),
+                        getValue: (item) => item.toString(),
+                        onSelected: (val) =>
+                            setState(() => _selectedType = val),
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                CustomTextField(
-                  controller: _subjectController,
-                  label: 'Asunto / Título de la solicitud *',
-                ),
-                const SizedBox(height: 16),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              CustomTextField(
+                controller: _subjectController,
+                label: 'Asunto / Título de la solicitud *',
+              ),
+              const SizedBox(height: 16),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    flex: 10,
+                    child: _buildSearchableField<String>(
+                      label: 'Categoría',
+                      hintText: 'Seleccione Categoría',
+                      value: _selectedCategory,
+                      isLoading: _isLoadingCategories,
+                      isDisabled: false,
+                      displayText: _selectedCategory ?? '',
+                      onTap: () => _openSearchModal<String>(
+                        title: 'Categoría',
+                        items: _categoryMap.keys.toList(),
+                        currentValue: _selectedCategory,
+                        getTitle: (item) => item.toString(),
+                        getValue: (item) => item.toString(),
+                        onSelected: (val) {
+                          setState(() {
+                            _selectedCategory = val;
+                            final bool isProject =
+                                widget.linkedRecordUU != null &&
+                                widget.linkedRecordUU!.isNotEmpty;
+
+                            // La automatización de prioridad solo aplica a SOPORTE (no proyectos)
+                            if (!isProject &&
+                                val != null &&
+                                _categoryPriorityMap.containsKey(val)) {
+                              final pValue = _categoryPriorityMap[val]!;
+                              final label = _priorityMap.entries
+                                  .firstWhere(
+                                    (e) => e.value == pValue,
+                                    orElse: () => _priorityMap.entries
+                                        .firstWhere((e) => e.key == 'Media'),
+                                  )
+                                  .key;
+                              _selectedPriority = label;
+                            }
+                          });
+                        },
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                    child: IconButton(
+                      icon: const Icon(Icons.info_outline, color: Colors.blue),
+                      tooltip: 'Ver guía de categorías',
+                      onPressed: _showCategoryHelpModal,
+                    ),
+                  ),
+                  Expanded(
+                    flex: 10,
+                    child: _buildSearchableField<String>(
+                      label: 'Prioridad',
+                      hintText: 'Seleccione Prioridad',
+                      value: _selectedPriority,
+                      isLoading: false,
+                      isDisabled:
+                          !(widget.linkedRecordUU != null &&
+                              widget.linkedRecordUU!.isNotEmpty),
+                      displayText: _selectedPriority,
+                      onTap: () => _openSearchModal<String>(
+                        title: 'Prioridad',
+                        items: _priorityMap.keys.toList(),
+                        currentValue: _selectedPriority,
+                        getTitle: (item) => item.toString(),
+                        getValue: (item) => item.toString(),
+                        onSelected: (val) =>
+                            setState(() => _selectedPriority = val),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              // SECCIÓN: Ficha de Producto (Solo para Soporte)
+              if (!(widget.linkedRecordUU != null &&
+                      widget.linkedRecordUU!.isNotEmpty) &&
+                  !AccessControl.isRealSupport) ...[
                 Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
-                      flex: 10,
-                      child: _buildSearchableField<String>(
-                        label: 'Categoría',
-                        hintText: 'Seleccione Categoría',
-                        value: _selectedCategory,
-                        isLoading: _isLoadingCategories,
-                        isDisabled: false,
-                        displayText: _selectedCategory ?? '',
-                        onTap: () => _openSearchModal<String>(
-                          title: 'Categoría',
-                          items: _categoryMap.keys.toList(),
-                          currentValue: _selectedCategory,
-                          getTitle: (item) => item.toString(),
-                          getValue: (item) => item.toString(),
-                          onSelected: (val) {
-                            setState(() {
-                              _selectedCategory = val;
-                              final bool isProject = widget.linkedRecordUU != null && widget.linkedRecordUU!.isNotEmpty;
-                              
-                              // La automatización de prioridad solo aplica a SOPORTE (no proyectos)
-                              if (!isProject && val != null &&
-                                  _categoryPriorityMap.containsKey(val)) {
-                                final pValue = _categoryPriorityMap[val]!;
-                                final label = _priorityMap.entries
-                                    .firstWhere(
-                                      (e) => e.value == pValue,
-                                      orElse: () => _priorityMap.entries
-                                          .firstWhere((e) => e.key == 'Media'),
-                                    )
-                                    .key;
-                                _selectedPriority = label;
-                              }
-                            });
-                          },
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                      child: IconButton(
-                        icon: const Icon(Icons.info_outline, color: Colors.blue),
-                        tooltip: 'Ver guía de categorías',
-                        onPressed: _showCategoryHelpModal,
-                      ),
-                    ),
-                    Expanded(
-                      flex: 10,
-                      child: _buildSearchableField<String>(
-                        label: 'Prioridad',
-                        hintText: 'Seleccione Prioridad',
-                        value: _selectedPriority,
-                        isLoading: false,
-                        isDisabled: !(widget.linkedRecordUU != null && widget.linkedRecordUU!.isNotEmpty), 
-                        displayText: _selectedPriority,
-                        onTap: () => _openSearchModal<String>(
-                          title: 'Prioridad',
-                          items: _priorityMap.keys.toList(),
-                          currentValue: _selectedPriority,
-                          getTitle: (item) => item.toString(),
-                          getValue: (item) => item.toString(),
+                      child: _buildSearchableField<int>(
+                        label: 'Ficha de Producto',
+                        hintText: _selectedBpId == null
+                            ? 'Seleccione un tercero primero'
+                            : 'Seleccione Ficha',
+                        value: _selectedProductChipId,
+                        isLoading: _isLoadingProducts,
+                        isDisabled: _selectedBpId == null || _isLoadingProducts,
+                        displayText:
+                            _selectedProductChipId != null &&
+                                _productChips.any(
+                                  (c) => c['id'] == _selectedProductChipId,
+                                )
+                            ? _productChips.firstWhere(
+                                    (c) => c['id'] == _selectedProductChipId,
+                                  )['Description'] ??
+                                  'Ficha #${_selectedProductChipId}'
+                            : '',
+                        onTap: () => _openSearchModal<int>(
+                          title: 'Ficha de Producto',
+                          items: _productChips,
+                          currentValue: _selectedProductChipId,
+                          getTitle: (item) =>
+                              item['Description'] ?? 'Ficha #${item['id']}',
+                          getValue: (item) => item['id'] as int,
                           onSelected: (val) =>
-                              setState(() => _selectedPriority = val),
+                              setState(() => _selectedProductChipId = val),
                         ),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 16),
-                // SECCIÓN: Ficha de Producto (Solo para Soporte)
-                if (!(widget.linkedRecordUU != null && widget.linkedRecordUU!.isNotEmpty) && !AccessControl.isRealSupport) ...[
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: _buildSearchableField<int>(
-                          label: 'Ficha de Producto',
-                          hintText: _selectedBpId == null
-                              ? 'Seleccione un tercero primero'
-                              : 'Seleccione Ficha',
-                          value: _selectedProductChipId,
-                          isLoading: _isLoadingProducts,
-                          isDisabled: _selectedBpId == null || _isLoadingProducts,
-                          displayText: _selectedProductChipId != null &&
-                                  _productChips.any(
-                                    (c) => c['id'] == _selectedProductChipId,
-                                  )
-                              ? _productChips.firstWhere(
-                                  (c) => c['id'] == _selectedProductChipId,
-                                )['Description'] ?? 'Ficha #${_selectedProductChipId}'
-                              : '',
-                          onTap: () => _openSearchModal<int>(
-                            title: 'Ficha de Producto',
-                            items: _productChips,
-                            currentValue: _selectedProductChipId,
-                            getTitle: (item) => item['Description'] ?? 'Ficha #${item['id']}',
-                            getValue: (item) => item['id'] as int,
-                            onSelected: (val) =>
-                                setState(() => _selectedProductChipId = val),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                ],
+              ],
 
               // SECCIÓN: Gestión Interna (Solo Admin)
               if (isFullAccess) ...[
@@ -1666,63 +1793,114 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                 ],
               ],
 
-              // DATOS DEL PROBLEMA
-              const Text('Datos del Problema (Obligatorios)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-              const SizedBox(height: 12),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: CustomDropdown<String>(
-                      value: _selectedEnvironment,
-                      items: const [
-                        DropdownMenuItem(value: 'test', child: Text('Test (Pruebas)')),
-                        DropdownMenuItem(value: 'producción', child: Text('Producción')),
-                      ],
-                      onChanged: (val) => setState(() => _selectedEnvironment = val),
-                      label: 'Entorno donde se presenta el problema *',
-                      hintText: 'Seleccione el entorno',
+              if (_requiresAdditionalFields) ...[
+                // DATOS ADICIONALES
+                Row(
+                  children: [
+                    const Text(
+                      'Datos Adicionales (Obligatorios)',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: CustomTextField(
-                      controller: _errorServerUrlController, 
-                      label: 'URL del servidor (Link) *'
+                    const SizedBox(width: 8),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: CustomDropdown<String>(
+                        value: _selectedEnvironment,
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'test',
+                            child: Text('Test (Pruebas)'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'producción',
+                            child: Text('Producción'),
+                          ),
+                        ],
+                        onChanged: (val) =>
+                            setState(() => _selectedEnvironment = val),
+                        label: 'Entorno de la solicitud',
+                        hintText: 'Seleccione el entorno',
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(child: CustomTextField(controller: _errorUserController, label: 'Usuario afectado *')),
-                  const SizedBox(width: 16),
-                  Expanded(child: CustomTextField(controller: _errorRoleController, label: 'Rol afectado *')),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(child: CustomTextField(controller: _errorTimeController, label: 'Hora aprox. de la incidencia *', hintText: 'Ej: 14:30 o 2:30 PM')),
-                  const SizedBox(width: 16),
-                  Expanded(child: CustomTextField(controller: _errorWindowController, label: 'Ventana/Reporte del fallo *')),
-                ],
-              ),
-              const SizedBox(height: 24),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: CustomTextField(
+                        controller: _errorServerUrlController,
+                        label: 'URL del servidor (Link)',
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: CustomTextField(
+                        controller: _errorUserController,
+                        label: 'Usuario implicado',
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: CustomTextField(
+                        controller: _errorRoleController,
+                        label: 'Rol implicado',
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: CustomTextField(
+                        controller: _errorTimeController,
+                        label: 'Hora aprox. del evento',
+                        hintText: 'Ej: 14:30 o 2:30 PM',
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: CustomTextField(
+                        controller: _errorWindowController,
+                        label: 'Ventana/Reporte asociado',
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+              ],
 
               // RESUMEN Y ADJUNTOS (Campos comunes)
-              const Text('Descripción (Qué intentaba hacer) *', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              Text(
+                !_isProjectRequest
+                    ? 'Descripción (Qué intentaba hacer) *'
+                    : 'Descripción (Opcional)',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
               const SizedBox(height: 8),
               QuillExpandableField(
                 controller: _summaryQuillController,
-                label: 'Descripción / Resumen',
-                isRequired: true,
+                label: !_isProjectRequest
+                    ? 'Descripción / Resumen *'
+                    : 'Descripción / Resumen',
+                isRequired: !_isProjectRequest,
                 height: 150,
               ),
               const SizedBox(height: 24),
               const Text(
-                'Adjuntos (Opcional, hasta 4 archivos):',
+                'Adjuntos (Opcional, hasta 4 archivos, max 5MB c/u):',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
               const SizedBox(height: 12),

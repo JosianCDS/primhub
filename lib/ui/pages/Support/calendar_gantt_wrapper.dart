@@ -13,6 +13,7 @@ class CalendarGanttWrapper extends StatefulWidget {
 
 class _CalendarGanttWrapperState extends State<CalendarGanttWrapper> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  DateTime _sharedDate = DateTime.now();
 
   @override
   void initState() {
@@ -47,8 +48,26 @@ class _CalendarGanttWrapperState extends State<CalendarGanttWrapper> with Single
           child: TabBarView(
             controller: _tabController,
             children: [
-              CalendarContent(requests: widget.requests, onGoToRequest: widget.onGoToRequest),
-              GanttContent(requests: widget.requests, onGoToRequest: widget.onGoToRequest),
+              CalendarContent(
+                requests: widget.requests,
+                onGoToRequest: widget.onGoToRequest,
+                initialDate: _sharedDate,
+                onDateChanged: (date) {
+                  setState(() {
+                    _sharedDate = date;
+                  });
+                },
+              ),
+              GanttContent(
+                requests: widget.requests,
+                onGoToRequest: widget.onGoToRequest,
+                initialDate: _sharedDate,
+                onDateChanged: (date) {
+                  setState(() {
+                    _sharedDate = date;
+                  });
+                },
+              ),
             ],
           ),
         ),

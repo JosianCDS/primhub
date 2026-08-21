@@ -618,7 +618,7 @@ class HomeController extends ChangeNotifier {
           } catch (e) {}
 
           try {
-            var metricsRes = await http.get(Uri.parse('${Endpoint.request}?\$filter=C_Project_ID eq $projectId and R_Group_ID eq 1000006&\$top=1&\$select=R_Request_ID'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+            var metricsRes = await http.get(Uri.parse('${Endpoint.request}?\$filter=C_Project_ID eq $projectId&\$top=1&\$select=R_Request_ID'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
             if (metricsRes.statusCode == 200) {
               final mData = json.decode(utf8.decode(metricsRes.bodyBytes));
               hasMetrics = (mData['records'] as List).isNotEmpty;

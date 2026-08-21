@@ -76,6 +76,7 @@ class ContractApi {
   static Future<List<Map<String, dynamic>>> getSupportProductChips({
     int? bPartnerId,
     List<int>? bPartnerIds,
+    bool includeInactive = false,
   }) async {
     final String endpoint =
         "${Endpoint.baseUrl}/api/v1/models/$productChipEndpoint";
@@ -91,18 +92,21 @@ class ContractApi {
       finalBpIds.add(User.cBPartnerID!);
     }
 
-    // Filtramos solo por activo en la API
-    String filter = "(IsActive eq 'Y' or IsActive eq true)";
+    // Filtramos por activo o incluimos todos explícitamente si includeInactive es true
+    String filter = includeInactive 
+        ? "(IsActive eq 'Y' or IsActive eq 'N' or IsActive eq true or IsActive eq false)" 
+        : "(IsActive eq 'Y' or IsActive eq true)";
 
     if (finalBpIds.isNotEmpty) {
       String bpFilter = finalBpIds
           .map((id) => "C_BPartner_ID eq $id")
           .join(' or ');
-      filter = "$filter and ($bpFilter)";
+      filter = filter.isNotEmpty ? "$filter and ($bpFilter)" : "($bpFilter)";
     }
 
     // Expandimos M_Product_ID para obtener showinprimhub
-    final String baseUrl = "$endpoint?\$filter=$filter&\$expand=M_Product_ID";
+    final String filterQuery = filter.isNotEmpty ? "\$filter=$filter&" : "";
+    final String baseUrl = "$endpoint?$filterQuery\$expand=M_Product_ID";
 
     try {
       final records = await _fetchPaginated(baseUrl);
@@ -246,6 +250,48 @@ class ContractApi {
       return response.statusCode >= 200 && response.statusCode < 300;
     } catch (e) {
       // [Mantenimiento] Log removido:       debugPrint("Error actualizando descripción de Product Chip: $e");
+      return false;
+    }
+  }
+  static Future<bool> updateProductChipActive(
+    int chipId,
+    bool isActive,
+  ) async {
+    final String url =
+        "${Endpoint.baseUrl}/api/v1/models/C_BPartner_Product_Chip/$chipId";
+    final Map<String, dynamic> data = {
+      "C_BPartner_Product_Chip_ID": chipId,
+      "IsActive": isActive,
+    };
+
+    try {
+      var response = await http.put(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': Token.token,
+        },
+        body: jsonEncode(data),
+      );
+
+      if (response.statusCode == 401) {
+        final refreshed = await handleTokenRefresh();
+        if (refreshed) {
+          response = await http.put(
+            Uri.parse(url),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': Token.token,
+            },
+            body: jsonEncode(data),
+          );
+        } else {
+          return false;
+        }
+      }
+
+      return response.statusCode >= 200 && response.statusCode < 300;
+    } catch (e) {
       return false;
     }
   }

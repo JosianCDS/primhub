@@ -7,6 +7,7 @@ import 'package:primhub/ui/Shared_Custom/custom_inputs.dart'; // Para CustomText
 import 'package:primhub/api/contract_api.dart';
 import 'package:primhub/ui/Shared_Custom/custom_skeleton.dart';
 import 'package:primhub/api/global_cache.dart';
+import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
 
 class SupportSummaryPremium extends StatelessWidget {
   final double contractedHours;
@@ -189,7 +190,7 @@ class SupportSummaryPremium extends StatelessWidget {
             const SizedBox(height: 24),
             // Carrusel de Fichas
             SizedBox(
-              height: 140,
+              height: 160,
               child: isLoading
                   ? ListView.builder(
                       scrollDirection: Axis.horizontal,
@@ -198,7 +199,7 @@ class SupportSummaryPremium extends StatelessWidget {
                         padding: EdgeInsets.only(right: 16),
                         child: CustomSkeleton(
                           width: 280,
-                          height: 140,
+                          height: 160,
                           borderRadius: 20,
                         ),
                       ),
@@ -237,6 +238,7 @@ class SupportSummaryPremium extends StatelessWidget {
                             chip['service_start_date'] ?? 'N/A';
                         final String serviceFinish =
                             chip['service_finish_date'] ?? 'N/A';
+                        final bool isActive = chip['IsActive'] == 'Y' || chip['IsActive'] == true;
 
                         String bpName = 'Sin Tercero';
                         final rawBp = chip['C_BPartner_ID'];
@@ -331,6 +333,20 @@ class SupportSummaryPremium extends StatelessWidget {
                                               ),
                                           padding: EdgeInsets.zero,
                                           constraints: const BoxConstraints(),
+                                        ),
+                                      if (AccessControl.isAdmin)
+                                        SizedBox(
+                                          height: 24,
+                                          child: FittedBox(
+                                            fit: BoxFit.contain,
+                                            child: Switch(
+                                              value: isActive,
+                                              activeColor: Colors.green,
+                                              inactiveThumbColor: Colors.grey,
+                                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                              onChanged: (val) => _toggleChipActive(context, chip, val),
+                                            ),
+                                          ),
                                         ),
                                     ],
                                   ),
@@ -629,5 +645,101 @@ class SupportSummaryPremium extends StatelessWidget {
       },
     );
   }
-}
 
+  void _toggleChipActive(BuildContext context, Map<String, dynamic> chip, bool newValue) async {
+    final int chipId = chip['id'];
+    final String chipName = chip['Description'] ?? 'Ficha sin nombre';
+    
+    if (!newValue) {
+      // Intentando desactivar: Validar si existen solicitudes asociadas
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => const Center(child: CircularProgressIndicator()),
+      );
+      
+      final reqCount = await fetchRequestCount(filter: "C_BPartner_Product_Chip_ID eq $chipId");
+      if (context.mounted) Navigator.pop(context); // cerrar cargando
+      
+      if (reqCount > 0) {
+        if (context.mounted) {
+          showDialog(
+            context: context,
+            builder: (ctx) => CustomModal(
+              title: 'Acción Denegada',
+              content: Text('No es posible inactivar esta ficha ($chipName) porque tiene $reqCount solicitudes asociadas a ella. Debe reasignar las solicitudes o eliminarlas primero.'),
+              actions: [
+                CustomButton(
+                  text: 'Aceptar',
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+              ],
+            ),
+          );
+        }
+        return;
+      }
+    }
+    
+    if (!context.mounted) return;
+    
+    // Mostrar diálogo de confirmación
+    final String actionText = newValue ? 'activar' : 'inactivar';
+    final double totalQty = (chip['Qty'] as num?)?.toDouble() ?? 0.0;
+    String bpName = 'Sin Tercero';
+    final rawBp = chip['C_BPartner_ID'];
+    if (rawBp is Map) {
+      bpName = (rawBp['identifier'] ?? rawBp['Name'] ?? 'Sin Tercero').toString();
+    } else if (rawBp != null) {
+      bpName = 'Tercero $rawBp';
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => CustomModal(
+        title: 'Confirmar Acción',
+        content: Text('¿Está seguro de que desea $actionText la ficha "$chipName"?\n\nAl $actionText, se modificará el saldo disponible del tercero $bpName (Total: ${DurationFormatter.format(totalQty)}).'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          CustomButton(
+            text: 'Sí, $actionText',
+            onPressed: () => Navigator.pop(ctx, true),
+          ),
+        ],
+      ),
+    );
+    
+    if (confirm != true) return;
+    
+    if (!context.mounted) return;
+    
+    // Ejecutar el cambio
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(child: CircularProgressIndicator()),
+    );
+    
+    final success = await ContractApi.updateProductChipActive(chipId, newValue);
+    
+    if (context.mounted) {
+      Navigator.pop(context); // cerrar cargando
+      if (success) {
+        onRefresh();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ficha ${newValue ? 'activada' : 'inactivada'} correctamente.')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Error al cambiar el estado de la ficha.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+}

@@ -3,6 +3,7 @@ import 'package:primhub/api/api_http.dart' as http;
 import 'package:primhub/api/token.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/api/global_cache.dart';
+import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
 
 /// Contiene los datos procesados para un gráfico simple (torta, dona, barras).
 class SimpleChartData {
@@ -65,38 +66,34 @@ class ProjectMetricsCalculator {
     );
   }
 
-  /// Determina la categoría de cumplimiento ('TERMINADA', 'PENDIENTE', 'ESPERA DE CLIENTE') para una solicitud.
-  /// Esta lógica se centraliza aquí para ser usada tanto en los gráficos como en las tablas de detalle.
+  /// Determina la categoría de cumplimiento ('ABIERTA', 'CERRADA', 'ESPERA DE CLIENTE', 'EN EVALUACIÓN DE CLIENTE') para una solicitud.
+  /// Esta lógica imita exactamente la consulta SQL de iDempiere.
   static String getComplianceCategory(Map<String, dynamic> req) {
-    final statusData = req['R_Status_ID']; // Puede ser Map o int
-    final statusId = statusData is Map ? statusData['id'] : statusData;
-
-    String rawStatusName = statusData is Map
-        ? (statusData['Name'] ??
-              statusData['identifier'] ??
-              req['R_Status_Name'] ??
-              'Sin Estado')
-        : (req['R_Status_Name'] ?? 'Sin Estado');
-    String lowerStatus = rawStatusName.toLowerCase();
-
-    if (lowerStatus.contains('espera de cliente')) {
-      return 'ESPERA DE CLIENTE';
-    } else if (lowerStatus.contains('por entregar') ||
-        lowerStatus.contains('evaluacion') ||
-        lowerStatus.contains('anulada') ||
-        lowerStatus.contains('archivada') ||
-        lowerStatus.contains('aprobada por el cliente') ||
-        lowerStatus.contains('close') ||
-        lowerStatus.contains('cerrad') ||
-        lowerStatus.contains('entregado') ||
-        lowerStatus.contains('entregada') ||
-        statusId == 103 ||
-        statusId == 1000019 ||
-        statusId == 1000030) {
-      return 'TERMINADA';
-    } else {
-      return 'PENDIENTE';
+    final statusData = req['R_Status_ID'];
+    
+    // Si no tenemos el objeto anidado o no tiene IsOpen/IsClosed, intentamos heurística de emergencia
+    if (statusData is! Map) {
+      return 'ABIERTA'; // Fallback
     }
+    
+    final isOpen = statusData['IsOpen'] == true || statusData['IsOpen'] == 'Y';
+    final isClosed = statusData['IsClosed'] == true || statusData['IsClosed'] == 'Y';
+    final int statusId = statusData['id'] ?? 0;
+
+    if (isOpen && !isClosed) {
+      return 'ABIERTA';
+    } else if (!isOpen && isClosed) {
+      return 'CERRADA';
+    } else if (!isOpen && !isClosed && statusId == 1000009) {
+      return 'ESPERA DE CLIENTE';
+    } else if (!isOpen && !isClosed && statusId == 1000030) {
+      return 'EN EVALUACIÓN DE CLIENTE';
+    }
+    
+    // Si no entra en ninguna regla SQL pero está cerrado
+    if (isClosed) return 'CERRADA';
+    
+    return 'ABIERTA';
   }
 
   /// Lógica para el gráfico de % de Cumplimiento.
@@ -104,9 +101,10 @@ class ProjectMetricsCalculator {
     List<Map<String, dynamic>> requests,
   ) {
     final Map<String, int> compliancePieData = {
-      'TERMINADA': 0,
-      'PENDIENTE': 0,
+      'CERRADA': 0,
+      'ABIERTA': 0,
       'ESPERA DE CLIENTE': 0,
+      'EN EVALUACIÓN DE CLIENTE': 0,
     };
 
     for (var req in requests) {
@@ -182,10 +180,21 @@ class ProjectMetricsCalculator {
 
       if (categoryName == 'Sin Módulo' || categoryName.trim().isEmpty) continue;
 
-      final modCat = getComplianceCategory(req);
+      final originalCat = getComplianceCategory(req);
+      
+      // Mapeo para gráficos de módulos (imita el SQL del gráfico por Módulos de iDempiere)
+      String modCat;
+      if (originalCat == 'ABIERTA') {
+        modCat = 'PENDIENTE';
+      } else if (originalCat == 'CERRADA') {
+        modCat = 'TERMINADA';
+      } else {
+        modCat = originalCat; // ESPERA DE CLIENTE, EN EVALUACIÓN DE CLIENTE
+      }
+
       moduleStatusCounts.putIfAbsent(
         categoryName,
-        () => {'TERMINADA': 0, 'PENDIENTE': 0, 'ESPERA DE CLIENTE': 0},
+        () => {'TERMINADA': 0, 'PENDIENTE': 0, 'ESPERA DE CLIENTE': 0, 'EN EVALUACIÓN DE CLIENTE': 0},
       );
       moduleStatusCounts[categoryName]![modCat] =
           (moduleStatusCounts[categoryName]![modCat] ?? 0) + 1;
@@ -215,11 +224,19 @@ class ProjectMetricsCalculator {
               (moduleStatusCounts[mod]!['ESPERA DE CLIENTE'] ?? 0).toDouble(),
         )
         .toList();
+    final moduleEvaluacionValues = moduleFullLabels
+        .map(
+          (mod) =>
+              (moduleStatusCounts[mod]!['EN EVALUACIÓN DE CLIENTE'] ?? 0).toDouble(),
+        )
+        .toList();
+        
     final modulePercentageValues = moduleFullLabels.map((mod) {
       final total =
           (moduleStatusCounts[mod]!['TERMINADA'] ?? 0) +
           (moduleStatusCounts[mod]!['PENDIENTE'] ?? 0) +
-          (moduleStatusCounts[mod]!['ESPERA DE CLIENTE'] ?? 0);
+          (moduleStatusCounts[mod]!['ESPERA DE CLIENTE'] ?? 0) +
+          (moduleStatusCounts[mod]!['EN EVALUACIÓN DE CLIENTE'] ?? 0);
       return total > 0
           ? ((moduleStatusCounts[mod]!['TERMINADA'] ?? 0) / total * 100)
           : 0.0;
@@ -233,8 +250,9 @@ class ProjectMetricsCalculator {
           moduleTerminadaValues,
           modulePendienteValues,
           moduleEsperaValues,
+          moduleEvaluacionValues,
         ],
-        seriesNames: const ['Terminada', 'Pendiente', 'Espera de Cliente'],
+        seriesNames: const ['Terminada', 'Pendiente', 'Espera de Cliente', 'En Evaluación'],
       ),
       'modulePercentageData': SimpleChartData(
         labels: moduleLabels,
@@ -252,30 +270,28 @@ class GraphicsFunctions {
   }) async {
     // 1. Priorizar la Caché de Proyecto específica (donde se cargan datos históricos completos)
     if (!forceRefresh && GlobalCache.projectRequestsCache.containsKey(projectId)) {
-// [Mantenimiento] Log removido:       print("DEBUG API: Obteniendo métricas desde Caché de Proyecto específica...");
       final projReqs = GlobalCache.projectRequestsCache[projectId]!;
       return projReqs.where((req) {
         bool isActive = req['IsActive'] == true || req['IsActive'] == 'Y';
-        int? reqGroupId = req['R_Group_ID'] is Map ? req['R_Group_ID']['id'] : req['R_Group_ID'];
-        return isActive && reqGroupId == 1000006;
+        return isActive;
       }).toList();
     }
 
     // 2. Usar Caché Global General como segunda opción
     if (!forceRefresh && GlobalCache.isDataLoaded) {
-// [Mantenimiento] Log removido:       print(
-// [Mantenimiento] Log removido:         "DEBUG API: Obteniendo métricas del proyecto $projectId desde GlobalCache...",
-// [Mantenimiento] Log removido:       );
       return GlobalCache.requests.where((req) {
         bool isActive = req['IsActive'] == true || req['IsActive'] == 'Y';
+        
+        final statusData = req['R_Status_ID'];
+        String rawStatusName = statusData is Map
+            ? (statusData['Name'] ?? statusData['identifier'] ?? req['R_Status_Name'] ?? '')
+            : (req['R_Status_Name'] ?? '');
+        if (rawStatusName.toLowerCase().contains('anulada')) return false;
+
         int? reqProjectId = req['C_Project_ID'] is Map
             ? req['C_Project_ID']['id']
             : req['C_Project_ID'];
-        int? reqGroupId = req['R_Group_ID'] is Map
-            ? req['R_Group_ID']['id']
-            : req['R_Group_ID'];
-
-        return isActive && reqProjectId == projectId && reqGroupId == 1000006;
+        return isActive && reqProjectId == projectId;
       }).toList();
     }
 
@@ -285,13 +301,13 @@ class GraphicsFunctions {
     const int pageSize = 100;
     bool hasMore = true;
 
-    // FILTRO iDempiere: Activos, del Proyecto por ID numérico y que sean Requerimientos de cliente (R_Group_ID = 1000006)
+    // FILTRO iDempiere: Activos, del Proyecto por ID numérico
     String filter =
-        "C_Project_ID eq $projectId and IsActive eq true and R_Group_ID eq 1000006";
+        "C_Project_ID eq $projectId and IsActive eq true";
 
     // Expand optimizado (Quitamos el límite de $select para que la tabla pueda recibir el Asunto, Usuario, etc.)
     String expand =
-        "R_Status_ID(\$select=Name,IsOpen),R_Group_ID(\$select=Name),R_RequestType_ID(\$select=Name),R_Category_ID(\$select=Name)";
+        "R_Status_ID(\$select=Name,IsOpen,IsClosed),R_Group_ID(\$select=Name),R_RequestType_ID(\$select=Name),R_Category_ID(\$select=Name)";
 
     try {
       while (hasMore) {
@@ -340,7 +356,14 @@ class GraphicsFunctions {
     } catch (e) {
 // [Mantenimiento] Log removido:       print("DEBUG API EXCEPTION: $e");
     }
-    return allRecords;
+    
+    return allRecords.where((req) {
+      final statusData = req['R_Status_ID'];
+      String rawStatusName = statusData is Map
+          ? (statusData['Name'] ?? statusData['identifier'] ?? req['R_Status_Name'] ?? '')
+          : (req['R_Status_Name'] ?? '');
+      return !rawStatusName.toLowerCase().contains('anulada');
+    }).toList();
   }
 }
 

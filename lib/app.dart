@@ -4,6 +4,7 @@ import 'package:primhub/api/token.dart';
 import 'package:primhub/api/session_manager.dart';
 import 'package:flutter_quill/flutter_quill.dart' show FlutterQuillLocalizations;
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:toastification/toastification.dart';
 import 'package:primhub/theme/theme.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents.dart';
 import 'package:primhub/ui/pages/Home/home_page.dart';
@@ -11,6 +12,7 @@ import 'package:primhub/ui/pages/OnDevelop/knowledge_base.dart';
 import 'package:primhub/ui/pages/Projects/Projects_Widgets/project_requests_view.dart';
 import 'package:primhub/ui/pages/Metrics/metrics_requests_page.dart';
 import 'package:primhub/ui/pages/Metrics/rep_workload_page.dart';
+import 'package:primhub/ui/pages/Metrics/client_workload_page.dart';
 import 'package:primhub/ui/pages/Login/login.dart';
 import 'package:primhub/ui/pages/Login/reset_password_page.dart';
 import 'package:primhub/ui/pages/Login/login_selection_page.dart';
@@ -98,6 +100,10 @@ final _router = GoRouter(
       pageBuilder: (context, state) => NoTransitionPage(key: state.pageKey, child: const RepWorkloadPage()),
     ),
     GoRoute(
+      path: '/client-workload',
+      pageBuilder: (context, state) => NoTransitionPage(key: state.pageKey, child: const ClientWorkloadPage()),
+    ),
+    GoRoute(
       path: '/metric-requests',
       pageBuilder: (context, state) {
         final extra = state.extra as Map<String, dynamic>?;
@@ -177,6 +183,11 @@ class MainApp extends StatelessWidget {
               Locale('en', ''),
               Locale('es', ''),
             ],
+            builder: (context, child) {
+              return ToastificationWrapper(
+                child: child!,
+              );
+            },
           ),
         );
       },

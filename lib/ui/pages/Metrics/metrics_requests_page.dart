@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'dart:convert';
+import 'package:primhub/api/api_http.dart' as http;
+import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart'; 
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/token.dart';
@@ -139,8 +142,13 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
 
       rawRequests = GlobalCache.requests.where((req) {
         bool isActive = req['IsActive'] == true || req['IsActive'] == 'Y';
-        int? reqGroupId = req['R_Group_ID'] is Map ? req['R_Group_ID']['id'] : req['R_Group_ID'];
-        if (!isActive || reqGroupId != 1000006) return false;
+        if (!isActive) return false;
+
+        final statusData = req['R_Status_ID'];
+        String rawStatusName = statusData is Map
+            ? (statusData['Name'] ?? statusData['identifier'] ?? req['R_Status_Name'] ?? '')
+            : (req['R_Status_Name'] ?? '');
+        if (rawStatusName.toLowerCase().contains('anulada')) return false;
 
         if (!AccessControl.isAdmin && AccessControl.isProject && User.cBPartnerID != null) {
           int? reqBpId = req['C_BPartner_ID'] is Map ? req['C_BPartner_ID']['id'] : req['C_BPartner_ID'];
@@ -158,7 +166,7 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
         return true;
       }).toList();
     } else {
-      List<String> filters = ["IsActive eq true", "R_Group_ID eq 1000006"];
+      List<String> filters = ["IsActive eq true"];
       if (!AccessControl.isAdmin && AccessControl.isProject && User.cBPartnerID != null) {
         filters.add("C_BPartner_ID eq ${User.cBPartnerID}");
       }

@@ -7,7 +7,16 @@ import 'package:go_router/go_router.dart';
 class CalendarContent extends StatefulWidget {
   final List<dynamic> requests;
   final Function(String)? onGoToRequest;
-  const CalendarContent({super.key, required this.requests, this.onGoToRequest});
+  final DateTime? initialDate;
+  final Function(DateTime)? onDateChanged;
+  
+  const CalendarContent({
+    super.key, 
+    required this.requests, 
+    this.onGoToRequest,
+    this.initialDate,
+    this.onDateChanged,
+  });
 
   @override
   State<CalendarContent> createState() => _CalendarContentState();
@@ -20,6 +29,9 @@ class _CalendarContentState extends State<CalendarContent> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialDate != null) {
+      _focusedMonth = widget.initialDate!;
+    }
     _processRequests();
   }
 
@@ -40,6 +52,14 @@ class _CalendarContentState extends State<CalendarContent> {
     super.didUpdateWidget(oldWidget);
     if (widget.requests != oldWidget.requests) {
       _processRequests();
+    }
+    if (widget.initialDate != oldWidget.initialDate && widget.initialDate != null) {
+      // Si la fecha cambia externamente y el mes/año es diferente, actualizamos la vista
+      if (widget.initialDate!.year != _focusedMonth.year || widget.initialDate!.month != _focusedMonth.month) {
+        setState(() {
+          _focusedMonth = widget.initialDate!;
+        });
+      }
     }
   }
 
@@ -73,11 +93,12 @@ class _CalendarContentState extends State<CalendarContent> {
     return months[month - 1];
   }
 
-  void _showDayDetails(BuildContext context, DateTime date, List<Map<String, dynamic>> dayRequests) {
+  void _showDayDetails(BuildContext context, DateTime date, List<Map<String, dynamic>> dayRequests) async {
     int currentIndex = 0;
     final colorScheme = Theme.of(context).colorScheme;
+    final ScrollController scrollController = ScrollController();
     
-    showDialog(
+    await showDialog(
       context: context,
       builder: (context) {
         return StatefulBuilder(
@@ -111,12 +132,18 @@ class _CalendarContentState extends State<CalendarContent> {
                               children: [
                                 IconButton(
                                   icon: const Icon(Icons.chevron_left),
-                                  onPressed: currentIndex > 0 ? () => setStateDialog(() => currentIndex--) : null,
+                                  onPressed: currentIndex > 0 ? () {
+                                    setStateDialog(() => currentIndex--);
+                                    if (scrollController.hasClients) scrollController.jumpTo(0);
+                                  } : null,
                                 ),
                                 Text('${currentIndex + 1} / ${dayRequests.length}'),
                                 IconButton(
                                   icon: const Icon(Icons.chevron_right),
-                                  onPressed: currentIndex < dayRequests.length - 1 ? () => setStateDialog(() => currentIndex++) : null,
+                                  onPressed: currentIndex < dayRequests.length - 1 ? () {
+                                    setStateDialog(() => currentIndex++);
+                                    if (scrollController.hasClients) scrollController.jumpTo(0);
+                                  } : null,
                                 ),
                               ],
                             ),
@@ -125,7 +152,7 @@ class _CalendarContentState extends State<CalendarContent> {
                       ),
                     AnimatedSwitcher(
                       duration: const Duration(milliseconds: 300),
-                      child: _buildDetailCard(dayRequests[currentIndex], colorScheme),
+                      child: _buildDetailCard(dayRequests[currentIndex], colorScheme, scrollController),
                     ),
                   ],
                 ],
@@ -136,9 +163,10 @@ class _CalendarContentState extends State<CalendarContent> {
         );
       },
     );
+    scrollController.dispose();
   }
 
-  Widget _buildDetailCard(Map<String, dynamic> req, ColorScheme colorScheme) {
+  Widget _buildDetailCard(Map<String, dynamic> req, ColorScheme colorScheme, ScrollController scrollController) {
     final statusName = cleanStatusName(req['status'] ?? req['R_Status_Name'] ?? (req['R_Status_ID'] is Map ? (req['R_Status_ID']['identifier'] ?? req['R_Status_ID']['Name']) : null) ?? 'Sin estado');
     final priority = req['level'] ?? (req['Priority'] is Map ? (req['Priority']['identifier'] ?? req['Priority']['Name']) : req['Priority']) ?? 'Media';
     final rawSummary = req['Summary'] ?? 'Sin asunto';
@@ -203,17 +231,22 @@ class _CalendarContentState extends State<CalendarContent> {
           const Divider(height: 24),
           ConstrainedBox(
             constraints: const BoxConstraints(maxHeight: 150),
-            child: SingleChildScrollView(
-              child: Html(
-                data: description,
-                style: {
-                  "body": Style(
-                    margin: Margins.zero,
-                    padding: HtmlPaddings.zero,
-                    fontSize: FontSize(14),
-                    color: colorScheme.onSurface,
-                  )
-                },
+            child: Scrollbar(
+              thumbVisibility: true,
+              controller: scrollController,
+              child: SingleChildScrollView(
+                controller: scrollController,
+                child: Html(
+                  data: description,
+                  style: {
+                    "body": Style(
+                      margin: Margins.zero,
+                      padding: HtmlPaddings.zero,
+                      fontSize: FontSize(14),
+                      color: colorScheme.onSurface,
+                    )
+                  },
+                ),
               ),
             ),
           ),
@@ -257,19 +290,26 @@ class _CalendarContentState extends State<CalendarContent> {
                 ],
               ),
               const Spacer(),
-              _HeaderNavButton(
-                icon: Icons.chevron_left,
-                onPressed: () => setState(() => _focusedMonth = DateTime(_focusedMonth.year, _focusedMonth.month - 1)),
+              IconButton(
+                icon: const Icon(Icons.chevron_left),
+                onPressed: () {
+                  setState(() => _focusedMonth = DateTime(_focusedMonth.year, _focusedMonth.month - 1));
+                  widget.onDateChanged?.call(_focusedMonth);
+                },
               ),
-              const SizedBox(width: 8),
-              _HeaderNavButton(
-                icon: Icons.today,
-                onPressed: () => setState(() => _focusedMonth = DateTime.now()),
+              OutlinedButton(
+                onPressed: () {
+                  setState(() => _focusedMonth = DateTime.now());
+                  widget.onDateChanged?.call(_focusedMonth);
+                },
+                child: const Text('Hoy'),
               ),
-              const SizedBox(width: 8),
-              _HeaderNavButton(
-                icon: Icons.chevron_right,
-                onPressed: () => setState(() => _focusedMonth = DateTime(_focusedMonth.year, _focusedMonth.month + 1)),
+              IconButton(
+                icon: const Icon(Icons.chevron_right),
+                onPressed: () {
+                  setState(() => _focusedMonth = DateTime(_focusedMonth.year, _focusedMonth.month + 1));
+                  widget.onDateChanged?.call(_focusedMonth);
+                },
               ),
             ],
           ),
@@ -478,28 +518,3 @@ class _CalendarContentState extends State<CalendarContent> {
   }
 }
 
-class _HeaderNavButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onPressed;
-
-  const _HeaderNavButton({required this.icon, required this.onPressed});
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colorScheme.outlineVariant),
-      ),
-      child: IconButton(
-        icon: Icon(icon, size: 20),
-        onPressed: onPressed,
-        color: colorScheme.primary,
-        constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-        padding: EdgeInsets.zero,
-      ),
-    );
-  }
-}

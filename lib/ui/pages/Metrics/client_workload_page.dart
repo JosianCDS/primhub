@@ -10,30 +10,27 @@ import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:treemap/treemap.dart';
 
-class RepWorkloadPage extends StatefulWidget {
-  const RepWorkloadPage({super.key});
+class ClientWorkloadPage extends StatefulWidget {
+  const ClientWorkloadPage({super.key});
 
   @override
-  State<RepWorkloadPage> createState() => _RepWorkloadPageState();
+  State<ClientWorkloadPage> createState() => _ClientWorkloadPageState();
 }
 
-class _RepWorkloadPageState extends State<RepWorkloadPage> {
+class _ClientWorkloadPageState extends State<ClientWorkloadPage> {
   bool _isLoading = true;
   String _timeFilter = 'all'; // all, this_week, next_15_days, this_month
   
   int? _selectedBpId;
   List<Map<String, dynamic>> _availableBps = [];
   
-  // Datos agrupados por Representante
-  // Formato: { "Nombre del Rep": [ request1, request2... ] }
+  // Datos agrupados por Tercero
+  // Formato: { "Nombre del Tercero": [ request1, request2... ] }
   Map<String, List<Map<String, dynamic>>> _groupedRequests = {};
-  List<String> _sortedReps = [];
+  List<String> _sortedBps = [];
   
   String? _selectedSalesRep;
   List<String> _availableReps = [];
-  
-  int? _selectedProjectId;
-  List<Map<String, dynamic>> _availableProjects = [];
 
   @override
   void initState() {
@@ -89,20 +86,6 @@ class _RepWorkloadPageState extends State<RepWorkloadPage> {
       if (createdStr != null && createdStr.length >= 4) {
         final year = int.tryParse(createdStr.substring(0, 4));
         if (year != now.year) continue;
-      }
-
-      // Filtrar por Proyecto si está seleccionado
-      if (_selectedProjectId != null) {
-        final projData = req['C_Project_ID'];
-        int? reqProjId;
-        if (projData is Map) {
-          reqProjId = (projData['id'] as num?)?.toInt();
-        } else if (projData is num) {
-          reqProjId = projData.toInt();
-        }
-        if (reqProjId != _selectedProjectId) {
-          continue;
-        }
       }
 
       // Descartar anuladas y archivadas
@@ -173,16 +156,40 @@ class _RepWorkloadPageState extends State<RepWorkloadPage> {
         continue;
       }
 
-      if (!tempGrouped.containsKey(repName)) {
-        tempGrouped[repName] = [];
+      final bpData = req['C_BPartner_ID'];
+      final bpName = bpData is Map ? (bpData['identifier'] ?? bpData['Name'] ?? 'Sin Tercero').toString() : 'Sin Tercero';
+
+      if (!tempGrouped.containsKey(bpName)) {
+        tempGrouped[bpName] = [];
       }
-      tempGrouped[repName]!.add(req);
+      tempGrouped[bpName]!.add(req);
     }
 
-    // Actualizar lista de representantes disponibles para el filtro (sin repetir)
-    List<String> allReps = tempGrouped.keys.toList();
+    // Actualizar lista de terceros disponibles para el filtro
+    List<String> allBps = tempGrouped.keys.toList();
     if (_availableReps.isEmpty && _selectedSalesRep == null) {
-      _availableReps = ['Todos', ...allReps];
+      // Necesitamos poblar _availableReps de alguna manera, lo haremos iterando todas las requests
+      Set<String> repsSet = {};
+      for (var req in rawRequests) {
+        final repData = req['SalesRep_ID'];
+        String repN = '';
+        if (repData is Map) {
+          repN = (repData['Name'] ?? repData['identifier'] ?? '').toString().trim();
+        } else if (repData != null) {
+          final found = GlobalCache.users.where((u) => u['id'] == repData).toList();
+          if (found.isNotEmpty) {
+             repN = (found.first['Name'] ?? '').toString().trim();
+          } else {
+             final foundRep = GlobalCache.salesReps.where((r) => r['id'] == repData).toList();
+             if (foundRep.isNotEmpty) {
+                repN = (foundRep.first['Name'] ?? '').toString().trim();
+             }
+          }
+        }
+        if (repN.isEmpty) repN = 'Sin Asignar';
+        repsSet.add(repN);
+      }
+      _availableReps = ['Todos', ...repsSet];
       _availableReps.sort((a, b) {
         if (a == 'Todos') return -1;
         if (b == 'Todos') return 1;
@@ -192,30 +199,24 @@ class _RepWorkloadPageState extends State<RepWorkloadPage> {
       });
     }
     
-    // Cargar proyectos disponibles para el filtro
-    if (_availableProjects.isEmpty) {
-      _availableProjects = List<Map<String, dynamic>>.from(GlobalCache.projects);
-      _availableProjects.sort((a, b) => (a['Name'] ?? '').toString().compareTo((b['Name'] ?? '').toString()));
-    }
-
     // Cargar terceros disponibles usando la misma fuente que "Mis Solicitudes"
     if (_availableBps.isEmpty) {
       _availableBps = List<Map<String, dynamic>>.from(GlobalCache.bPartners);
       _availableBps.sort((a, b) => (a['Name'] ?? '').toString().compareTo((b['Name'] ?? '').toString()));
     }
 
-    // Ordenar representantes por volumen (descendente)
-    List<String> reps = tempGrouped.keys.toList();
-    reps.sort((a, b) {
-      if (a == 'Sin Asignar') return 1;
-      if (b == 'Sin Asignar') return -1;
+    // Ordenar terceros por volumen (descendente)
+    List<String> bps = tempGrouped.keys.toList();
+    bps.sort((a, b) {
+      if (a == 'Sin Tercero') return 1;
+      if (b == 'Sin Tercero') return -1;
       return tempGrouped[b]!.length.compareTo(tempGrouped[a]!.length);
     });
 
     if (mounted) {
       setState(() {
         _groupedRequests = tempGrouped;
-        _sortedReps = reps;
+        _sortedBps = bps;
         _isLoading = false;
       });
     }
@@ -247,7 +248,7 @@ class _RepWorkloadPageState extends State<RepWorkloadPage> {
             onPressed: () => context.go('/metrics'),
           ),
         ),
-        title: const Text('Treemap por Representante'),
+        title: const Text('Treemap por Tercero'),
         centerTitle: true,
         backgroundColor: colorScheme.primary,
         elevation: 0,
@@ -276,8 +277,8 @@ class _RepWorkloadPageState extends State<RepWorkloadPage> {
                       const SizedBox(height: 8),
                       ListTile(
                         leading: const Icon(Icons.group_rounded, color: Colors.deepPurple),
-                        title: const Text('Filtro por Tercero y Proyecto'),
-                        subtitle: const Text('Filtra las solicitudes por cliente o visualiza el equipo asignado a un proyecto específico.'),
+                        title: const Text('Filtro por Tercero'),
+                        subtitle: const Text('Filtra las solicitudes por cliente.'),
                         contentPadding: EdgeInsets.zero,
                       ),
                       ListTile(
@@ -356,38 +357,6 @@ class _RepWorkloadPageState extends State<RepWorkloadPage> {
                           },
                         ),
                       ),
-                      // Filtro por Proyecto
-                      Container(
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: colorScheme.surface,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.5)),
-                        ),
-                        child: DropdownMenu<int?>(
-                          initialSelection: _selectedProjectId,
-                          hintText: 'Todos los Proyectos',
-                          leadingIcon: const Icon(Icons.folder_outlined),
-                          width: 250,
-                          menuHeight: 300,
-                          inputDecorationTheme: const InputDecorationTheme(
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(horizontal: 16),
-                          ),
-                          dropdownMenuEntries: [
-                            const DropdownMenuEntry<int?>(value: null, label: 'Todos los Proyectos'),
-                            ..._availableProjects.map((p) => DropdownMenuEntry<int?>(
-                              value: (p['id'] as num?)?.toInt(),
-                              label: p['Name']?.toString() ?? 'Proyecto sin nombre',
-                            )).toList(),
-                          ],
-                          onSelected: (val) {
-                            setState(() => _selectedProjectId = val);
-                            _loadData();
-                          },
-                        ),
-                      ),
-                      
                       // Filtro Búsqueda de Representante
                       Container(
                         height: 48,
@@ -470,7 +439,7 @@ class _RepWorkloadPageState extends State<RepWorkloadPage> {
                 Expanded(
                   child: _isLoading
                       ? const Center(child: CircularProgressIndicator())
-                      : _sortedReps.isEmpty
+                      : _sortedBps.isEmpty
                           ? const Center(child: Text('No hay solicitudes con los filtros actuales.'))
                           : Padding(
                               padding: const EdgeInsets.all(24.0).copyWith(top: 8.0),
@@ -484,63 +453,77 @@ class _RepWorkloadPageState extends State<RepWorkloadPage> {
                                     Colors.green.shade700
                                   ];
                                   
-                                  List<TreeNode> repNodes = [];
+                                  List<TreeNode> bpNodes = [];
                                   
-                                  for (String rep in _sortedReps) {
-                                    final requests = _groupedRequests[rep]!;
+                                  for (String bp in _sortedBps) {
+                                    final requests = _groupedRequests[bp]!;
                                     if (requests.isEmpty) continue;
                                     
-                                    // Agrupar por Cliente (Tercero) dentro de este representante
-                                    Map<String, int> clientCounts = {};
-                                    Map<String, int?> clientIds = {};
+                                    // Agrupar por Representante (Sales Rep) dentro de este Tercero
+                                    Map<String, int> repCounts = {};
+                                    Map<String, int?> repIds = {};
                                     for (var req in requests) {
-                                      final bpData = req['C_BPartner_ID'];
-                                      final bpName = bpData is Map ? (bpData['identifier'] ?? bpData['Name'] ?? 'Sin Tercero').toString() : 'Sin Tercero';
-                                      clientCounts[bpName] = (clientCounts[bpName] ?? 0) + 1;
+                                      final repData = req['SalesRep_ID'];
+                                      String repN = '';
+                                      int? rId;
+                                      if (repData is Map) {
+                                        repN = (repData['Name'] ?? repData['identifier'] ?? '').toString().trim();
+                                        rId = (repData['id'] as num?)?.toInt();
+                                      } else if (repData != null) {
+                                        rId = (repData as num).toInt();
+                                        final found = GlobalCache.users.where((u) => u['id'] == repData).toList();
+                                        if (found.isNotEmpty) {
+                                           repN = (found.first['Name'] ?? '').toString().trim();
+                                        } else {
+                                           final foundRep = GlobalCache.salesReps.where((r) => r['id'] == repData).toList();
+                                           if (foundRep.isNotEmpty) {
+                                              repN = (foundRep.first['Name'] ?? '').toString().trim();
+                                           }
+                                        }
+                                      }
+                                      if (repN.isEmpty) repN = 'Sin Asignar';
                                       
-                                      if (!clientIds.containsKey(bpName)) {
-                                        clientIds[bpName] = bpData is Map ? (bpData['id'] as num?)?.toInt() : (bpData is num ? bpData.toInt() : null);
+                                      repCounts[repN] = (repCounts[repN] ?? 0) + 1;
+                                      
+                                      if (!repIds.containsKey(repN)) {
+                                        repIds[repN] = rId;
                                       }
                                     }
                                     
-                                    // Usar un índice estable basado en la lista global de representantes
-                                    // para que el color no cambie al filtrar.
-                                    int stableIndex = _availableReps.indexOf(rep);
+                                    // Usar un índice estable basado en la lista global de terceros
+                                    int stableIndex = _availableBps.indexWhere((element) => element['Name'] == bp);
                                     if (stableIndex < 0) stableIndex = 0;
                                     
                                     Color baseColor = repColors[stableIndex % repColors.length];
                                     
-                                    List<TreeNode> clientNodes = [];
-                                    clientCounts.forEach((clientName, count) {
-                                      // Para dar cierta textura visual, podríamos oscurecer ligeramene según cantidad,
-                                      // pero el color plano base es más legible para texto blanco.
-                                      
-                                      clientNodes.add(
+                                    List<TreeNode> repInnerNodes = [];
+                                    repCounts.forEach((repNameInner, count) {
+                                      repInnerNodes.add(
                                         TreeNode.leaf(
                                           value: count,
-                                          margin: const EdgeInsets.all(2), // Margen entre clientes del mismo rep
+                                          margin: const EdgeInsets.all(2), // Margen entre reps del mismo cliente
                                           options: TreeNodeOptions(
                                             color: baseColor,
                                             border: Border.all(color: Colors.black12, width: 1),
                                             onTap: () {
-                                              int? repId;
+                                              int? bpId;
                                               if (requests.isNotEmpty) {
-                                                final repData = requests.first['SalesRep_ID'];
-                                                if (repData is Map) {
-                                                  repId = (repData['id'] as num?)?.toInt();
-                                                } else if (repData != null) {
-                                                  repId = (repData as num).toInt();
+                                                final bpData = requests.first['C_BPartner_ID'];
+                                                if (bpData is Map) {
+                                                  bpId = (bpData['id'] as num?)?.toInt();
+                                                } else if (bpData != null) {
+                                                  bpId = (bpData as num).toInt();
                                                 }
                                               }
 
                                               final extras = <String, dynamic>{};
-                                              if (repId != null) extras['salesRepId'] = repId;
-                                              if (clientIds[clientName] != null) extras['bpId'] = clientIds[clientName];
+                                              if (bpId != null) extras['bpId'] = bpId;
+                                              if (repIds[repNameInner] != null) extras['salesRepId'] = repIds[repNameInner];
                                               
                                               context.pushReplacement('/my-requests', extra: extras);
                                             },
                                             child: Tooltip(
-                                              message: 'Representante: $rep\nCliente: $clientName\nSolicitudes: $count',
+                                              message: 'Cliente: $bp\nRepresentante: $repNameInner\nSolicitudes: $count',
                                               child: LayoutBuilder(
                                                 builder: (context, constraints) {
                                                   // Si el recuadro es microscópico, no intentamos dibujar texto
@@ -560,7 +543,7 @@ class _RepWorkloadPageState extends State<RepWorkloadPage> {
                                                         if (!isSmall)
                                                           Flexible(
                                                             child: Text(
-                                                              clientName, 
+                                                              repNameInner, 
                                                               style: const TextStyle(
                                                                 color: Colors.white, 
                                                                 fontSize: 11, 
@@ -593,10 +576,10 @@ class _RepWorkloadPageState extends State<RepWorkloadPage> {
                                       );
                                     });
                                     
-                                    if (clientNodes.isNotEmpty) {
-                                      repNodes.add(
+                                    if (repInnerNodes.isNotEmpty) {
+                                      bpNodes.add(
                                         TreeNode.node(
-                                          children: clientNodes,
+                                          children: repInnerNodes,
                                           margin: const EdgeInsets.all(4), // Margen exterior entre bloques
                                           padding: const EdgeInsets.only(top: 24), // Padding interior para el título
                                           options: TreeNodeOptions(
@@ -610,7 +593,7 @@ class _RepWorkloadPageState extends State<RepWorkloadPage> {
                                                 alignment: Alignment.centerLeft,
                                                 color: baseColor, // Usar el mismo color del bloque para la pestaña
                                                 child: Text(
-                                                  '$rep (${requests.length})',
+                                                  '$bp (${requests.length})',
                                                   style: const TextStyle(
                                                     color: Colors.white,
                                                     fontWeight: FontWeight.w600, // SemiBold para un look más moderno
@@ -627,13 +610,13 @@ class _RepWorkloadPageState extends State<RepWorkloadPage> {
                                     }
                                   }
 
-                                  if (repNodes.isEmpty) {
+                                  if (bpNodes.isEmpty) {
                                     return const Center(child: Text('No hay datos para renderizar el treemap.'));
                                   }
 
                                   return TreeMapLayout(
                                     tile: const Squarify(),
-                                    children: repNodes,
+                                    children: bpNodes,
                                   );
                                 },
                               ),

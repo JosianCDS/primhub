@@ -246,6 +246,8 @@ class _TaskItemState extends State<TaskItem> {
                         'realId': req['_rawId'] ?? req['id'],
                         'id': req['id'].toString(),
                         'description': req['Summary'] ?? '',
+                        'summary': req['Summary'] ?? '',
+                        'emailSubject': req['CDS_EmailSubject'] ?? '',
                         'level': DocumentsLogic.extractValue(req['Priority']) == 'N/A'
                             ? 'Media'
                             : DocumentsLogic.extractValue(req['Priority']),

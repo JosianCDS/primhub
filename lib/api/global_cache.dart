@@ -75,7 +75,7 @@ class GlobalCache {
       fetchFutures.add(ProjectsLogic().fetchSupportPartners());
       
       supportChipsIdx = fetchFutures.length;
-      fetchFutures.add(ContractApi.getSupportProductChips());
+      fetchFutures.add(ContractApi.getSupportProductChips(includeInactive: true));
       
       bpWithChipsIdx = fetchFutures.length;
       fetchFutures.add(ContractApi.getBPartnersWithProductChips());
@@ -406,7 +406,7 @@ class GlobalCache {
   static Future<void> syncSingleRequest(int requestId) async {
     try {
       const expand =
-          "R_Status_ID(\$select=Name,IsOpen),R_Group_ID(\$select=Name),R_RequestType_ID(\$select=Name),R_Category_ID(\$select=Name),C_Order_ID(\$select=DocumentNo),C_BPartner_ID(\$select=Name,Description)";
+          "R_Status_ID(\$select=Name,IsOpen,IsClosed),R_Group_ID(\$select=Name),R_RequestType_ID(\$select=Name),R_Category_ID(\$select=Name),C_Order_ID(\$select=DocumentNo),C_BPartner_ID(\$select=Name,Description)";
       final freshData = await fetchRequest(
         filter: "R_Request_ID eq $requestId",
         expand: expand,
@@ -537,8 +537,8 @@ class GlobalCache {
       // 1. Cargar solicitudes del AÑO ACTUAL para este Proyecto (por ID directo)
       final filterCurrent = "C_Project_ID eq $projectId and Created ge '$currentYear-01-01T00:00:00Z'";
       final reqsCurrent = await fetchRequest(
-        filter: filterCurrent,
-        expand: 'C_Order_ID(\$select=DocumentNo),R_Status_ID,R_RequestType_ID,R_Category_ID,C_BPartner_ID(\$select=Name,Description)'
+        filter: "IsActive eq true and C_Project_ID eq $projectId",
+        expand: 'C_Order_ID(\$select=DocumentNo),R_Status_ID(\$select=Name,IsOpen,IsClosed),R_RequestType_ID,R_Category_ID,C_BPartner_ID(\$select=Name,Description)'
       );
       
       if (reqsCurrent.isNotEmpty) {

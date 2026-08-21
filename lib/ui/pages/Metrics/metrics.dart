@@ -62,19 +62,34 @@ class _MetricsPageState extends State<MetricsPage> {
   List<double> _moduleTerminadaValues = [];
   List<double> _modulePendienteValues = [];
   List<double> _moduleEsperaValues = [];
+  List<double> _moduleEvaluacionValues = [];
 
   @override
   void initState() {
     super.initState();
     _adminViewModeManager.addListener(_onViewModeChanged);
-    if (AccessControl.canViewProjectCharts) {
-      _loadProjects();
-    }
-    if (AccessControl.canViewSupportCharts) {
-      _loadSupportBPartners();
-      _loadSupportMetrics();
-    }
+    _initializeData();
     GlobalCache.backgroundSyncNotifier.addListener(_onBackgroundSyncChanged);
+  }
+
+  Future<void> _initializeData() async {
+    if (GlobalCache.requests.isEmpty && GlobalCache.projects.isEmpty) {
+      setState(() {
+        _isLoading = true;
+        _isLoadingSupport = true;
+      });
+      await GlobalCache.syncData();
+    }
+    
+    if (mounted) {
+      if (AccessControl.canViewProjectCharts) {
+        _loadProjects();
+      }
+      if (AccessControl.canViewSupportCharts) {
+        _loadSupportBPartners();
+        _loadSupportMetrics();
+      }
+    }
   }
 
   void _onBackgroundSyncChanged() {
@@ -424,6 +439,7 @@ class _MetricsPageState extends State<MetricsPage> {
             _moduleTerminadaValues = [];
             _modulePendienteValues = [];
             _moduleEsperaValues = [];
+            _moduleEvaluacionValues = [];
             _modulePercentageValues = [];
           });
           ScaffoldMessenger.of(context).showSnackBar(
@@ -454,6 +470,7 @@ class _MetricsPageState extends State<MetricsPage> {
           _moduleTerminadaValues = metrics.moduleStatusData.seriesValues[0];
           _modulePendienteValues = metrics.moduleStatusData.seriesValues[1];
           _moduleEsperaValues = metrics.moduleStatusData.seriesValues[2];
+          _moduleEvaluacionValues = metrics.moduleStatusData.seriesValues.length > 3 ? metrics.moduleStatusData.seriesValues[3] : [];
 
           _modulePercentageValues = metrics.modulePercentageData.values;
 
@@ -1130,6 +1147,52 @@ class _MetricsPageState extends State<MetricsPage> {
                         : _buildSupportDashboardGrid(isLargeScreen),
                   ],
 
+                  // --- SECCIÓN INDICADORES INTERNOS ---
+                  if (AccessControl.isAdmin) ...[
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 32),
+                      child: Divider(thickness: 1.5, color: Colors.black12),
+                    ),
+                    _buildSectionHeader(
+                      context,
+                      'Indicadores Internos',
+                      Icons.admin_panel_settings_rounded,
+                    ),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final double cardWidth = constraints.maxWidth < 600 ? constraints.maxWidth : (constraints.maxWidth - 24) / 2;
+                        return Wrap(
+                          spacing: 24,
+                          runSpacing: 24,
+                          children: [
+                            SizedBox(
+                              width: cardWidth,
+                              child: _buildInternalIndicatorCard(
+                                context,
+                                title: 'Carga por Representante',
+                                description: 'Visualiza el volumen de solicitudes agrupadas por Representante Comercial en un Treemap interactivo.',
+                                icon: Icons.person_pin_circle_rounded,
+                                color: Colors.deepPurple,
+                                route: '/rep-workload',
+                              ),
+                            ),
+                            SizedBox(
+                              width: cardWidth,
+                              child: _buildInternalIndicatorCard(
+                                context,
+                                title: 'Carga por Tercero',
+                                description: 'Visualiza el volumen de solicitudes agrupadas por Cliente/Tercero en un Treemap interactivo.',
+                                icon: Icons.business_rounded,
+                                color: Colors.teal,
+                                route: '/client-workload',
+                              ),
+                            ),
+                          ],
+                        );
+                      }
+                    ),
+                  ],
+
                   if (!AccessControl.canViewProjectCharts &&
                       !AccessControl.canViewSupportCharts)
                     _buildNoDataView(context),
@@ -1139,6 +1202,78 @@ class _MetricsPageState extends State<MetricsPage> {
           ),
         ],
       ),
+      ),
+    );
+  }
+
+  Widget _buildInternalIndicatorCard(
+    BuildContext context, {
+    required String title,
+    required String description,
+    required IconData icon,
+    required Color color,
+    required String route,
+  }) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: () => context.push(route),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withOpacity(0.3)),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 32),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              description,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: Colors.grey.shade600,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Text(
+                  'Ver Detalle',
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(Icons.arrow_forward_rounded, color: color, size: 20),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1393,9 +1528,11 @@ class _MetricsPageState extends State<MetricsPage> {
     int? hoveredStackedSeriesIndex;
 
     final List<Color> mappedComplianceColors = _complianceLabels.map((l) {
-      if (l == 'TERMINADA') return ColorTheme.success; // Verde
-      if (l == 'PENDIENTE') return ColorTheme.atention; // Naranja
-      return Colors.blue; // ESPERA DE CLIENTE (Azul)
+      if (l == 'CERRADA' || l == 'TERMINADA') return const Color(0xFFFF9800); // Naranja (como en iDempiere)
+      if (l == 'ABIERTA' || l == 'PENDIENTE') return const Color(0xFF42A5F5); // Azul Claro (como en iDempiere)
+      if (l == 'ESPERA DE CLIENTE') return const Color(0xFF5C6BC0); // Indigo
+      if (l == 'EN EVALUACIÓN DE CLIENTE') return const Color(0xFF66BB6A); // Verde
+      return Colors.blue;
     }).toList();
 
     Widget complianceChart = _buildChartCard(
@@ -1440,10 +1577,16 @@ class _MetricsPageState extends State<MetricsPage> {
             ),
     );
 
+    bool hasModuleStatusData = _modulePercentageValues.isNotEmpty &&
+        _moduleTerminadaValues.any((v) => v > 0) ||
+        _modulePendienteValues.any((v) => v > 0) ||
+        _moduleEsperaValues.any((v) => v > 0) ||
+        _moduleEvaluacionValues.any((v) => v > 0);
+
     Widget moduleStackedChart = _buildChartCard(
       'Estado de Solicitudes por Módulo',
       300,
-      _modulePercentageValues.isEmpty
+      !hasModuleStatusData
           ? _buildEmptyView()
           : StatefulBuilder(
               builder: (context, setStateLegend) {
@@ -1525,16 +1668,19 @@ class _MetricsPageState extends State<MetricsPage> {
                           _moduleTerminadaValues,
                           _modulePendienteValues,
                           _moduleEsperaValues,
+                          _moduleEvaluacionValues,
                         ],
                         seriesNames: const [
                           'Terminada',
                           'Pendiente',
                           'Espera de Cliente',
+                          'En Evaluación',
                         ],
                         colors: const [
                           ColorTheme.success,
                           ColorTheme.atention,
                           Colors.blue,
+                          ColorTheme.success,
                         ],
                         hoveredSeriesIndex: hoveredStackedSeriesIndex,
                         onBarTapped: (category, series) {
@@ -1555,10 +1701,13 @@ class _MetricsPageState extends State<MetricsPage> {
             ),
     );
 
+    bool hasModulePercentageData = _modulePercentageValues.isNotEmpty &&
+        _modulePercentageValues.any((v) => v > 0);
+
     Widget modulePctChart = _buildChartCard(
       'Avance del Proyecto por Módulo (%)',
       300,
-      _modulePercentageValues.isEmpty
+      !hasModulePercentageData
           ? _buildEmptyView()
           : CustomBarChart(
               labels: _moduleLabels,
@@ -1710,12 +1859,10 @@ class _MetricsPageState extends State<MetricsPage> {
         child: SizedBox(height: height, child: child),
       );
 
-  Widget _buildEmptyView() => Center(
+  Widget _buildEmptyView() => const Center(
     child: Text(
-      AccessControl.isProject
-          ? "no se encontro ningun proyecto relacionado a tu tercero actual"
-          : "Sin datos relevantes para este proyecto",
-      style: const TextStyle(color: Colors.grey),
+      "Este grafico no tiene suficiente información",
+      style: TextStyle(color: Colors.grey),
     ),
   );
 

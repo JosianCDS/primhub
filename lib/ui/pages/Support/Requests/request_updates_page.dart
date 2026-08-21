@@ -169,6 +169,12 @@ class _RequestUpdatesPageState extends State<RequestUpdatesPage> {
         currentStatusId: _requestDetails?['R_Status_ID'] is Map 
             ? (_requestDetails!['R_Status_ID']['id'] as num?)?.toInt() 
             : (_requestDetails?['R_Status_ID'] as num?)?.toInt(),
+        adUserId: _requestDetails?['AD_User_ID'] is Map
+            ? (_requestDetails!['AD_User_ID']['id'] as num?)?.toInt()
+            : (_requestDetails?['AD_User_ID'] as num?)?.toInt() ?? 0,
+        bPartnerId: _requestDetails?['C_BPartner_ID'] is Map
+            ? (_requestDetails!['C_BPartner_ID']['id'] as num?)?.toInt()
+            : (_requestDetails?['C_BPartner_ID'] as num?)?.toInt() ?? _requestDetails?['bpId'],
         summary: (_requestDetails?['Summary'] ?? _requestDetails?['summary'] ?? widget.docNo).toString(),
         description: _memoizedDescription ?? 'Cargando...',
       ),
@@ -373,10 +379,20 @@ class _UpdateCard extends StatelessWidget {
 
 class _AddUpdateDialog extends StatefulWidget {
   final int requestId;
+  final int? currentStatusId;
+  final int? adUserId;
+  final int? bPartnerId;
   final String summary;
   final String description;
-  final int? currentStatusId;
-  const _AddUpdateDialog({required this.requestId, required this.summary, required this.description, this.currentStatusId});
+
+  const _AddUpdateDialog({
+    required this.requestId,
+    this.currentStatusId,
+    this.adUserId,
+    this.bPartnerId,
+    required this.summary,
+    required this.description,
+  });
 
   @override
   State<_AddUpdateDialog> createState() => _AddUpdateDialogState();
@@ -392,7 +408,7 @@ class _AddUpdateDialogState extends State<_AddUpdateDialog> {
   @override
   void initState() {
     super.initState();
-    if (widget.currentStatusId != null && SUPPORT_STATUS_MAPPING.containsKey(widget.currentStatusId)) {
+    if (widget.currentStatusId != null && GlobalCache.statuses.containsValue(widget.currentStatusId)) {
       _newStatusId = widget.currentStatusId;
     } else {
       _newStatusId = null;
@@ -436,14 +452,57 @@ class _AddUpdateDialogState extends State<_AddUpdateDialog> {
       setState(() => _isSaving = false);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result['message'] ?? 'Error desconocido'), backgroundColor: result['success'] == true ? Colors.green : Colors.red));
       if (result['success'] == true) {
+        bool statusChanged = false;
         if (_newStatusId != null && _newStatusId != widget.currentStatusId) {
           final statusResult = await updateRemoteRequest(id: widget.requestId, statusId: _newStatusId!);
           if (statusResult['success'] == true) {
+            statusChanged = true;
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Estado actualizado correctamente'), backgroundColor: Colors.green));
             }
           }
         }
+
+        // --- INICIO Lógica Correos ---
+        try {
+          int customerBpId = widget.bPartnerId ?? User.cBPartnerID ?? 0;
+          
+          String oldStatusName = '';
+          for (var entry in GlobalCache.statuses.entries) {
+            if (entry.value == widget.currentStatusId) {
+              oldStatusName = entry.key;
+              break;
+            }
+          }
+
+          if (customerBpId > 0 || (widget.adUserId != null && widget.adUserId! > 0)) {
+            if (statusChanged) {
+              // Si el estado cambió, se envía plantilla de Cambio de Estado
+              sendRequestStatusEmail(
+                requestId: widget.requestId,
+                adUserId: widget.adUserId ?? 0,
+                bPartnerId: customerBpId,
+                mailTextId: 1000016,
+                updateText: resultHtml,
+                oldStatusName: oldStatusName,
+                updateId: result['id'],
+              );
+            } else {
+              // Si el estado no cambió pero hay actualización, se envía plantilla de Actualización
+              sendRequestStatusEmail(
+                requestId: widget.requestId,
+                adUserId: widget.adUserId ?? 0,
+                bPartnerId: customerBpId,
+                mailTextId: 1000017,
+                updateText: resultHtml,
+                oldStatusName: oldStatusName,
+                updateId: result['id'],
+              );
+            }
+          }
+        } catch (_) {}
+        // --- FIN Lógica Correos ---
+
         Navigator.of(context).pop(true);
       }
     }
@@ -567,9 +626,9 @@ class _AddUpdateDialogState extends State<_AddUpdateDialog> {
                     child: CustomDropdown<int>(
                       label: 'Estado',
                       value: _newStatusId,
-                      items: SUPPORT_STATUS_MAPPING.entries.map((e) => DropdownMenuItem(
-                        value: e.key,
-                        child: Text(cleanStatusName(e.value)),
+                      items: GlobalCache.statuses.entries.map((e) => DropdownMenuItem<int>(
+                        value: e.value,
+                        child: Text(cleanStatusName(e.key)),
                       )).toList(),
                       onChanged: (val) {
                         if (val != null) setState(() => _newStatusId = val);

@@ -66,6 +66,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
       []; // Todas las solicitudes procesadas
   int? _selectedSummaryChipId; // Chip seleccionado para el resumen superior
   final _adminViewModeManager = AdminViewModeManager();
+  bool _showInactiveChips = false;
 
   // Paginación y Filtros
   final TextEditingController _searchController = TextEditingController();
@@ -226,7 +227,11 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
           : (rawBp as num?)?.toInt();
 
       final isActive = chip['IsActive'] == 'Y' || chip['IsActive'] == true;
-      if (!isActive) return false;
+      if (_showInactiveChips) {
+        if (isActive) return false; // Solo queremos las inactivas
+      } else {
+        if (!isActive) return false; // Solo queremos las activas
+      }
 
       if (_selectedBpId != null) {
         return chipBpId == _selectedBpId;
@@ -236,6 +241,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
 
     if (mounted) {
       setState(() => _productChips = fetchedChips);
+      await _loadContractedHours();
     }
   }
 
@@ -1096,9 +1102,13 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                     if (AccessControl.isAdmin)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 24.0),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Stack(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: Stack(
                             children: [
                               InkWell(
                                 onTap:
@@ -1239,7 +1249,44 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                           ),
                         ),
                       ),
-                    // --- NUEVA TARJETA DE RESUMEN PREMIUM ---
+                      const SizedBox(width: 16),
+                      // Toggle para ver fichas inactivas
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.35),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Text(
+                              'Ver Fichas Inactivas',
+                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Switch(
+                              value: _showInactiveChips,
+                              onChanged: (val) {
+                                setState(() {
+                                  _showInactiveChips = val;
+                                  _selectedSummaryChipId = null; // Resetear selección
+                                });
+                                _fetchProductChips();
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              // --- NUEVA TARJETA DE RESUMEN PREMIUM ---
                     Builder(
                       builder: (context) {
                         double contracted = _contractedHours ?? 0.0;
@@ -1287,7 +1334,9 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                           allowRename: true,
                           emptyMessage:
                               AccessControl.isAdmin && _selectedBpId == null
-                              ? '(Como administrador) seleccione un tercero para ver sus fichas de producto'
+                              ? (_showInactiveChips 
+                                  ? 'No hay fichas inactivas en el sistema' 
+                                  : '(Como administrador) seleccione un tercero para ver sus fichas de producto')
                               : null,
                           attachmentCarousel: (_selectedBpId != null || (!AccessControl.isAdmin && User.cBPartnerID != null))
                               ? BPartnerAttachmentsPreview(bPartnerId: _selectedBpId ?? User.cBPartnerID!)
