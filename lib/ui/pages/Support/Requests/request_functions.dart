@@ -1239,10 +1239,16 @@ Future<void> sendRequestStatusEmail({
     */
     final uri = Uri.parse('${Endpoint.baseUrl}/api/v1/processes/sendmailtextcds');
     
-    // TRUCO MAESTRO: Usamos R_RequestUpdate para que jale los adjuntos físicos y 
-    // en iDempiere usamos llaves foráneas ej: @R_Request_ID<R_Request.Summary>@
-    final String targetTableName = updateId != null ? 'R_RequestUpdate' : 'R_Request';
-    final String targetRecordId = updateId != null ? updateId.toString() : requestId.toString();
+    // TRUCO MAESTRO: Usamos R_RequestUpdate para que jale los adjuntos físicos (solo para 1000017)
+    // Para 1000015 (Crear) y 1000016 (Cambio Estado), forzamos R_Request porque R_RequestUpdate 
+    // NO tiene el campo R_Status_ID, lo cual rompe la etiqueta @R_Status_ID<R_Status.Name>@
+    String targetTableName = 'R_Request';
+    String targetRecordId = requestId.toString();
+    
+    if (mailTextId == 1000017 && updateId != null) {
+      targetTableName = 'R_RequestUpdate';
+      targetRecordId = updateId.toString();
+    }
 
     // Determinar los destinatarios: Usuario de la solicitud y Representante Comercial (si existe)
     Set<int> targetUsers = {};
