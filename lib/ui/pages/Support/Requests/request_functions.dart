@@ -1287,11 +1287,16 @@ Future<void> sendRequestStatusEmail({
     */
     final uri = Uri.parse('${Endpoint.baseUrl}/api/v1/processes/sendmailtextcds');
     
-    // TRUCO MAESTRO: Usamos R_RequestUpdate para que jale los adjuntos físicos (Solo para actualizaciones)
-    // Para 1000016 (Cambio de Estado) y 1000015 (Nueva Solicitud), siempre forzamos la tabla R_Request
-    final bool useUpdateTable = (updateId != null && mailTextId == 1000017);
-    final String targetTableName = useUpdateTable ? 'R_RequestUpdate' : 'R_Request';
-    final String targetRecordId = useUpdateTable ? updateId.toString() : requestId.toString();
+    // TRUCO MAESTRO: Usamos R_RequestUpdate para que jale los adjuntos físicos (solo para 1000017)
+    // Para 1000015 (Crear) y 1000016 (Cambio Estado), forzamos R_Request porque R_RequestUpdate 
+    // NO tiene el campo R_Status_ID, lo cual rompe la etiqueta @R_Status_ID<R_Status.Name>@
+    String targetTableName = 'R_Request';
+    String targetRecordId = requestId.toString();
+    
+    if (mailTextId == 1000017 && updateId != null) {
+      targetTableName = 'R_RequestUpdate';
+      targetRecordId = updateId.toString();
+    }
 
     // Determinar los destinatarios: Usuario de la solicitud y Representante Comercial (si existe)
     Set<int> targetUsers = {};
