@@ -9,6 +9,7 @@ import 'package:primhub/api/global_cache.dart';
 import 'package:primhub/api/api_http.dart' as http;
 import 'package:primhub/api/api_utils.dart';
 import 'package:primhub/endpoint/endpoint.dart';
+import 'package:primhub/navigation/navigation_service.dart';
 
 class SessionManager {
   // Singleton pattern
@@ -18,7 +19,7 @@ class SessionManager {
 
   // IMPORTANTE: Esta clave debe ser asignada a la propiedad `navigatorKey`
   // de tu `MaterialApp.router` en `main.dart`.
-  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+  static GlobalKey<NavigatorState> get navigatorKey => NavigationService.navigatorKey;
 
   bool _isDialogShowing = false;
   Timer? _keepAliveTimer;

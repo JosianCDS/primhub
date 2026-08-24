@@ -18,6 +18,7 @@ class Endpoint {
     } else if (url.contains('hubtest.primware.net')) {
       return "https://primhub.primware.net";
     } else if (url.contains('hub.primware.net')) {
+      Envirioment.isProduction == true;
       return "https://erp.primware.net";
     }
     return Envirioment.isProduction ? "https://erp.primware.net" : "https://primhub.primware.net";

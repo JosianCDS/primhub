@@ -1,103 +1,140 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/api/session_manager.dart';
 import 'package:flutter_quill/flutter_quill.dart' show FlutterQuillLocalizations;
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:toastification/toastification.dart';
+import 'package:primhub/navigation/deferred_registry.dart';
+import 'package:primhub/navigation/navigation_service.dart';
 import 'package:primhub/theme/theme.dart';
-import 'package:primhub/ui/pages/Projects/Documents/documents.dart';
-import 'package:primhub/ui/pages/Home/home_page.dart';
-import 'package:primhub/ui/pages/OnDevelop/knowledge_base.dart';
-import 'package:primhub/ui/pages/Projects/Projects_Widgets/project_requests_view.dart';
-import 'package:primhub/ui/pages/Metrics/metrics_requests_page.dart';
-import 'package:primhub/ui/pages/Metrics/rep_workload_page.dart';
 import 'package:primhub/ui/pages/Metrics/client_workload_page.dart';
 import 'package:primhub/ui/pages/Login/login.dart';
-import 'package:primhub/ui/pages/Login/reset_password_page.dart';
 import 'package:primhub/ui/pages/Login/login_selection_page.dart';
-import 'package:primhub/ui/pages/OnDevelop/marketplace.dart';
-import 'package:primhub/ui/pages/Metrics/metrics.dart';
-import 'package:primhub/ui/pages/OnDevelop/profile_page.dart';
-import 'package:primhub/ui/pages/Support/Requests/my_requests.dart';
-import 'package:primhub/ui/pages/Support/support_dashboard.dart';
-import 'package:primhub/ui/pages/Support/Requests/request_updates_page.dart';
-import 'package:primhub/api/splash_loading_page.dart';
-import 'package:primhub/ui/pages/Projects/project_calendar_page.dart';
-import 'package:primhub/ui/pages/BPartner/bpartner_documents_page.dart';
+import 'package:primhub/ui/pages/Login/login_selection_args.dart';
 
-final _router = GoRouter(
-  navigatorKey: SessionManager.navigatorKey,
+final ValueNotifier<bool> sessionHydrated = ValueNotifier(false);
+
+Map<String, dynamic> _extraMap(Object? extra) =>
+    extra is Map ? Map<String, dynamic>.from(extra) : <String, dynamic>{};
+int? _projectId(Map<String, dynamic> extra) {
+  final value = extra['projectId'];
+  return value is int ? value : int.tryParse(value?.toString() ?? '');
+}
+
+final router = GoRouter(
+  navigatorKey: NavigationService.navigatorKey,
   initialLocation: '/login',
+  refreshListenable: sessionHydrated,
   redirect: (context, state) {
-    final bool isLoggedIn = Token.auth != null;
-    final bool isLoggingIn = state.uri.path == '/login' || state.uri.path == '/login-selection' || state.uri.path == '/reset-password';
-
-    if (!isLoggedIn && !isLoggingIn) {
-      return '/login';
-    }
-    if (isLoggedIn && isLoggingIn) {
-      return '/splash';
-    }
+    final isLoggedIn = Token.auth?.isNotEmpty ?? false;
+    final path = state.uri.path;
+    final isAuthRoute =
+        path == '/login' ||
+        path == '/login-selection' ||
+        path == '/reset-password';
+    if (!isLoggedIn && !isAuthRoute) return '/login';
+    if (isLoggedIn && isAuthRoute) return '/splash';
     return null;
   },
   routes: [
     GoRoute(
       path: '/',
-      pageBuilder: (context, state) => NoTransitionPage(key: state.pageKey, child: const HomePage()),
+      pageBuilder: (context, state) => NoTransitionPage(
+        key: state.pageKey,
+        child: DeferredRegistry.homePage(),
+      ),
     ),
     GoRoute(
       path: '/splash',
-      pageBuilder: (context, state) => NoTransitionPage(key: state.pageKey, child: const SplashLoadingPage()),
+      pageBuilder: (context, state) => NoTransitionPage(
+        key: state.pageKey,
+        child: DeferredRegistry.splashPage(),
+      ),
     ),
     GoRoute(
       path: '/login',
-      pageBuilder: (context, state) => NoTransitionPage(key: state.pageKey, child: const LoginPage()),
-    ),
-    GoRoute(
-      path: '/reset-password',
-      pageBuilder: (context, state) => NoTransitionPage(key: state.pageKey, child: const ResetPasswordPage()),
+      pageBuilder: (context, state) =>
+          NoTransitionPage(key: state.pageKey, child: const LoginPage()),
     ),
     GoRoute(
       path: '/login-selection',
-      pageBuilder: (context, state) => NoTransitionPage(key: state.pageKey, child: const LoginSelectionPage(), arguments: state.extra),
+      pageBuilder: (context, state) => NoTransitionPage(
+        key: state.pageKey,
+        child: LoginSelectionPage(
+          args: state.extra is LoginSelectionArgs
+              ? state.extra! as LoginSelectionArgs
+              : null,
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/reset-password',
+      pageBuilder: (context, state) => NoTransitionPage(
+        key: state.pageKey,
+        child: DeferredRegistry.resetPasswordPage(),
+      ),
     ),
     GoRoute(
       path: '/support',
-      pageBuilder: (context, state) => NoTransitionPage(key: state.pageKey, child: const SupportDashboardPage()),
+      pageBuilder: (context, state) => NoTransitionPage(
+        key: state.pageKey,
+        child: DeferredRegistry.supportPage(),
+      ),
     ),
     GoRoute(
       path: '/my-requests',
-      pageBuilder: (context, state) => NoTransitionPage(key: state.pageKey, child: const MyRequestsPage(), arguments: state.extra),
+      pageBuilder: (context, state) => NoTransitionPage(
+        key: state.pageKey,
+        child: DeferredRegistry.myRequestsPage(),
+      ),
     ),
     GoRoute(
       path: '/request-updates/:id',
       pageBuilder: (context, state) {
         final id = int.tryParse(state.pathParameters['id'] ?? '');
-        final extra = state.extra as Map<String, dynamic>?;
-        final docNo = extra?['docNo'] ?? '...';
-        if (id == null) return NoTransitionPage(key: state.pageKey, child: const HomePage()); // Fallback
+        if (id == null)
+          return NoTransitionPage(
+            key: state.pageKey,
+            child: DeferredRegistry.homePage(),
+          );
+        final extra = _extraMap(state.extra);
         return NoTransitionPage(
           key: state.pageKey,
-          child: RequestUpdatesPage(requestId: id, docNo: docNo),
+          child: DeferredRegistry.requestUpdatesPage(
+            id,
+            extra['docNo']?.toString() ?? '...',
+          ),
         );
       },
     ),
     GoRoute(
       path: '/knowledge-base',
-      pageBuilder: (context, state) => NoTransitionPage(key: state.pageKey, child: const KnowledgeBasePage()),
+      pageBuilder: (context, state) => NoTransitionPage(
+        key: state.pageKey,
+        child: DeferredRegistry.knowledgeBasePage(),
+      ),
     ),
     GoRoute(
       path: '/deliverables',
-      pageBuilder: (context, state) => NoTransitionPage(key: state.pageKey, child: const DeliverablesPage(), arguments: state.extra),
+      pageBuilder: (context, state) => NoTransitionPage(
+        key: state.pageKey,
+        child: DeferredRegistry.deliverablesPage(),
+      ),
     ),
     GoRoute(
       path: '/metrics',
-      pageBuilder: (context, state) => NoTransitionPage(key: state.pageKey, child: const MetricsPage()),
+      pageBuilder: (context, state) => NoTransitionPage(
+        key: state.pageKey,
+        child: DeferredRegistry.metricsPage(),
+      ),
     ),
     GoRoute(
       path: '/rep-workload',
-      pageBuilder: (context, state) => NoTransitionPage(key: state.pageKey, child: const RepWorkloadPage()),
+      pageBuilder: (context, state) => NoTransitionPage(
+        key: state.pageKey,
+        child: DeferredRegistry.repWorkloadPage(),
+      ),
     ),
     GoRoute(
       path: '/client-workload',
@@ -106,50 +143,67 @@ final _router = GoRouter(
     GoRoute(
       path: '/metric-requests',
       pageBuilder: (context, state) {
-        final extra = state.extra as Map<String, dynamic>?;
-        final rawId = extra?['projectId'];
-        final projId = rawId is int ? rawId : (rawId != null ? int.tryParse(rawId.toString()) : null);
+        final extra = _extraMap(state.extra);
         return NoTransitionPage(
           key: state.pageKey,
-          child: ProjectRequestsPage(projectId: projId, filterStatus: extra?['filterStatus'] as String?, filterType: extra?['filterType'] as String?),
+          child: DeferredRegistry.metricRequestsPage(
+            _projectId(extra),
+            extra['filterStatus'] as String?,
+            extra['filterType'] as String?,
+          ),
         );
       },
     ),
     GoRoute(
       path: '/project-requests',
       pageBuilder: (context, state) {
-        final extra = state.extra as Map<String, dynamic>?;
-        final rawId = extra?['projectId'];
-        final projId = rawId is int ? rawId : (rawId != null ? int.tryParse(rawId.toString()) : null);
+        final extra = _extraMap(state.extra);
         return NoTransitionPage(
           key: state.pageKey,
-          child: ProjectRequestsView(projectId: projId, filterStatus: extra?['filterStatus'] as String?, filterType: extra?['filterType'] as String?, filterCompliance: extra?['filterCompliance'] as String?, showAllGroups: extra?['showAllGroups'] as bool? ?? false),
+          child: DeferredRegistry.projectRequestsPage(
+            _projectId(extra),
+            extra['filterStatus'] as String?,
+            extra['filterType'] as String?,
+            extra['filterCompliance'] as String?,
+            extra['showAllGroups'] as bool? ?? false,
+          ),
         );
       },
     ),
     GoRoute(
       path: '/marketplace',
-      pageBuilder: (context, state) => NoTransitionPage(key: state.pageKey, child: const MarketplacePage()),
+      pageBuilder: (context, state) => NoTransitionPage(
+        key: state.pageKey,
+        child: DeferredRegistry.marketplacePage(),
+      ),
     ),
     GoRoute(
       path: '/profile',
-      pageBuilder: (context, state) => NoTransitionPage(key: state.pageKey, child: const ProfilePage()),
+      pageBuilder: (context, state) => NoTransitionPage(
+        key: state.pageKey,
+        child: DeferredRegistry.profilePage(),
+      ),
     ),
     GoRoute(
       path: '/project-calendar',
-      pageBuilder: (context, state) {
-        final extra = state.extra as Map<String, dynamic>?;
-        final project = extra ?? {};
-        return NoTransitionPage(key: state.pageKey, child: ProjectCalendarPage(project: project));
-      },
+      pageBuilder: (context, state) => NoTransitionPage(
+        key: state.pageKey,
+        child: DeferredRegistry.projectCalendarPage(_extraMap(state.extra)),
+      ),
     ),
     GoRoute(
       path: '/bpartner-docs/general',
-      pageBuilder: (context, state) => NoTransitionPage(key: state.pageKey, child: const BPartnerDocumentsPage(viewType: 'General')),
+      pageBuilder: (context, state) => NoTransitionPage(
+        key: state.pageKey,
+        child: DeferredRegistry.bPartnerDocumentsPage('General'),
+      ),
     ),
     GoRoute(
       path: '/bpartner-docs/seguimiento',
-      pageBuilder: (context, state) => NoTransitionPage(key: state.pageKey, child: const BPartnerDocumentsPage(viewType: 'Seguimiento')),
+      pageBuilder: (context, state) => NoTransitionPage(
+        key: state.pageKey,
+        child: DeferredRegistry.bPartnerDocumentsPage('Seguimiento'),
+      ),
     ),
   ],
 );
@@ -167,7 +221,7 @@ class MainApp extends StatelessWidget {
           onPointerDown: (_) => SessionManager().resetInactivityTimer(),
           onPointerMove: (_) => SessionManager().resetInactivityTimer(),
           child: MaterialApp.router(
-            routerConfig: _router,
+            routerConfig: router,
             title: 'PrimHub',
             debugShowCheckedModeBanner: false,
             theme: AppThemes.lightTheme,

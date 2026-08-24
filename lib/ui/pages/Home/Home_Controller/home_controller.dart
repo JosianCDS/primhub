@@ -100,12 +100,6 @@ class HomeController extends ChangeNotifier {
     try {
       await GlobalCache.syncData(force: forceRefresh);
 
-      try {
-        if (GlobalCache.phase2SyncFuture != null) await GlobalCache.phase2SyncFuture;
-      } catch (e) {
-// [Mantenimiento] Log removido:         debugPrint("Error esperando la Fase 2 de la caché en Home: $e");
-      }
-
       await loadValidationData();
       
       final bool isAdmin = AccessControl.isAdmin;

@@ -94,12 +94,12 @@ Future<DateTime?> _getLastTokenGeneratedAt() async {
 
 Future<bool> canReuseCurrentToken() async {
   if (Token.auth == null || Token.auth!.trim().isEmpty) return false;
-  
+
   final lastGeneratedAt = await _getLastTokenGeneratedAt();
   if (lastGeneratedAt == null) return false;
 
   final minutesSinceLastToken = DateTime.now().difference(lastGeneratedAt).inMinutes;
-  
+
   final canReuse = minutesSinceLastToken < _tokenReuseWindowMinutes;
   return canReuse;
 }

@@ -3,7 +3,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
-import 'package:primhub/api/auth_api.dart';
+import 'package:primhub/api/auth_entry_api.dart';
+import 'package:primhub/api/auth_api.dart' deferred as session_auth;
 import 'package:primhub/api/token.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
@@ -11,7 +12,8 @@ import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:universal_html/html.dart' as html;
-import 'package:primhub/api/global_cache.dart';
+import 'package:primhub/navigation/deferred_registry.dart';
+import 'package:primhub/ui/pages/Login/login_selection_args.dart';
 import 'package:primhub/build_version.dart';
 
 class LoginPage extends StatefulWidget {
@@ -42,7 +44,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    
+
     if (appBuildVersion != '-.-.-') {
       _buildVersion = 'v$appBuildVersion';
     } else {
@@ -88,6 +90,12 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     _userFocus.addListener(() => setState(() {}));
     _passFocus.addListener(() => setState(() {}));
     _loadSavedUser();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future<void>.delayed(
+        const Duration(seconds: 1),
+        DeferredRegistry.preloadHome,
+      );
+    });
   }
 
   @override
@@ -148,7 +156,9 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
       } else if (errorMessage.contains('Failed to fetch') ||
           errorMessage.contains('ClientException') ||
           errorMessage.contains('SocketException')) {
-        _showError('Verifique su conexion a internet y que sus credenciales sean correctas.');
+        _showError(
+          'Verifique su conexion a internet y que sus credenciales sean correctas.',
+        );
       } else {
         _showError(errorMessage);
       }
@@ -196,7 +206,8 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
             Token.rol = role['id'];
             Token.organitation = org['id'];
             Token.warehouseID = warehouseId;
-            Token.roleUU = role['role-uu'] ?? role['uuid'] ?? role['AD_Role_UU'];
+            Token.roleUU =
+                role['role-uu'] ?? role['uuid'] ?? role['AD_Role_UU'];
 
             Map<String, dynamic> params = {
               "clientId": client['id'],
@@ -206,7 +217,8 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
             };
             if (warehouseId != null) params["warehouseId"] = warehouseId;
 
-            final responseFinal = await finalizeLogin(
+            await session_auth.loadLibrary();
+            final responseFinal = await session_auth.finalizeLogin(
               username,
               password,
               params,
@@ -224,6 +236,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
               if (mounted) {
                 setState(() => _isLoading = false);
                 CurrentLogMessage.add("Login exitoso (Auto - Ruta Única).");
+                DeferredRegistry.preloadForConfiguration(Token.primConfig);
                 context.go('/splash');
               }
             }
@@ -236,12 +249,12 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
         setState(() => _isLoading = false);
         context.push(
           '/login-selection',
-          extra: {
-            'token': tempToken,
-            'clients': clients,
-            'username': username,
-            'password': password,
-          },
+          extra: LoginSelectionArgs(
+            token: tempToken,
+            clients: clients,
+            username: username,
+            password: password,
+          ),
         );
       }
       return;
@@ -256,6 +269,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
       });
 
       CurrentLogMessage.add("Login exitoso. Token guardado.");
+      DeferredRegistry.preloadForConfiguration(Token.primConfig);
       context.go('/splash');
     }
   }
@@ -291,7 +305,10 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
               hintText: 'https://...',
             ),
             const SizedBox(height: 16),
-            Text('Versión de Compilación: $_buildVersion', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+            Text(
+              'Versión de Compilación: $_buildVersion',
+              style: const TextStyle(color: Colors.grey, fontSize: 12),
+            ),
           ],
         ),
         actions: [
@@ -336,7 +353,10 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
           if (_showVersion)
             Text(
               _buildVersion,
-              style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                color: Colors.grey,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           if (!Envirioment.isProduction) ...[
             const SizedBox(width: 8),
@@ -602,7 +622,6 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                           borderRadius: 12,
                                         ),
                                 ),
-
                               ],
                             ),
                           ),

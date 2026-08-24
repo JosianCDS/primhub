@@ -10,7 +10,6 @@ import 'package:primhub/endpoint/endpoint.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:primhub/api/api_utils.dart';
 
-import '../ui/pages/Login/login.dart';
 
 Future<Map<String, dynamic>> loginStep1(String username, String password) async {
   try {
@@ -92,7 +91,6 @@ Future<bool> finalizeLogin(String username, String password, Map<String, dynamic
       if (config == false && !AccessControl.hasHardcodedRole(Token.rol)) {
         Token.primConfig = null;
         Token.primConfigId = null;
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const LoginPage()));
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('El Rol no tiene configuración.'), backgroundColor: Colors.red));
         Token.clear();
         User.userID = null;

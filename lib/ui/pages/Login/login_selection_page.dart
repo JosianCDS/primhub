@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:primhub/api/auth_api.dart';
+import 'package:primhub/api/auth_entry_api.dart';
+import 'package:primhub/api/auth_api.dart' deferred as session_auth;
 import 'package:primhub/api/token.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
-import 'package:primhub/api/global_cache.dart';
+import 'package:primhub/navigation/deferred_registry.dart';
+import 'package:primhub/ui/pages/Login/login_selection_args.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginSelectionPage extends StatefulWidget {
-  const LoginSelectionPage({super.key});
+  const LoginSelectionPage({this.args, super.key});
+  final LoginSelectionArgs? args;
 
   @override
   State<LoginSelectionPage> createState() => _LoginSelectionPageState();
@@ -36,12 +39,12 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_isInit) {
-      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      final args = widget.args;
       if (args != null) {
-        _tempToken = args['token'];
-        _clients = args['clients'] ?? [];
-        _username = args['username'];
-        _password = args['password'];
+        _tempToken = args.token;
+        _clients = args.clients;
+        _username = args.username;
+        _password = args.password;
         Token.preAuth = _tempToken;
       }
       _isInit = false;
@@ -130,7 +133,12 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
       _isLoading = true;
     });
 
-    final warehouses = await getWarehouses(_selectedClientId!, _selectedRoleId!, orgId, _tempToken!);
+    final warehouses = await getWarehouses(
+      _selectedClientId!,
+      _selectedRoleId!,
+      orgId,
+      _tempToken!,
+    );
 
     if (mounted) {
       setState(() {
@@ -144,13 +152,24 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
   }
 
   Future<void> _finalizeLogin() async {
-    if (_selectedClientId == null || _selectedRoleId == null || _selectedOrgId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Por favor seleccione Empresa, Rol y Organización')));
+    if (_selectedClientId == null ||
+        _selectedRoleId == null ||
+        _selectedOrgId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Por favor seleccione Empresa, Rol y Organización'),
+        ),
+      );
       return;
     }
 
     if (_username == null || _password == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error de credenciales. Vuelva a iniciar sesión.'), backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Error de credenciales. Vuelva a iniciar sesión.'),
+          backgroundColor: Colors.red,
+        ),
+      );
       return;
     }
 
@@ -168,36 +187,53 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
         orElse: () => null,
       );
       if (selectedRole != null) {
-        Token.roleUU = selectedRole['role-uu'] ?? 
-                      selectedRole['uuid'] ?? 
-                      selectedRole['AD_Role_UU'];
+        Token.roleUU =
+            selectedRole['role-uu'] ??
+            selectedRole['uuid'] ??
+            selectedRole['AD_Role_UU'];
         CurrentLogMessage.add("Rol seleccionado UUID: ${Token.roleUU}");
       }
     } catch (e) {
       CurrentLogMessage.add("Error capturando UUID del rol: $e");
     }
 
-    Map<String, dynamic> params = {"clientId": _selectedClientId, "roleId": _selectedRoleId, "organizationId": _selectedOrgId, "language": "es_CO"};
+    Map<String, dynamic> params = {
+      "clientId": _selectedClientId,
+      "roleId": _selectedRoleId,
+      "organizationId": _selectedOrgId,
+      "language": "es_CO",
+    };
     if (_selectedWarehouseId != null) {
       params["warehouseId"] = _selectedWarehouseId;
     }
 
-    final response = await finalizeLogin(_username!, _password!, params, context);
+    await session_auth.loadLibrary();
+    final response = await session_auth.finalizeLogin(
+      _username!,
+      _password!,
+      params,
+      context,
+    );
 
     if (mounted) {
       if (response == false) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Credenciales Incorrectas.'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Credenciales Incorrectas.'),
+            backgroundColor: Colors.red,
+          ),
+        );
       } else {
         // Save preferences before navigating
         final prefs = await SharedPreferences.getInstance();
         await prefs.setInt('last_login_client_id', _selectedClientId!);
         await prefs.setInt('last_login_role_id', _selectedRoleId!);
         await prefs.setInt('last_login_org_id', _selectedOrgId!);
-        
+
         setState(() => _isLoading = false);
         CurrentLogMessage.add("Login exitoso. Token guardado.");
-
+        DeferredRegistry.preloadForConfiguration(Token.primConfig);
         context.go('/splash');
       }
     }
@@ -220,7 +256,14 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
       body: SafeArea(
         child: Container(
           decoration: BoxDecoration(
-            gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [theme.colorScheme.surface, theme.colorScheme.surfaceContainerLow]),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                theme.colorScheme.surface,
+                theme.colorScheme.surfaceContainerLow,
+              ],
+            ),
           ),
           child: Center(
             child: SingleChildScrollView(
@@ -231,7 +274,13 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
                 decoration: BoxDecoration(
                   color: theme.cardColor,
                   borderRadius: BorderRadius.circular(21),
-                  boxShadow: [BoxShadow(color: theme.colorScheme.primary.withOpacity(0.2), blurRadius: 20, offset: const Offset(0, 10))],
+                  boxShadow: [
+                    BoxShadow(
+                      color: theme.colorScheme.primary.withOpacity(0.2),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
                 ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -240,14 +289,25 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
                     Text(
                       '¿Como deseas ingresar?',
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface),
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.onSurface,
+                      ),
                     ),
                     const SizedBox(height: 24),
                     CustomDropdown<int>(
                       value: _selectedClientId,
                       label: 'Empresa',
                       hintText: 'Seleccione Empresa',
-                      items: _clients.map((c) => DropdownMenuItem<int>(value: c['id'], child: Text(_getName(c)))).toList(),
+                      items: _clients
+                          .map(
+                            (c) => DropdownMenuItem<int>(
+                              value: c['id'],
+                              child: Text(_getName(c)),
+                            ),
+                          )
+                          .toList(),
                       onChanged: _onClientChanged,
                     ),
                     const SizedBox(height: 16),
@@ -255,19 +315,47 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
                       value: _selectedRoleId,
                       label: 'Rol',
                       hintText: 'Seleccione Rol',
-                      items: _roles.map((r) => DropdownMenuItem<int>(value: r['id'], child: Text(_getName(r)))).toList(),
-                      onChanged: _selectedClientId == null ? null : _onRoleChanged,
+                      items: _roles
+                          .map(
+                            (r) => DropdownMenuItem<int>(
+                              value: r['id'],
+                              child: Text(_getName(r)),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: _selectedClientId == null
+                          ? null
+                          : _onRoleChanged,
                     ),
                     const SizedBox(height: 16),
                     CustomDropdown<int>(
                       value: _selectedOrgId,
                       label: 'Organización',
                       hintText: 'Seleccione Organización',
-                      items: _orgs.map((o) => DropdownMenuItem<int>(value: o['id'], child: Text(_getName(o)))).toList(),
+                      items: _orgs
+                          .map(
+                            (o) => DropdownMenuItem<int>(
+                              value: o['id'],
+                              child: Text(_getName(o)),
+                            ),
+                          )
+                          .toList(),
                       onChanged: _selectedRoleId == null ? null : _onOrgChanged,
                     ),
                     const SizedBox(height: 24),
-                    CustomButton(text: 'Ingresar', onPressed: (_selectedClientId != null && _selectedRoleId != null && _selectedOrgId != null) ? _finalizeLogin : null, isLoading: _isLoading, width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 16), borderRadius: 12),
+                    CustomButton(
+                      text: 'Ingresar',
+                      onPressed:
+                          (_selectedClientId != null &&
+                              _selectedRoleId != null &&
+                              _selectedOrgId != null)
+                          ? _finalizeLogin
+                          : null,
+                      isLoading: _isLoading,
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      borderRadius: 12,
+                    ),
                   ],
                 ),
               ),

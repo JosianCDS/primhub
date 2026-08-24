@@ -5,10 +5,14 @@ import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/theme/theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:primhub/api/token.dart';
-import 'package:primhub/api/session_manager.dart';
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  runApp(const MainApp());
+  _hydratePreferences();
+}
+
+Future<void> _hydratePreferences() async {
   final prefs = await SharedPreferences.getInstance();
   final isDark = prefs.getBool('is_dark_mode') ?? false;
   AppThemes.themeModeNotifier.value = isDark ? ThemeMode.dark : ThemeMode.light;
@@ -26,22 +30,20 @@ void main() async {
     Token.warehouseID = prefs.getInt('token_warehouse');
     Token.primConfig = prefs.getString('token_primconfig');
     Token.primConfigId = prefs.getInt('token_primconfig_id');
-    
+
     User.userID = prefs.getInt('user_id');
     User.cBPartnerID = prefs.getInt('cbpartner_id');
     User.name = prefs.getString('user_name');
-    
-    // Iniciar temporizador de refresco porque ya hay un token cargado
-    SessionManager().startKeepAliveTimer();
   }
 
   final savedUrl = prefs.getString('api_base_url');
   if (savedUrl != null) {
     final currentUrl = Uri.base.toString();
-    if (!currentUrl.contains('hubtest.primware.net') && !currentUrl.contains('hub.primware.net')) {
+    if (!currentUrl.contains('hubtest.primware.net') &&
+        !currentUrl.contains('hub.primware.net')) {
       Endpoint.baseUrl = savedUrl;
     }
   }
 
-  runApp(const MainApp());
+  sessionHydrated.value = true;
 }

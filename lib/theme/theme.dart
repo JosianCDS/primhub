@@ -1,20 +1,38 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-
 import 'theme_material.dart';
 
 class AppThemes {
-  static final ValueNotifier<ThemeMode> themeModeNotifier = ValueNotifier(ThemeMode.system);
+  static final ValueNotifier<ThemeMode> themeModeNotifier = ValueNotifier(
+    ThemeMode.system,
+  );
 
   // Centralizamos la tipografía con los requerimientos exactos
   static TextTheme _buildTextTheme(ColorScheme colorScheme) {
-    return GoogleFonts.poppinsTextTheme(
-      TextTheme(
-        titleLarge: TextStyle(fontSize: 22.0, fontWeight: FontWeight.normal, color: colorScheme.onSurface), // Títulos
-        titleMedium: TextStyle(fontSize: 18.0, fontWeight: FontWeight.normal, color: colorScheme.onSurface), // Subtítulos
-        bodyLarge: TextStyle(fontSize: 16.0, fontWeight: FontWeight.normal, color: colorScheme.onSurface), // Textos normales
-        bodyMedium: TextStyle(fontSize: 14.0, fontWeight: FontWeight.normal, color: colorScheme.onSurface),
-        labelLarge: TextStyle(fontSize: 16.0, fontWeight: FontWeight.normal, color: colorScheme.onSurface),
+    return TextTheme(
+      titleLarge: TextStyle(
+        fontSize: 22.0,
+        fontWeight: FontWeight.normal,
+        color: colorScheme.onSurface,
+      ), // Títulos
+      titleMedium: TextStyle(
+        fontSize: 18.0,
+        fontWeight: FontWeight.normal,
+        color: colorScheme.onSurface,
+      ), // Subtítulos
+      bodyLarge: TextStyle(
+        fontSize: 16.0,
+        fontWeight: FontWeight.normal,
+        color: colorScheme.onSurface,
+      ), // Textos normales
+      bodyMedium: TextStyle(
+        fontSize: 14.0,
+        fontWeight: FontWeight.normal,
+        color: colorScheme.onSurface,
+      ),
+      labelLarge: TextStyle(
+        fontSize: 16.0,
+        fontWeight: FontWeight.normal,
+        color: colorScheme.onSurface,
       ),
     );
   }
@@ -33,14 +51,21 @@ class AppThemes {
             foregroundColor: colorScheme.onPrimary,
             elevation: 0,
             centerTitle: true,
-            titleTextStyle: textTheme.titleLarge?.copyWith(color: colorScheme.onPrimary),
+            titleTextStyle: textTheme.titleLarge?.copyWith(
+              color: colorScheme.onPrimary,
+            ),
           ),
           textTheme: textTheme,
           drawerTheme: DrawerThemeData(
             backgroundColor: colorScheme.onPrimary,
-            shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.zero,
+            ),
           ),
-          floatingActionButtonTheme: FloatingActionButtonThemeData(backgroundColor: colorScheme.primary, foregroundColor: colorScheme.onPrimary),
+          floatingActionButtonTheme: FloatingActionButtonThemeData(
+            backgroundColor: colorScheme.primary,
+            foregroundColor: colorScheme.onPrimary,
+          ),
         );
   }
 
@@ -57,14 +82,21 @@ class AppThemes {
             foregroundColor: colorScheme.onTertiaryContainer,
             elevation: 0,
             centerTitle: true,
-            titleTextStyle: textTheme.titleLarge?.copyWith(color: colorScheme.onTertiaryContainer),
+            titleTextStyle: textTheme.titleLarge?.copyWith(
+              color: colorScheme.onTertiaryContainer,
+            ),
           ),
           textTheme: textTheme,
           drawerTheme: DrawerThemeData(
             backgroundColor: colorScheme.onPrimary,
-            shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.zero,
+            ),
           ),
-          floatingActionButtonTheme: FloatingActionButtonThemeData(backgroundColor: colorScheme.primary, foregroundColor: colorScheme.onPrimary),
+          floatingActionButtonTheme: FloatingActionButtonThemeData(
+            backgroundColor: colorScheme.primary,
+            foregroundColor: colorScheme.onPrimary,
+          ),
         );
   }
 }
