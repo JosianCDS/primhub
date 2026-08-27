@@ -2,19 +2,19 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:primhub/api/api_http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
+
 import 'package:go_router/go_router.dart';
 import '../../../api/token.dart';
 import '../../widgets/custom_drawer.dart';
 import '../../Shared_Custom/custom_modal.dart';
-import '../../../theme/theme.dart';
+
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/api_utils.dart';
 import 'package:primhub/api/auth_api.dart';
 import '../../Shared_Custom/custom_button.dart';
 import '../../Shared_Custom/custom_inputs.dart';
-import '../../Shared_Custom/customToast.dart';
+import '../../Shared_Custom/custom_toast.dart';
 
 
 class ProfilePage extends StatefulWidget {
@@ -53,10 +53,11 @@ class _ProfilePageState extends State<ProfilePage> {
           if (userResp.statusCode == 200) {
             final userData = json.decode(utf8.decode(userResp.bodyBytes));
             final bpField = userData['C_BPartner_ID'];
-            if (bpField is Map)
+            if (bpField is Map) {
               partnerId = bpField['id'];
-            else if (bpField is int)
+            } else if (bpField is int) {
               partnerId = bpField;
+            }
             if (partnerId != null) User.cBPartnerID = partnerId; // Guardar en memoria
           }
         }
@@ -92,16 +93,21 @@ class _ProfilePageState extends State<ProfilePage> {
                 final cleanBase64 = binaryData.replaceAll(RegExp(r'\s+'), '');
                 final bytes = base64Decode(cleanBase64);
                 User.profileImageBytes = bytes; // Guardar en caché
-                if (mounted)
+                if (mounted) {
                   setState(() {
                     _profileImageBytes = bytes;
                   });
-              } catch (_) {}
+                }
+              } catch (_) {
+                // Ignore error
+              }
             }
           }
         }
       }
-    } catch (e) {}
+    } catch (e) {
+      // Ignore error
+    }
   }
 
   Future<void> _loadUserInfo() async {
@@ -133,7 +139,9 @@ class _ProfilePageState extends State<ProfilePage> {
           }
         }
       }
-    } catch (e) {}
+    } catch (e) {
+      // Ignore error
+    }
   }
 
   void _showChangePasswordModal(BuildContext context) {
@@ -228,10 +236,6 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget build(BuildContext context) {
     // Mapeo de nombres amigabless basado en el token
     final String username = _userInfo['sub'] ?? 'Desconocido';
-    final int roleId = _userInfo['AD_Role_ID'] ?? 0;
-    final int clientId = _userInfo['AD_Client_ID'] ?? 0;
-    final int orgId = _userInfo['AD_Org_ID'] ?? 0;
-    final String language = _userInfo['AD_Language'] ?? 'es_PA';
     final String email = _userInfo['email'] ?? 'admin@gardenworld.com';
     final String bPartner = _userInfo['bpartner_name'] ?? 'GardenWorld HQ';
 
@@ -243,8 +247,7 @@ class _ProfilePageState extends State<ProfilePage> {
     } else if (AccessControl.isRealProject) {
       roleName = 'Usuario de Proyecto';
     }
-    final String clientName = _userInfo['client_name'] ?? _userInfo['clientName'] ?? (clientId == 11 ? 'GardenWorld' : 'Cliente $clientId');
-    final String orgName = orgId == 0 ? '*' : (orgId == 11 ? 'HQ' : 'Org $orgId');
+
 
     return Scaffold(
       appBar: AppBar(

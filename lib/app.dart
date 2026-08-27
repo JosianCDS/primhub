@@ -93,11 +93,12 @@ final router = GoRouter(
       path: '/request-updates/:id',
       pageBuilder: (context, state) {
         final id = int.tryParse(state.pathParameters['id'] ?? '');
-        if (id == null)
+        if (id == null) {
           return NoTransitionPage(
             key: state.pageKey,
             child: DeferredRegistry.homePage(),
           );
+        }
         final extra = _extraMap(state.extra);
         return NoTransitionPage(
           key: state.pageKey,

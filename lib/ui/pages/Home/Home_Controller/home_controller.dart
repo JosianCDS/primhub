@@ -7,14 +7,14 @@ import 'package:primhub/api/admin_view_mode.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
 import 'package:primhub/api/access_control.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
 import 'package:primhub/api/global_cache.dart';
 
 class HomeController extends ChangeNotifier {
   bool isLoading = true;
   bool validationLoading = true;
   bool _isDisposed = false;
-  static bool _hasShownInitialSkeleton = false;
+
 
   String username = '';
   int? cBPartnerID;
@@ -74,11 +74,13 @@ class HomeController extends ChangeNotifier {
       final payload = Token.decodePayload(Token.token);
       username = payload['sub'] ?? '';
       notifyListeners();
-    } catch (_) {}
+    } catch (_) {
+      // Ignore error
+    }
   }
 
   Future<void> initData({bool forceRefresh = false}) async {
-    final startTime = DateTime.now();
+
 
     // Fast path: Data is loaded, not forcing refresh, and background sync (Phase 2) is complete.
     if (GlobalCache.isDataLoaded && !forceRefresh && !GlobalCache.backgroundSyncNotifier.value) {
@@ -124,7 +126,7 @@ class HomeController extends ChangeNotifier {
 // [Mantenimiento] Log removido:       debugPrint("Error en carga en cascada de Home: $e");
     }
 
-    _hasShownInitialSkeleton = true;
+
 
     isLoading = false;
     notifyListeners();
@@ -136,7 +138,7 @@ class HomeController extends ChangeNotifier {
   }
 
   Future<void> loadValidationData() async {
-    final prefs = await SharedPreferences.getInstance();
+
     final bool isAdmin = AccessControl.isAdmin;
 
     int? partnerID = User.cBPartnerID;
@@ -172,7 +174,9 @@ class HomeController extends ChangeNotifier {
           final validProjectIds = projects.map<int>((p) => p['id'] is int ? p['id'] as int : int.tryParse(p['id'].toString()) ?? 0).toSet();
           selectedProjectIds = selectedProjectIds.where((id) => validProjectIds.contains(id)).toList();
         }
-      } catch (e) {}
+      } catch (e) {
+        // Ignore error
+      }
     }
 
     hasProject = projects.isNotEmpty;
@@ -211,7 +215,7 @@ class HomeController extends ChangeNotifier {
       requestsStatsByBp[id]!['consumedHours'] = 0.0;
       requestsStatsByBp[id]!['inProgressHours'] = 0.0;
     });
-    final int currentYear = DateTime.now().year;
+
     for (var req in allBPartnerRequests) {
       // Eliminamos el filtro de Record_UU para que el Home muestre TODAS las solicitudes recientes del tercero.
       // Anteriormente: if (recordUU != null && recordUU.toString().trim().isNotEmpty) continue;
@@ -345,18 +349,30 @@ class HomeController extends ChangeNotifier {
           level = priorityVal['identifier'] ?? priorityVal['Name'] ?? 'Media';
         } else if (priorityVal != null) {
           String pStr = priorityVal.toString();
-          if (pStr == '1') level = 'Urgente';
-          else if (pStr == '3') level = 'Alta';
-          else if (pStr == '5') level = 'Media';
-          else if (pStr == '7') level = 'Baja';
-          else if (pStr == '9') level = 'Muy baja';
+          if (pStr == '1') {
+            level = 'Urgente';
+          } else if (pStr == '3') {
+            level = 'Alta';
+          } else if (pStr == '5') {
+            level = 'Media';
+          } else if (pStr == '7') {
+            level = 'Baja';
+          } else if (pStr == '9') {
+            level = 'Muy baja';
+          }
         }
 
-        if (level == 'Urgente') baseColor = Colors.purple;
-        else if (level == 'Alta') baseColor = Colors.red;
-        else if (level == 'Media') baseColor = Colors.amber.shade800;
-        else if (level == 'Muy baja') baseColor = Colors.grey;
-        else if (level == 'Baja') baseColor = Colors.green;
+        if (level == 'Urgente') {
+          baseColor = Colors.purple;
+        } else if (level == 'Alta') {
+          baseColor = Colors.red;
+        } else if (level == 'Media') {
+          baseColor = Colors.amber.shade800;
+        } else if (level == 'Muy baja') {
+          baseColor = Colors.grey;
+        } else if (level == 'Baja') {
+          baseColor = Colors.green;
+        }
       }
 
       String formattedTime = r['Created'] ?? '';
@@ -365,7 +381,9 @@ class HomeController extends ChangeNotifier {
           final DateTime date = DateTime.parse(formattedTime).toLocal();
           formattedTime = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
         }
-      } catch (_) {}
+      } catch (_) {
+        // Ignore error
+      }
 
       String situation = r['R_RequestType_ID'] is Map ? (r['R_RequestType_ID']['identifier'] ?? r['R_RequestType_ID']['Name'] ?? r['R_RequestType_Name'] ?? 'Solicitud') : (r['R_RequestType_Name'] ?? 'Solicitud');
       String status = r['R_Status_ID'] is Map ? (r['R_Status_ID']['identifier'] ?? r['R_Status_ID']['Name'] ?? '1_Open') : (r['R_Status_Name'] ?? '1_Open');
@@ -449,10 +467,10 @@ class HomeController extends ChangeNotifier {
     });
 
     // Resetear stats agregadas (aunque ahora usaremos datos por chip)
-    bpIdsForQuery.forEach((id) {
+    for (var id in bpIdsForQuery) {
       requestsStatsByBp[id] ??= {'closed': 0, 'inProgress': 0, 'consumedHours': 0.0, 'inProgressHours': 0.0, 'acquiredHours': 0.0};
       requestsStatsByBp[id]!['acquiredHours'] = 0.0;
-    });
+    }
 
     List<Map<String, dynamic>> processedChips = [];
 
@@ -477,17 +495,7 @@ class HomeController extends ChangeNotifier {
     Map<int, int> chipClosedCountMap = {};
     Map<int, int> chipInProgressCountMap = {};
     
-    // Acumulador para consumos de este BP que NO están vinculados a ninguna ficha
-    Map<int, double> unlinkedConsumedByBp = {};
-    Map<int, double> unlinkedInProgressByBp = {};
-    Map<int, int> unlinkedClosedCountByBp = {};
-    Map<int, int> unlinkedInProgressCountByBp = {};
 
-// [Mantenimiento] Log removido:     debugPrint("DEBUG CHIPS: Iniciando loadSupportProductChips para BPs: $bpIdsForQuery");
-// [Mantenimiento] Log removido:     debugPrint("DEBUG CHIPS: Fichas encontradas en caché: ${allFetchedChips.length}");
-    for (var c in allFetchedChips) {
-// [Mantenimiento] Log removido:       debugPrint("DEBUG CHIPS: Ficha en caché -> ID: ${c['id']}, Name: ${c['Name']}, PK_Field: ${c['C_BPartner_Product_Chip_ID']}");
-    }
 
     // Usamos processRequests para obtener datos normalizados
     final processedResult = await processRequests(allSupportRequests, GlobalCache.statuses);
@@ -529,7 +537,7 @@ class HomeController extends ChangeNotifier {
       if (chipId == null) continue;
       
 // [Mantenimiento] Log removido:       debugPrint("DEBUG CHIPS: Analizando Ficha ID $chipId para BP $bpId");
-      double chipAcquired = (chip['Qty'] as num?)?.toDouble() ?? 0.0;
+
       
       // Consumo directo
       double consumed = chipConsumedHoursMap[chipId] ?? 0.0;
@@ -570,11 +578,11 @@ class HomeController extends ChangeNotifier {
           bool hasMetrics = false;
 
           try {
-            var response = await http.get(Uri.parse('${Endpoint.primDocuments}?\$filter=C_Project_ID eq ${projectId}&\$expand=PRIM_Documents_Related'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+            var response = await http.get(Uri.parse('${Endpoint.primDocuments}?\$filter=C_Project_ID eq $projectId&\$expand=PRIM_Documents_Related'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
             if (response.statusCode == 401) {
               final refreshed = await handleTokenRefresh();
               if (refreshed) {
-                response = await http.get(Uri.parse('${Endpoint.primDocuments}?\$filter=C_Project_ID eq ${projectId}&\$expand=PRIM_Documents_Related'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
+                response = await http.get(Uri.parse('${Endpoint.primDocuments}?\$filter=C_Project_ID eq $projectId&\$expand=PRIM_Documents_Related'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
               }
             }
 
@@ -609,7 +617,9 @@ class HomeController extends ChangeNotifier {
 
               countRecursive(records, null);
             }
-          } catch (e) {}
+          } catch (e) {
+            // Ignore error
+          }
 
           try {
             var metricsRes = await http.get(Uri.parse('${Endpoint.request}?\$filter=C_Project_ID eq $projectId&\$top=1&\$select=R_Request_ID'), headers: {'Content-Type': 'application/json', 'Authorization': Token.token});
@@ -617,10 +627,14 @@ class HomeController extends ChangeNotifier {
               final mData = json.decode(utf8.decode(metricsRes.bodyBytes));
               hasMetrics = (mData['records'] as List).isNotEmpty;
             }
-          } catch (_) {}
+          } catch (_) {
+            // Ignore error
+          }
 
           stats[projectId] = {'et': pEt, 'sg': pSg, 'gn': pGn, 'hasMetrics': hasMetrics};
-        } catch (e) {}
+        } catch (e) {
+          // Ignore error
+        }
       }());
     }
 

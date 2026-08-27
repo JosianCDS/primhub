@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/ui/pages/Projects/Documents/project_file_manager.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
-import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
+
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 import 'package:primhub/ui/pages/Projects/Projects_Widgets/project_item.dart';
 import 'package:primhub/ui/pages/Projects/Documents/project_form_page.dart';
@@ -38,11 +38,11 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
   final TextEditingController _searchController = TextEditingController();
 
   // FILTROS DE ADMINISTRADOR
-  bool _showInactive = false;
+  final bool _showInactive = false;
   bool _viewingInactive = false;
 
   final Set<int> _expandedProjectIds = {};
-  int? _targetExpandedProjectId;
+
   bool _isInit = true;
   String _currentViewType = '';
   final ProjectsLogic _logic = ProjectsLogic();
@@ -55,7 +55,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
     'Baja': '7',
     'Menor': '9',
   };
-  Map<int, Map<String, dynamic>> _projectStats = {}; // Almacenar stats
+  final Map<int, Map<String, dynamic>> _projectStats = {}; // Almacenar stats
 
   @override
   void initState() {
@@ -195,7 +195,6 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
         final rawId = project['id'];
         final id = rawId is int ? rawId : int.tryParse(rawId.toString()) ?? 0;
         _expandedProjectIds.add(id);
-        _targetExpandedProjectId = id;
         _exitFileManager();
       });
     } else {
@@ -229,7 +228,6 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
     setState(() {
       _isLoadingProjects = true;
       _expandedProjectIds.add(projectId);
-      _targetExpandedProjectId = projectId;
     });
     final result = await _logic.createPhase(projectId, name, description);
     if (result['success'] == true) {
@@ -259,7 +257,6 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
         final rawId = project['id'];
         final id = rawId is int ? rawId : int.tryParse(rawId.toString()) ?? 0;
         _expandedProjectIds.add(id);
-        _targetExpandedProjectId = id;
       }
     });
     final result = await _logic.createTask(phaseId, name, description);
@@ -533,7 +530,6 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
               if (value == 'toggle_inactive') {
                 setState(() {
                   _viewingInactive = !_viewingInactive;
-                  _targetExpandedProjectId = null;
                   _expandedProjectIds.clear();
                 });
                 _loadProjects();
@@ -586,8 +582,9 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
             ? IconButton(
                 icon: const Icon(Icons.arrow_back),
                 onPressed: () {
-                  if (!(_fileManagerKey.currentState?.navigateBack() ?? false))
+                  if (!(_fileManagerKey.currentState?.navigateBack() ?? false)) {
                     _exitFileManager();
+                  }
                 },
               )
             : (!AccessControl.isAdmin
@@ -615,8 +612,8 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
               AccessControl.canCreateProjectItems
           ? FloatingActionButton(
               onPressed: () => _navigateToForm(),
-              child: const Icon(Icons.add),
               tooltip: 'Nuevo Proyecto',
+              child: const Icon(Icons.add),
             )
           : null,
       body: Row(
@@ -707,7 +704,6 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
                           setState(() {
                             _isLoadingProjects = true;
                             _expandedProjectIds.add(projId);
-                            _targetExpandedProjectId = projId;
                           });
                           final result = await _logic.updateItem(
                             type,

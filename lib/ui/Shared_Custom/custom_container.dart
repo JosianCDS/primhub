@@ -49,7 +49,7 @@ class CustomContainer extends StatelessWidget {
                         ),
                       ),
                     ),
-                  if (action != null) action!,
+                  ?action,
                 ],
               ),
               const Divider(height: 32), // Una línea divisoria suave queda mejor que solo espacio

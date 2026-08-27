@@ -21,7 +21,7 @@ import 'package:flutter_html/flutter_html.dart';
 import 'package:primhub/ui/Shared_Custom/custom_skeleton.dart';
 import 'package:primhub/ui/Shared_Custom/user_info_leading.dart';
 import 'package:primhub/ui/Shared_Custom/help_icon.dart';
-import 'package:flutter/services.dart'; // Para Clipboard
+
 import 'package:primhub/api/global_cache.dart';
 import 'package:primhub/ui/pages/Projects/dialogs/project_calendar_dialog.dart';
 import 'package:primhub/ui/pages/Projects/Documents/project_form_page.dart';
@@ -38,7 +38,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   late final HomeController _controller;
   final _adminViewModeManager = AdminViewModeManager();
-  bool _isEnforcedDelayActive = false; // Desactivado el retardo obligatorio
+  final bool _isEnforcedDelayActive = false; // Desactivado el retardo obligatorio
 
   @override
   void initState() {
@@ -323,8 +323,9 @@ class _HomePageState extends State<HomePage> {
           icon: const Icon(Icons.more_vert),
           onSelected: (value) {
             if (value == 'admin_mode') _showAdminModeSelectionDialog(context);
-            if (value == 'project_filter')
+            if (value == 'project_filter') {
               _showProjectFilterSelectionDialog(context);
+            }
           },
           itemBuilder: (context) => [
             PopupMenuItem<String>(
@@ -366,9 +367,6 @@ class _HomePageState extends State<HomePage> {
     // Usamos los datos ya procesados en _applyFilters del controller.
     final descriptionHtml = record['description'] ?? '';
     final descriptionClean = record['descriptionClean'] ?? '';
-    final time = record['time'] ?? '';
-    final level = record['level'] ?? '';
-    final status = record['status'] ?? '';
     final bpName = record['bpName'] ?? '';
     final userName = record['userName'] ?? '';
     final code = record['code'] ?? '';
@@ -917,8 +915,9 @@ class _HomePageState extends State<HomePage> {
                                       (_controller.selectedProjectIds.isEmpty || 
                                        _controller.selectedProjectIds.length == _controller.projects.length);
 
-                                  if (activeProjects.isEmpty && !showCreateCard)
+                                  if (activeProjects.isEmpty && !showCreateCard) {
                                     return const SizedBox.shrink();
+                                  }
 
                                   int totalItems = activeProjects.length + (showCreateCard ? 1 : 0);
                                   int columns = (constraints.maxWidth / 360).floor();
@@ -1001,7 +1000,7 @@ class _HomePageState extends State<HomePage> {
                                               ),
                                             ),
                                           );
-                                        }).toList(),
+                                        }),
                                       ],
                                     ),
                                   );
@@ -1186,9 +1185,6 @@ class _HomePageState extends State<HomePage> {
                                             final bpName = bpInfo['Name'];
 
                                             // Stats globales del BP para los contadores de solicitudes (no por chip, ya que no hay link directo usualmente)
-                                            final stats = _controller
-                                                .requestsStatsByBp[chipBpId];
-
                                             return SizedBox(
                                               width: 350,
                                               child: UnifiedSupportCard(
@@ -1280,8 +1276,7 @@ class _HomePageState extends State<HomePage> {
                                                     ),
                                               ),
                                             );
-                                          })
-                                          .toList(),
+                                          }),
                                       ],
                                     ),
                                   ],

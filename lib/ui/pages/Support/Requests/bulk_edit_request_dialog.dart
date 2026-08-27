@@ -46,7 +46,7 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
   bool _isProductChipBlocked = false;
   List<Map<String, dynamic>> _productChips = [];
   bool _isLoadingChips = false;
-  Set<int> _originalBpIds = {};
+  final Set<int> _originalBpIds = {};
 
   Map<String, int> _statusIdMap = {};
   Map<String, int> _requestTypeMap = {};
@@ -398,7 +398,7 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading)
+    if (_isLoading) {
       return const CustomModal(
         title: 'Edición Masiva',
         content: SizedBox(
@@ -406,6 +406,7 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
           child: Center(child: CircularProgressIndicator()),
         ),
       );
+    }
 
     if (_isSaving) {
       final request = _processingId != null 
@@ -807,7 +808,6 @@ class _SingleSelectSearchDialog extends StatefulWidget {
   final String? Function(dynamic)? getGroupTab;
 
   const _SingleSelectSearchDialog({
-    super.key, 
     required this.title, 
     required this.items, 
     this.initialSelectedItem, 
@@ -850,14 +850,14 @@ class _SingleSelectSearchDialogState extends State<_SingleSelectSearchDialog> {
     Widget buildList(List<dynamic> itemsToDisplay, {bool isFirstTab = false}) {
       return ListView.separated(
         itemCount: itemsToDisplay.length + (isFirstTab ? 1 : 0),
-        separatorBuilder: (_, __) => const Divider(height: 1, color: Colors.grey, thickness: 0.3),
+        separatorBuilder: (context, index) => const Divider(height: 1, color: Colors.grey, thickness: 0.3),
         itemBuilder: (context, index) {
           if (isFirstTab && index == 0) {
             return RadioListTile<dynamic>(
               contentPadding: EdgeInsets.zero,
               title: const Text('-- No modificar --', style: TextStyle(fontSize: 14, fontStyle: FontStyle.italic)),
               value: 'CLEAR_SELECTION',
-              groupValue: _tempSelectedItem == null ? 'CLEAR_SELECTION' : _tempSelectedItem,
+              groupValue: _tempSelectedItem ?? 'CLEAR_SELECTION',
               onChanged: (val) {
                 setState(() => _tempSelectedItem = null);
               },
@@ -936,7 +936,7 @@ class _SingleSelectSearchDialogState extends State<_SingleSelectSearchDialog> {
               children: [
                 TextButton(onPressed: () => Navigator.of(context).pop(null), child: const Text('Cancelar')),
                 const SizedBox(width: 8),
-                CustomButton(text: 'Aplicar', onPressed: () => Navigator.of(context).pop(_tempSelectedItem == null ? 'CLEAR_SELECTION' : _tempSelectedItem)),
+                CustomButton(text: 'Aplicar', onPressed: () => Navigator.of(context).pop(_tempSelectedItem ?? 'CLEAR_SELECTION')),
               ],
             ),
           ],
@@ -945,4 +945,3 @@ class _SingleSelectSearchDialogState extends State<_SingleSelectSearchDialog> {
     );
   }
 }
-

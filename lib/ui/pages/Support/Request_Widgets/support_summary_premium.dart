@@ -105,8 +105,7 @@ class SupportSummaryPremium extends StatelessWidget {
                             runSpacing: 8,
                             crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
-                              if (attachmentCarousel != null)
-                                attachmentCarousel!,
+                              ?attachmentCarousel,
                               Container(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 16,

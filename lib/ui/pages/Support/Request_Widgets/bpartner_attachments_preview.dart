@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:primhub/ImagesManagment/fecthAttachments.dart';
+import 'package:primhub/ImagesManagment/fetch_attachments.dart';
 import 'package:primhub/endpoint/endpoint.dart';
-import 'package:primhub/ui/pages/Projects/Projects_Widgets/file_preview_manager.dart';
 import 'package:primhub/ui/pages/Support/support_dashboard.dart';
 
 class BPartnerAttachmentsPreview extends StatefulWidget {

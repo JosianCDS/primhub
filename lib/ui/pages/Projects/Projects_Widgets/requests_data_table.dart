@@ -7,12 +7,12 @@ import 'package:primhub/api/access_control.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 import 'package:primhub/ui/pages/Projects/dialogs/request_details_dialog.dart';
 import 'package:go_router/go_router.dart';
-import 'package:primhub/ui/pages/Support/Requests/edit_request_dialog.dart';
+
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
-import 'package:primhub/ImagesManagment/fecthAttachments.dart';
-import 'package:primhub/ImagesManagment/postAttachments.dart';
-import 'package:primhub/ImagesManagment/downloadAttachments.dart';
+import 'package:primhub/ImagesManagment/fetch_attachments.dart';
+import 'package:primhub/ImagesManagment/post_attachments.dart';
+import 'package:primhub/ImagesManagment/download_attachments.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/api/api_http.dart' as http;
 import 'package:primhub/api/token.dart';
@@ -52,16 +52,18 @@ class _RequestsDataTableState extends State<RequestsDataTable> {
         int end = max(_lastSelectedIndex!, index);
         for (int i = start; i <= end; i++) {
           final id = _getRealId(widget.requests[i]);
-          if (selected == true)
+          if (selected == true) {
             _selectedIds.add(id);
-          else
+          } else {
             _selectedIds.remove(id);
+          }
         }
       } else {
-        if (selected == true)
+        if (selected == true) {
           _selectedIds.add(realId);
-        else
+        } else {
           _selectedIds.remove(realId);
+        }
         _lastSelectedIndex = index;
       }
     });

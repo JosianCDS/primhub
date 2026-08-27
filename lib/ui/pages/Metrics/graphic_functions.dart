@@ -3,7 +3,7 @@ import 'package:primhub/api/api_http.dart' as http;
 import 'package:primhub/api/token.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/api/global_cache.dart';
-import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
+
 
 /// Contiene los datos procesados para un gráfico simple (torta, dona, barras).
 class SimpleChartData {
@@ -139,8 +139,9 @@ class ProjectMetricsCalculator {
           'Sin Estado';
       final lowerStatus = rawStatusName.toLowerCase();
 
-      if (lowerStatus.contains('anulada'))
+      if (lowerStatus.contains('anulada')) {
         continue; // No se toman en cuenta las anuladas
+      }
 
       final statusName = rawStatusName.contains('_')
           ? rawStatusName.split('_').last.trim()
@@ -162,7 +163,7 @@ class ProjectMetricsCalculator {
 
     for (var req in requests) {
       final statusData = req['R_Status_ID'];
-      final statusId = statusData is Map ? statusData['id'] : statusData;
+
 
       String rawStatusName = statusData is Map
           ? (statusData['Name'] ??

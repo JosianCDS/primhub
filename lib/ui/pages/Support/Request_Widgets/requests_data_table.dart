@@ -15,8 +15,7 @@ class RequestsDataTable extends StatefulWidget {
 }
 
 class _RequestsDataTableState extends State<RequestsDataTable> {
-  final Set<int> _selectedIds = {};
-  int? _lastSelectedIndex;
+
 
   @override
   Widget build(BuildContext context) {

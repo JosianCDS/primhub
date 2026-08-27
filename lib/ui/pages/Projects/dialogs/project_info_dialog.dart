@@ -33,7 +33,7 @@ class ProjectInfoDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     final isMobile = MediaQuery.of(context).size.width < 600;
 
     return CustomModal(

@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
+
 import 'package:primhub/api/api_http.dart';
 import 'package:primhub/api/session_manager.dart';
 import 'package:primhub/api/token.dart';
@@ -136,7 +136,9 @@ Future<bool> finalizeLogin(String username, String password, Map<String, dynamic
       // Éxito, el token y datos de usuario ya se guardaron.
       return true;
     }
-  } catch (e) {}
+  } catch (e) {
+      // Ignore error
+    }
   return false;
 }
 
@@ -174,6 +176,7 @@ Future<bool> autoLogin() async {
       return true;
     }
   } catch (e) {
+    // Ignore error
   }
   return false;
 }
@@ -225,7 +228,9 @@ Future<int?> getPartnerID({required int userId}) async {
       final cBpartnerId = records.isNotEmpty ? records[0]['C_BPartner_ID']['id'] : null;
       return cBpartnerId;
     }
-  } catch (e) {}
+  } catch (e) {
+      // Ignore error
+    }
   return null;
 }
 
@@ -245,7 +250,9 @@ Future<bool> getPrimConfig({required int rolId, required BuildContext context}) 
       }
       return Token.primConfig != null || Token.primConfigId != null;
     }
-  } catch (e) {}
+  } catch (e) {
+      // Ignore error
+    }
   return false;
 }
 
@@ -264,7 +271,9 @@ Future<void> getProductChip() async {
 
       ProductChip.iD = records.isNotEmpty ? records[0]['id'] : null;
     }
-  } catch (e) {}
+  } catch (e) {
+      // Ignore error
+    }
 }
 
 // Verificar si tiene proyectos
@@ -277,7 +286,9 @@ Future<bool> checkProjects() async {
       final records = jsonResponse['records'] as List;
       return records.isNotEmpty;
     }
-  } catch (e) {}
+  } catch (e) {
+      // Ignore error
+    }
   return false;
 }
 

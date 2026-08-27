@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter/foundation.dart';
+
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/access_control.dart';
-import 'package:primhub/api/contract_api.dart';
+
 import 'package:primhub/api/token.dart';
 import 'package:primhub/api/admin_view_mode.dart';
 import 'package:primhub/api/validation_manager.dart';
-import 'package:primhub/ui/Shared_Custom/cardcustom.dart';
+
 import 'package:primhub/ui/Shared_Custom/custom_container.dart';
 import 'package:primhub/ui/Shared_Custom/custom_table.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
@@ -26,9 +25,9 @@ import 'package:primhub/ui/Shared_Custom/user_info_leading.dart';
 import 'package:primhub/ui/pages/Support/Request_Widgets/support_summary_premium.dart';
 import 'package:primhub/ui/pages/Support/Request_Widgets/bpartner_attachments_preview.dart';
 import 'package:primhub/ui/Shared_Custom/help_icon.dart';
-import 'package:primhub/ImagesManagment/fecthAttachments.dart';
-import 'package:primhub/ImagesManagment/postAttachments.dart';
-import 'package:primhub/ImagesManagment/downloadAttachments.dart';
+import 'package:primhub/ImagesManagment/fetch_attachments.dart';
+import 'package:primhub/ImagesManagment/post_attachments.dart';
+import 'package:primhub/ImagesManagment/download_attachments.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:convert';
 import 'package:primhub/endpoint/endpoint.dart';
@@ -51,8 +50,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
   double _totalConsumedHours = 0.0;
   double? _contractedHours;
   double _inProgressHours = 0.0;
-  int _inProgressRequestsCount = 0;
-  int _completedRequestsCount = 0;
+
   List<Map<String, dynamic>> _processedChips = [];
 
   bool _isInit = true;
@@ -281,19 +279,12 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
         .where((req) => req['productChipId'] != null)
         .toList();
 
-    final archivedId = _statusIdMap.entries
-        .firstWhere(
-          (e) => e.key.toLowerCase().contains('archivada'),
-          orElse: () => const MapEntry('', 0),
-        )
-        .value;
+
 
     final List<Map<String, dynamic>> closedRequests = allRequests
         .where((req) => req['isClosed'] == true)
         .toList();
-    final List<Map<String, dynamic>> inProgressRequests = allRequests
-        .where((req) => req['isClosed'] != true)
-        .toList();
+
 
     final searchedRequests = closedRequests.where((req) {
       if (_searchController.text.isNotEmpty) {
@@ -314,8 +305,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
             (processedData['consumedHours'] as num?)?.toDouble() ?? 0.0;
         _inProgressHours =
             (processedData['inProgressHours'] as num?)?.toDouble() ?? 0.0;
-        _inProgressRequestsCount = inProgressRequests.length;
-        _completedRequestsCount = closedRequests.length;
+
       });
       await _loadContractedHours();
     }
@@ -339,8 +329,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
       // Mapeo de consumo y estimación por ID de ficha vinculada
       final Map<int, double> chipConsumedMap = {};
       final Map<int, double> chipEstimatedMap = {};
-      double globalUnlinkedConsumed = 0.0;
-      double globalUnlinkedEstimated = 0.0;
+
 
       for (var req in _allRequests) {
         final chipId = req['productChipId'] as int?;
@@ -978,68 +967,19 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
     }
   }
 
-  Widget _buildSmallStat(
-    BuildContext context,
-    String label,
-    String value,
-    IconData icon,
-    Color color,
-  ) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.2)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.2),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: color, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                value,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: isDark ? Colors.white : Colors.black87,
-                ),
-              ),
-              Text(
-                label,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
+
 
     final filteredRecords = _getFilteredRecords();
     final int totalItems = filteredRecords.length;
     final int totalPages = (totalItems / _rowsPerPage).ceil();
-    if (_currentPage >= totalPages)
+    if (_currentPage >= totalPages) {
       _currentPage = totalPages > 0 ? totalPages - 1 : 0;
+    }
     final int startIndex = _currentPage * _rowsPerPage;
     final int endIndex = (startIndex + _rowsPerPage < totalItems)
         ? startIndex + _rowsPerPage
@@ -1487,7 +1427,7 @@ class _SupportDashboardFilterBar extends StatelessWidget {
   final int? selectedBpId;
 
   const _SupportDashboardFilterBar({
-    super.key,
+
     required this.searchController,
     required this.isAscending,
     required this.rowsPerPage,

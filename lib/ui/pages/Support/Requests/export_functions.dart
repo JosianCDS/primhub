@@ -4,10 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:excel/excel.dart';
-import 'package:csv/csv.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 import 'package:universal_html/html.dart' as html;
 import 'package:primhub/ui/widgets/duration_formatter.dart';
 import 'package:primhub/api/global_cache.dart';
@@ -64,7 +62,7 @@ class ExportFunctions {
       String description = (req['descriptionClean'] ?? '').toString().replaceAll('\n', ' ').replaceAll('\r', '');
       description = _sanitizeText(description);
       if (isPdf && description.length > 300) {
-        description = description.substring(0, 297) + '...';
+        description = '${description.substring(0, 297)}...';
       }
 
       if (isMyRequests) {
@@ -73,8 +71,11 @@ class ExportFunctions {
         final catData = original['R_Category_ID'];
         String catName = '';
         int? catId;
-        if (catData is Map) catId = (catData['id'] as num?)?.toInt();
-        else if (catData is num) catId = catData.toInt();
+        if (catData is Map) {
+          catId = (catData['id'] as num?)?.toInt();
+        } else if (catData is num) {
+          catId = catData.toInt();
+        }
         
         if (catId != null) {
           final catInCache = GlobalCache.rawCategories.firstWhere(
@@ -89,7 +90,7 @@ class ExportFunctions {
         
         String asunto = req['emailSubject']?.toString() ?? original['Summary']?.toString() ?? '';
         if (isPdf && asunto.length > 150) {
-          asunto = asunto.substring(0, 147) + '...';
+          asunto = '${asunto.substring(0, 147)}...';
         }
         
         final prioData = original['Priority'];

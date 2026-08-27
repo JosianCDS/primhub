@@ -16,7 +16,7 @@ class SplashLoadingPage extends StatefulWidget {
 
 class _SplashLoadingPageState extends State<SplashLoadingPage>
     with SingleTickerProviderStateMixin {
-  String _loadingMessage = "Conectando con el servidor...";
+  final String _loadingMessage = "Conectando con el servidor...";
   late AnimationController _progressController;
   late Animation<double> _progressAnimation;
 

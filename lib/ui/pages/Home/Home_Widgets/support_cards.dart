@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+
 import 'package:primhub/ui/Shared_Custom/cardcustom.dart';
-import 'package:primhub/ui/Shared_Custom/custom_skeleton.dart';
-import 'package:primhub/ui/Shared_Custom/custom_button.dart';
+
+
 import 'package:primhub/ui/widgets/duration_formatter.dart';
 
 class UnifiedSupportCard extends StatelessWidget {
@@ -44,7 +44,7 @@ class UnifiedSupportCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+
 
     final double availableHours =
         acquiredHours - consumedHours - inProgressHours; // Actualizado: restar estimadas para reflejar el saldo real disponible
@@ -52,7 +52,7 @@ class UnifiedSupportCard extends StatelessWidget {
 
     const Color headerIconColor = Color(0xFF4F46E5);
     const Color headerIconBgColor = Color(0xFFEEF2FF);
-    const Color statColor = Color(0xFFD97708);
+
 
 
 
@@ -299,125 +299,4 @@ class _CompactRequestStat extends StatelessWidget {
   }
 }
 
-class _InteractiveStatItem extends StatefulWidget {
-  final String label;
-  final double value;
-  final Color color;
-  final IconData icon;
-  final bool isLoading;
-  final VoidCallback? onTap;
-  final bool isHour;
 
-  const _InteractiveStatItem({
-    required this.label,
-    required this.value,
-    required this.color,
-    required this.icon,
-    required this.isLoading,
-    this.onTap,
-    required this.isHour,
-  });
-
-  @override
-  State<_InteractiveStatItem> createState() => _InteractiveStatItemState();
-}
-
-class _InteractiveStatItemState extends State<_InteractiveStatItem> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final formattedValue = widget.isHour
-        ? DurationFormatter.format(widget.value)
-        : widget.value.toInt().toString();
-
-    final innerContent = Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(widget.icon, color: widget.color, size: 28),
-        const SizedBox(height: 8),
-        if (widget.isLoading)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 4.0),
-            child: CustomSkeleton(
-              height: 28,
-              width: 70,
-            ), // Skeleton tiene un tamaño fijo
-          )
-        else
-          Text(
-            formattedValue,
-            style: theme.textTheme.headlineSmall?.copyWith(
-              color: widget.color,
-              fontWeight: FontWeight.bold,
-            ),
-            textAlign: TextAlign.center,
-            maxLines: 1, // Asegura que el texto no expanda la altura
-            overflow:
-                TextOverflow.ellipsis, // Maneja el desbordamiento de texto
-          ),
-        Text(
-          widget.label,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: Colors.grey.shade600,
-          ),
-          textAlign: TextAlign.center,
-          maxLines: 1, // Asegura que el texto no expanda la altura
-          overflow: TextOverflow.ellipsis, // Maneja el desbordamiento de texto
-        ),
-      ],
-    );
-
-    final clickableArea = SizedBox(
-      // Define un tamaño fijo para el área clickeable
-      width: 120, // Ancho fijo, ajusta según sea necesario
-      height: 100, // Alto fijo, ajusta según sea necesario
-      child: innerContent,
-    );
-
-    if (widget.onTap != null) {
-      return MouseRegion(
-        onEnter: (_) => setState(() => _isHovered = true),
-        onExit: (_) => setState(() => _isHovered = false),
-        cursor: widget.isLoading
-            ? SystemMouseCursors.basic
-            : SystemMouseCursors.click,
-        child: InkWell(
-          onTap: widget.isLoading ? null : widget.onTap,
-          borderRadius: BorderRadius.circular(8),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            // No se necesita padding aquí, el hijo SizedBox ya define el área de contenido
-            decoration: BoxDecoration(
-              // El fondo se oscurece al pasar el mouse
-              color: _isHovered && !widget.isLoading
-                  ? theme.colorScheme.primary.withOpacity(0.05)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(8),
-              // El borde es siempre visible y se hace más prominente al pasar el mouse
-              border: Border.all(
-                color: _isHovered && !widget.isLoading
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.outline.withOpacity(0.2),
-                width: 1.5,
-              ),
-              // La sombra aparece al pasar el mouse
-              boxShadow: _isHovered && !widget.isLoading
-                  ? [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.08),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ]
-                  : [],
-            ),
-            child: clickableArea, // El SizedBox de tamaño fijo es ahora el hijo
-          ),
-        ),
-      );
-    }
-    return clickableArea; // Si no es clickeable, aún devuelve el contenido de tamaño fijo
-  }
-}

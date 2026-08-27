@@ -102,7 +102,7 @@ class _BreadcrumbDropTarget extends StatefulWidget {
   final Function(int, Map)? onDropToRoot;
 
   const _BreadcrumbDropTarget({
-    super.key,
+
     required this.index,
     required this.baseCrumb,
     this.onDropToRoot,

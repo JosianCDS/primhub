@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:flutter/material.dart';
 import 'package:primhub/api/api_http.dart';
 import 'package:primhub/api/api_utils.dart';
 import 'package:primhub/api/token.dart';
@@ -48,5 +47,5 @@ Future<void> _updateStatus(String tableName, int recordID, String status) async 
   try {
     final Uri url = tableName.startsWith('http') ? Uri.parse('$tableName/$recordID') : Uri.parse('${Endpoint.baseUrl}/api/v1/models/$tableName/$recordID');
     await put(url, headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: jsonEncode({'Status': status}));
-  } catch (e) {}
+  } catch (e) { /* Ignore error */ }
 }

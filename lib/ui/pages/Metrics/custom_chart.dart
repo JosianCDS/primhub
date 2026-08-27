@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'charts.dart';
-import 'dart:math';
 
 class CustomBarChart extends StatefulWidget {
   final List<String> labels;

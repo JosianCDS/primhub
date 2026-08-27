@@ -14,7 +14,7 @@ import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/global_cache.dart';
-import 'package:primhub/ImagesManagment/fecthAttachments.dart';
+import 'package:primhub/ImagesManagment/fetch_attachments.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 import 'package:primhub/ui/Shared_Custom/help_icon.dart';
 
@@ -32,7 +32,7 @@ class _RequestUpdatesPageState extends State<RequestUpdatesPage> {
   late Future<List<Map<String, dynamic>>> _updatesFuture;
   Map<String, dynamic>? _requestDetails;
   String? _memoizedDescription;
-  bool _isLoadingDetails = true;
+
 
   @override
   void initState() {
@@ -95,11 +95,11 @@ class _RequestUpdatesPageState extends State<RequestUpdatesPage> {
       }
 
 // [Mantenimiento] Log removido:       debugPrint("DEBUG: [FAILED] No request found after all stages for identifier: ${widget.requestId} / ${widget.docNo}");
-      if (mounted) setState(() => _isLoadingDetails = false);
+      
 
     } catch (e) {
 // [Mantenimiento] Log removido:       debugPrint("DEBUG: [ERROR] Exception in _fetchDetails: $e");
-      if (mounted) setState(() => _isLoadingDetails = false);
+      
     }
   }
 
@@ -107,18 +107,14 @@ class _RequestUpdatesPageState extends State<RequestUpdatesPage> {
     if (!mounted) return;
     
     final realId = details['id'] is int ? details['id'] : int.tryParse(details['id']?.toString() ?? '');
-    final docNo = details['DocumentNo']?.toString();
-
-// [Mantenimiento] Log removido:     debugPrint("DEBUG: [RESOLVED] ID: $realId, DocNo: $docNo");
 
     if (realId != null && realId != widget.requestId) {
-// [Mantenimiento] Log removido:       debugPrint("DEBUG: [SYNC] Refreshing updates with REAL ID: $realId");
       _refreshUpdates(realId);
     }
 
     setState(() {
       _requestDetails = details;
-      _isLoadingDetails = false;
+      
       // Pre-calcular descripción para evitar lag en renderizado
       final fields = ['Description', 'description', 'Help', 'help', 'Result', 'result'];
       _memoizedDescription = 'Sin descripción adicional.';
@@ -406,7 +402,7 @@ class _AddUpdateDialog extends StatefulWidget {
 class _AddUpdateDialogState extends State<_AddUpdateDialog> {
   final QuillController _resultController = QuillController.basic();
   String _confidentialType = 'I'; // Internal
-  List<PlatformFile?> _evidences = [null, null, null, null];
+  final List<PlatformFile?> _evidences = [null, null, null, null];
   bool _isSaving = false;
   int? _newStatusId;
 
@@ -914,7 +910,7 @@ class _RequestSummaryHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
+
 
     return Padding(
       padding: const EdgeInsets.all(16.0),

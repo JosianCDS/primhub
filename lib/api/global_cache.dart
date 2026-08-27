@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:async';
 import 'package:primhub/api/api_http.dart' as http;
-import 'package:flutter/foundation.dart';
+
 import 'package:flutter/material.dart';
 import 'package:primhub/api/contract_api.dart';
 import 'package:primhub/api/access_control.dart';
@@ -45,7 +45,7 @@ class GlobalCache {
   static Future<void>? get phase2SyncFuture => _phase2Completer?.future;
 
   // --- FASE 1: Carga de datos esenciales (Bloqueante para el Home) ---
-  static Future<void> _loadPhase1_EssentialData() async {
+  static Future<void> _loadPhase1EssentialData() async {
 // [Mantenimiento] Log removido:     debugPrint("CACHE: Iniciando Fase 1 - Datos esenciales para el Home.");
 
     final bool isAdmin = AccessControl.isAdmin;
@@ -92,7 +92,7 @@ class GlobalCache {
     final List<dynamic> futures;
     try {
       futures = await Future.wait(fetchFutures);
-    } catch (e, stack) {
+    } catch (e) {
 // [Mantenimiento] Log removido:       debugPrint("DEBUG CACHE ERROR: Error en Future.wait de Fase 1: $e");
 // [Mantenimiento] Log removido:       debugPrint(stack.toString());
       rethrow;
@@ -290,10 +290,10 @@ class GlobalCache {
       // Limpiar datos si es forzado para asegurar frescura total
       if (force) clear();
 
-      await _loadPhase1_EssentialData();
+      await _loadPhase1EssentialData();
       
       // Lanzar Fase 2 (datos pesados/históricos) sin bloquear el flujo principal
-      _loadPhase2_HistoricalData();
+      _loadPhase2HistoricalData();
       
       isDataLoaded = true;
       if (!(_syncCompleter?.isCompleted ?? true)) _syncCompleter?.complete();
@@ -308,7 +308,7 @@ class GlobalCache {
     }
   }
 
-  static Future<void> _loadPhase2_HistoricalData() async {
+  static Future<void> _loadPhase2HistoricalData() async {
     try {
       final currentYear = DateTime.now().year;
       final bool isAdmin = AccessControl.isAdmin;
@@ -503,25 +503,27 @@ class GlobalCache {
       ),
     );
     if (await checkIfSyncNeeded()) {
-      if (context.mounted)
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text('Sincronizando...'),
             backgroundColor: Theme.of(context).colorScheme.primary,
           ),
         );
+      }
       await onSyncAction();
     } else {
-      if (context.mounted)
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Sincronizado'),
             backgroundColor: Colors.green,
           ),
         );
+      }
     }
   }
-  static Map<int, Completer<void>> _activeProjectCompleters = {};
+  static final Map<int, Completer<void>> _activeProjectCompleters = {};
 
   /// Carga todas las solicitudes de un proyecto en segundo plano de forma completa.
   static Future<void> loadProjectRequestsInBackground(
@@ -545,7 +547,6 @@ class GlobalCache {
       final threeYearsAgo = currentYear - 3;
       
       // 1. Cargar solicitudes del AÑO ACTUAL para este Proyecto (por ID directo)
-      final filterCurrent = "C_Project_ID eq $projectId and Created ge '$currentYear-01-01T00:00:00Z'";
       final reqsCurrent = await fetchRequest(
         filter: "IsActive eq true and C_Project_ID eq $projectId",
         expand: 'C_Order_ID(\$select=DocumentNo),R_Status_ID(\$select=Name,IsOpen,IsClosed),R_RequestType_ID,R_Category_ID,C_BPartner_ID(\$select=Name,Description)'
@@ -591,7 +592,7 @@ class GlobalCache {
     projectRequestsCache[projectId] = map.values.toList();
   }
 
-  static Map<int, Completer<void>> _activeSupportBpCompleters = {};
+  static final Map<int, Completer<void>> _activeSupportBpCompleters = {};
 
   static Future<void> loadSupportBpRequestsInBackground(int bpId) async {
     if (_activeSupportBpCompleters.containsKey(bpId)) {
@@ -625,6 +626,7 @@ class GlobalCache {
         _mergeSupportRequests(reqsHistory);
       }
     } catch (e) {
+      // Ignorar error temporalmente
     } finally {
       _activeSupportBpCompleters.remove(bpId);
       if (!completer.isCompleted) completer.complete();

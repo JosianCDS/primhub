@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:primhub/api/access_control.dart';
+
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/api/global_cache.dart';
@@ -180,12 +180,7 @@ class _ProjectRequestFilterModalState extends State<ProjectRequestFilterModal> {
         .toList()
       ..sort();
 
-    final List<String> availableTypes = widget.allProjectRequests
-        .map((e) => e['type'].toString())
-        .where((e) => e.isNotEmpty && e != 'null')
-        .toSet()
-        .toList()
-      ..sort();
+
 
     return CustomModal(
       title: 'Filtros de Proyecto',
@@ -390,14 +385,12 @@ class __MultiSelectSearchDialogState extends State<_MultiSelectSearchDialog> {
                   ? Center(child: Text("No hay opciones disponibles (${widget.items.length} total)"))
                   : ListView.separated(
                       itemCount: filteredItems.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1, color: Colors.grey, thickness: 0.3),
-                itemBuilder: (context, index) {
-                  final item = filteredItems[index];
-                  final itemValue = widget.getValue(item).toLowerCase().trim();
-                  final isSelected = _tempSelectedValues.contains(itemValue);
-
-                  return CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
+                      separatorBuilder: (context, index) => const Divider(height: 1, color: Colors.grey, thickness: 0.3),
+                      itemBuilder: (context, index) {
+                        final item = filteredItems[index];
+                        final itemValue = widget.getValue(item).toLowerCase().trim();
+                        final isSelected = _tempSelectedValues.contains(itemValue);
+                        return CheckboxListTile(
                     title: Text(widget.getTitle(item), style: const TextStyle(fontSize: 14)),
                     subtitle: widget.getSubtitle != null && widget.getSubtitle!(item) != null 
                         ? Text(widget.getSubtitle!(item)!, style: const TextStyle(fontSize: 12, color: Colors.grey)) 

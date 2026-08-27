@@ -26,7 +26,7 @@ class HtmlEditorUtils {
       if (html == '<p><br/></p>') return '';
       return html;
     } catch (e) {
-      print('Error al convertir Delta a HTML: $e');
+      debugPrint('Error al convertir Delta a HTML: $e');
       return document.toPlainText();
     }
   }
@@ -155,7 +155,7 @@ class HtmlEditorUtils {
       }
       return doc;
     } catch (e) {
-      print('Error al convertir HTML a Delta: $e');
+      debugPrint('Error al convertir HTML a Delta: $e');
       return Document()..insert(0, htmlContent);
     }
   }

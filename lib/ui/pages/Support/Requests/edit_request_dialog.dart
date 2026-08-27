@@ -13,7 +13,7 @@ import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
-import 'package:primhub/ui/Shared_Custom/customToast.dart';
+import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:flutter_html/flutter_html.dart';
@@ -318,7 +318,9 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
           }
         });
       }
-    } catch (e) {}
+    } catch (e) {
+      // Ignore error
+    }
   }
 
   Future<void> _fetchRequestTypes() async {
@@ -624,7 +626,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                     Expanded(
                       child: ListView.separated(
                         itemCount: filteredItems.length,
-                        separatorBuilder: (_, __) => const Divider(
+                        separatorBuilder: (context, index) => const Divider(
                           height: 1,
                           color: Colors.grey,
                           thickness: 0.3,
@@ -789,8 +791,9 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
 
                   for (var r in chipRequests) {
                     if (r['Record_UU'] != null &&
-                        r['Record_UU'].toString().isNotEmpty)
+                        r['Record_UU'].toString().isNotEmpty) {
                       continue;
+                    }
                     if (r['id'] == widget.request['realId']) continue;
 
                     totalEstimatedAndConsumedForChip +=
@@ -817,7 +820,9 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                   }
                 }
               }
-            } catch (e) {}
+            } catch (e) {
+              // Ignore exception
+            }
           }
         }
       }
@@ -884,7 +889,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
         final url = Uri.parse(
           '${Endpoint.request}/${widget.request['realId']}',
         );
-        var response;
+        http.Response? response;
         try {
           response = await http.put(
             url,
@@ -960,10 +965,10 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
       );
       final subjectText = _subjectController.text.trim();
 
-      final String? originalResult = widget.request['result']?.toString() ?? '';
-      final String? originalSummary = (widget.request['description'] ?? '')
+      final String originalResult = widget.request['result']?.toString() ?? '';
+      final String originalSummary = (widget.request['description'] ?? '')
           .toString();
-      final String? originalSubject = stripHtmlTags(
+      final String originalSubject = stripHtmlTags(
         (widget.request['emailSubject'] ?? widget.request['summary'] ?? '')
             .toString(),
       );
@@ -1308,7 +1313,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                                         (c) =>
                                             c['id'] == _selectedProductChipId,
                                       )['Description'] ??
-                                      'Ficha #${_selectedProductChipId}'
+                                      'Ficha $_selectedProductChipId'
                                 : '',
                             onTap: () => _openSearchModal<int>(
                               title: 'Ficha de Producto',

@@ -54,8 +54,9 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
     // Sincronizar scrolls horizontales del Gantt
     _horizontalHeaderController.addListener(() {
       if (!_horizontalHeaderController.hasClients ||
-          !_horizontalBodyController.hasClients)
+          !_horizontalBodyController.hasClients) {
         return;
+      }
       if (_horizontalHeaderController.offset !=
           _horizontalBodyController.offset) {
         _horizontalBodyController.jumpTo(_horizontalHeaderController.offset);
@@ -63,8 +64,9 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
     });
     _horizontalBodyController.addListener(() {
       if (!_horizontalBodyController.hasClients ||
-          !_horizontalHeaderController.hasClients)
+          !_horizontalHeaderController.hasClients) {
         return;
+      }
       if (_horizontalBodyController.offset !=
           _horizontalHeaderController.offset) {
         _horizontalHeaderController.jumpTo(_horizontalBodyController.offset);
@@ -74,16 +76,18 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
     // Sincronizar scrolls verticales del Gantt
     _verticalTasksController.addListener(() {
       if (!_verticalTasksController.hasClients ||
-          !_verticalBarsController.hasClients)
+          !_verticalBarsController.hasClients) {
         return;
+      }
       if (_verticalTasksController.offset != _verticalBarsController.offset) {
         _verticalBarsController.jumpTo(_verticalTasksController.offset);
       }
     });
     _verticalBarsController.addListener(() {
       if (!_verticalBarsController.hasClients ||
-          !_verticalTasksController.hasClients)
+          !_verticalTasksController.hasClients) {
         return;
+      }
       if (_verticalBarsController.offset != _verticalTasksController.offset) {
         _verticalTasksController.jumpTo(_verticalBarsController.offset);
       }
@@ -153,7 +157,9 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
             loadedPhases = data['C_ProjectPhase'] as List? ?? [];
             loadedTasks = data['C_ProjectTask'] as List? ?? [];
           }
-        } catch (e) {}
+        } catch (e) {
+          // Ignore error
+        }
       }
 
       List<String> uuids = [];
@@ -192,7 +198,9 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
           allReqs.addAll(tReqs);
         }
       }
-    } catch (e) {}
+    } catch (e) {
+      // Ignore error
+    }
 
     if (mounted) {
       // Deduplicar por si una solicitud viene tanto por C_Project_ID como por Record_UU
@@ -230,9 +238,10 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
                 : start;
             start = DateTime(start.year, start.month, start.day);
             end = DateTime(end.year, end.month, end.day);
-            if (end.isBefore(start))
+            if (end.isBefore(start)) {
               end =
                   start; // Previene errores humanos donde el fin es antes del inicio
+            }
             req['_parsedStart'] = start;
             req['_parsedEnd'] = end;
             validReqs.add(req);
@@ -311,9 +320,10 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
 
                           final rawSummary = req['Summary'] ?? 'Sin asunto';
                           String plainSummary = stripHtmlTags(rawSummary);
-                          if (plainSummary.length > 80)
+                          if (plainSummary.length > 80) {
                             plainSummary =
                                 '${plainSummary.substring(0, 80)}...';
+                          }
 
                           final uuid = req['Record_UU'];
                           final taskName = uuid != null
@@ -981,8 +991,9 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
       if (maxDate == null || end.isAfter(maxDate)) maxDate = end;
     }
 
-    if (minDate == null || maxDate == null)
+    if (minDate == null || maxDate == null) {
       return const Center(child: Text('Sin fechas válidas para el diagrama.'));
+    }
 
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);

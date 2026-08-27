@@ -1,6 +1,6 @@
-import 'dart:convert';
+
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+
 import 'package:primhub/api/token.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/Shared_Custom/custom_container.dart';
@@ -63,8 +63,7 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
   List<dynamic> _bPartners = [];
   List<dynamic> _users = [];
   List<dynamic> _currencies = [];
-  List<dynamic> _warehouses = [];
-  List<dynamic> _priceLists = [];
+
   List<dynamic> _paymentTerms = [];
   List<Map<String, String>> _invoiceRules = [];
 
@@ -104,7 +103,9 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
       _invoicedQtyController,
       _projectBalanceController,
     ];
-    for (var c in all) c.dispose();
+    for (var c in all) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -186,8 +187,7 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
           _bPartners = results[0];
           _users = results[1];
           _currencies = results[2];
-          _warehouses = results[4];
-          _priceLists = results[5];
+
           _paymentTerms = results[6];
 
           // Auto-asignar nombre del representante comercial si ya tenemos el ID (caso nuevo proyecto)
@@ -203,7 +203,7 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
             }
           }
 
-          final fetchedRules = results[3] as List<dynamic>;
+          final fetchedRules = results[3];
           if (fetchedRules.isNotEmpty) {
             _invoiceRules = fetchedRules
                 .map(
@@ -279,7 +279,7 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
 
     setState(() => _isLoading = true);
 
-    double _pDouble(String text) =>
+    double pDouble(String text) =>
         double.tryParse(text.replaceAll(',', '.')) ?? 0.0;
 
     final Map<String, dynamic> data = {
@@ -306,14 +306,14 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
         "M_PriceList_Version_ID": {"id": _mPriceListVersionId},
       if (_cPaymentTermId != null) "C_PaymentTerm_ID": {"id": _cPaymentTermId},
 
-      "PlannedAmt": _pDouble(_plannedAmtController.text),
-      "PlannedQty": _pDouble(_plannedQtyController.text),
-      "PlannedMarginAmt": _pDouble(_plannedMarginAmtController.text),
-      "CommittedAmt": _pDouble(_committedAmtController.text),
-      "CommittedQty": _pDouble(_committedQtyController.text),
-      "InvoicedAmt": _pDouble(_invoicedAmtController.text),
-      "InvoicedQty": _pDouble(_invoicedQtyController.text),
-      "ProjectBalanceAmt": _pDouble(_projectBalanceController.text),
+      "PlannedAmt": pDouble(_plannedAmtController.text),
+      "PlannedQty": pDouble(_plannedQtyController.text),
+      "PlannedMarginAmt": pDouble(_plannedMarginAmtController.text),
+      "CommittedAmt": pDouble(_committedAmtController.text),
+      "CommittedQty": pDouble(_committedQtyController.text),
+      "InvoicedAmt": pDouble(_invoicedAmtController.text),
+      "InvoicedQty": pDouble(_invoicedQtyController.text),
+      "ProjectBalanceAmt": pDouble(_projectBalanceController.text),
     };
 
     final result = await _logic.saveProject(data, id: widget.project?['id']);
@@ -809,7 +809,7 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
                             )
                           : ListView.separated(
                               itemCount: filtered.length,
-                              separatorBuilder: (_, __) =>
+                              separatorBuilder: (context, index) =>
                                   const Divider(height: 1),
                               itemBuilder: (context, index) {
                                 final item = filtered[index];

@@ -2,10 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/global_cache.dart';
 import 'package:primhub/api/access_control.dart';
-import 'package:primhub/theme/colors.dart';
-import 'package:primhub/ui/widgets/custom_drawer.dart';
-import 'package:primhub/ui/Shared_Custom/custom_container.dart';
-import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
+
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:treemap/treemap.dart';
@@ -221,22 +218,13 @@ class _RepWorkloadPageState extends State<RepWorkloadPage> {
     }
   }
 
-  Color _getPriorityColor(String priority) {
-    switch (priority) {
-      case 'Urgente': return Colors.deepPurple;
-      case 'Alta': return Colors.red.shade700;
-      case 'Media': return Colors.orange.shade800;
-      case 'Baja': return Colors.blue.shade700;
-      case 'Muy baja': return Colors.teal.shade600;
-      default: return Colors.blueGrey;
-    }
-  }
+
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final isMobile = MediaQuery.of(context).size.width < 800;
+
 
     return Scaffold(
       appBar: AppBar(
@@ -348,7 +336,7 @@ class _RepWorkloadPageState extends State<RepWorkloadPage> {
                             ..._availableBps.map((bp) => DropdownMenuEntry<int?>(
                               value: bp['id'] as int,
                               label: bp['Name']?.toString() ?? 'Sin Nombre',
-                            )).toList(),
+                            )),
                           ],
                           onSelected: (val) {
                             setState(() => _selectedBpId = val);
@@ -379,7 +367,7 @@ class _RepWorkloadPageState extends State<RepWorkloadPage> {
                             ..._availableProjects.map((p) => DropdownMenuEntry<int?>(
                               value: (p['id'] as num?)?.toInt(),
                               label: p['Name']?.toString() ?? 'Proyecto sin nombre',
-                            )).toList(),
+                            )),
                           ],
                           onSelected: (val) {
                             setState(() => _selectedProjectId = val);

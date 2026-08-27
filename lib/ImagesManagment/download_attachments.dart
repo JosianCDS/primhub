@@ -4,7 +4,7 @@ import 'package:primhub/api/api_http.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/endpoint/endpoint.dart';
-import 'package:primhub/ui/Shared_Custom/customToast.dart';
+import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 import 'package:universal_html/html.dart' as html;
 import 'package:flutter/material.dart';
 
@@ -44,7 +44,7 @@ Future<void> downloadAttachment({required BuildContext context, required int rec
         );
       }
     }
-  } catch (e, stack) {
+  } catch (e) {
     if (context.mounted) {
       ToastMessage.show(
         context: context,
@@ -67,12 +67,12 @@ void _triggerWebDownloadFromBytes(Uint8List bytes, String fileName) {
       ..click();
 
     html.Url.revokeObjectUrl(url);
-  } catch (e) {}
+  } catch (e) { /* Ignore error */ }
 }
 
 Future<void> _updateStatus(String tableName, int recordID, String status) async {
   try {
     final Uri url = tableName.startsWith('http') ? Uri.parse('$tableName/$recordID') : Uri.parse('${Endpoint.baseUrl}/api/v1/models/$tableName/$recordID');
     await put(url, headers: {'Content-Type': 'application/json', 'Authorization': Token.token}, body: jsonEncode({'Status': status}));
-  } catch (e) {}
+  } catch (e) { /* Ignore error */ }
 }

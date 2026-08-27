@@ -92,7 +92,9 @@ class _ProjectInfoTestPageState extends State<ProjectInfoTestPage> {
         final data = json.decode(utf8.decode(response.bodyBytes));
         if (mounted) setState(() => _productChipList = data['records']);
       }
-    } catch (e) {}
+    } catch (e) {
+      // Ignore error
+    }
   }
 
   Future<void> _fetchOrders() async {
@@ -102,7 +104,9 @@ class _ProjectInfoTestPageState extends State<ProjectInfoTestPage> {
         final data = json.decode(utf8.decode(response.bodyBytes));
         if (mounted) setState(() => _orderList = data['records']);
       }
-    } catch (e) {}
+    } catch (e) {
+      // Ignore error
+    }
   }
 
   Future<void> _fetchRequests() async {
@@ -114,7 +118,9 @@ class _ProjectInfoTestPageState extends State<ProjectInfoTestPage> {
           _requestList = requests;
         });
       }
-    } catch (e) {}
+    } catch (e) {
+      // Ignore error
+    }
   }
 
   @override

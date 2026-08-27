@@ -32,7 +32,7 @@ class MetricsPage extends StatefulWidget {
 class _MetricsPageState extends State<MetricsPage> {
   bool _isLoading = true;
   bool _isProjectsLoading = false;
-  String? _projectsErrorMessage;
+
   int? _selectedProjectId;
   List<dynamic> _projects = [];
   final ValueNotifier<int> _projectsLoadNotifier = ValueNotifier<int>(0);
@@ -251,8 +251,9 @@ class _MetricsPageState extends State<MetricsPage> {
           icon: const Icon(Icons.more_vert),
           onSelected: (value) {
             if (value == 'admin_mode') _showAdminModeSelectionDialog(context);
-            if (value == 'project_filter')
+            if (value == 'project_filter') {
               _showProjectFilterSelectionDialog(context);
+            }
           },
           itemBuilder: (context) => [
             PopupMenuItem<String>(
@@ -333,7 +334,6 @@ class _MetricsPageState extends State<MetricsPage> {
 
     setState(() {
       _isProjectsLoading = true;
-      _projectsErrorMessage = null;
     });
     _projectsLoadNotifier.value++;
 
@@ -368,9 +368,6 @@ class _MetricsPageState extends State<MetricsPage> {
         setState(() {
           _projects = projects;
           _isProjectsLoading = false;
-
-          // Limpiar mensaje de error si cargó bien
-          _projectsErrorMessage = null;
 
           // Solo mantenemos la selección si el proyecto aún existe en la nueva lista.
           if (_selectedProjectId != null &&
@@ -548,8 +545,9 @@ class _MetricsPageState extends State<MetricsPage> {
 
       for (var req in rawRequests) {
         // Excluir solicitudes vinculadas a proyectos (tareas)
-        if (req['Record_UU'] != null && req['Record_UU'].toString().isNotEmpty)
+        if (req['Record_UU'] != null && req['Record_UU'].toString().isNotEmpty) {
           continue;
+        }
 
         // Filtro local por Año
         if (_supportSelectedYear != null) {
@@ -603,7 +601,7 @@ class _MetricsPageState extends State<MetricsPage> {
         }
 
         // Prioridad robusta - Siempre leer desde la Categoría para tickets de Soporte
-        var rawPriority;
+        dynamic rawPriority;
         final categoryId = req['R_Category_ID'] is Map ? req['R_Category_ID']['id'] : req['R_Category_ID'];
         if (categoryId != null) {
           final cat = GlobalCache.rawCategories.firstWhere((c) => c['id'] == categoryId, orElse: () => {});
@@ -616,18 +614,19 @@ class _MetricsPageState extends State<MetricsPage> {
 
         String priority = 'Media';
         final pLower = priorityStr.toLowerCase();
-        if (pLower.contains('urgente') || priorityStr == '1')
+        if (pLower.contains('urgente') || priorityStr == '1') {
           priority = 'Urgente';
-        else if (pLower.contains('alta') || priorityStr == '3')
+        } else if (pLower.contains('alta') || priorityStr == '3') {
           priority = 'Alta';
-        else if (pLower.contains('media') || priorityStr == '5')
+        } else if (pLower.contains('media') || priorityStr == '5') {
           priority = 'Media';
-        else if (pLower.contains('baja') || priorityStr == '7')
+        } else if (pLower.contains('baja') || priorityStr == '7') {
           priority = 'Baja';
-        else if (pLower.contains('muy baja') || pLower.contains('menor') || priorityStr == '9')
+        } else if (pLower.contains('muy baja') || pLower.contains('menor') || priorityStr == '9') {
           priority = 'Muy baja';
-        else
+        } else {
           priority = priorityStr;
+        }
 
         priorityCounts[priority] = (priorityCounts[priority] ?? 0) + 1;
         statusCounts[cleanStatus] = (statusCounts[cleanStatus] ?? 0) + 1;
@@ -848,7 +847,7 @@ class _MetricsPageState extends State<MetricsPage> {
                                 )
                               : ListView.separated(
                                   itemCount: filteredProjects.length,
-                                  separatorBuilder: (_, __) =>
+                                  separatorBuilder: (context, index) =>
                                       const Divider(height: 1),
                                   itemBuilder: (context, index) {
                                     final p = filteredProjects[index];
@@ -1049,7 +1048,7 @@ class _MetricsPageState extends State<MetricsPage> {
   @override
   Widget build(BuildContext context) {
     final isLargeScreen = MediaQuery.of(context).size.width >= 1100;
-    final colorScheme = Theme.of(context).colorScheme;
+
 
     return Scaffold(
       appBar: AppBar(
@@ -1071,8 +1070,9 @@ class _MetricsPageState extends State<MetricsPage> {
             icon: const Icon(Icons.refresh),
             onPressed: () => GlobalCache.performSmartSync(context, () async {
               if (AccessControl.canViewProjectCharts) await _loadMetrics();
-              if (AccessControl.canViewSupportCharts)
+              if (AccessControl.canViewSupportCharts) {
                 await _loadSupportMetrics();
+              }
             }),
           ),
           if (!AccessControl.isAdmin)

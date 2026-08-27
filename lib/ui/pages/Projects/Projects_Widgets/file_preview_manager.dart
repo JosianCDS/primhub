@@ -1,8 +1,8 @@
 import 'dart:convert';
-import 'dart:typed_data';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:primhub/ImagesManagment/downloadAttachments.dart';
+import 'package:primhub/ImagesManagment/download_attachments.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
@@ -200,12 +200,13 @@ class FilePreviewManager {
                             currentVisualName,
                           );
                           onStatusChanged();
-                          if (context.mounted)
+                          if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text('Nombre visual actualizado'),
                               ),
                             );
+                          }
                         },
                       ),
                   ],
@@ -228,13 +229,15 @@ class FilePreviewManager {
                               tableName: tableName,
                               fileName: name,
                               onStatusChanged: () {
-                                if (AccessControl.isProject)
+                                if (AccessControl.isProject) {
                                   details['Status'] = 'Entregado';
+                                }
                                 onStatusChanged();
                               },
                             );
-                            if (context.mounted)
+                            if (context.mounted) {
                               setStateDialog(() => isDownloading = false);
+                            }
                           },
                   ),
                 ),
@@ -275,7 +278,9 @@ class FilePreviewManager {
                   .toList(),
               rows: rows.skip(1).map((row) {
                 final cells = row.take(rows.first.length).toList();
-                while (cells.length < rows.first.length) cells.add('');
+                while (cells.length < rows.first.length) {
+                  cells.add('');
+                }
                 return DataRow(
                   cells: cells
                       .map((cell) => DataCell(Text(cell.trim())))

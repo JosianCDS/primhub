@@ -11,14 +11,14 @@ import 'package:primhub/api/access_control.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import '../../../Shared_Custom/custom_button.dart';
 import '../../../../api/contract_api.dart';
-import 'package:primhub/ui/Shared_Custom/customToast.dart';
+import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 import '../../../../ui/pages/Support/Requests/request_functions.dart';
 import '../../../../api/validation_manager.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 import '../../../../api/token.dart';
 import 'package:primhub/api/api_utils.dart';
 import 'package:primhub/api/global_cache.dart';
-import 'package:primhub/ImagesManagment/postAttachments.dart';
+import 'package:primhub/ImagesManagment/post_attachments.dart';
 import 'package:primhub/ui/widgets/duration_formatter.dart';
 
 class CreateRequestDialog extends StatefulWidget {
@@ -91,7 +91,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
   bool _isLoadingProducts = true;
   List<dynamic> _productChips = [];
 
-  List<PlatformFile?> _evidences = [null, null, null, null];
+  final List<PlatformFile?> _evidences = [null, null, null, null];
 
   bool get _isProjectRequest =>
       widget.linkedProjectId != null ||
@@ -169,8 +169,9 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
   bool get _isFormValid {
     if (widget.linkedRecordUU == null &&
         AccessControl.isAdmin &&
-        _selectedBpId == null)
+        _selectedBpId == null) {
       return false;
+    }
     if (_subjectController.text.trim().isEmpty) return false;
     
     if (AccessControl.isSupport && _selectedCategory == null) return false;
@@ -414,9 +415,11 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
         });
       }
     } catch (e) {
+      // Ignore error
     } finally {
-      if (mounted && _isLoadingStatuses)
+      if (mounted && _isLoadingStatuses) {
         setState(() => _isLoadingStatuses = false);
+      }
     }
   }
 
@@ -673,19 +676,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     }
   }
 
-  // --- CORRECCIÓN LÓGICA DE FECHAS ---
-  String _combineDateAndTime(String date, String time) {
-    if (date.isEmpty) {
-      date =
-          "${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}";
-    }
-    String cleanTime = time.isEmpty ? "00:00:00" : time;
-    // Si el tiempo ya trae una Z o una T, lo limpiamos para estandarizar
-    cleanTime = cleanTime.replaceAll('Z', '');
-    if (cleanTime.contains('T')) cleanTime = cleanTime.split('T')[1];
 
-    return "${date}T${cleanTime}Z";
-  }
 
   Future<void> _pickFile(int index) async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
@@ -888,7 +879,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                     Expanded(
                       child: ListView.separated(
                         itemCount: filteredItems.length,
-                        separatorBuilder: (_, __) => const Divider(
+                        separatorBuilder: (context, index) => const Divider(
                           height: 1,
                           color: Colors.grey,
                           thickness: 0.3,
@@ -1020,8 +1011,9 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
         _isLoadingCategories ||
         _loadingGroupsState ||
         _isLoadingUsers ||
-        _isLoadingBPartners)
+        _isLoadingBPartners) {
       return;
+    }
 
     double qty = double.tryParse(_qtyUsedController.text) ?? 0.0;
 
@@ -1078,8 +1070,9 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
 
               for (var req in chipRequests) {
                 if (req['Record_UU'] != null &&
-                    req['Record_UU'].toString().isNotEmpty)
+                    req['Record_UU'].toString().isNotEmpty) {
                   continue;
+                }
 
                 // Sumamos QtySpent (consumidas) o QtyPlan (en progreso)
                 totalEstimatedAndConsumedForChip +=
@@ -1164,7 +1157,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     if (!_isSubmitting) setState(() => _isSubmitting = true);
 
     try {
-      final url = Uri.parse(Endpoint.request);
+
       final payloadToken = Token.decodePayload(Token.token);
       int? clientId = Token.client ?? payloadToken['AD_Client_ID'];
       int? orgId = Token.organitation ?? payloadToken['AD_Org_ID'];
@@ -1292,13 +1285,15 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     if (repIdToAssign != null) data['SalesRep_ID'] = repIdToAssign;
 
     if (isFullAccess) {
-      if (_selectedGroup != null && _groupMap.containsKey(_selectedGroup))
+      if (_selectedGroup != null && _groupMap.containsKey(_selectedGroup)) {
         data['R_Group_ID'] = {'id': _groupMap[_selectedGroup]};
+      }
     }
 
     if (_selectedBpId != null) data['C_BPartner_ID'] = {'id': _selectedBpId};
-    if (_selectedProductChipId != null)
+    if (_selectedProductChipId != null) {
       data['C_BPartner_Product_Chip_ID'] = {'id': _selectedProductChipId};
+    }
 
     // Vinculación directa de IDs del Proyecto en el payload nativo
     if (widget.linkedProjectId != null) {
@@ -1593,7 +1588,6 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
 
                             // La automatización de prioridad solo aplica a SOPORTE (no proyectos)
                             if (!isProject &&
-                                val != null &&
                                 _categoryPriorityMap.containsKey(val)) {
                               final pValue = _categoryPriorityMap[val]!;
                               final label = _priorityMap.entries
@@ -1667,7 +1661,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                             ? _productChips.firstWhere(
                                     (c) => c['id'] == _selectedProductChipId,
                                   )['Description'] ??
-                                  'Ficha #${_selectedProductChipId}'
+                                  'Ficha $_selectedProductChipId'
                             : '',
                         onTap: () => _openSearchModal<int>(
                           title: 'Ficha de Producto',

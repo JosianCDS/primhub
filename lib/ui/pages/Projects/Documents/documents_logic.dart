@@ -1,58 +1,20 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+
 import 'package:primhub/api/api_http.dart' as http;
-import 'package:primhub/ImagesManagment/postAttachments.dart';
-import 'package:primhub/ImagesManagment/fecthAttachments.dart';
+import 'package:primhub/ImagesManagment/post_attachments.dart';
+import 'package:primhub/ImagesManagment/fetch_attachments.dart';
 import 'package:primhub/api/api_utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:primhub/api/access_control.dart';
-import 'package:primhub/api/auth_api.dart';
+
 import 'package:primhub/api/token.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/api/global_cache.dart';
 
 // Creacion de un proyecto
 class ProjectsLogic {
-  // --- Metodo Auxiliar Privado para peticiones seguras con Refresh Token ---
-  Future<List<dynamic>> _safeFetch(String url, String errorLabel) async {
-    try {
-      var response = await http.get(
-        Uri.parse(url),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': Token.token,
-        },
-      );
-
-      // Manejo de Refresh Token si la sesion expiro (401)
-      if (response.statusCode == 401) {
-        final refreshed = await handleTokenRefresh();
-        if (refreshed) {
-          response = await http.get(
-            Uri.parse(url),
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': Token.token,
-            },
-          );
-        } else {
-          return [];
-        }
-      }
-
-      if (response.statusCode == 200) {
-        final data = json.decode(utf8.decode(response.bodyBytes));
-        return data['records'] ?? [];
-      } else {
-        return [];
-      }
-    } catch (e) {
-      return [];
-    }
-  }
-
   // --- Metodo Auxiliar Privado para peticiones seguras con paginación automática ---
   Future<List<dynamic>> _safeFetchPaginated(
     String baseUrl,
@@ -133,8 +95,9 @@ class ProjectsLogic {
       filters.add('C_BPartner_ID eq ${User.cBPartnerID}');
     } else if (isViewingMine) {
       List<String> mineFilters = [];
-      if (User.cBPartnerID != null)
+      if (User.cBPartnerID != null) {
         mineFilters.add('C_BPartner_ID eq ${User.cBPartnerID}');
+      }
       if (User.userID != null) mineFilters.add('SalesRep_ID eq ${User.userID}');
       if (mineFilters.isNotEmpty) {
         filters.add('(${mineFilters.join(' or ')})');
@@ -172,12 +135,13 @@ class ProjectsLogic {
 // [Mantenimiento] Log removido:         debugPrint("DEBUG C_BPartner_ID para proyecto '${e['Name']}': $bpData");
 
         String bpName = '';
-        if (bpData is Map)
+        if (bpData is Map) {
           bpName =
               ' (${bpData['identifier'] ?? bpData['Name'] ?? 'Sin Nombre'})';
-        else if (bpData != null)
+        } else if (bpData != null) {
           bpName =
               ' (Tercero $bpData)'; // Fallback si la API solo devuelve el ID
+        }
         return {
           'id': e['id'] ?? e['C_Project_ID'],
           'uuid': e['Record_UU'] ?? e['UUID'] ?? e['uuid'] ?? e['uid'],
@@ -312,12 +276,6 @@ class ProjectsLogic {
     }).toList();
   }
 
-  bool _toBool(dynamic value) {
-    if (value == null) return false;
-    final s = value.toString().toLowerCase();
-    return s == 'true' || s == 'y';
-  }
-
   Future<List<dynamic>> fetchUsers({int? bPartnerId}) async {
     String filter = '';
     if (bPartnerId != null) {
@@ -393,8 +351,9 @@ class ProjectsLogic {
                 item['UUID'] ??
                 item['uuid'] ??
                 item['uid'];
-            if (uuid != null && uuid.toString().isNotEmpty)
+            if (uuid != null && uuid.toString().isNotEmpty) {
               uuids.add(uuid.toString());
+            }
           }
         }
 
@@ -409,7 +368,7 @@ class ProjectsLogic {
         }
         addUUIDs(directTasks);
       }
-    } catch (e) {}
+    } catch (e) { /* ignore */ }
     return uuids;
   }
 
@@ -707,17 +666,18 @@ class DocumentsLogic {
 
                 for (var child in children) {
                   final vName = prefs.getString('doc_visual_${child['id']}');
-                  if (vName != null && vName.isNotEmpty)
+                  if (vName != null && vName.isNotEmpty) {
                     child['Description'] = vName;
+                  }
                 }
                 records[folderIndex]['PRIM_Documents_Related'] = children;
               }
-            } catch (e) {}
+            } catch (e) { /* ignore */ }
           }
         }
         return records;
       }
-    } catch (e) {}
+    } catch (e) { /* ignore */ }
     return [];
   }
 
@@ -794,7 +754,7 @@ class DocumentsLogic {
         : '';
 
     if (extension == 'JSON') {
-      actualFileName = actualFileName.substring(0, actualFileName.lastIndexOf('.')) + '.txt';
+      actualFileName = '${actualFileName.substring(0, actualFileName.lastIndexOf('.'))}.txt';
       extension = 'TXT';
     }
 
@@ -894,7 +854,7 @@ class DocumentsLogic {
         }
         return success;
       }
-    } catch (e) {}
+    } catch (e) { /* ignore */ }
     return false;
   }
 
@@ -1011,11 +971,12 @@ class DocumentsLogic {
           headers: {'Authorization': Token.token},
         );
         if (response.statusCode == 401) {
-          if (await handleTokenRefresh())
+          if (await handleTokenRefresh()) {
             response = await http.get(
               Uri.parse(url),
               headers: {'Authorization': Token.token},
             );
+          }
         }
         if (response.statusCode == 200) fileBytes = response.bodyBytes;
       }
@@ -1034,8 +995,9 @@ class DocumentsLogic {
       // Función interna para extraer datos limpios (IDs) y evitar objetos Map anidados
       dynamic safeExtract(String key, {dynamic fallback}) {
         if (doc[key] == null) return fallback;
-        if (doc[key] is Map)
+        if (doc[key] is Map) {
           return doc[key]['id'] ?? doc[key]['identifier'] ?? fallback;
+        }
         return doc[key];
       }
 
@@ -1048,33 +1010,40 @@ class DocumentsLogic {
       };
 
       final typeCode = safeExtract('Type', fallback: getTypeCode(viewType));
-      if (typeCode != null && typeCode.toString().isNotEmpty)
+      if (typeCode != null && typeCode.toString().isNotEmpty) {
         payload['Type'] = typeCode;
+      }
 
       final status = safeExtract('Status', fallback: 'PD');
       if (status != null && status.toString().isNotEmpty) {
         String statusCode = 'PD';
-        if (status.toString().toLowerCase().contains('entregado'))
+        if (status.toString().toLowerCase().contains('entregado')) {
           statusCode = 'DL';
-        else if (status.toString().toLowerCase().contains('revisión') ||
-            status.toString().toLowerCase().contains('revision'))
+        } else if (status.toString().toLowerCase().contains('revisión') ||
+            status.toString().toLowerCase().contains('revision')) {
           statusCode = 'IR';
-        else
+        } else {
           statusCode = status.toString();
+        }
         payload['Status'] = statusCode;
       }
 
-      if (doc['Description'] != null)
+      if (doc['Description'] != null) {
         payload['Description'] = doc['Description'];
+      }
 
       String ext = safeExtract('Extension', fallback: '');
-      if (ext.isEmpty && docName.contains('.'))
+      if (ext.isEmpty && docName.contains('.')) {
         ext = docName.split('.').last.toLowerCase();
-      if (ext.isNotEmpty) payload['Extension'] = ext;
+      }
+      if (ext.isNotEmpty) {
+        payload['Extension'] = ext;
+      }
 
       final version = safeExtract('VersionNo', fallback: '1.0');
-      if (version != null && version.toString().isNotEmpty)
+      if (version != null && version.toString().isNotEmpty) {
         payload['VersionNo'] = version.toString();
+      }
 
       if (targetFolderId != null) {
         createUrl = Uri.parse(Endpoint.primDocumentsRelated);
@@ -1094,7 +1063,7 @@ class DocumentsLogic {
         body: jsonEncode(payload),
       );
       if (createResponse.statusCode == 401) {
-        if (await handleTokenRefresh())
+        if (await handleTokenRefresh()) {
           createResponse = await http.post(
             createUrl,
             headers: {
@@ -1103,6 +1072,7 @@ class DocumentsLogic {
             },
             body: jsonEncode(payload),
           );
+        }
       }
 
       if (createResponse.statusCode == 200 ||
@@ -1212,7 +1182,7 @@ class DocumentsLogic {
           'Status': newStatus,
         }, tableName: Endpoint.primDocuments);
       }
-    } catch (e) {}
+    } catch (e) { /* ignore */ }
   }
 
   static Future<Uint8List?> fetchImagePreview(
@@ -1245,7 +1215,7 @@ class DocumentsLogic {
       if (response.statusCode == 200) {
         return response.bodyBytes;
       }
-    } catch (e) {}
+    } catch (e) { /* ignore */ }
     return null;
   }
 
@@ -1286,8 +1256,8 @@ class DocumentsLogic {
       }
 
       if (response.statusCode == 200) {
-        final data = json.decode(utf8.decode(response.bodyBytes));
-        final records = data['records'] as List;
+
+        // final records = data['records'] as List; // Sin usar por ahora
 
         // Reutilizamos la lógica de conteo (simplificada aquí para no duplicar recursividad compleja si no es necesario, o copiamos la lógica robusta)
         // ... (Lógica de conteo similar a HomeController)
@@ -1372,11 +1342,12 @@ class DocumentsLogic {
   static String extractIdentifier(dynamic val, {String defaultValue = 'N/A'}) {
     if (val == null) return defaultValue;
     if (val is String) return val.isEmpty ? defaultValue : val;
-    if (val is Map)
+    if (val is Map) {
       return val['identifier']?.toString() ??
           val['Name']?.toString() ??
           val['name']?.toString() ??
           defaultValue;
+    }
     return val.toString();
   }
 

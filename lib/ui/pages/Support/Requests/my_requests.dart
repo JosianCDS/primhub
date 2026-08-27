@@ -1,17 +1,17 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:primhub/api/api_http.dart' as http;
-import 'package:file_picker/file_picker.dart';
-import 'package:primhub/endpoint/endpoint.dart';
+
+
+
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/ui/Shared_Custom/help_icon.dart';
-import 'package:primhub/api/contract_api.dart';
+
 import 'package:primhub/api/admin_view_mode.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/api/validation_manager.dart';
-import 'package:primhub/ui/pages/Support/calendar.dart';
+
 import 'package:primhub/ui/pages/Support/calendar_gantt_wrapper.dart';
 import 'package:primhub/ui/pages/Support/Request_Widgets/request_filter_modal.dart';
 import 'package:primhub/ui/pages/Support/Requests/create_request_dialog.dart';
@@ -23,18 +23,18 @@ import 'package:primhub/ui/pages/Support/Request_Widgets/request_filter_bar.dart
 import 'package:primhub/ui/Shared_Custom/requests_data_table_core.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
-import 'package:primhub/ui/Shared_Custom/customToast.dart';
+
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/ui/widgets/project_sidebar.dart';
 import '../../../widgets/custom_drawer.dart';
-import 'package:primhub/ui/pages/Home/Home_Controller/home_controller.dart';
-import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
+
+
 import 'package:primhub/api/global_cache.dart';
 import 'package:primhub/ui/widgets/project_bottom_nav.dart';
 import 'package:primhub/api/api_utils.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:primhub/ui/Shared_Custom/custom_skeleton.dart';
-import 'package:primhub/ui/widgets/duration_formatter.dart';
+
 import 'package:primhub/ui/Shared_Custom/user_info_leading.dart';
 
 class MyRequestsPage extends StatefulWidget {
@@ -62,13 +62,13 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   final TextEditingController _searchController = TextEditingController();
   List<int> _selectedYears = [DateTime.now().year];
   RequestFilterModel _filters = const RequestFilterModel();
-  Map<int, String> _bpNameCache = {};
+  final Map<int, String> _bpNameCache = {};
   List<Map<String, dynamic>> _sortedRequests = [];
 
   int? _bpId;
   List<Map<String, dynamic>> _bPartners = [];
   List<dynamic> _users = [];
-  List<Map<String, dynamic>> _processedChips = [];
+
 
   final _adminViewModeManager = AdminViewModeManager();
   Timer? _skeletonTimer;
@@ -252,8 +252,9 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     // Esperar a que la Fase 2 (carga del año actual) termine antes de continuar.
     // Esto asegura que el skeleton se muestre hasta que los datos estén listos.
     try {
-      if (GlobalCache.phase2SyncFuture != null)
+      if (GlobalCache.phase2SyncFuture != null) {
         await GlobalCache.phase2SyncFuture;
+      }
     } catch (e) {
       // [Mantenimiento] Log removido:       debugPrint("Error esperando la Fase 2 de la caché: $e");
     }
@@ -649,7 +650,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   List<Widget> _buildAdminAppBarActions(BuildContext context) {
     final List<Widget> actions = [];
     final bool isMobile = MediaQuery.of(context).size.width < 600;
-    final colorScheme = Theme.of(context).colorScheme;
+
 
     if (isMobile) {
       actions.add(
@@ -691,30 +692,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     return actions;
   }
 
-  String _buildODataFilter() {
-    List<String> conditions = [];
 
-    // Filtro por años
-    if (_selectedYears.isNotEmpty) {
-      final yearFilterStr = _selectedYears
-          .map((y) => "(Created ge '$y-01-01' and Created lt '${y + 1}-01-01')")
-          .join(' or ');
-      conditions.add("($yearFilterStr)");
-    }
-
-    // Filtro por Archivadas / Activas (Soporte vs Bitácora)
-    // Movido a filtrado local para evitar errores de servidor OData 400
-
-    // Filtro por BP
-    if (_bpId != null) {
-      conditions.add("(C_BPartner_ID eq $_bpId)");
-    } else if (!AccessControl.isAdmin && User.cBPartnerID != null) {
-      conditions.add("(C_BPartner_ID eq ${User.cBPartnerID})");
-    }
-
-    // Unir condiciones
-    return conditions.isNotEmpty ? conditions.join(" and ") : "";
-  }
 
   Future<void> _refreshRequest({bool fetchNetwork = true}) async {
     // [Mantenimiento] Log removido:     debugPrint(
@@ -828,8 +806,9 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
             // [Mantenimiento] Log removido:             );
           }
 
-          if (repId == null || !_filters.salesRepIds.contains(repId))
+          if (repId == null || !_filters.salesRepIds.contains(repId)) {
             return false;
+          }
         }
         if (_filters.statusIds.isNotEmpty) {
           final sData = req['R_Status_ID'];
@@ -851,21 +830,23 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                     .toString()
               : req['Priority']?.toString() ?? '';
           String priorityName = priority;
-          if (priority == '1')
+          if (priority == '1') {
             priorityName = 'Urgente';
-          else if (priority == '3')
+          } else if (priority == '3') {
             priorityName = 'Alta';
-          else if (priority == '5')
+          } else if (priority == '5') {
             priorityName = 'Media';
-          else if (priority == '7')
+          } else if (priority == '7') {
             priorityName = 'Baja';
-          else if (priority == '9')
+          } else if (priority == '9') {
             priorityName = 'Muy baja';
+          }
 
           if (!_filters.levels.any(
             (l) => l.toLowerCase() == priorityName.toLowerCase(),
-          ))
+          )) {
             return false;
+          }
         }
 
         if (_filters.requestTypeIds.isNotEmpty) {
@@ -873,8 +854,9 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
           final rtId = rtData is Map
               ? (rtData['id'] as num?)?.toInt()
               : (rtData is num ? rtData.toInt() : null);
-          if (rtId == null || !_filters.requestTypeIds.contains(rtId))
+          if (rtId == null || !_filters.requestTypeIds.contains(rtId)) {
             return false;
+          }
         }
 
         if (_filters.categoryIds.isNotEmpty) {
@@ -882,8 +864,9 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
           final catId = catData is Map
               ? (catData['id'] as num?)?.toInt()
               : (catData is num ? catData.toInt() : null);
-          if (catId == null || !_filters.categoryIds.contains(catId))
+          if (catId == null || !_filters.categoryIds.contains(catId)) {
             return false;
+          }
         }
 
         // --- FILTRO DE FICHAS DE PRODUCTO ---
@@ -1033,8 +1016,9 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
           : (rawBp as num?)?.toInt();
       final isActive = chip['IsActive'] == 'Y' || chip['IsActive'] == true;
 
-      if (selectedBpIds.isNotEmpty && !selectedBpIds.contains(chipBpId))
+      if (selectedBpIds.isNotEmpty && !selectedBpIds.contains(chipBpId)) {
         return false;
+      }
       if (!isActive) return false;
 
       if (_filters.productChipIds.isNotEmpty) {
@@ -1127,7 +1111,6 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
         _contractedHours = acquiredForStats > 0 ? acquiredForStats : null;
         _consumedHours = consumedForStats;
         _estimatedHours = inProgressForStats;
-        _processedChips = processed;
       });
     }
   }
@@ -1575,22 +1558,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     );
   }
 
-  void _updateSortedRequests() {
-    setState(() {
-      _sortedRequests = _requests.toList()
-        ..sort((a, b) {
-          final hasChipA = (a['productChipId'] != null) ? 1 : 0;
-          final hasChipB = (b['productChipId'] != null) ? 1 : 0;
-          if (hasChipA != hasChipB) {
-            return hasChipB.compareTo(hasChipA);
-          }
 
-          final timeA = a['time'] ?? '';
-          final timeB = b['time'] ?? '';
-          return _isAscending ? timeA.compareTo(timeB) : timeB.compareTo(timeA);
-        });
-    });
-  }
 
   Widget _buildAdminModePopupMenu(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;

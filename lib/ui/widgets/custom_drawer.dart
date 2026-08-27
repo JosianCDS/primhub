@@ -8,8 +8,6 @@ import 'package:primhub/endpoint/endpoint.dart';
 import '../../api/access_control.dart';
 import '../../api/api_utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../Shared_Custom/custom_modal.dart';
-import '../Shared_Custom/custom_button.dart';
 import 'hover_widgets.dart';
 
 class CustomDrawer extends StatefulWidget {
@@ -25,8 +23,6 @@ class _CustomDrawerState extends State<CustomDrawer> {
   String _role = '';
   String _client = '';
   String _userRolePref = 'ADMIN';
-  bool _hasSupport = false;
-  bool _hasProject = false;
   Uint8List? _profileImageBytes;
 
   @override
@@ -53,10 +49,11 @@ class _CustomDrawerState extends State<CustomDrawer> {
           if (userResp.statusCode == 200) {
             final userData = json.decode(utf8.decode(userResp.bodyBytes));
             final bpField = userData['C_BPartner_ID'];
-            if (bpField is Map)
+            if (bpField is Map) {
               partnerId = bpField['id'];
-            else if (bpField is int)
+            } else if (bpField is int) {
               partnerId = bpField;
+            }
             if (partnerId != null) User.cBPartnerID = partnerId;
           }
         }
@@ -93,13 +90,11 @@ class _CustomDrawerState extends State<CustomDrawer> {
   void _loadUserInfo() async {
     final prefs = await SharedPreferences.getInstance();
     _userRolePref = prefs.getString('user_role') ?? 'ADMIN';
-    _hasSupport = prefs.getBool('has_support') ?? false;
-    _hasProject = prefs.getBool('has_project') ?? false;
+
     try {
       final payload = Token.decodePayload(Token.token);
       setState(() {
         _username = payload['sub'] ?? 'Usuario';
-        final roleId = payload['AD_Role_ID'];
         final clientId = payload['AD_Client_ID'];
 
         String exactRole = 'Usuario';
@@ -114,12 +109,13 @@ class _CustomDrawerState extends State<CustomDrawer> {
         _role = exactRole;
         _client = payload['client_name'] ?? payload['clientName'] ?? (clientId == 11 ? 'GardenWorld' : 'Cliente $clientId');
       });
-    } catch (e) {}
+    } catch (e) {
+      // Ignore error
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final bool isMobile = MediaQuery.of(context).size.width < 600;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
@@ -138,7 +134,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                   Container(
                     decoration: BoxDecoration(
                       color: theme.drawerTheme.backgroundColor ?? colorScheme.surface,
-                      border: Border(bottom: Divider.createBorderSide(context, color: theme.dividerColor ?? colorScheme.outlineVariant)),
+                      border: Border(bottom: Divider.createBorderSide(context, color: theme.dividerColor)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,

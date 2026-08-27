@@ -1,21 +1,12 @@
-import 'dart:convert';
-import 'package:file_picker/file_picker.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_html/flutter_html.dart';
-import 'package:primhub/api/api_http.dart' as http;
+
 import 'package:primhub/api/access_control.dart';
-import 'package:primhub/endpoint/endpoint.dart';
-import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
-import 'package:primhub/ui/Shared_Custom/custom_button.dart';
-import 'package:primhub/ImagesManagment/fecthAttachments.dart';
-import 'package:primhub/ImagesManagment/postAttachments.dart';
-import 'package:primhub/ImagesManagment/downloadAttachments.dart';
-import 'package:primhub/api/token.dart';
-import 'package:primhub/ui/pages/Projects/Projects_Widgets/file_preview_manager.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart'
-    as DocumentsLogic;
+    as request_functions;
 import 'package:primhub/api/global_cache.dart';
 import 'package:primhub/ui/widgets/duration_formatter.dart';
 import 'package:primhub/ui/pages/Support/Requests/bulk_edit_request_dialog.dart';
@@ -86,8 +77,8 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
         valA = int.tryParse(a['id']?.toString() ?? '0') ?? 0;
         valB = int.tryParse(b['id']?.toString() ?? '0') ?? 0;
       } else if (_sortKey == 'status') {
-        valA = DocumentsLogic.cleanStatusName(a['status']?.toString() ?? '');
-        valB = DocumentsLogic.cleanStatusName(b['status']?.toString() ?? '');
+        valA = request_functions.cleanStatusName(a['status']?.toString() ?? '');
+        valB = request_functions.cleanStatusName(b['status']?.toString() ?? '');
       } else if (_sortKey == 'situation') {
         valA = a['situation']?.toString() ?? '';
         valB = b['situation']?.toString() ?? '';
@@ -271,7 +262,7 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
         if (!isLaptop) ...[
           DataCell(
             Text(
-              DocumentsLogic.cleanStatusName(
+              request_functions.cleanStatusName(
                 alert['status']?.toString() ?? 'Sin Estado',
               ),
             ),
@@ -351,10 +342,7 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
           ? catName
           : 'Sin Categoría';
 
-      final asunto =
-          alert['emailSubject']?.toString() ??
-          original['Summary']?.toString() ??
-          '';
+
 
       final repData = original['SalesRep_ID'];
       final repName = repData is Map
@@ -410,7 +398,7 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
         if (isLaptop) ...[
           DataCell(
             Text(
-              DocumentsLogic.cleanStatusName(
+              request_functions.cleanStatusName(
                 alert['status']?.toString() ?? 'Sin Estado',
               ),
             ),

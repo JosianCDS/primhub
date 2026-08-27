@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'dart:math';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/Shared_Custom/custom_container.dart';
@@ -9,7 +7,7 @@ import 'package:primhub/ui/Shared_Custom/custom_skeleton.dart';
 import 'package:primhub/ui/Shared_Custom/responsive_data_table.dart';
 import 'package:primhub/api/global_cache.dart';
 import 'package:primhub/ui/widgets/duration_formatter.dart';
-import 'package:primhub/ui/pages/Support/Requests/request_functions.dart' as DocumentsLogic;
+import 'package:primhub/ui/pages/Support/Requests/request_functions.dart' as documents_logic;
 import 'package:flutter_html/flutter_html.dart';
 import 'package:primhub/ui/Shared_Custom/animated_copy_widget.dart';
 
@@ -110,7 +108,7 @@ class _DesktopRequestTable extends StatelessWidget {
                 icon: const Icon(Icons.attach_file),
                 onPressed: () => showDialog(
                   context: context,
-                  builder: (context) => DocumentsLogic.RequestAttachmentsDialog(requestId: alert['realId'] ?? alert['original']['id'], documentNo: alert['code'] ?? ''),
+                  builder: (context) => documents_logic.RequestAttachmentsDialog(requestId: alert['realId'] ?? alert['original']['id'], documentNo: alert['code'] ?? ''),
                 ),
               ),
             ],
@@ -123,7 +121,7 @@ class _DesktopRequestTable extends StatelessWidget {
             leadingText: Text(alert['code']?.toString() ?? ''),
           ),
         ),
-        DataCell(Text(DocumentsLogic.cleanStatusName(alert['status']?.toString() ?? 'Sin Estado'))),
+        DataCell(Text(documents_logic.cleanStatusName(alert['status']?.toString() ?? 'Sin Estado'))),
         if (AccessControl.isAdmin || AccessControl.isSupport) DataCell(Text(alert['situation']?.toString() ?? 'Sin tipo')),
       ],
       scrollableCellBuilder: (alert) {
@@ -148,7 +146,6 @@ class _DesktopRequestTable extends StatelessWidget {
           }
         }
         
-        final String finalCatName = catName.isNotEmpty ? catName : 'Sin Categoría';
         final asunto = alert['emailSubject']?.toString() ?? original['Summary']?.toString() ?? '';
 
         final repData = original['SalesRep_ID'];
@@ -316,7 +313,7 @@ class _RecentRequestCard extends StatelessWidget {
                       if (value == 'attachments') {
                         showDialog(
                           context: context,
-                          builder: (context) => DocumentsLogic.RequestAttachmentsDialog(requestId: request['realId'] ?? request['original']['id'], documentNo: request['code'] ?? ''),
+                          builder: (context) => documents_logic.RequestAttachmentsDialog(requestId: request['realId'] ?? request['original']['id'], documentNo: request['code'] ?? ''),
                         );
                       }
                       if (value == 'go') {

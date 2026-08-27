@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'dart:typed_data';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
-import 'package:primhub/ui/widgets/hover_widgets.dart';
 import 'package:super_drag_and_drop/super_drag_and_drop.dart';
 
 class FileCard extends StatefulWidget {

@@ -6,7 +6,7 @@ import 'package:primhub/ui/Shared_Custom/user_info_leading.dart';
 import 'package:primhub/ui/pages/Projects/Documents/project_file_manager.dart';
 import 'package:primhub/api/api_utils.dart';
 import 'package:go_router/go_router.dart';
-import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
+
 import 'package:primhub/api/global_cache.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
@@ -36,7 +36,7 @@ class _BPartnerDocumentsPageState extends State<BPartnerDocumentsPage> {
   
   List<int> _selectedBPartnerIds = [];
   List<dynamic> _bPartners = [];
-  bool _isLoading = false;
+  final bool _isLoading = false;
 
   @override
   void initState() {

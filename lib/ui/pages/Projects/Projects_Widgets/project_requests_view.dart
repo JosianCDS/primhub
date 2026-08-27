@@ -8,7 +8,7 @@ import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/api/global_cache.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/ui/Shared_Custom/requests_data_table_core.dart'; // Usar el componente core
-import 'package:primhub/api/token.dart'; // Necesario para priorityMap
+
 import 'package:primhub/ui/pages/Projects/Projects_Widgets/project_request_filter_modal.dart';
 
 class ProjectRequestsView extends StatefulWidget {
@@ -44,7 +44,7 @@ class _ProjectRequestsViewState extends State<ProjectRequestsView> {
 
   ProjectRequestFilterModel _filters = const ProjectRequestFilterModel();
   // ignore: unused_field
-  bool _isAscending = false;
+  final bool _isAscending = false;
 
   // Pagination state
   int _currentPageSize = 25;
@@ -495,7 +495,7 @@ class _ProjectRequestsViewState extends State<ProjectRequestsView> {
             final userBpData = u['C_BPartner_ID'];
             final userBpId = (userBpData is Map)
                 ? (userBpData['id'] as num?)?.toInt()
-                : (userBpData is num ? (userBpData as num).toInt() : null);
+                : (userBpData is num ? userBpData.toInt() : null);
             return userBpId == projectBpId;
           }).toList()
         : _users;

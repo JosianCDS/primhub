@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:go_router/go_router.dart';
-import 'package:primhub/ImagesManagment/downloadAttachments.dart';
+import 'package:primhub/ImagesManagment/download_attachments.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
@@ -36,7 +36,7 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
   bool _isLoadingDocuments = false;
   bool _isDragging = false;
   final TextEditingController _searchController = TextEditingController();
-  List<Map<String, dynamic>> _searchResults = [];
+
   int? _downloadingId;
   final Set<int> _movingFiles = {}; // Bloqueo de concurrencia para evitar duplicados
 
@@ -160,7 +160,7 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
   /// Mueve archivos mediante Drag and Drop
   Future<void> _moveFile(Map<String, dynamic> doc, String currentTableName, int? targetFolderId) async {
     final int docId = doc['id'];
-    final String docName = doc['Name'] ?? 'Archivo';
+
 // [Mantenimiento] Log removido:     debugPrint("MOVING DOCUMENT: $docName (ID: $docId) TO FOLDER: $targetFolderId");
     if (_movingFiles.contains(docId)) return; // Ignorar si ya se está moviendo
 
@@ -300,10 +300,11 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
     if (create == true && controller.text.isNotEmpty) {
       setState(() => _isLoadingDocuments = true);
       final success = await DocumentsLogic.createFolder(name: controller.text, projectId: widget.project?['id'], bPartnerId: widget.bPartnerId, viewType: widget.viewType, currentPath: _currentPath, documents: _documents);
-      if (success)
+      if (success) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Carpeta creada correctamente')));
-      else
+      } else {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al crear carpeta')));
+      }
       _fetchDocuments();
     }
   }
@@ -563,7 +564,7 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
 
     currentItems.sort((a, b) => _compareItems(a, b));
 
-    if (currentItems.isEmpty)
+    if (currentItems.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -574,6 +575,7 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
           ],
         ),
       );
+    }
 
     // Relación de aspecto dinámica ajustada para dar más altura a las tarjetas
     double aspect = crossAxisCount >= 6 ? 0.8 : (crossAxisCount >= 4 ? 0.85 : 0.78);
@@ -738,7 +740,7 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
 
                               // Si estamos dentro de una carpeta y cambiamos el estado, verificar la carpeta padre
                               if (_currentPath.length > 3 && !isFolder) {
-                                final folderName = _currentPath.last;
+
                                 // Buscamos el ID de la carpeta padre en la lista actual (que son los hijos) no es posible directamente.
                                 // Pero _documents en este contexto (dentro de carpeta) son los hijos.
                                 // Necesitamos el ID de la carpeta padre. Lo podemos obtener de 'PRIM_Documents_ID' del hijo si existe.

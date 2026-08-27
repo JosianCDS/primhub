@@ -4,7 +4,7 @@ import 'package:primhub/api/global_cache.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
-import 'package:primhub/ui/Shared_Custom/customToast.dart';
+import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 import 'package:primhub/ui/pages/Support/Requests/product_chip_functions.dart';
 
 class ProductChipFormDialog extends StatefulWidget {
@@ -78,7 +78,7 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
                     Expanded(
                       child: ListView.separated(
                         itemCount: filteredItems.length,
-                        separatorBuilder: (_, __) => const Divider(
+                        separatorBuilder: (context, index) => const Divider(
                           height: 1,
                           color: Colors.grey,
                           thickness: 0.3,
@@ -428,7 +428,7 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
     }
 
     // Preparar BPartners
-    final bPartners = GlobalCache.bPartners;
+
     final isMobile = MediaQuery.of(context).size.width < 600;
 
     Widget buildPair(Widget w1, Widget w2) {

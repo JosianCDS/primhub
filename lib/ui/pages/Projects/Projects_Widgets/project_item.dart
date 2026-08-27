@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/access_control.dart';
-import 'package:primhub/ui/pages/Projects/dialogs/item_edit_dialog.dart';
+
 import 'package:primhub/ui/pages/Projects/dialogs/phase_create_dialog.dart';
 import 'package:primhub/ui/pages/Projects/dialogs/project_calendar_dialog.dart';
 import 'package:primhub/ui/pages/Projects/dialogs/project_info_dialog.dart';
@@ -95,9 +95,8 @@ class ProjectItem extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(color: Colors.grey[200]!, width: 1),
       ),
-      child: Container(
-        child: ExpansionTile(
-          key: Key('project-$projId-$isExpanded'), // Forzamos reconstrucción al cambiar estado
+      child: ExpansionTile(
+          key: Key('project-$projId-$isExpanded'),
           initiallyExpanded: isExpanded,
           backgroundColor: Colors.white,
           collapsedBackgroundColor: Colors.white,
@@ -118,7 +117,7 @@ class ProjectItem extends StatelessWidget {
           ),
           title: LayoutBuilder(
             builder: (context, constraints) {
-              final isNarrow = MediaQuery.of(context).size.width < 500;
+
               return Row(
                 children: [
                   Expanded(
@@ -246,7 +245,7 @@ class ProjectItem extends StatelessWidget {
                 children: [
                    Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                    child: Container(
+                    child: SizedBox(
                       width: double.infinity,
                       child: Wrap(
                         alignment: WrapAlignment.spaceBetween,
@@ -293,7 +292,6 @@ class ProjectItem extends StatelessWidget {
             ),
           ],
         ),
-      ),
     );
   }
 

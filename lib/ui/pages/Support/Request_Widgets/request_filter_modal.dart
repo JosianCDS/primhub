@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
-import 'package:primhub/ui/Shared_Custom/customToast.dart';
+import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart'; // Para priorityMap
-import 'package:primhub/ui/widgets/duration_formatter.dart'; // Importar DurationFormatter
 import 'package:primhub/api/global_cache.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 import 'package:primhub/api/token.dart';
@@ -109,8 +108,6 @@ class _RequestFilterModalState extends State<RequestFilterModal> {
     _bPartners = widget.bPartners;
     _users = widget.users;
     
-// [Mantenimiento] Log removido:     debugPrint("DEBUG MODAL: Abriendo modal con ${_bPartners.length} Terceros y ${_users.length} Usuarios.");
-// [Mantenimiento] Log removido:     debugPrint("DEBUG MODAL: Filtros iniciales -> BPs: ${_tempFilter.bpIds}, Chips: ${_tempFilter.productChipIds}");
     _loadMissingMetadata();
   }
 
@@ -159,74 +156,9 @@ class _RequestFilterModalState extends State<RequestFilterModal> {
             fetchGroups().then((val) => GlobalCache.groups = val),
         ]);
       } catch (e) {
-// [Mantenimiento] Log removido:         debugPrint("Error loading filter metadata: $e");
+        // Ignore error
       }
       if (mounted) setState(() => _isLoadingMetadata = false);
-    }
-  }
-
-  Future<void> _openSingleSelectSearchModal<T>({required String title, required List<dynamic> items, required T? currentValue, required String Function(dynamic) getTitle, String Function(dynamic)? getSubtitle, required T? Function(dynamic) getValue, required void Function(T?) onSelected}) async {
-    final dynamic result = await showDialog(
-      context: context,
-      builder: (context) {
-        String searchQuery = '';
-        return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          child: Container(
-            width: 400,
-            height: MediaQuery.of(context).size.height * 0.6,
-            padding: const EdgeInsets.all(20),
-            child: StatefulBuilder(
-              builder: (context, setStateDialog) {
-                final filteredItems = items.where((item) {
-                  return getTitle(item).toLowerCase().contains(searchQuery.toLowerCase());
-                }).toList();
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Seleccionar $title', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w400)),
-                    const SizedBox(height: 16),
-                    TextField(
-                      decoration: const InputDecoration(
-                        prefixIcon: Icon(Icons.filter_list, color: Colors.grey),
-                        hintText: 'Filtrar...',
-                        enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
-                        focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.blue)),
-                      ),
-                      onChanged: (val) => setStateDialog(() => searchQuery = val),
-                    ),
-                    const SizedBox(height: 16),
-                    Expanded(
-                      child: ListView.separated(
-                        itemCount: filteredItems.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1, color: Colors.grey, thickness: 0.3),
-                        itemBuilder: (context, index) {
-                          final item = filteredItems[index];
-                          final itemValue = getValue(item);
-                          final isSelected = itemValue == currentValue;
-
-                          return ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            tileColor: isSelected ? Colors.grey.withOpacity(0.1) : null,
-                            title: Text(getTitle(item), style: const TextStyle(fontSize: 14)),
-                            subtitle: getSubtitle != null && itemValue != null ? Text(getSubtitle(item), style: const TextStyle(fontSize: 12, color: Colors.grey)) : null,
-                            onTap: () => Navigator.of(context).pop({'selected': true, 'value': itemValue}),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-          ),
-        );
-      },
-    );
-
-    if (result != null && result is Map && result['selected'] == true) {
-      onSelected(result['value'] as T?);
     }
   }
 
@@ -261,7 +193,7 @@ class _RequestFilterModalState extends State<RequestFilterModal> {
   }) async {
     final result = await showDialog<List<String>>(
       context: context,
-      builder: (context) => _MultiSelectSearchDialog(
+      builder: (context) => MultiSelectSearchDialog(
         title: title, 
         items: items, 
         initialSelectedValues: currentValues, 
@@ -274,29 +206,6 @@ class _RequestFilterModalState extends State<RequestFilterModal> {
     if (result != null) {
       onSelected(result);
     }
-  }
-
-  Widget _buildSingleSearchableField<T>({required String label, required String? hintText, required T? value, required bool isLoading, required bool isDisabled, required String displayText, required VoidCallback onTap}) {
-    return InkWell(
-      onTap: (isLoading || isDisabled) ? null : onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: InputDecorator(
-        decoration: InputDecoration(
-          labelText: label,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-          floatingLabelBehavior: FloatingLabelBehavior.always,
-          suffixIcon: isLoading ? Transform.scale(scale: 0.5, child: const CircularProgressIndicator(strokeWidth: 3)) : const Icon(Icons.search),
-        ),
-        isEmpty: value == null && (displayText.isEmpty || displayText.startsWith('Todos los')),
-        child: Text(
-          (value == null || displayText.isEmpty) ? (hintText ?? '') : displayText,
-          style: TextStyle(fontSize: 16, color: (isLoading || isDisabled || value == null) ? Colors.grey[600] : Theme.of(context).colorScheme.onSurface),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
-    );
   }
 
   Widget _buildMultiSearchableField({required String label, required String hintText, required List<String> values, required bool isLoading, required bool isDisabled, required VoidCallback onTap}) {
@@ -601,8 +510,6 @@ class _RequestFilterModalState extends State<RequestFilterModal> {
                   }
                 }).toList();
 
-// [Mantenimiento] Log removido:                 debugPrint("DEBUG MODAL: Abriendo selección de chips. Fichas filtradas por BP: ${filteredChips.length}");
-
                 _openMultiSelectSearchModal(
                   title: 'Ficha de Producto',
                   items: filteredChips,
@@ -623,7 +530,6 @@ class _RequestFilterModalState extends State<RequestFilterModal> {
                   getValue: (item) => (item['id'] as num).toInt().toString(),
                   onSelected: (vals) {
                     final newIds = vals.map((v) => int.parse(v)).toList();
-// [Mantenimiento] Log removido:                     debugPrint("DEBUG MODAL: Chips seleccionados: $newIds");
                     setState(() => _tempFilter = _tempFilter.copyWith(
                       productChipIds: newIds
                     ));
@@ -637,7 +543,6 @@ class _RequestFilterModalState extends State<RequestFilterModal> {
       actions: [
         TextButton(onPressed: () => Navigator.pop(context, null), child: const Text('Cancelar')),
         CustomButton(text: 'Aplicar Filtros', onPressed: () {
-// [Mantenimiento] Log removido:           debugPrint("DEBUG MODAL: Aplicando filtros finales. BPs: ${_tempFilter.bpIds}, Chips: ${_tempFilter.productChipIds}");
           Navigator.pop(context, _tempFilter);
         }),
       ],
@@ -646,7 +551,7 @@ class _RequestFilterModalState extends State<RequestFilterModal> {
 }
 
 /// A helper dialog for multi-selection with a search bar.
-class _MultiSelectSearchDialog extends StatefulWidget {
+class MultiSelectSearchDialog extends StatefulWidget {
   final String title;
   final List<dynamic> items;
   final List<String> initialSelectedValues;
@@ -655,7 +560,7 @@ class _MultiSelectSearchDialog extends StatefulWidget {
   final String Function(dynamic) getValue;
   final String? Function(dynamic)? getGroupTab;
 
-  const _MultiSelectSearchDialog({
+  const MultiSelectSearchDialog({
     super.key, 
     required this.title, 
     required this.items, 
@@ -667,10 +572,10 @@ class _MultiSelectSearchDialog extends StatefulWidget {
   });
 
   @override
-  State<_MultiSelectSearchDialog> createState() => __MultiSelectSearchDialogState();
+  State<MultiSelectSearchDialog> createState() => _MultiSelectSearchDialogState();
 }
 
-class __MultiSelectSearchDialogState extends State<_MultiSelectSearchDialog> {
+class _MultiSelectSearchDialogState extends State<MultiSelectSearchDialog> {
   late Set<String> _tempSelectedValues;
   String _searchQuery = '';
 
@@ -701,7 +606,7 @@ class __MultiSelectSearchDialogState extends State<_MultiSelectSearchDialog> {
     Widget buildList(List<dynamic> itemsToDisplay) {
       return ListView.separated(
         itemCount: itemsToDisplay.length,
-        separatorBuilder: (_, __) => const Divider(height: 1, color: Colors.grey, thickness: 0.3),
+        separatorBuilder: (context, index) => const Divider(height: 1, color: Colors.grey, thickness: 0.3),
         itemBuilder: (context, index) {
           final item = itemsToDisplay[index];
           final itemValue = widget.getValue(item).toLowerCase().trim();

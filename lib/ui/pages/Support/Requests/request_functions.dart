@@ -4,20 +4,21 @@ import 'package:file_picker/file_picker.dart';
 import 'package:primhub/api/api_http.dart' as http;
 import 'package:primhub/api/api_utils.dart';
 import 'package:primhub/api/token.dart';
-import 'package:primhub/ImagesManagment/postAttachments.dart';
+import 'package:primhub/ImagesManagment/post_attachments.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/api/global_cache.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
-import 'package:primhub/ImagesManagment/fecthAttachments.dart';
-import 'package:primhub/ImagesManagment/downloadAttachments.dart';
+import 'package:primhub/ImagesManagment/fetch_attachments.dart';
+import 'package:primhub/ImagesManagment/download_attachments.dart';
 import 'package:primhub/ui/pages/Projects/Projects_Widgets/file_preview_manager.dart';
-import 'package:primhub/ui/pages/Support/Requests/email_templates.dart';
+
 
 // --- MAPAS DE REFERENCIA ---
 
+// ignore: constant_identifier_names
 const Map<int, String> SUPPORT_STATUS_MAPPING = {
   1000003: 'Recibida',
   1000016: 'Asignada',
@@ -358,9 +359,7 @@ Future<int> fetchRequestCount({String? model = 'R_Request', String? filter}) asy
 Future<List<Map<String, dynamic>>> fetchProjectAndTaskRequests(int projectId, {List<String>? taskUUIDs, String? additionalFilter, String? select, String? expand}) async {
   List<Map<String, dynamic>> allReqs = [];
 
-  if (taskUUIDs == null) {
-    taskUUIDs = await ProjectsLogic().fetchProjectTaskUUIDs(projectId);
-  }
+  taskUUIDs ??= await ProjectsLogic().fetchProjectTaskUUIDs(projectId);
 
   String baseFilter = "C_Project_ID eq $projectId";
 
@@ -594,7 +593,7 @@ Future<Map<String, dynamic>> processRequests(List<dynamic> requests, Map<String,
     final statusName = req['R_Status_ID'] is Map ? (req['R_Status_ID']['identifier'] ?? req['R_Status_ID']['Name'] ?? req['R_Status_Name'] ?? '') : (req['R_Status_Name'] ?? '');
     
     // Extraer QtyPlan y QtySpent buscando múltiples variantes de nombres de campo
-    final double qtyPlan = tryGetDouble(req, ['QtyPlan', 'qtyPlan', 'qty_plan']) ?? 0.0;
+
     final double qtySpent = tryGetDouble(req, ['QtySpent', 'qtySpent', 'qty_spent', 'UsedQty', 'used_qty']) ?? 0.0;
 
     // Lógica de horas basada en metadatos de estado (IsFinalClose)
@@ -635,12 +634,19 @@ Future<Map<String, dynamic>> processRequests(List<dynamic> requests, Map<String,
       level = (rawPriority['identifier'] ?? rawPriority['Name'] ?? 'Media').toString();
     } else if (rawPriority != null) {
       final pStr = rawPriority.toString();
-      if (pStr == '1') level = 'Urgente';
-      else if (pStr == '3') level = 'Alta';
-      else if (pStr == '5') level = 'Media';
-      else if (pStr == '7') level = 'Baja';
-      else if (pStr == '9') level = 'Muy baja';
-      else level = pStr; 
+      if (pStr == '1') {
+        level = 'Urgente';
+      } else if (pStr == '3') {
+        level = 'Alta';
+      } else if (pStr == '5') {
+        level = 'Media';
+      } else if (pStr == '7') {
+        level = 'Baja';
+      } else if (pStr == '9') {
+        level = 'Muy baja';
+      } else {
+        level = pStr;
+      } 
     }
     String status = statusName;
     int? statusId = statusIdFromReq;
@@ -1244,52 +1250,12 @@ Future<void> sendRequestStatusEmail({
       }
     }
 
-    String documentNo = req?['DocumentNo']?.toString() ?? requestId.toString();
 
-    // 2. Obtener el nombre del estado actual
-    String statusName = 'Actualizado';
-    if (req != null) {
-      int currentStatusId = req['R_Status_ID'] is Map ? req['R_Status_ID']['id'] : req['R_Status_ID'] ?? 0;
-      for (var entry in GlobalCache.statuses.entries) {
-        if (entry.value == currentStatusId) {
-          statusName = entry.key;
-          break;
-        }
-      }
-    }
 
-    // 3. Obtener el nombre del usuario receptor
-    String userName = User.name ?? 'Usuario';
 
-    // 4. Construir Asunto y Título
-    String mailSubject = "Actualización en solicitud: $documentNo";
-    String emailTitle = "Actualización en solicitud $documentNo";
-    
-    if (mailTextId == 1000015) {
-      mailSubject = "Nueva Solicitud: $documentNo";
-      emailTitle = "Solicitud Recibida $documentNo";
-    } else if (mailTextId == 1000017) {
-      mailSubject = "Cambio de Estado en solicitud: $documentNo";
-      emailTitle = "Actualización en solicitud $documentNo";
-    }
 
-    // 5. Construir el HTML usando la clase dedicada en Flutter
-    // (COMENTADO TEMPORALMENTE MIENTRAS SE MIGRAN LAS PLANTILLAS A IDEMPIERE)
-    /*
-    String htmlBody = EmailTemplates.buildRequestUpdateEmail(
-      emailTitle: emailTitle,
-      userName: userName,
-      documentNo: documentNo,
-      statusName: statusName,
-      updateText: updateText,
-      oldStatusName: oldStatusName,
-    );
-    */
     final uri = Uri.parse('${Endpoint.baseUrl}/api/v1/processes/sendmailtextcds');
-    
-    // TRUCO MAESTRO: Usamos R_RequestUpdate para que jale los adjuntos físicos (solo para 1000017)
-    // Para 1000015 (Crear) y 1000016 (Cambio Estado), forzamos R_Request porque R_RequestUpdate 
-    // NO tiene el campo R_Status_ID, lo cual rompe la etiqueta @R_Status_ID<R_Status.Name>@
+  
     String targetTableName = 'R_Request';
     String targetRecordId = requestId.toString();
     
@@ -1336,6 +1302,6 @@ Future<void> sendRequestStatusEmail({
       }
     }
   } catch (e) {
-    // [Mantenimiento] Log removido: debugPrint('Excepción enviando correo: $e');
+    CurrentLogMessage.add('Excepcion en sendRequestStatusEmail: $e', level: 'ERROR', tag: 'sendRequestStatusEmail');
   }
 }
