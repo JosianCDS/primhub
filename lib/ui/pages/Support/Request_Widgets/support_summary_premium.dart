@@ -1,3 +1,4 @@
+import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 import 'package:flutter/material.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
@@ -570,9 +571,14 @@ class SupportSummaryPremium extends StatelessWidget {
     final nameController = TextEditingController(
       text: chip['Description'] ?? '',
     );
+    final String initialFinishDate = chip['service_finish_date'] != null 
+        ? chip['service_finish_date'].toString().split('T')[0] 
+        : '';
+    final dateController = TextEditingController(
+      text: initialFinishDate,
+    );
     final chipId = int.tryParse(chip['id']?.toString() ?? '') ?? 0;
     if (chipId == 0) {
-// [Mantenimiento] Log removido:       debugPrint("ERROR: ID de ficha no válido para renombrar: ${chip['id']}");
       return;
     }
 
@@ -582,19 +588,57 @@ class SupportSummaryPremium extends StatelessWidget {
         bool isSaving = false;
         return StatefulBuilder(
           builder: (context, setModalState) => CustomModal(
-            title: 'Renombrar Ficha de Producto',
+            title: 'Renombrar/Modificar Ficha',
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Text(
-                  'Asigna un nombre descriptivo a esta ficha para identificarla fácilmente.',
+                  'Asigna un nombre descriptivo o fecha de cierre a esta ficha.',
                 ),
                 const SizedBox(height: 16),
                 CustomTextField(
                   controller: nameController,
                   label: 'Nombre de la Ficha',
                   hintText: 'Ej: Soporte Mensual Mayo',
-                  autofocus: true,
+                ),
+                const SizedBox(height: 16),
+                GestureDetector(
+                  onTap: isSaving ? null : () async {
+                    final DateTime? picked = await showDatePicker(
+                      context: context,
+                      initialDate: DateTime.now(),
+                      firstDate: DateTime(2000),
+                      lastDate: DateTime(2101),
+                      cancelText: 'CANCELAR',
+                      confirmText: 'ACEPTAR',
+                      builder: (context, child) {
+                        return Theme(
+                          data: Theme.of(context).copyWith(
+                            textButtonTheme: TextButtonThemeData(
+                              style: TextButton.styleFrom(
+                                textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ),
+                          child: child!,
+                        );
+                      },
+                    );
+                    if (picked != null) {
+                      setModalState(() {
+                        dateController.text =
+                            "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
+                      });
+                    }
+                  },
+                  child: AbsorbPointer(
+                    child: CustomTextField(
+                      controller: dateController,
+                      label: 'Fecha de Cierre (Opcional)',
+                      hintText: 'YYYY-MM-DD',
+                      prefixIcon: const Icon(Icons.calendar_today),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -615,6 +659,7 @@ class SupportSummaryPremium extends StatelessWidget {
                       await ContractApi.updateProductChipDescription(
                         chipId,
                         newName,
+                        serviceFinishDate: dateController.text.trim(),
                       );
 
                   if (context.mounted) {
@@ -623,17 +668,12 @@ class SupportSummaryPremium extends StatelessWidget {
                       onRefresh();
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text('Nombre actualizado correctamente'),
+                          content: Text('Ficha actualizada correctamente'),
                         ),
                       );
                     } else {
                       setModalState(() => isSaving = false);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Error al actualizar el nombre'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
+                      ToastMessage.show(context: context, message: 'Error al actualizar la ficha', type: ToastType.failure);
                     }
                   }
                 },
@@ -728,16 +768,9 @@ class SupportSummaryPremium extends StatelessWidget {
       Navigator.pop(context); // cerrar cargando
       if (success) {
         onRefresh();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ficha ${newValue ? 'activada' : 'inactivada'} correctamente.')),
-        );
+        ToastMessage.show(context: context, message: 'Ficha ${newValue ? 'activada' : 'inactivada'} correctamente.', type: ToastType.help);
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error al cambiar el estado de la ficha.'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ToastMessage.show(context: context, message: 'Error al cambiar el estado de la ficha.', type: ToastType.failure);
       }
     }
   }

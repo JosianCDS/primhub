@@ -1,3 +1,4 @@
+import 'package:primhub/ui/Shared_Custom/admin_mode_views.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/access_control.dart';
@@ -60,307 +61,7 @@ class _HomePageState extends State<HomePage> {
     _controller.initData();
   }
 
-  void _showAdminModeSelectionDialog(BuildContext context) {
-    final current = _adminViewModeManager.currentMode;
-    final colorScheme = Theme.of(context).colorScheme;
 
-    showDialog(
-      context: context,
-      builder: (dialogContext) {
-        return CustomModal(
-          title: 'Seleccionar Modo de Vista',
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                title: const Text('Modo Mixto'),
-                trailing: current == AdminViewMode.mixed
-                    ? Icon(Icons.check, color: colorScheme.primary)
-                    : null,
-                onTap: () {
-                  _adminViewModeManager.saveMode(AdminViewMode.mixed);
-                  Navigator.pop(dialogContext);
-                },
-              ),
-              ListTile(
-                title: const Text('Modo Soporte'),
-                trailing: current == AdminViewMode.support
-                    ? Icon(Icons.check, color: colorScheme.primary)
-                    : null,
-                onTap: () {
-                  _adminViewModeManager.saveMode(AdminViewMode.support);
-                  Navigator.pop(dialogContext);
-                },
-              ),
-              ListTile(
-                title: const Text('Modo Proyecto'),
-                trailing: current == AdminViewMode.project
-                    ? Icon(Icons.check, color: colorScheme.primary)
-                    : null,
-                onTap: () {
-                  _adminViewModeManager.saveMode(AdminViewMode.project);
-                  Navigator.pop(dialogContext);
-                },
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cerrar'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _showProjectFilterSelectionDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (dialogContext) {
-        return CustomModal(
-          title: 'Filtrar Proyectos',
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.person),
-                title: const Text('Mis Proyectos'),
-                trailing: _adminViewModeManager.isViewingMine
-                    ? Icon(
-                        Icons.check,
-                        color: Theme.of(context).colorScheme.primary,
-                      )
-                    : null,
-                onTap: () {
-                  _adminViewModeManager.setViewingMine(true);
-                  Navigator.pop(dialogContext);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.group),
-                title: const Text('Todos los Proyectos'),
-                trailing: !_adminViewModeManager.isViewingMine
-                    ? Icon(
-                        Icons.check,
-                        color: Theme.of(context).colorScheme.primary,
-                      )
-                    : null,
-                onTap: () {
-                  _adminViewModeManager.setViewingMine(false);
-                  Navigator.pop(dialogContext);
-                },
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cerrar'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildAdminModePopupMenu() {
-    return PopupMenuButton<AdminViewMode>(
-      tooltip: 'Cambiar modo de vista',
-      onSelected: (AdminViewMode mode) {
-        _adminViewModeManager.saveMode(mode);
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.admin_panel_settings),
-            const SizedBox(width: 8),
-            Text(
-              _adminViewModeManager.currentMode == AdminViewMode.support
-                  ? 'Modo Soporte'
-                  : (_adminViewModeManager.currentMode == AdminViewMode.project
-                        ? 'Modo Proyecto'
-                        : 'Modo Mixto'),
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const Icon(Icons.arrow_drop_down),
-          ],
-        ),
-      ),
-      itemBuilder: (BuildContext context) {
-        final current = _adminViewModeManager.currentMode;
-        final colorScheme = Theme.of(context).colorScheme;
-        PopupMenuItem<AdminViewMode> buildItem(
-          AdminViewMode mode,
-          String text,
-        ) {
-          final isSelected = current == mode;
-          return PopupMenuItem<AdminViewMode>(
-            value: mode,
-            child: Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? colorScheme.primary.withOpacity(0.1)
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Row(
-                children: [
-                  Text(
-                    text,
-                    style: TextStyle(
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                      color: isSelected ? colorScheme.primary : colorScheme.onSurface,
-                    ),
-                  ),
-                  if (isSelected) const Spacer(),
-                  if (isSelected)
-                    Icon(Icons.check, size: 18, color: colorScheme.primary),
-                ],
-              ),
-            ),
-          );
-        }
-
-        return [
-          buildItem(AdminViewMode.mixed, 'Modo Mixto'),
-          buildItem(AdminViewMode.support, 'Modo Soporte'),
-          buildItem(AdminViewMode.project, 'Modo Proyecto'),
-        ];
-      },
-    );
-  }
-
-  Widget _buildProjectFilterPopupMenu() {
-    return PopupMenuButton<bool>(
-      tooltip: 'Filtrar proyectos',
-      onSelected: (bool viewingMine) {
-        _adminViewModeManager.setViewingMine(viewingMine);
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              _adminViewModeManager.isViewingMine
-                  ? Icons.person
-                  : Icons.group,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              _adminViewModeManager.isViewingMine
-                  ? 'Mis Proyectos'
-                  : 'Todos los Proyectos',
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const Icon(Icons.arrow_drop_down),
-          ],
-        ),
-      ),
-      itemBuilder: (BuildContext context) {
-        final colorScheme = Theme.of(context).colorScheme;
-        final isViewingMine = _adminViewModeManager.isViewingMine;
-        PopupMenuItem<bool> buildItem(
-          bool isMineOption,
-          String text,
-          IconData icon,
-        ) {
-          final isSelected = isViewingMine == isMineOption;
-          return PopupMenuItem<bool>(
-            value: isMineOption,
-            child: Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? colorScheme.primary.withOpacity(0.1)
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Row(
-                children: [
-                  Icon(
-                    icon,
-                    size: 20,
-                    color: isSelected ? colorScheme.primary : colorScheme.onSurface,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    text,
-                    style: TextStyle(
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                      color: isSelected ? colorScheme.primary : colorScheme.onSurface,
-                    ),
-                  ),
-                  if (isSelected) const Spacer(),
-                  if (isSelected)
-                    Icon(Icons.check, size: 18, color: colorScheme.primary),
-                ],
-              ),
-            ),
-          );
-        }
-
-        return [
-          buildItem(true, 'Mis Proyectos', Icons.person),
-          buildItem(false, 'Todos los Proyectos', Icons.group),
-        ];
-      },
-    );
-  }
-
-  List<Widget> _buildAdminAppBarActions(BuildContext context) {
-    final isMobile = MediaQuery.of(context).size.width < 600;
-    if (isMobile) {
-      return [
-        PopupMenuButton<String>(
-          icon: const Icon(Icons.more_vert),
-          onSelected: (value) {
-            if (value == 'admin_mode') _showAdminModeSelectionDialog(context);
-            if (value == 'project_filter') {
-              _showProjectFilterSelectionDialog(context);
-            }
-          },
-          itemBuilder: (context) => [
-            PopupMenuItem<String>(
-              value: 'admin_mode',
-              child: ListTile(
-                leading: const Icon(Icons.admin_panel_settings),
-                title: Text(
-                  'Modo: ${_adminViewModeManager.currentMode == AdminViewMode.support ? 'Soporte' : (_adminViewModeManager.currentMode == AdminViewMode.project ? 'Proyecto' : 'Mixto')}',
-                ),
-              ),
-            ),
-            PopupMenuItem<String>(
-              value: 'project_filter',
-              child: ListTile(
-                leading: Icon(
-                  _adminViewModeManager.isViewingMine
-                      ? Icons.person
-                      : Icons.group,
-                ),
-                title: Text(
-                  _adminViewModeManager.isViewingMine
-                      ? 'Mis Proyectos'
-                      : 'Todos',
-                ),
-              ),
-            ),
-          ],
-        ),
-      ];
-    }
-    return [
-      _buildAdminModePopupMenu(),
-      _buildProjectFilterPopupMenu(),
-    ];
-  }
 
   void _showRequestDetails(Map<String, dynamic> record) {
     // El mapa record en recentRequests tiene una estructura plana o anidada en 'original'.
@@ -647,21 +348,7 @@ class _HomePageState extends State<HomePage> {
                 ),
           title: const Text('Dashboard'),
           actions: [
-            if (AccessControl.isAdmin) ..._buildAdminAppBarActions(context),
-            if (_controller.isSyncingBackground)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: Center(
-                  child: SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Theme.of(context).colorScheme.onPrimary,
-                    ),
-                  ),
-                ),
-              ),
+            if (AccessControl.isAdmin) AdminModeViews(),
             const HelpIcon(),
             if (MediaQuery.of(context).size.width < 900 && !AccessControl.isAdmin)
               PopupMenuButton<String>(
@@ -904,6 +591,33 @@ class _HomePageState extends State<HomePage> {
                               ),
                               child: LayoutBuilder(
                                 builder: (context, constraints) {
+                                  if (_controller.isLoading) {
+                                    int columns = (constraints.maxWidth / 360).floor();
+                                    if (columns < 1) columns = 1;
+                                    double spacing = 20;
+                                    double itemWidth = (constraints.maxWidth - (spacing * (columns - 1))) / columns;
+                                    if (itemWidth > 420) itemWidth = 420;
+                                    if (itemWidth > constraints.maxWidth) itemWidth = constraints.maxWidth;
+                                    if (itemWidth <= 0) itemWidth = 100;
+                                 
+                                    return Center(
+                                      child: Wrap(
+                                        spacing: spacing,
+                                        runSpacing: spacing,
+                                        alignment: WrapAlignment.center,
+                                        crossAxisAlignment: WrapCrossAlignment.center,
+                                        children: List.generate(
+                                          columns > 3 ? 3 : columns,
+                                          (index) => CustomSkeleton(
+                                            width: itemWidth,
+                                            height: 332,
+                                            borderRadius: 16,
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  }
+
                                   final activeProjects = _controller.projects
                                       .where(
                                         (p) => _controller.selectedProjectIds
@@ -1037,7 +751,7 @@ class _HomePageState extends State<HomePage> {
                             ),
                           const SizedBox(height: 20),
                           if (AccessControl.isSupport) ...[
-                            if (_controller.validationLoading || _isEnforcedDelayActive)
+                            if (_controller.validationLoading || _isEnforcedDelayActive || _controller.isLoading)
                               Column(
                                 children: [
                                   Wrap(

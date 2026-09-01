@@ -1,3 +1,4 @@
+import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -346,12 +347,12 @@ class _RequestAttachmentsDialogState extends State<_RequestAttachmentsDialog> {
 
   Future<void> _uploadAttachment() async {
     if (!AccessControl.canManageFiles) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No tienes permisos para subir archivos.')));
+      ToastMessage.show(context: context, message: 'No tienes permisos para subir archivos.', type: ToastType.help);
       return;
     }
 
     if (_attachments.length >= 4) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Solo se pueden subir 4 Adjuntos'), backgroundColor: Colors.orange));
+      ToastMessage.show(context: context, message: 'Solo se pueden subir 4 Adjuntos', type: ToastType.warning);
       return;
     }
 
@@ -369,10 +370,10 @@ class _RequestAttachmentsDialogState extends State<_RequestAttachmentsDialog> {
     if (mounted) {
       setState(() => _isUploading = false);
       if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Archivo subido correctamente')));
+        ToastMessage.show(context: context, message: 'Archivo subido correctamente', type: ToastType.help);
         _loadAttachments();
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al subir archivo'), backgroundColor: Colors.red));
+        ToastMessage.show(context: context, message: 'Error al subir archivo', type: ToastType.failure);
       }
     }
   }
@@ -418,12 +419,12 @@ class _RequestAttachmentsDialogState extends State<_RequestAttachmentsDialog> {
                               _attachments.removeWhere((item) => item['name'] == att['name']);
                               _isLoading = false;
                             });
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Adjunto eliminado')));
+                            ToastMessage.show(context: context, message: 'Adjunto eliminado', type: ToastType.help);
                           }
                         } else {
                           if (mounted) {
                             setState(() => _isLoading = false);
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al eliminar adjunto'), backgroundColor: Colors.red));
+                            ToastMessage.show(context: context, message: 'Error al eliminar adjunto', type: ToastType.failure);
                           }
                         }
                       } catch (e) {

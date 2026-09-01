@@ -1,4 +1,6 @@
+import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 import 'package:flutter/material.dart';
+import 'package:primhub/ui/Shared_Custom/admin_mode_views.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/ui/pages/Projects/Documents/project_file_manager.dart';
@@ -235,12 +237,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
     } else {
       if (mounted) {
         setState(() => _isLoadingProjects = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al crear fase: ${result['error']}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ToastMessage.show(context: context, message: 'Error al crear fase: ${result['error']}', type: ToastType.failure);
       }
     }
   }
@@ -265,90 +262,12 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
     } else {
       if (mounted) {
         setState(() => _isLoadingProjects = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al crear tarea: ${result['error']}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ToastMessage.show(context: context, message: 'Error al crear tarea: ${result['error']}', type: ToastType.failure);
       }
     }
   }
 
-  Widget _buildAdminModePopupMenu() {
-    return PopupMenuButton<AdminViewMode>(
-      tooltip: 'Cambiar modo de vista',
-      onSelected: (AdminViewMode mode) {
-        _adminViewModeManager.saveMode(mode);
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.admin_panel_settings),
-            const SizedBox(width: 8),
-            Text(
-              _adminViewModeManager.currentMode == AdminViewMode.support
-                  ? 'Modo Soporte'
-                  : (_adminViewModeManager.currentMode == AdminViewMode.project
-                        ? 'Modo Proyecto'
-                        : 'Modo Mixto'),
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const Icon(Icons.arrow_drop_down),
-          ],
-        ),
-      ),
-      itemBuilder: (BuildContext context) {
-        final current = _adminViewModeManager.currentMode;
-        final colorScheme = Theme.of(context).colorScheme;
-        PopupMenuItem<AdminViewMode> buildItem(
-          AdminViewMode mode,
-          String text,
-        ) {
-          final isSelected = current == mode;
-          return PopupMenuItem<AdminViewMode>(
-            value: mode,
-            child: Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? colorScheme.primary.withOpacity(0.1)
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Row(
-                children: [
-                  Text(
-                    text,
-                    style: TextStyle(
-                      fontWeight: isSelected
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                      color: isSelected
-                          ? colorScheme.primary
-                          : colorScheme.onSurface,
-                    ),
-                  ),
-                  if (isSelected) const Spacer(),
-                  if (isSelected)
-                    Icon(Icons.check, size: 18, color: colorScheme.primary),
-                ],
-              ),
-            ),
-          );
-        }
 
-        return [
-          buildItem(AdminViewMode.mixed, 'Modo Mixto'),
-          buildItem(AdminViewMode.support, 'Modo Soporte'),
-          buildItem(AdminViewMode.project, 'Modo Proyecto'),
-        ];
-      },
-    );
-  }
 
   Widget _buildProjectFilterPopupMenu() {
     return PopupMenuButton<bool>(
@@ -545,7 +464,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
     List<Widget> desktopActions = [];
     if (!_showingFiles) {
       if (AccessControl.isAdmin) {
-        desktopActions.add(_buildAdminModePopupMenu());
+        desktopActions.add(const AdminModeViews());
         desktopActions.add(_buildProjectFilterPopupMenu());
       }
       if (!AccessControl.isProject) {
@@ -715,14 +634,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
                             _loadProjects(forceRefresh: true);
                           } else if (mounted) {
                             setState(() => _isLoadingProjects = false);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Error al actualizar: ${result['error']}',
-                                ),
-                                backgroundColor: Colors.red,
-                              ),
-                            );
+                            ToastMessage.show(context: context, message: 'Error al actualizar: ${result['error']}', type: ToastType.failure);
                           }
                         }
                       },

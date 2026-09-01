@@ -1,3 +1,4 @@
+import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:go_router/go_router.dart';
@@ -217,7 +218,7 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (result['success'] == true) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Archivo movido correctamente')));
+        ToastMessage.show(context: context, message: 'Archivo movido correctamente', type: ToastType.help);
         _fetchDocuments(showLoading: false); // Sincronizar IDs silenciosamente
       } else {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${result['error']}'), backgroundColor: Colors.red, duration: const Duration(seconds: 5)));
@@ -228,7 +229,7 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
 
   Future<void> pickAndUploadFile() async {
     if (!_canManageFiles) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No tienes permisos para subir archivos.')));
+      ToastMessage.show(context: context, message: 'No tienes permisos para subir archivos.', type: ToastType.help);
       return;
     }
     FilePickerResult? result = await FilePicker.platform.pickFiles(withData: true);
@@ -267,22 +268,22 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
     final resultUpload = await DocumentsLogic.uploadFile(fileName: fileName, displayName: displayName, fileBytes: result.files.first.bytes!, projectId: widget.project?['id'], bPartnerId: widget.bPartnerId, viewType: widget.viewType, currentPath: _currentPath, documents: _documents);
 
     if (resultUpload == true) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Archivo subido correctamente')));
+      ToastMessage.show(context: context, message: 'Archivo subido correctamente', type: ToastType.help);
     } else if (resultUpload is String) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(resultUpload), backgroundColor: Colors.red));
+      ToastMessage.show(context: context, message: resultUpload, type: ToastType.failure);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al subir archivo'), backgroundColor: Colors.red));
+      ToastMessage.show(context: context, message: 'Error al subir archivo', type: ToastType.failure);
     }
     _fetchDocuments();
   }
 
   Future<void> createFolderDialog() async {
     if (!_canManageFiles) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No tienes permisos para crear carpetas.')));
+      ToastMessage.show(context: context, message: 'No tienes permisos para crear carpetas.', type: ToastType.help);
       return;
     }
     if (!isRoot()) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No se permiten subcarpetas.')));
+      ToastMessage.show(context: context, message: 'No se permiten subcarpetas.', type: ToastType.help);
       return;
     }
     final TextEditingController controller = TextEditingController();
@@ -301,9 +302,9 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
       setState(() => _isLoadingDocuments = true);
       final success = await DocumentsLogic.createFolder(name: controller.text, projectId: widget.project?['id'], bPartnerId: widget.bPartnerId, viewType: widget.viewType, currentPath: _currentPath, documents: _documents);
       if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Carpeta creada correctamente')));
+        ToastMessage.show(context: context, message: 'Carpeta creada correctamente', type: ToastType.help);
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al crear carpeta')));
+        ToastMessage.show(context: context, message: 'Error al crear carpeta', type: ToastType.help);
       }
       _fetchDocuments();
     }
@@ -315,12 +316,7 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
       final isFolder = item['IsSummary'] == true || item['IsSummary'] == 'Y';
       final children = isFolder ? (item['PRIM_Documents_Related'] as List? ?? []) : [];
       if (isFolder && children.isNotEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No puede eliminar esta carpeta con contenido. Elimine los documentos primero.'),
-            backgroundColor: Colors.red,
-          )
-        );
+        ToastMessage.show(context: context, message: 'No puede eliminar esta carpeta con contenido. Elimine los documentos primero.', type: ToastType.failure);
         return;
       }
     }
@@ -340,10 +336,10 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
       setState(() => _isLoadingDocuments = true);
       final result = await DocumentsLogic.deleteFile(id, tableName);
       if (result['success'] == true) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Archivo eliminado')));
+        ToastMessage.show(context: context, message: 'Archivo eliminado', type: ToastType.help);
         _fetchDocuments();
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result['message'] ?? 'Error al eliminar'), backgroundColor: Colors.red));
+        ToastMessage.show(context: context, message: result['message'] ?? 'Error al eliminar', type: ToastType.failure);
         setState(() => _isLoadingDocuments = false);
       }
     }
@@ -400,9 +396,9 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
               final bytes = await file.readAll();
               final resultUpload = await DocumentsLogic.uploadFile(fileName: file.fileName ?? 'Archivo_Subido', displayName: file.fileName ?? 'Archivo_Subido', fileBytes: bytes, projectId: widget.project?['id'], bPartnerId: widget.bPartnerId, viewType: widget.viewType, currentPath: _currentPath, documents: _documents);
               if (resultUpload is String) {
-                if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(resultUpload), backgroundColor: Colors.red));
+                if (mounted) ToastMessage.show(context: context, message: resultUpload, type: ToastType.failure);
               } else if (resultUpload != true) {
-                if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al subir archivo'), backgroundColor: Colors.red));
+                if (mounted) ToastMessage.show(context: context, message: 'Error al subir archivo', type: ToastType.failure);
               }
               _fetchDocuments();
             }, onError: (e) {});

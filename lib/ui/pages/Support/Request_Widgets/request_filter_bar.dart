@@ -198,6 +198,7 @@ class RequestFilterBar extends StatelessWidget {
                 width: double.infinity,
                 child: Row(
                   children: [
+      
                     Expanded(
                       child: CustomTextField(
                         controller: searchController,

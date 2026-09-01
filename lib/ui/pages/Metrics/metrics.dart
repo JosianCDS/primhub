@@ -1,3 +1,4 @@
+import 'package:primhub/ui/Shared_Custom/custom_toast.dart' hide ColorTheme;
 import 'package:flutter/material.dart';
 import 'package:primhub/ui/pages/Metrics/custom_chart.dart';
 import 'package:go_router/go_router.dart';
@@ -11,6 +12,7 @@ import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/admin_view_mode.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
+import 'package:primhub/ui/Shared_Custom/admin_mode_views.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/api/contract_api.dart';
 import 'package:primhub/api/global_cache.dart';
@@ -284,7 +286,7 @@ class _MetricsPageState extends State<MetricsPage> {
         ),
       ];
     }
-    return [_buildAdminModePopupMenu(), _buildProjectFilterPopupMenu()];
+    return [const AdminModeViews(), _buildProjectFilterPopupMenu()];
   }
 
   Future<void> _loadSupportBPartners() async {
@@ -388,9 +390,7 @@ class _MetricsPageState extends State<MetricsPage> {
     } catch (e) {
 // [Mantenimiento] Log removido:       debugPrint("Error cargando proyectos: $e");
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error cargando lista de proyectos: $e')),
-        );
+        ToastMessage.show(context: context, message: 'Error cargando lista de proyectos: $e', type: ToastType.help);
         setState(() {
           _isLoading = false;
           _isProjectsLoading = false;
@@ -439,14 +439,7 @@ class _MetricsPageState extends State<MetricsPage> {
             _moduleEvaluacionValues = [];
             _modulePercentageValues = [];
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'No hay datos suficientes para generar las métricas de este proyecto.',
-              ),
-              backgroundColor: Colors.orange,
-            ),
-          );
+          ToastMessage.show(context: context, message: 'No hay datos suficientes para generar las métricas de este proyecto.', type: ToastType.warning);
         }
         return;
       }
@@ -478,12 +471,7 @@ class _MetricsPageState extends State<MetricsPage> {
 // [Mantenimiento] Log removido:       debugPrint("DEBUG ERROR EN METRICS: $e");
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al calcular métricas: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ToastMessage.show(context: context, message: 'Error al calcular métricas: $e', type: ToastType.failure);
       }
     }
   }
@@ -885,80 +873,7 @@ class _MetricsPageState extends State<MetricsPage> {
     );
   }
 
-  Widget _buildAdminModePopupMenu() {
-    return PopupMenuButton<AdminViewMode>(
-      tooltip: 'Cambiar modo de vista',
-      onSelected: (AdminViewMode mode) {
-        _adminViewModeManager.saveMode(mode);
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.admin_panel_settings),
-            const SizedBox(width: 8),
-            Text(
-              _adminViewModeManager.currentMode == AdminViewMode.support
-                  ? 'Modo Soporte'
-                  : (_adminViewModeManager.currentMode == AdminViewMode.project
-                        ? 'Modo Proyecto'
-                        : 'Mixto'),
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const Icon(Icons.arrow_drop_down),
-          ],
-        ),
-      ),
-      itemBuilder: (BuildContext context) {
-        final current = _adminViewModeManager.currentMode;
-        final colorScheme = Theme.of(context).colorScheme;
-        PopupMenuItem<AdminViewMode> buildItem(
-          AdminViewMode mode,
-          String text,
-        ) {
-          final isSelected = current == mode;
-          return PopupMenuItem<AdminViewMode>(
-            value: mode,
-            child: Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? colorScheme.primary.withOpacity(0.1)
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Row(
-                children: [
-                  Text(
-                    text,
-                    style: TextStyle(
-                      fontWeight: isSelected
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                      color: isSelected
-                          ? colorScheme.primary
-                          : colorScheme.onSurface,
-                    ),
-                  ),
-                  if (isSelected) const Spacer(),
-                  if (isSelected)
-                    Icon(Icons.check, size: 18, color: colorScheme.primary),
-                ],
-              ),
-            ),
-          );
-        }
 
-        return [
-          buildItem(AdminViewMode.mixed, 'Modo Mixto'),
-          buildItem(AdminViewMode.support, 'Modo Soporte'),
-          buildItem(AdminViewMode.project, 'Modo Proyecto'),
-        ];
-      },
-    );
-  }
 
   Widget _buildProjectFilterPopupMenu() {
     return PopupMenuButton<bool>(

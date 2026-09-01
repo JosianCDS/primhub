@@ -1,3 +1,4 @@
+import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:primhub/api/api_http.dart' as http;
@@ -149,12 +150,7 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error cargando diccionarios'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ToastMessage.show(context: context, message: 'Error cargando diccionarios', type: ToastType.failure);
       }
     }
   }
@@ -211,12 +207,7 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
 
     // 2. Validar que haya al menos un cambio seleccionado
     if (changes.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No has seleccionado ningún campo para modificar.'),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      ToastMessage.show(context: context, message: 'No has seleccionado ningún campo para modificar.', type: ToastType.warning);
       return;
     }
 
@@ -315,14 +306,7 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
         _processingId = null;
       });
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Edición masiva completada: $_successCount exitosos, $_errorCount errores.',
-          ),
-          backgroundColor: _errorCount > 0 ? Colors.orange : Colors.green,
-        ),
-      );
+      ToastMessage.show(context: context, message: 'Edición masiva completada: $_successCount exitosos, $_errorCount errores.', type: ToastType.warning);
       widget.onSaved();
     }
   }

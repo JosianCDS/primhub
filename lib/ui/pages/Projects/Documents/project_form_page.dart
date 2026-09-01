@@ -1,3 +1,4 @@
+import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 
 import 'package:flutter/material.dart';
 
@@ -268,12 +269,7 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
         _cCurrencyId == null;
 
     if (!_formKey.currentState!.validate() || missingMandatory) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Llene los campos obligatorios'),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      ToastMessage.show(context: context, message: 'Llene los campos obligatorios', type: ToastType.warning);
       return; // Detiene la ejecución aquí
     }
 
@@ -326,9 +322,7 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
         if (errorMsg.contains('NotUnique') || errorMsg.contains('duplicate')) {
           errorMsg = 'Ya existe este proyecto';
         }
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(errorMsg), backgroundColor: Colors.red),
-        );
+        ToastMessage.show(context: context, message: errorMsg, type: ToastType.failure);
       }
     }
   }
@@ -748,9 +742,7 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
     return GestureDetector(
       onTap: () {
         if (items.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Cargando datos de $label...')),
-          );
+          ToastMessage.show(context: context, message: 'Cargando datos de $label...', type: ToastType.help);
           return;
         }
         _showSearchModal(label, items, idKey, displayKey, onSelected);

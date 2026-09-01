@@ -263,8 +263,8 @@ class ProjectsLogic {
 
   /// Específico para Representantes Comerciales (Filtro según Imagen 2)
   Future<List<dynamic>> fetchSalesReps() async {
-    // Según Imagen 2: IsSalesRep = true, IsEmployee = true, IsActive = true
-    const String filter = "IsActive eq true and IsSalesRep eq true and IsEmployee eq true";
+    // Según requerimiento: IsSalesRep = true, IsActive = true
+    const String filter = "IsActive eq true and IsSalesRep eq true";
     final List<dynamic> raw = await _safeFetchPaginated(
       '${Endpoint.cBPartner}?\$filter=$filter&\$orderby=Name',
       'representantes comerciales raw',

@@ -34,7 +34,6 @@ class ToastMessage {
     }
 
     toastification.show(
-      context: context,
       type: toastType,
       style: ToastificationStyle.flatColored,
       description: Text(

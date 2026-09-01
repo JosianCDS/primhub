@@ -14,6 +14,7 @@ import 'dart:math';
 import 'package:primhub/ui/Shared_Custom/responsive_data_table.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
 import 'package:primhub/ui/Shared_Custom/animated_copy_widget.dart';
+import 'package:primhub/ui/Shared_Custom/request_mobile_card.dart';
 
 class RequestsDataTableCore extends StatefulWidget {
   final List<Map<String, dynamic>>
@@ -521,7 +522,7 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
                 fixedCellBuilder: buildFixedCells,
                 scrollableColumns: scrollableCols,
                 scrollableCellBuilder: buildScrollableCells,
-                mobileCardBuilder: (item) => _RequestCard(
+                mobileCardBuilder: (item) => RequestMobileCard(
                   request: item,
                   onEdit: widget.onEdit,
                   onGoToUpdates: () {
@@ -586,179 +587,3 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
 }
 
 // Fin del archivo
-
-/// Tarjeta individual para la vista móvil de solicitudes.
-class _RequestCard extends StatelessWidget {
-  final Map<String, dynamic> request;
-  final Function(Map<String, dynamic>) onEdit;
-  final VoidCallback onGoToUpdates;
-  final VoidCallback onShowAttachments;
-
-  const _RequestCard({
-    required this.request,
-    required this.onEdit,
-    required this.onGoToUpdates,
-    required this.onShowAttachments,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    final String subject = request['emailSubject']?.toString() ?? 'Sin asunto';
-    final String bpName = request['bpName']?.toString() ?? '';
-    final String userName = request['userName']?.toString() ?? '';
-    final String time = request['time'] ?? '';
-    final String status = request['status'] ?? 'N/A';
-    final String level = request['level'] ?? 'N/A';
-    final Color levelBgColor = request['levelBgColor'] ?? Colors.transparent;
-    final Color levelColor = request['levelColor'] ?? colorScheme.onSurface;
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
-        onTap: () => onEdit(request),
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              'Ticket #${request['id']}',
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: colorScheme.primary,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            AnimatedCopyWidget(
-                              textToCopy: request['id'].toString(),
-                              snackBarMessage: 'Ticket copiado al portapapeles',
-                              iconSize: 16,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          subject,
-                          style: theme.textTheme.bodyLarge,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                  PopupMenuButton<String>(
-                    onSelected: (value) {
-                      if (value == 'updates') onGoToUpdates();
-                      if (value == 'attachments') onShowAttachments();
-                      if (value == 'edit') onEdit(request);
-                    },
-                    itemBuilder: (BuildContext context) =>
-                        <PopupMenuEntry<String>>[
-                          PopupMenuItem<String>(
-                            value: 'updates',
-                            child: ListTile(
-                              leading: Icon(
-                                AccessControl.canAddUpdates
-                                    ? Icons.reply
-                                    : Icons.forum,
-                              ),
-                              title: Text(
-                                AccessControl.canAddUpdates
-                                    ? 'Responder'
-                                    : 'Ver Actualizaciones',
-                              ),
-                            ),
-                          ),
-                          const PopupMenuItem<String>(
-                            value: 'attachments',
-                            child: ListTile(
-                              leading: Icon(Icons.attach_file),
-                              title: Text('Adjuntos'),
-                            ),
-                          ),
-                          if (AccessControl.canManageRequests)
-                            const PopupMenuItem<String>(
-                              value: 'edit',
-                              child: ListTile(
-                                leading: Icon(Icons.edit),
-                                title: Text('Editar'),
-                              ),
-                            ),
-                        ],
-                  ),
-                ],
-              ),
-              if (AccessControl.isAdmin &&
-                  (bpName.isNotEmpty || userName.isNotEmpty)) ...[
-                const SizedBox(height: 4),
-                Text(
-                  '$bpName • $userName',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-              const Divider(height: 24),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  Chip(
-                    label: Text(status),
-                    visualDensity: VisualDensity.compact,
-                    backgroundColor: colorScheme.surfaceContainerHighest,
-                  ),
-                  Chip(
-                    label: Text(level),
-                    labelStyle: TextStyle(
-                      color: levelColor,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
-                    backgroundColor: levelBgColor,
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  if (time.isNotEmpty)
-                    Chip(
-                      avatar: Icon(
-                        Icons.calendar_today,
-                        size: 14,
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                      label: Text(time),
-                      labelStyle: theme.textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                      backgroundColor: Colors.transparent,
-                      shape: StadiumBorder(
-                        side: BorderSide(
-                          color: colorScheme.outline.withOpacity(0.2),
-                        ),
-                      ),
-                      visualDensity: VisualDensity.compact,
-                    ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}

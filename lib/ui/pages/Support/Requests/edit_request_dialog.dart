@@ -85,6 +85,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
   late TextEditingController _dateStartController;
   late TextEditingController _dateCompleteController;
   late TextEditingController _qtyUsedController;
+  late TextEditingController _estimatedDevHoursController;
   late TextEditingController _subjectController;
 
   final QuillController _summaryQuillController = QuillController.basic();
@@ -135,6 +136,10 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
     );
     _qtyUsedController = TextEditingController(
       text: ((widget.request['qtySpent'] as num?)?.toDouble() ?? 0.0)
+          .toString(),
+    );
+    _estimatedDevHoursController = TextEditingController(
+      text: ((widget.request['PrimHub_Estimated_development_hours'] as num?)?.toDouble() ?? 0.0)
           .toString(),
     );
 
@@ -243,9 +248,11 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
     _resultController.dispose();
     _newUpdateController.dispose();
     _dateStartController.dispose();
-    _summaryQuillController.dispose();
-    _subjectController.dispose();
+    _dateCompleteController.dispose();
     _qtyUsedController.dispose();
+    _estimatedDevHoursController.dispose();
+    _subjectController.dispose();
+    _summaryQuillController.dispose();
     super.dispose();
   }
 
@@ -559,6 +566,20 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
       initialDate: DateTime.now(),
       firstDate: DateTime(2000),
       lastDate: DateTime(2101),
+      cancelText: 'CANCELAR',
+      confirmText: 'ACEPTAR',
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
     if (picked != null) {
       setState(() {
@@ -916,12 +937,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
         } catch (e) {
           if (mounted) {
             setState(() => _isSaving = false);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Error de red al actualizar el tercero: $e'),
-                backgroundColor: Colors.red,
-              ),
-            );
+            ToastMessage.show(context: context, message: 'Error de red al actualizar el tercero: $e', type: ToastType.failure);
           }
           return;
         }
@@ -985,6 +1001,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
         dateStartPlan: dateStartPlanToSend,
         dateCompletePlan: dateCompletePlanToSend,
         qtySpent: qtySpentToSend,
+        estimatedDevHours: double.tryParse(_estimatedDevHoursController.text),
         startDate: startDateToSend,
         closeDate: closeDateToSend,
         emailSubject: subjectText != originalSubject ? subjectText : null,
@@ -1018,9 +1035,9 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
         try {
           int adUserId = _selectedUserId ?? 
               (widget.request['AD_User_ID'] is Map ? widget.request['AD_User_ID']['id'] : widget.request['AD_User_ID']) ?? 
-              User.userID ?? 0;
+              (widget.request['userId']) ?? 0;
           
-          int customerBpId = _selectedBpId ?? widget.request['bpId'] ?? User.cBPartnerID ?? 0;
+          int customerBpId = _selectedBpId ?? widget.request['bpId'] ?? 0;
 
           int currentStatusId = widget.request['R_Status_ID'] is Map ? widget.request['R_Status_ID']['id'] : (widget.request['R_Status_ID'] ?? 0);
           String oldStatusName = '';
@@ -1094,12 +1111,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
         tag: 'EditRequest',
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error inesperado al guardar: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ToastMessage.show(context: context, message: 'Error inesperado al guardar: $e', type: ToastType.failure);
       }
     } finally {
       if (mounted) {
@@ -1607,6 +1619,20 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                     ],
                   ),
                   const SizedBox(height: 16),
+                  if (AccessControl.isAdmin) ...[
+                    CustomTextField(
+                      controller: _estimatedDevHoursController,
+                      label: 'Horas estimadas (Desarrollo)',
+                      readOnly: _isReadOnly,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                 ],
                 Stack(
                   alignment: Alignment.topRight,

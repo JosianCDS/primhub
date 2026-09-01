@@ -1,3 +1,5 @@
+import 'package:primhub/ui/Shared_Custom/admin_mode_views.dart';
+import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 import 'package:flutter/material.dart';
 
 import 'package:go_router/go_router.dart';
@@ -5,7 +7,6 @@ import 'package:primhub/api/access_control.dart';
 
 import 'package:primhub/api/token.dart';
 import 'package:primhub/api/admin_view_mode.dart';
-import 'package:primhub/api/validation_manager.dart';
 
 import 'package:primhub/ui/Shared_Custom/custom_container.dart';
 import 'package:primhub/ui/Shared_Custom/custom_table.dart';
@@ -16,7 +17,6 @@ import 'package:primhub/ui/widgets/project_sidebar.dart';
 import '../../widgets/custom_drawer.dart';
 import 'package:primhub/ui/widgets/duration_formatter.dart';
 import 'Requests/request_functions.dart';
-import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 import 'package:primhub/api/global_cache.dart';
 import 'package:primhub/ui/widgets/project_bottom_nav.dart';
 import 'package:primhub/api/api_utils.dart';
@@ -192,6 +192,9 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
             }
           });
         }
+      }
+      if (_selectedBpId != null) {
+        await GlobalCache.loadSupportBpRequestsInBackground(_selectedBpId!);
       }
       await _fetchProductChips(); // Cargar fichas para el BP seleccionado
       _statusIdMap = await fetchStatuses();
@@ -415,328 +418,9 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
     }
   }
 
-  void _showAdminModeSelectionDialog(BuildContext context) {
-    final current = _adminViewModeManager.currentMode;
-    final colorScheme = Theme.of(context).colorScheme;
 
-    showDialog(
-      context: context,
-      builder: (dialogContext) {
-        return CustomModal(
-          title: 'Seleccionar Modo de Vista',
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                title: const Text('Modo Mixto'),
-                trailing: current == AdminViewMode.mixed
-                    ? Icon(Icons.check, color: colorScheme.primary)
-                    : null,
-                onTap: () {
-                  _adminViewModeManager.saveMode(AdminViewMode.mixed);
-                  Navigator.pop(dialogContext);
-                },
-              ),
-              ListTile(
-                title: const Text('Modo Soporte'),
-                trailing: current == AdminViewMode.support
-                    ? Icon(Icons.check, color: colorScheme.primary)
-                    : null,
-                onTap: () {
-                  _adminViewModeManager.saveMode(AdminViewMode.support);
-                  Navigator.pop(dialogContext);
-                },
-              ),
-              ListTile(
-                title: const Text('Modo Proyecto'),
-                trailing: current == AdminViewMode.project
-                    ? Icon(Icons.check, color: colorScheme.primary)
-                    : null,
-                onTap: () {
-                  _adminViewModeManager.saveMode(AdminViewMode.project);
-                  Navigator.pop(dialogContext);
-                },
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cerrar'),
-            ),
-          ],
-        );
-      },
-    );
-  }
 
-  Widget _buildAdminModePopupMenu() {
-    return PopupMenuButton<AdminViewMode>(
-      tooltip: 'Cambiar modo de vista',
-      onSelected: (AdminViewMode mode) {
-        _adminViewModeManager.saveMode(mode);
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.admin_panel_settings),
-            const SizedBox(width: 8),
-            Text(
-              _adminViewModeManager.currentMode == AdminViewMode.support
-                  ? 'Modo Soporte'
-                  : (_adminViewModeManager.currentMode == AdminViewMode.project
-                        ? 'Modo Proyecto'
-                        : 'Modo Mixto'),
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const Icon(Icons.arrow_drop_down),
-          ],
-        ),
-      ),
-      itemBuilder: (BuildContext context) {
-        final current = _adminViewModeManager.currentMode;
-        final colorScheme = Theme.of(context).colorScheme;
-        PopupMenuItem<AdminViewMode> buildItem(
-          AdminViewMode mode,
-          String text,
-        ) {
-          final isSelected = current == mode;
-          return PopupMenuItem<AdminViewMode>(
-            value: mode,
-            child: Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? colorScheme.primary.withOpacity(0.1)
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              padding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 8,
-              ),
-              child: Row(
-                children: [
-                  Text(
-                    text,
-                    style: TextStyle(
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                      color: isSelected ? colorScheme.primary : colorScheme.onSurface,
-                    ),
-                  ),
-                  if (isSelected) const Spacer(),
-                  if (isSelected)
-                    Icon(
-                      Icons.check,
-                      size: 18,
-                      color: colorScheme.primary,
-                    ),
-                ],
-              ),
-            ),
-          );
-        }
 
-        return [
-          buildItem(AdminViewMode.mixed, 'Modo Mixto'),
-          buildItem(AdminViewMode.support, 'Modo Soporte'),
-          buildItem(AdminViewMode.project, 'Modo Proyecto'),
-        ];
-      },
-    );
-  }
-
-  Widget _buildExceptionInkWell() {
-    return InkWell(
-      onTap: _showExceptionDialog,
-      child: const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 16.0),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.shield_outlined),
-            SizedBox(width: 8),
-            Text(
-              'Excepción de Horas',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  List<Widget> _buildAdminAppBarActions(BuildContext context) {
-    final isMobile = MediaQuery.of(context).size.width < 600;
-    if (isMobile) {
-      return [
-        PopupMenuButton<String>(
-          icon: const Icon(Icons.more_vert),
-          onSelected: (value) {
-            if (value == 'admin_mode') _showAdminModeSelectionDialog(context);
-            if (value == 'exception_hours') _showExceptionDialog();
-          },
-          itemBuilder: (context) => [
-            PopupMenuItem<String>(
-              value: 'admin_mode',
-              child: ListTile(
-                leading: const Icon(Icons.admin_panel_settings),
-                title: Text(
-                  'Modo: ${_adminViewModeManager.currentMode == AdminViewMode.support ? 'Soporte' : (_adminViewModeManager.currentMode == AdminViewMode.project ? 'Proyecto' : 'Mixto')}',
-                ),
-              ),
-            ),
-            PopupMenuItem<String>(
-              value: 'exception_hours',
-              child: const ListTile(
-                leading: Icon(Icons.shield_outlined),
-                title: Text('Excepción de Horas'),
-              ),
-            ),
-          ],
-        ),
-      ];
-    }
-    return [
-      _buildAdminModePopupMenu(),
-      _buildExceptionInkWell(),
-    ];
-  }
-
-  Future<void> _showExceptionDialog() async {
-    if (!AccessControl.isAdmin) return;
-
-    final Set<int> tempSelectedIds = Set.from(
-      ValidationManager.hourValidationExceptions,
-    );
-    List<dynamic> allBPartners = [];
-    bool isFetching = true;
-
-    await showDialog(
-      context: context,
-      builder: (context) {
-        String searchQuery = '';
-        return CustomModal(
-          title: 'Gestionar Excepciones de Horas',
-          width: 500,
-          content: StatefulBuilder(
-            builder: (BuildContext context, StateSetter setState) {
-              if (isFetching && allBPartners.isEmpty) {
-                ProjectsLogic().fetchBPartners().then((bps) {
-                  if (context.mounted) {
-                    setState(() {
-                      // Aplicar el mismo filtro de clientes activos y no proveedores
-                      allBPartners = bps.where((bp) {
-                        final name = bp['Name']?.toString() ?? '';
-                        final rawVendor = bp['IsVendor'] ?? bp['isVendor'];
-                        final isVendorStr = rawVendor
-                            ?.toString()
-                            .trim()
-                            .toLowerCase();
-                        bool isVendor =
-                            isVendorStr == 'true' || isVendorStr == 'y';
-
-                        final rawCustomer =
-                            bp['IsCustomer'] ?? bp['isCustomer'];
-                        final isCustomerStr = rawCustomer
-                            ?.toString()
-                            .trim()
-                            .toLowerCase();
-                        bool isCustomer =
-                            isCustomerStr == 'true' || isCustomerStr == 'y';
-                        if (rawCustomer == null) isCustomer = true;
-                        return !name.startsWith('~') && isCustomer && !isVendor;
-                      }).toList();
-
-                      isFetching = false;
-                    });
-                  }
-                });
-              }
-
-              final filteredBps = allBPartners
-                  .where(
-                    (bp) => (bp['Name'] ?? '')
-                        .toString()
-                        .toLowerCase()
-                        .contains(searchQuery.toLowerCase()),
-                  )
-                  .toList();
-
-              return SizedBox(
-                height: 400,
-                child: isFetching
-                    ? const Center(child: CircularProgressIndicator())
-                    : Column(
-                        children: [
-                          TextField(
-                            decoration: InputDecoration(
-                              hintText: 'Buscar tercero...',
-                              prefixIcon: const Icon(Icons.search),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                            ),
-                            onChanged: (val) =>
-                                setState(() => searchQuery = val),
-                          ),
-                          const SizedBox(height: 10),
-                          Expanded(
-                            child: filteredBps.isEmpty
-                                ? const Center(
-                                    child: Text('No se encontraron terceros.'),
-                                  )
-                                : ListView.builder(
-                                    itemCount: filteredBps.length,
-                                    itemBuilder: (context, index) {
-                                      final bp = filteredBps[index];
-                                      final rawId =
-                                          bp['id'] ?? bp['C_BPartner_ID'];
-                                      final intId = rawId is int
-                                          ? rawId
-                                          : int.tryParse(rawId.toString()) ?? 0;
-                                      return CheckboxListTile(
-                                        title: Text(
-                                          bp['Name'] ?? 'Tercero $intId',
-                                        ),
-                                        value: tempSelectedIds.contains(intId),
-                                        onChanged: (bool? value) => setState(
-                                          () => value == true
-                                              ? tempSelectedIds.add(intId)
-                                              : tempSelectedIds.remove(intId),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                          ),
-                        ],
-                      ),
-              );
-            },
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancelar'),
-            ),
-            CustomButton(
-              text: 'Guardar',
-              onPressed: () {
-                ValidationManager.setExceptions(tempSelectedIds);
-                Navigator.of(context).pop();
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
 
   List<Map<String, dynamic>> _getFilteredRecords() {
     var filtered = _supportRecords.where((record) {
@@ -847,9 +531,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
   void _showExportModal() {
     final recordsToExport = _getFilteredRecords();
     if (recordsToExport.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No hay registros para exportar')),
-      );
+      ToastMessage.show(context: context, message: 'No hay registros para exportar', type: ToastType.help);
       return;
     }
 
@@ -962,6 +644,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
     if (selectedId != _selectedBpId) {
       setState(() {
         _selectedBpId = selectedId;
+        _isLoading = true;
       });
       await _initData(); // Re-inicializar todos los datos para el nuevo tercero
     }
@@ -1002,7 +685,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
               ),
         title: const Text('Dashboard De Horas De Soporte'),
         actions: [
-          if (AccessControl.isAdmin) ..._buildAdminAppBarActions(context),
+          if (AccessControl.isAdmin) const AdminModeViews(),
           const HelpIcon(),
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -1883,7 +1566,7 @@ class _BPartnerAttachmentsDialogState extends State<BPartnerAttachmentsDialog> {
 
   Future<void> _uploadAttachment() async {
     if (!AccessControl.isAdmin) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No tienes permisos para subir archivos.')));
+      ToastMessage.show(context: context, message: 'No tienes permisos para subir archivos.', type: ToastType.help);
       return;
     }
 
@@ -1896,7 +1579,7 @@ class _BPartnerAttachmentsDialogState extends State<BPartnerAttachmentsDialog> {
 
     final file = result.files.first;
     if (file.bytes == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No se pudieron leer los datos del archivo.'), backgroundColor: Colors.red));
+      ToastMessage.show(context: context, message: 'No se pudieron leer los datos del archivo.', type: ToastType.failure);
       return;
     }
 
@@ -1917,10 +1600,10 @@ class _BPartnerAttachmentsDialogState extends State<BPartnerAttachmentsDialog> {
     if (mounted) {
       setState(() => _isUploading = false);
       if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Archivo subido correctamente'), backgroundColor: Colors.green));
+        ToastMessage.show(context: context, message: 'Archivo subido correctamente', type: ToastType.success);
         _loadAttachments();
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al subir archivo'), backgroundColor: Colors.red));
+        ToastMessage.show(context: context, message: 'Error al subir archivo', type: ToastType.failure);
       }
     }
   }
@@ -1958,7 +1641,7 @@ class _BPartnerAttachmentsDialogState extends State<BPartnerAttachmentsDialog> {
                   onTap: () {
                     FilePreviewManager.showPreview(context, {'id': widget.bPartnerId, 'Status': 'N/A', 'VersionNo': 'N/A'}, fullTableUrl, att['name'] ?? '', () async {
                       if (!AccessControl.isAdmin) {
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No tienes permisos para borrar adjuntos.')));
+                        ToastMessage.show(context: context, message: 'No tienes permisos para borrar adjuntos.', type: ToastType.help);
                         return;
                       }
 
@@ -1986,13 +1669,13 @@ class _BPartnerAttachmentsDialogState extends State<BPartnerAttachmentsDialog> {
                               _attachments.removeWhere((item) => item['name'] == att['name']);
                               _isLoading = false;
                             });
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Adjunto eliminado')));
+                            ToastMessage.show(context: context, message: 'Adjunto eliminado', type: ToastType.help);
                             // _loadAttachments(); // Removed to avoid stale cache issues
                           }
                         } else {
                           if (mounted) {
                             setState(() => _isLoading = false);
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al eliminar adjunto'), backgroundColor: Colors.red));
+                            ToastMessage.show(context: context, message: 'Error al eliminar adjunto', type: ToastType.failure);
                           }
                         }
                       } catch (e) {

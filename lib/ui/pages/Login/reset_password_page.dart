@@ -1,3 +1,4 @@
+import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
@@ -56,12 +57,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> with TickerProvid
 
   void _resetPassword() async {
     if (_userController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Por favor, ingrese su usuario o correo electrónico'),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      ToastMessage.show(context: context, message: 'Por favor, ingrese su usuario o correo electrónico', type: ToastType.warning);
       return;
     }
 
@@ -76,12 +72,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> with TickerProvid
       setState(() {
         _isLoading = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Se han enviado las instrucciones a su correo'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      ToastMessage.show(context: context, message: 'Se han enviado las instrucciones a su correo', type: ToastType.success);
       context.pop(); // Regresa al login
     }
   }

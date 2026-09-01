@@ -1,3 +1,4 @@
+import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/auth_entry_api.dart';
@@ -164,12 +165,7 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
     }
 
     if (_username == null || _password == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Error de credenciales. Vuelva a iniciar sesión.'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      ToastMessage.show(context: context, message: 'Error de credenciales. Vuelva a iniciar sesión.', type: ToastType.failure);
       return;
     }
 
@@ -218,12 +214,7 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
     if (mounted) {
       if (response == false) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Credenciales Incorrectas.'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ToastMessage.show(context: context, message: 'Credenciales Incorrectas.', type: ToastType.failure);
       } else {
         // Save preferences before navigating
         final prefs = await SharedPreferences.getInstance();

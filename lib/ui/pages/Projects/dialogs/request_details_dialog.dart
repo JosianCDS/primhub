@@ -1,3 +1,4 @@
+import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
@@ -44,7 +45,7 @@ class RequestDetailsDialog extends StatelessWidget {
                     color: Theme.of(context).colorScheme.primary,
                     onPressed: () {
                       Clipboard.setData(ClipboardData(text: (req['DocumentNo'] ?? req['id']).toString()));
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Número de ticket copiado al portapapeles')));
+                      ToastMessage.show(context: context, message: 'Número de ticket copiado al portapapeles', type: ToastType.help);
                     },
                   ),
                 ],

@@ -1,3 +1,4 @@
+import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 import 'package:flutter/material.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
@@ -54,7 +55,7 @@ class _TaskItemState extends State<TaskItem> {
 
   Future<void> _deleteRequest(dynamic id) async {
     if (!AccessControl.canManageRequests) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No tienes permisos para eliminar solicitudes.')));
+      ToastMessage.show(context: context, message: 'No tienes permisos para eliminar solicitudes.', type: ToastType.help);
       return;
     }
     // Diálogo de confirmación simple
@@ -77,10 +78,10 @@ class _TaskItemState extends State<TaskItem> {
       final success = await deleteRequestApi(id);
       if (mounted) {
         if (success) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Solicitud eliminada correctamente')));
+          ToastMessage.show(context: context, message: 'Solicitud eliminada correctamente', type: ToastType.help);
           setState(() {}); // Recargar la lista de solicitudes de la tarea
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al eliminar'), backgroundColor: Colors.red));
+          ToastMessage.show(context: context, message: 'Error al eliminar', type: ToastType.failure);
         }
       }
     }

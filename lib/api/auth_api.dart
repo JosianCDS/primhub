@@ -118,6 +118,7 @@ Future<bool> finalizeLogin(String username, String password, Map<String, dynamic
       await prefs.setBool('has_project', hasProject);
       
       // Guardar datos de sesión para refrescar página
+      await prefs.remove('hasShownAdminModeTutorial');
       await prefs.setString('auth_token', Token.auth ?? '');
       await prefs.setString('refresh_token', Token.refreshToken ?? '');
       await prefs.setInt('user_id', User.userID ?? 0);

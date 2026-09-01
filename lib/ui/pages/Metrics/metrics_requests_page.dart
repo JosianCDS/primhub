@@ -1,3 +1,4 @@
+import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -249,7 +250,7 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
 
   Future<void> _deleteRequest(dynamic id) async {
     if (!AccessControl.canManageRequests) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No tienes permisos para eliminar solicitudes.')));
+      ToastMessage.show(context: context, message: 'No tienes permisos para eliminar solicitudes.', type: ToastType.help);
       return;
     }
     final bool? confirm = await showDialog<bool>(
@@ -268,10 +269,10 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
       final success = await deleteRequestApi(id);
       if (mounted) {
         if (success) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Solicitud eliminada correctamente')));
+          ToastMessage.show(context: context, message: 'Solicitud eliminada correctamente', type: ToastType.help);
           _initData(showLoading: false);
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al eliminar'), backgroundColor: Colors.red));
+          ToastMessage.show(context: context, message: 'Error al eliminar', type: ToastType.failure);
         }
       }
     }

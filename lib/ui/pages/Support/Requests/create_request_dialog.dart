@@ -51,6 +51,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
   final TextEditingController _dateStartController = TextEditingController();
   final TextEditingController _dateCompleteController = TextEditingController();
   final TextEditingController _qtyUsedController = TextEditingController();
+  final TextEditingController _estimatedDevHoursController = TextEditingController();
   final TextEditingController _subjectController = TextEditingController();
   final TextEditingController _errorUserController = TextEditingController();
   final TextEditingController _errorRoleController = TextEditingController();
@@ -147,7 +148,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
       }
     }
 
-    _selectedBpId = AccessControl.isAdmin ? null : User.cBPartnerID;
+    _selectedBpId = widget.selectedBPartnerId ?? (AccessControl.isAdmin ? null : User.cBPartnerID);
     _fetchBPartners();
   }
 
@@ -157,6 +158,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     _dateStartController.dispose();
     _dateCompleteController.dispose();
     _qtyUsedController.dispose();
+    _estimatedDevHoursController.dispose();
     _subjectController.dispose();
     _errorUserController.dispose();
     _errorRoleController.dispose();
@@ -667,6 +669,20 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
       initialDate: DateTime.now(),
       firstDate: DateTime(2000),
       lastDate: DateTime(2101),
+      cancelText: 'CANCELAR',
+      confirmText: 'ACEPTAR',
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
     if (picked != null) {
       setState(() {
@@ -684,26 +700,12 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     );
     if (result != null && result.files.isNotEmpty) {
       if (result.files.first.size > 5 * 1024 * 1024) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'El archivo excede el tamaño máximo permitido de 5 MB.',
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ToastMessage.show(context: context, message: 'El archivo excede el tamaño máximo permitido de 5 MB.', type: ToastType.failure);
         return;
       }
 
       if (result.files.first.bytes == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Error al leer el archivo. Intente con otro formato.',
-            ),
-            backgroundColor: Colors.orange,
-          ),
-        );
+        ToastMessage.show(context: context, message: 'Error al leer el archivo. Intente con otro formato.', type: ToastType.warning);
         return;
       }
       setState(() {
@@ -977,12 +979,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
 
     final summaryText = _summaryQuillController.document.toPlainText().trim();
     if (!_isProjectRequest && summaryText.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Por favor ingrese una descripción'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      ToastMessage.show(context: context, message: 'Por favor ingrese una descripción', type: ToastType.failure);
       return;
     }
 
@@ -1109,12 +1106,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
         AccessControl.isAdmin &&
         _selectedBpId == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Como administrador, debe seleccionar un tercero.'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ToastMessage.show(context: context, message: 'Como administrador, debe seleccionar un tercero.', type: ToastType.failure);
       }
       // Detener el spinner si la validación falla aquí
       if (_isSubmitting) setState(() => _isSubmitting = false);
@@ -1187,9 +1179,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
+        ToastMessage.show(context: context, message: 'Error: $e', type: ToastType.failure);
       }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
@@ -1341,6 +1331,11 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
       if (qty > 0) {
         data['QtySpent'] = qty;
       }
+      
+      double estDevHours = double.tryParse(_estimatedDevHoursController.text) ?? 0.0;
+      if (estDevHours > 0) {
+        data['PrimHub_Estimated_development_hours'] = estDevHours;
+      }
     }
 
     final body = jsonEncode(data);
@@ -1382,10 +1377,8 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
             int adUserId = 0;
             if (data['AD_User_ID'] != null) {
               adUserId = data['AD_User_ID'] is Map ? data['AD_User_ID']['id'] : data['AD_User_ID'];
-            } else {
-              adUserId = User.userID ?? 0;
             }
-            int customerBpId = _selectedBpId ?? User.cBPartnerID ?? 0;
+            int customerBpId = _selectedBpId ?? 0;
 
             if (adUserId > 0 || customerBpId > 0) {
               sendRequestStatusEmail(
@@ -1403,18 +1396,11 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
         if (Navigator.of(context).canPop()) {
           Navigator.of(context).pop(true);
         }
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Solicitud creada correctamente')),
-        );
+        ToastMessage.show(context: context, message: 'Solicitud creada correctamente', type: ToastType.help);
       }
     } else {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error ${response.statusCode}: ${response.body}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ToastMessage.show(context: context, message: 'Error ${response.statusCode}: ${response.body}', type: ToastType.failure);
       }
     }
   }
@@ -1822,6 +1808,24 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                           ],
                         ),
                       ),
+                      if (AccessControl.isAdmin) ...[
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: CustomTextField(
+                            controller: _estimatedDevHoursController,
+                            label: 'Horas est. (Desarrollo)',
+                            hintText: '0.0',
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(
+                                RegExp(r'^\d*\.?\d*'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 16),

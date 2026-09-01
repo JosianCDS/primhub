@@ -1,9 +1,12 @@
+import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 
 
+import 'package:primhub/ui/Shared_Custom/admin_mode_views.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/ui/Shared_Custom/help_icon.dart';
@@ -56,6 +59,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   double _consumedHours = 0.0;
   double _estimatedHours = 0.0;
   Map<String, int> _statusIdMap = {};
+  String? _metricsSource;
   int _currentPage = 0;
   int _rowsPerPage = 25;
   int _totalRecords = 0;
@@ -174,6 +178,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       if (args is Map) {
         if (args['showHistory'] == true) _showHistory = true;
         if (args['bpId'] != null) _bpId = args['bpId'];
+        if (args['metrics_source'] != null) _metricsSource = args['metrics_source'];
 
         List<String> initialStatuses = [];
         if (args['selectedStatus'] != null &&
@@ -194,6 +199,46 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
 
         if (args['search'] != null) {
           _searchController.text = args['search'];
+          
+          // Inteligencia para detectar si la solicitud buscada está en el histórico
+          try {
+            final searchQuery = args['search'].toString();
+            final req = GlobalCache.requests.firstWhere(
+              (r) => r['id'].toString() == searchQuery || r['DocumentNo'].toString() == searchQuery,
+              orElse: () => <String, dynamic>{},
+            );
+            
+            if (req.isNotEmpty) {
+              final statusData = req['R_Status_ID'];
+              bool isArchived = false;
+
+              int? statusIdFromReq;
+              if (statusData is Map) {
+                statusIdFromReq = (statusData['id'] as num?)?.toInt();
+              } else if (statusData != null) {
+                statusIdFromReq = int.tryParse(statusData.toString());
+              }
+
+              if (statusIdFromReq != null &&
+                  GlobalCache.statusIsFinalCloseMap.containsKey(statusIdFromReq)) {
+                isArchived = GlobalCache.statusIsFinalCloseMap[statusIdFromReq]!;
+              } else {
+                final statusName = statusData is Map
+                    ? (statusData['Name'] ?? '').toString()
+                    : '';
+                isArchived = statusName.toLowerCase().contains('archivada') ||
+                    statusName.toLowerCase().contains('anulada') ||
+                    statusName.toLowerCase().contains('final close') ||
+                    statusName.toLowerCase().contains('cerrada');
+              }
+              
+              if (isArchived) {
+                 _showHistory = true;
+              }
+            }
+          } catch (e) {
+            // Ignorar errores
+          }
         }
 
         // Si se filtra por un estado cerrado, forzar la vista de bitácora
@@ -686,7 +731,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       );
     } else {
       // Desktop view: existing buttons
-      actions.add(_buildAdminModePopupMenu(context));
+      actions.add(const AdminModeViews());
       actions.add(_buildExceptionHoursInkWell());
     }
     return actions;
@@ -1149,17 +1194,10 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       final success = await deleteRequestApi(id);
       if (mounted) {
         if (success) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Solicitud eliminada correctamente')),
-          );
+          ToastMessage.show(context: context, message: 'Solicitud eliminada correctamente', type: ToastType.help);
           _refreshRequest(fetchNetwork: false);
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Error al eliminar'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          ToastMessage.show(context: context, message: 'Error al eliminar', type: ToastType.failure);
         }
       }
     }
@@ -1197,9 +1235,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
             
             if (recordsToExport.isEmpty) {
               if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('No hay registros para exportar')),
-                );
+                ToastMessage.show(context: context, message: 'No hay registros para exportar', type: ToastType.help);
               }
               return;
             }
@@ -1560,80 +1596,6 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
 
 
 
-  Widget _buildAdminModePopupMenu(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return PopupMenuButton<AdminViewMode>(
-      tooltip: 'Cambiar modo de vista',
-      onSelected: (AdminViewMode mode) {
-        _adminViewModeManager.saveMode(mode);
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.admin_panel_settings),
-            const SizedBox(width: 8),
-            Text(
-              _adminViewModeManager.currentMode == AdminViewMode.support
-                  ? 'Modo Soporte'
-                  : (_adminViewModeManager.currentMode == AdminViewMode.project
-                        ? 'Modo Proyecto'
-                        : 'Modo Mixto'),
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const Icon(Icons.arrow_drop_down),
-          ],
-        ),
-      ),
-      itemBuilder: (BuildContext context) {
-        final current = _adminViewModeManager.currentMode;
-        PopupMenuItem<AdminViewMode> buildItem(
-          AdminViewMode mode,
-          String text,
-        ) {
-          final isSelected = current == mode;
-          return PopupMenuItem<AdminViewMode>(
-            value: mode,
-            child: Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? colorScheme.primary.withOpacity(0.1)
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Row(
-                children: [
-                  Text(
-                    text,
-                    style: TextStyle(
-                      fontWeight: isSelected
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                      color: isSelected
-                          ? colorScheme.primary
-                          : colorScheme.onSurface,
-                    ),
-                  ),
-                  if (isSelected) const Spacer(),
-                  if (isSelected)
-                    Icon(Icons.check, size: 18, color: colorScheme.primary),
-                ],
-              ),
-            ),
-          );
-        }
-
-        return [
-          buildItem(AdminViewMode.mixed, 'Modo Mixto'),
-          buildItem(AdminViewMode.support, 'Modo Soporte'),
-          buildItem(AdminViewMode.project, 'Modo Proyecto'),
-        ];
-      },
-    );
-  }
 
   Widget _buildExceptionHoursInkWell() {
     return InkWell(
@@ -1658,6 +1620,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   @override
   Widget build(BuildContext context) {
     final appBarActions = [
+
       if (AccessControl.isAdmin) ..._buildAdminAppBarActions(context),
       const HelpIcon(),
       Padding(
@@ -1724,6 +1687,70 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                 controller: _outerScrollController,
                 headerSliverBuilder: (context, innerBoxIsScrolled) {
                   return [
+                    if (_metricsSource != null)
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.5),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                              ),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            child: Row(
+                              children: [
+                                CustomButton(
+                                  text: _metricsSource == '/client-workload'
+                                      ? 'Volver al Treemap (Terceros)'
+                                      : _metricsSource == '/rep-workload'
+                                          ? 'Volver al Treemap (Representantes)'
+                                          : 'Volver al Treemap',
+                                  icon: Icons.arrow_back,
+                                  onPressed: () => context.go(_metricsSource!),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      Icon(
+                                        Icons.auto_graph,
+                                        color: Theme.of(context).colorScheme.primary,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Flexible(
+                                        child: Text(
+                                          'Visualizando Desglose del treemap',
+                                          style: TextStyle(
+                                            color: Theme.of(context).colorScheme.onSurface,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                          textAlign: TextAlign.right,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      IconButton(
+                                        icon: const Icon(Icons.close, size: 20),
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        tooltip: 'Descartar aviso',
+                                        onPressed: () {
+                                          setState(() {
+                                            _metricsSource = null;
+                                          });
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
                     SliverToBoxAdapter(
                       child: RepaintBoundary(
                         child: Padding(
@@ -1794,7 +1821,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                                     context: context,
                                     builder: (context) => CreateRequestDialog(
                                       bPartners: _bPartners,
-                                      selectedBPartnerId: _bpId,
+                                      selectedBPartnerId: _filters.bpIds.isNotEmpty ? _filters.bpIds.first : _bpId,
                                     ),
                                   ) ==
                                   true) {
@@ -1855,27 +1882,45 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                     ),
                   ];
                 },
-                body: RepaintBoundary(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 300),
-                      child: _showCalendar
-                          ? CalendarGanttWrapper(
-                              requests: _rawRequests,
-                              onGoToRequest: (String searchVal) {
-                                setState(() {
-                                  _showCalendar = false;
-                                  _searchController.text = searchVal;
-                                });
-                                _refreshRequest(fetchNetwork: false);
-                              },
-                            )
-                          : Column(
-                              children: [Expanded(child: _buildTableWidget())],
+                body: CustomScrollView(
+                  slivers: [
+                    SliverLayoutBuilder(
+                      builder: (BuildContext context, SliverConstraints constraints) {
+                        // Proveemos una altura mínima segura para que el calendario/gantt nunca arroje overflow,
+                        // pero permitimos que tome todo el espacio restante si hay suficiente.
+                        final double height = constraints.remainingPaintExtent > 600
+                            ? constraints.remainingPaintExtent
+                            : 600.0;
+                        return SliverToBoxAdapter(
+                          child: SizedBox(
+                            height: height,
+                            child: RepaintBoundary(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                                child: AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 300),
+                                  child: _showCalendar
+                                      ? CalendarGanttWrapper(
+                                          requests: _rawRequests,
+                                          onGoToRequest: (String searchVal) {
+                                            setState(() {
+                                              _showCalendar = false;
+                                              _searchController.text = searchVal;
+                                            });
+                                            _refreshRequest(fetchNetwork: false);
+                                          },
+                                        )
+                                      : Column(
+                                          children: [Expanded(child: _buildTableWidget())],
+                                        ),
+                                ),
+                              ),
                             ),
+                          ),
+                        );
+                      },
                     ),
-                  ),
+                  ],
                 ),
               ),
             ),

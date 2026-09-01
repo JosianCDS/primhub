@@ -1,3 +1,4 @@
+import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -449,7 +450,7 @@ class _AddUpdateDialogState extends State<_AddUpdateDialog> {
 
     if (result != null && result.files.isNotEmpty) {
       if (result.files.first.bytes == null) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al leer el archivo.'), backgroundColor: Colors.orange));
+        ToastMessage.show(context: context, message: 'Error al leer el archivo.', type: ToastType.warning);
         return;
       }
       setState(() {
@@ -467,7 +468,7 @@ class _AddUpdateDialogState extends State<_AddUpdateDialog> {
   Future<void> _handleSave() async {
     final resultText = _resultController.document.toPlainText().trim();
     if (resultText.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('El campo de resultado no puede estar vacío.'), backgroundColor: Colors.orange));
+      ToastMessage.show(context: context, message: 'El campo de resultado no puede estar vacío.', type: ToastType.warning);
       return;
     }
 
@@ -479,7 +480,7 @@ class _AddUpdateDialogState extends State<_AddUpdateDialog> {
 
     if (mounted) {
       setState(() => _isSaving = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result['message'] ?? 'Error desconocido'), backgroundColor: result['success'] == true ? Colors.green : Colors.red));
+      ToastMessage.show(context: context, message: result['message'] ?? 'Error desconocido', type: ToastType.failure);
       if (result['success'] == true) {
         bool statusChanged = false;
         if (_newStatusId != null && _newStatusId != widget.currentStatusId) {
@@ -487,14 +488,14 @@ class _AddUpdateDialogState extends State<_AddUpdateDialog> {
           if (statusResult['success'] == true) {
             statusChanged = true;
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Estado actualizado correctamente'), backgroundColor: Colors.green));
+              ToastMessage.show(context: context, message: 'Estado actualizado correctamente', type: ToastType.success);
             }
           }
         }
 
         // --- INICIO Lógica Correos ---
         try {
-          int customerBpId = widget.bPartnerId ?? User.cBPartnerID ?? 0;
+          int customerBpId = widget.bPartnerId ?? 0;
           
           String oldStatusName = '';
           for (var entry in GlobalCache.statuses.entries) {
@@ -774,7 +775,7 @@ class _AttachmentItem extends StatelessWidget {
 
     return InkWell(
       onTap: () {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Abriendo $fileName...')));
+        ToastMessage.show(context: context, message: 'Abriendo $fileName...', type: ToastType.help);
       },
       child: _buildBox(
         Column(

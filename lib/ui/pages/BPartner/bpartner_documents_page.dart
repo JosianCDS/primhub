@@ -1,3 +1,4 @@
+import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 import 'package:flutter/material.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/api/access_control.dart';
@@ -137,14 +138,14 @@ class _BPartnerDocumentsPageState extends State<BPartnerDocumentsPage> {
                   if (_selectedBPartnerIds.length == 1) {
                     final fm = _fileManagerKeys[_selectedBPartnerIds.first]?.currentState;
                     if (fm != null && !fm.isRoot()) {
-                       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No se permiten subcarpetas.')));
+                       ToastMessage.show(context: context, message: 'No se permiten subcarpetas.', type: ToastType.help);
                     } else {
                        fm?.createFolderDialog();
                     }
                 } else if (_selectedBPartnerIds.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Debe seleccionar un tercero')));
+                  ToastMessage.show(context: context, message: 'Debe seleccionar un tercero', type: ToastType.help);
                 } else {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Seleccione un solo tercero para crear carpeta')));
+                  ToastMessage.show(context: context, message: 'Seleccione un solo tercero para crear carpeta', type: ToastType.help);
                 }
               },
             ),
@@ -155,9 +156,9 @@ class _BPartnerDocumentsPageState extends State<BPartnerDocumentsPage> {
                 if (_selectedBPartnerIds.length == 1) {
                   _fileManagerKeys[_selectedBPartnerIds.first]?.currentState?.pickAndUploadFile();
                 } else if (_selectedBPartnerIds.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Debe seleccionar un tercero')));
+                  ToastMessage.show(context: context, message: 'Debe seleccionar un tercero', type: ToastType.help);
                 } else {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Seleccione un solo tercero para subir archivo')));
+                  ToastMessage.show(context: context, message: 'Seleccione un solo tercero para subir archivo', type: ToastType.help);
                 }
               },
             ),

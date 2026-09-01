@@ -80,24 +80,22 @@ class HomeController extends ChangeNotifier {
   }
 
   Future<void> initData({bool forceRefresh = false}) async {
-
+    validationLoading = true;
+    isLoading = true;
+    notifyListeners();
 
     // Fast path: Data is loaded, not forcing refresh, and background sync (Phase 2) is complete.
     if (GlobalCache.isDataLoaded && !forceRefresh && !GlobalCache.backgroundSyncNotifier.value) {
-      validationLoading = false;
-      isLoading = false;
       await loadValidationData();
       await loadSupportBPartners();
       await loadDocumentStats();
       await loadSupportProductChips();
       await loadRecentRequests();
+      validationLoading = false;
+      isLoading = false;
       notifyListeners();
       return;
     }
-
-    validationLoading = true;
-    isLoading = true;
-    notifyListeners();
 
     try {
       await GlobalCache.syncData(force: forceRefresh);
@@ -115,6 +113,21 @@ class HomeController extends ChangeNotifier {
       }
       
       if (isAdmin || isSupport) {
+        List<int> bpsToFetch = [];
+        if (isAdmin && selectedSupportBpIds.isNotEmpty) {
+          bpsToFetch = selectedSupportBpIds;
+        } else if (!isAdmin && User.cBPartnerID != null) {
+          bpsToFetch = [User.cBPartnerID!];
+        }
+
+        if (bpsToFetch.isNotEmpty) {
+          List<Future<void>> fetches = [];
+          for (var id in bpsToFetch) {
+            fetches.add(GlobalCache.loadSupportBpRequestsInBackground(id));
+          }
+          await Future.wait(fetches);
+        }
+
         await loadRecentRequests();
         await loadSupportProductChips();
       }
@@ -230,12 +243,17 @@ class HomeController extends ChangeNotifier {
       final statusIdentifier = req['R_Status_ID'] is Map ? req['R_Status_ID']['identifier'] : '';
       final statusNameLower = (req['R_Status_Name'] ?? '').toLowerCase();
 
-      bool isClosed = statusId == 1000019 || statusId == 1000015 || statusId == 1000018 ||
-                      statusId == 103 ||
-                      statusIdentifier == '100_Archivada' || statusIdentifier == '90_Anulada' || 
-                      statusNameLower.contains('archivada') || statusNameLower.contains('anulada') || 
-                      statusNameLower.contains('implementada en produccion') || statusNameLower.contains('implementada en producción') ||
-                      statusNameLower == '9_final close';
+      bool isClosed = false;
+      if (statusId != null && GlobalCache.statusIsFinalCloseMap.containsKey(statusId)) {
+        isClosed = GlobalCache.statusIsFinalCloseMap[statusId]!;
+      } else {
+        isClosed = statusId == 1000019 || statusId == 1000015 || statusId == 1000018 ||
+                        statusId == 103 ||
+                        statusIdentifier == '100_Archivada' || statusIdentifier == '90_Anulada' || 
+                        statusNameLower.contains('archivada') || statusNameLower.contains('anulada') || 
+                        statusNameLower.contains('implementada en produccion') || statusNameLower.contains('implementada en producción') ||
+                        statusNameLower == '9_final close' || statusNameLower.contains('cerrada');
+      }
       
       double spent = (req['QtySpent'] as num?)?.toDouble() ?? 0.0;
 
@@ -259,12 +277,17 @@ class HomeController extends ChangeNotifier {
       final statusIdentifier = r['R_Status_ID'] is Map ? r['R_Status_ID']['identifier'] : '';
       final statusNameLower = (r['R_Status_Name'] ?? '').toLowerCase();
 
-      bool isArchived = statusId == 1000019 || statusId == 1000015 || statusId == 1000018 ||
-                      statusId == 103 ||
-                      statusIdentifier == '100_Archivada' || statusIdentifier == '90_Anulada' || 
-                      statusNameLower.contains('archivada') || statusNameLower.contains('anulada') || 
-                      statusNameLower.contains('implementada en produccion') || statusNameLower.contains('implementada en producción') ||
-                      statusNameLower == '9_final close';
+      bool isArchived = false;
+      if (statusId != null && GlobalCache.statusIsFinalCloseMap.containsKey(statusId)) {
+        isArchived = GlobalCache.statusIsFinalCloseMap[statusId]!;
+      } else {
+        isArchived = statusId == 1000019 || statusId == 1000015 || statusId == 1000018 ||
+                        statusId == 103 ||
+                        statusIdentifier == '100_Archivada' || statusIdentifier == '90_Anulada' || 
+                        statusNameLower.contains('archivada') || statusNameLower.contains('anulada') || 
+                        statusNameLower.contains('implementada en produccion') || statusNameLower.contains('implementada en producción') ||
+                        statusNameLower == '9_final close' || statusNameLower.contains('cerrada');
+      }
 
       return !isArchived;
     }).toList();
@@ -285,7 +308,6 @@ class HomeController extends ChangeNotifier {
     allRequests = filteredRequests;
 
     _applyFilters();
-    isLoading = false;
     notifyListeners();
   }
 
@@ -685,7 +707,7 @@ class HomeController extends ChangeNotifier {
     requestsStatsByBp.clear();
     allRequests = [];
     recentRequests = [];
-    isLoading = false;
+    recentRequests = [];
     notifyListeners();
   }
 

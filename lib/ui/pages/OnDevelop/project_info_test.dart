@@ -1,3 +1,4 @@
+import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -352,7 +353,7 @@ class _ProjectInfoTestPageState extends State<ProjectInfoTestPage> {
                       borderRadius: BorderRadius.circular(4),
                       onTap: () {
                         Clipboard.setData(ClipboardData(text: req['id']?.toString() ?? ''));
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Código copiado al portapapeles')));
+                        ToastMessage.show(context: context, message: 'Código copiado al portapapeles', type: ToastType.help);
                       },
                       child: const Padding(
                         padding: EdgeInsets.all(4.0),

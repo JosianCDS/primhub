@@ -1,3 +1,4 @@
+import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 // ignore_for_file: use_build_context_synchronously
 
 import 'package:flutter/material.dart';
@@ -226,12 +227,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
             );
 
             if (responseFinal == false) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Credenciales o configuración incorrectas.'),
-                  backgroundColor: Colors.red,
-                ),
-              );
+              ToastMessage.show(context: context, message: 'Credenciales o configuración incorrectas.', type: ToastType.failure);
             } else {
               if (mounted) {
                 setState(() => _isLoading = false);
@@ -277,9 +273,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   void _showError(String message) {
     if (mounted) {
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message), backgroundColor: Colors.red),
-      );
+      ToastMessage.show(context: context, message: message, type: ToastType.failure);
     }
   }
 

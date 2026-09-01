@@ -207,14 +207,18 @@ class ContractApi {
   /// Actualiza la descripción (nombre) de una ficha de producto.
   static Future<bool> updateProductChipDescription(
     int chipId,
-    String newDescription,
-  ) async {
+    String newDescription, {
+    String? serviceFinishDate,
+  }) async {
     final String url =
         "${Endpoint.baseUrl}/api/v1/models/C_BPartner_Product_Chip/$chipId";
     final Map<String, dynamic> data = {
       "C_BPartner_Product_Chip_ID": chipId,
       "Description": newDescription,
     };
+    if (serviceFinishDate != null && serviceFinishDate.isNotEmpty) {
+      data["service_finish_date"] = "${serviceFinishDate}T00:00:00Z";
+    }
 
     try {
       // [Mantenimiento] Log removido:       debugPrint("DEBUG ContractApi: Updating chip $chipId with PUT. URL: $url");

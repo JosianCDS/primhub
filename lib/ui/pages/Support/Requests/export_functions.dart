@@ -1,3 +1,4 @@
+import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
@@ -155,7 +156,7 @@ class ExportFunctions {
         var _ = anchor;
         html.Url.revokeObjectUrl(url);
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Descarga iniciada en el navegador.')));
+          ToastMessage.show(context: context, message: 'Descarga iniciada en el navegador.', type: ToastType.help);
         }
       } else {
         String? outputFile = await FilePicker.platform.saveFile(
@@ -167,13 +168,13 @@ class ExportFunctions {
           final file = File(outputFile);
           await file.writeAsBytes(bytes);
           if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Archivo guardado exitosamente en: $outputFile')));
+            ToastMessage.show(context: context, message: 'Archivo guardado exitosamente en: $outputFile', type: ToastType.help);
           }
         }
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al guardar el archivo: $e'), backgroundColor: Colors.red));
+        ToastMessage.show(context: context, message: 'Error al guardar el archivo: $e', type: ToastType.failure);
       }
     }
   }
@@ -191,7 +192,7 @@ class ExportFunctions {
       await _saveFile(bytes, 'Horas de Soporte - $dateStr.csv', context, 'text/csv;charset=utf-8');
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error generando CSV: $e'), backgroundColor: Colors.red));
+        ToastMessage.show(context: context, message: 'Error generando CSV: $e', type: ToastType.failure);
       }
     }
   }
@@ -218,7 +219,7 @@ class ExportFunctions {
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error generando Excel: $e'), backgroundColor: Colors.red));
+        ToastMessage.show(context: context, message: 'Error generando Excel: $e', type: ToastType.failure);
       }
     }
   }
@@ -338,7 +339,7 @@ class ExportFunctions {
       await _saveFile(bytes, 'Horas de Soporte - $dateStr.pdf', context, 'application/pdf');
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error generando PDF: $e'), backgroundColor: Colors.red));
+        ToastMessage.show(context: context, message: 'Error generando PDF: $e', type: ToastType.failure);
       }
     }
   }

@@ -1,3 +1,4 @@
+import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 import 'package:flutter/material.dart';
 import 'package:primhub/ui/Shared_Custom/custom_skeleton.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
@@ -619,17 +620,10 @@ class _ProjectRequestsViewState extends State<ProjectRequestsView> {
       final success = await deleteRequestApi(id);
       if (mounted) {
         if (success) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Solicitud eliminada correctamente')),
-          );
+          ToastMessage.show(context: context, message: 'Solicitud eliminada correctamente', type: ToastType.help);
           _initData(showLoading: false);
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Error al eliminar'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          ToastMessage.show(context: context, message: 'Error al eliminar', type: ToastType.failure);
         }
       }
     }

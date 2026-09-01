@@ -1,3 +1,4 @@
+import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
@@ -124,17 +125,61 @@ int? extractProductChipId(Map<String, dynamic> req) {
   return int.tryParse(raw.toString());
 }
 
-/// Extrae el nombre (identifier) de la ficha de producto de forma robusta.
-String? extractProductChipName(Map<String, dynamic> req) {
-  if (req['C_BPartner_Product_Chip_ID'] is Map) {
-    final map = req['C_BPartner_Product_Chip_ID'] as Map;
-    return (map['identifier'] ?? map['Name'] ?? map['Description'])?.toString();
-  }
+String? _getBestChipName(Map map) {
+  final desc = map['Description']?.toString().trim();
+  if (desc != null && desc.isNotEmpty) return desc;
   
-  return (req['C_BPartner_Product_Chip_ID_Name'] ?? 
+  final name = map['Name']?.toString().trim();
+  if (name != null && name.isNotEmpty && double.tryParse(name) == null) return name;
+  
+  final identifier = map['identifier']?.toString().trim();
+  if (identifier != null && identifier.isNotEmpty && double.tryParse(identifier) == null) return identifier;
+  
+  return name ?? identifier ?? desc;
+}
+
+String? extractProductChipName(Map<String, dynamic> req) {
+  // Primero extraemos el ID numérico y buscamos la ficha completa en caché (tiene más datos como Description)
+  int? chipId = extractProductChipId(req);
+  if (chipId != null) {
+    final chip = GlobalCache.productChips.firstWhere((c) {
+      final cId = int.tryParse(c['id']?.toString() ?? '') ?? int.tryParse(c['C_BPartner_Product_Chip_ID']?.toString() ?? '');
+      return cId == chipId;
+    }, orElse: () => {});
+    if (chip.isNotEmpty) {
+      final cacheName = _getBestChipName(chip);
+      if (cacheName != null && cacheName.isNotEmpty && double.tryParse(cacheName) == null) {
+        return cacheName; // Solo retornamos del caché si no es un simple número
+      }
+    }
+  }
+
+  // Si falló el caché o devolvió un número, intentamos extraer de los mapas anidados
+  String? mapFallback;
+  if (req['T_ProductChip_ID'] is Map) mapFallback ??= _getBestChipName(req['T_ProductChip_ID'] as Map);
+  if (req['C_BPartner_Product_Chip'] is Map) mapFallback ??= _getBestChipName(req['C_BPartner_Product_Chip'] as Map);
+  if (req['C_BPartner_Product_Chip_ID'] is Map) mapFallback ??= _getBestChipName(req['C_BPartner_Product_Chip_ID'] as Map);
+  if (req['C_BPartner_ProductChip_ID'] is Map) mapFallback ??= _getBestChipName(req['C_BPartner_ProductChip_ID'] as Map);
+  if (req['Product_Chip_ID'] is Map) mapFallback ??= _getBestChipName(req['Product_Chip_ID'] as Map);
+
+  if (mapFallback != null && mapFallback.isNotEmpty) {
+    // Si el map tiene un nombre válido (no numérico), lo usamos
+    if (double.tryParse(mapFallback) == null) return mapFallback;
+  }
+
+  // Fallback final a las llaves que contienen el string Name directamente
+  final stringFallback = (req['T_ProductChip_ID_Name'] ?? 
+          req['C_BPartner_Product_Chip_ID_Name'] ?? 
           req['C_BPartner_ProductChip_ID_Name'] ?? 
           req['Product_Chip_ID_Name'] ?? 
           req['C_BPartner_Product_Chip_Name'])?.toString();
+          
+  if (stringFallback != null && stringFallback.isNotEmpty && double.tryParse(stringFallback) == null) {
+    return stringFallback;
+  }
+  
+  // Si todo falla, al menos devolvemos el ID o el mapFallback (que podría ser numérico)
+  return mapFallback ?? stringFallback ?? chipId?.toString();
 }
 
 // --- LLAMADAS A LA API ---
@@ -892,6 +937,7 @@ Future<Map<String, dynamic>> updateRemoteRequest({
   String? startTime,
   String? endTime,  
   double? qtySpent,
+  double? estimatedDevHours,
   String? startDate,
   String? closeDate,
   String? result,
@@ -926,6 +972,7 @@ Future<Map<String, dynamic>> updateRemoteRequest({
     if (startTime != null && startTime.isNotEmpty) data['StartTime'] = ensureIsoTime(dateStartPlan, startTime);
     if (endTime != null && endTime.isNotEmpty) data['EndTime'] = endTime; // El caller ya lo manda como DateTime completo
     if (qtySpent != null) data['QtySpent'] = qtySpent;
+    if (estimatedDevHours != null && estimatedDevHours > 0) data['PrimHub_Estimated_development_hours'] = estimatedDevHours;
     
     if (startDate != null) data['StartDate'] = startDate;
     if (closeDate != null) data['CloseDate'] = closeDate;
@@ -1097,12 +1144,12 @@ class _RequestAttachmentsDialogState extends State<RequestAttachmentsDialog> {
   /// Permite al usuario seleccionar y subir un nuevo adjunto.
   Future<void> _uploadAttachment() async {
     if (!AccessControl.isAdmin && !AccessControl.isSupport) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No tienes permisos para subir archivos.')));
+      ToastMessage.show(context: context, message: 'No tienes permisos para subir archivos.', type: ToastType.help);
       return;
     }
 
     if (_attachments.length >= 4) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Solo se pueden subir hasta 4 adjuntos.'), backgroundColor: Colors.orange));
+      ToastMessage.show(context: context, message: 'Solo se pueden subir hasta 4 adjuntos.', type: ToastType.warning);
       return;
     }
 
@@ -1115,7 +1162,7 @@ class _RequestAttachmentsDialogState extends State<RequestAttachmentsDialog> {
 
     final file = result.files.first;
     if (file.bytes == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No se pudieron leer los datos del archivo.'), backgroundColor: Colors.red));
+      ToastMessage.show(context: context, message: 'No se pudieron leer los datos del archivo.', type: ToastType.failure);
       return;
     }
 
@@ -1136,10 +1183,10 @@ class _RequestAttachmentsDialogState extends State<RequestAttachmentsDialog> {
     if (mounted) {
       setState(() => _isUploading = false);
       if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Archivo subido correctamente'), backgroundColor: Colors.green));
+        ToastMessage.show(context: context, message: 'Archivo subido correctamente', type: ToastType.success);
         _loadAttachments();
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al subir archivo'), backgroundColor: Colors.red));
+        ToastMessage.show(context: context, message: 'Error al subir archivo', type: ToastType.failure);
       }
     }
   }
@@ -1186,12 +1233,12 @@ class _RequestAttachmentsDialogState extends State<RequestAttachmentsDialog> {
                               _attachments.removeWhere((item) => item['name'] == att['name']);
                               _isLoading = false;
                             });
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Adjunto eliminado')));
+                            ToastMessage.show(context: context, message: 'Adjunto eliminado', type: ToastType.help);
                           }
                         } else {
                           if (mounted) {
                             setState(() => _isLoading = false);
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al eliminar adjunto'), backgroundColor: Colors.red));
+                            ToastMessage.show(context: context, message: 'Error al eliminar adjunto', type: ToastType.failure);
                           }
                         }
                       } catch (e) {
@@ -1264,16 +1311,9 @@ Future<void> sendRequestStatusEmail({
       targetRecordId = updateId.toString();
     }
 
-    // Determinar los destinatarios: Usuario de la solicitud y Representante Comercial (si existe)
+    // Determinar los destinatarios: Usuario de la solicitud
     Set<int> targetUsers = {};
     if (adUserId > 0) targetUsers.add(adUserId);
-    
-    if (req != null) {
-      int? repId = req['SalesRep_ID'] is Map ? (req['SalesRep_ID']['id'] as num?)?.toInt() : (req['SalesRep_ID'] as num?)?.toInt();
-      if (repId != null && repId > 0) {
-        targetUsers.add(repId);
-      }
-    }
 
     if (targetUsers.isEmpty) return; // No hay a quien enviar
 

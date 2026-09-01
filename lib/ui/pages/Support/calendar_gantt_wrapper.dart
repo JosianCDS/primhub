@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:primhub/api/access_control.dart';
+import 'package:primhub/ui/Shared_Custom/custom_button.dart';
+import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/pages/Support/calendar.dart';
 import 'package:primhub/ui/pages/Support/gantt_content.dart';
 
@@ -38,9 +41,47 @@ class _CalendarGanttWrapperState extends State<CalendarGanttWrapper> with Single
             labelColor: Theme.of(context).colorScheme.primary,
             unselectedLabelColor: Theme.of(context).colorScheme.outline,
             indicatorColor: Theme.of(context).colorScheme.primary,
-            tabs: const [
-              Tab(icon: Icon(Icons.calendar_month), text: 'Calendario'),
-              Tab(icon: Icon(Icons.bar_chart), text: 'Diagrama de Gantt'),
+            tabs: [
+              Tab(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.calendar_month),
+                    const SizedBox(width: 8),
+                    const Text('Calendario'),
+                    if (AccessControl.isAdmin) ...[
+                      const SizedBox(width: 4),
+                      IconButton(
+                        icon: const Icon(Icons.info_outline, size: 16),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        tooltip: 'Info Calendario',
+                        onPressed: () => _showInfoModal(context, 'Calendario'),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              Tab(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.bar_chart),
+                    const SizedBox(width: 8),
+                    const Text('Diagrama de Gantt'),
+                    if (AccessControl.isAdmin) ...[
+                      const SizedBox(width: 4),
+                      IconButton(
+                        icon: const Icon(Icons.info_outline, size: 16),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        tooltip: 'Info Diagrama de Gantt',
+                        onPressed: () => _showInfoModal(context, 'Diagrama de Gantt'),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             ],
           ),
         ),
@@ -72,6 +113,34 @@ class _CalendarGanttWrapperState extends State<CalendarGanttWrapper> with Single
           ),
         ),
       ],
+    );
+  }
+
+  void _showInfoModal(BuildContext context, String type) {
+    showDialog(
+      context: context,
+      builder: (context) => CustomModal(
+        title: 'Funcionamiento: $type',
+        width: 450,
+        content: Text(
+          type == 'Calendario'
+              ? 'El Calendario utiliza exactamente las mismas solicitudes filtradas en la tabla principal.\n\n'
+                  '• Muestra las solicitudes organizadas por su fecha estimada.\n'
+                  '• Si vienes del Treemap, respeta el Representante y Tercero seleccionados.\n'
+                  '• Usa los colores para identificar la prioridad de cada solicitud.'
+              : 'El Diagrama de Gantt utiliza exactamente las mismas solicitudes filtradas en la tabla principal.\n\n'
+                  '• Muestra una línea de tiempo basada en la fecha de creación y fecha estimada.\n'
+                  '• Si vienes del Treemap, respeta el Representante y Tercero seleccionados.\n'
+                  '• Permite visualizar gráficamente la carga de trabajo a lo largo del tiempo.',
+          style: const TextStyle(fontSize: 14, height: 1.4),
+        ),
+        actions: [
+          CustomButton(
+            text: 'Entendido',
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ],
+      ),
     );
   }
 }

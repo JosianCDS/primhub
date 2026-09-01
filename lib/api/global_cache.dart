@@ -24,6 +24,7 @@ class GlobalCache {
   static Map<int, int> statusCategoryMap = {}; // R_Status_ID -> R_StatusCategory_ID
   static Map<int, String> statusCategoryNameMap = {}; // R_StatusCategory_ID -> Name
   static List<Map<String, dynamic>> salesReps = [];
+  static List<Map<String, dynamic>> rawSalesReps = [];
   static Map<String, int> requestTypes = {};
   static Map<int, int> requestTypeCategoryMap = {}; // R_RequestType_ID -> R_StatusCategory_ID
   static Map<String, int> categories = {};
@@ -178,7 +179,7 @@ class GlobalCache {
 // [Mantenimiento] Log removido:     debugPrint("CACHE: Phase 1 Users Filtered (Customers Only): ${users.length}");
 
     // Mapeo de Representantes Comerciales (desde la nueva consulta dedicada)
-    final rawSalesReps = (futures[5] as List<dynamic>)
+    final localRawSalesReps = (futures[5] as List<dynamic>)
         .map((e) {
           if (e is! Map) return <String, dynamic>{};
           final bp = Map<String, dynamic>.from(e);
@@ -187,8 +188,10 @@ class GlobalCache {
         })
         .where((e) => e.isNotEmpty)
         .toList();
+        
+    GlobalCache.rawSalesReps = localRawSalesReps;
 
-    final repBpIds = rawSalesReps.map((bp) => bp['id']).toSet();
+    final repBpIds = localRawSalesReps.map((bp) => bp['id']).toSet();
 
     // Necesitamos encontrar los usuarios que pertenecen a estos representantes
     salesReps = allProcessedUsers.where((user) {
@@ -203,7 +206,7 @@ class GlobalCache {
         if (!isRepById) return false;
 
         // Filtrar contactos adicionales (ej. esposas, asistentes) comparando el nombre del User con el del BPartner
-        final bp = rawSalesReps.firstWhere((b) => b['id'] == userBpId, orElse: () => <String, dynamic>{});
+        final bp = localRawSalesReps.firstWhere((b) => b['id'] == userBpId, orElse: () => <String, dynamic>{});
         final bpName = (bp['Name'] ?? '').toString().toLowerCase();
         final userName = (user['Name'] ?? '').toString().toLowerCase();
 
