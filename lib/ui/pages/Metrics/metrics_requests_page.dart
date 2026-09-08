@@ -326,35 +326,32 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
 
       bool matchesPriority = true;
       if (_filterPriority != null) {
-        var rawPriority = req['Priority'];
-
-        // Si la prioridad del request es nula, intentamos obtenerla de la categoría
-        if (rawPriority == null || (rawPriority is String && rawPriority.isEmpty)) {
-          final categoryId = req['R_Category_ID'] is Map ? req['R_Category_ID']['id'] : req['R_Category_ID'];
-          if (categoryId != null) {
-            final cat = GlobalCache.rawCategories.firstWhere((c) => c['id'] == categoryId, orElse: () => {});
-            if (cat.isNotEmpty) {
-              rawPriority = cat['Priority'];
-            }
+        dynamic rawPriority;
+        
+        final categoryId = req['R_Category_ID'] is Map ? req['R_Category_ID']['id'] : req['R_Category_ID'];
+        if (categoryId != null) {
+          final cat = GlobalCache.rawCategories.firstWhere((c) => c['id'] == categoryId, orElse: () => {});
+          if (cat.isNotEmpty) {
+            rawPriority = cat['Priority'] is Map ? cat['Priority']['id'] : cat['Priority'];
           }
         }
 
+        String priorityStr = rawPriority != null ? rawPriority.toString() : '5';
         String mappedPriority = 'Media';
-        if (rawPriority is Map) {
-          mappedPriority = (rawPriority['identifier'] ?? rawPriority['Name'] ?? 'Media').toString();
-        } else if (rawPriority != null) {
-          final pStr = rawPriority.toString();
-          if (pStr == '1') {
-            mappedPriority = 'Urgente';
-          } else if (pStr == '3') {
-            mappedPriority = 'Alta';
-          } else if (pStr == '5') {
-            mappedPriority = 'Media';
-          } else if (pStr == '7') {
-            mappedPriority = 'Baja';
-          } else if (pStr == '9') {
-            mappedPriority = 'Muy baja';
-          }
+        final pLower = priorityStr.toLowerCase();
+        
+        if (pLower.contains('urgente') || priorityStr == '1') {
+          mappedPriority = 'Urgente';
+        } else if (pLower.contains('alta') || priorityStr == '3') {
+          mappedPriority = 'Alta';
+        } else if (pLower.contains('media') || priorityStr == '5') {
+          mappedPriority = 'Media';
+        } else if (pLower.contains('muy baja') || pLower.contains('menor') || priorityStr == '9') {
+          mappedPriority = 'Muy baja';
+        } else if (pLower.contains('baja') || priorityStr == '7') {
+          mappedPriority = 'Baja';
+        } else {
+          mappedPriority = priorityStr;
         }
 
         if (_filterPriority == 'Críticos') {

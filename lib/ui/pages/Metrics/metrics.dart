@@ -672,10 +672,10 @@ class _MetricsPageState extends State<MetricsPage> {
           priority = 'Alta';
         } else if (pLower.contains('media') || priorityStr == '5') {
           priority = 'Media';
-        } else if (pLower.contains('baja') || priorityStr == '7') {
-          priority = 'Baja';
         } else if (pLower.contains('muy baja') || pLower.contains('menor') || priorityStr == '9') {
           priority = 'Muy baja';
+        } else if (pLower.contains('baja') || priorityStr == '7') {
+          priority = 'Baja';
         } else {
           priority = priorityStr;
         }
