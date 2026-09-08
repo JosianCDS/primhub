@@ -18,10 +18,13 @@ class ProjectRequestsPage extends StatefulWidget {
   final String? filterType;
   final String? filterStatus;
   final String? filterCompliance;
+  final String? filterPriority;
+  final String? filterProductChip;
+  final int? filterSpecificChipId;
   final int? projectId;
   final List<String>? taskUUIDs;
 
-  const ProjectRequestsPage({super.key, this.filterType, this.filterStatus, this.filterCompliance, this.projectId, this.taskUUIDs});
+  const ProjectRequestsPage({super.key, this.filterType, this.filterStatus, this.filterCompliance, this.filterPriority, this.filterProductChip, this.filterSpecificChipId, this.projectId, this.taskUUIDs});
 
   @override
   State<ProjectRequestsPage> createState() => _ProjectRequestsPageState();
@@ -37,6 +40,9 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
   String? _filterType;
   String? _filterStatus;
   String? _filterCompliance;
+  String? _filterPriority;
+  String? _filterProductChip;
+  int? _filterSpecificChipId;
   int? _projectId;
   List<String>? _taskUUIDs;
   bool _isInit = true;
@@ -72,10 +78,15 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
           if (extra.containsKey('filterType')) _filterType = extra['filterType'];
           if (extra.containsKey('filterStatus')) _filterStatus = extra['filterStatus'];
           if (extra.containsKey('filterCompliance')) _filterCompliance = extra['filterCompliance'];
+          if (extra.containsKey('filterPriority')) _filterPriority = extra['filterPriority'];
+          if (extra.containsKey('filterProductChip')) _filterProductChip = extra['filterProductChip'];
+          if (extra.containsKey('filterSpecificChipId')) _filterSpecificChipId = extra['filterSpecificChipId'];
           if (extra.containsKey('projectId')) _projectId = extra['projectId'];
           if (extra.containsKey('taskUUIDs')) _taskUUIDs = extra['taskUUIDs'];
         }
-      } catch (_) {}
+      } catch (_) {
+      // Ignored: Fail silently
+    }
 
       _isInit = false;
       _initData();
@@ -111,7 +122,7 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
 
   Future<void> _loadRequests() async {
     List<Map<String, dynamic>> rawRequests = [];
-    bool isFromMetricsChart = _projectId != null && (_filterType != null || _filterStatus != null || _filterCompliance != null) && _taskUUIDs == null;
+    bool isFromMetricsChart = _projectId != null && (_filterType != null || _filterStatus != null || _filterCompliance != null || _filterPriority != null) && _taskUUIDs == null;
 
     if (isFromMetricsChart) {
       rawRequests = await GraphicsFunctions.fetchMetricsData(projectId: _projectId!);
@@ -136,7 +147,9 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
               if (uuid != null) uuidsToMatch.add(uuid.toString());
             }
           }
-        } catch (_) {}
+        } catch (_) {
+      // Ignored: Fail silently
+    }
       }
 
       rawRequests = GlobalCache.requests.where((req) {
@@ -161,8 +174,51 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
           return matchesProject || matchesTask;
         } else if (_taskUUIDs != null && _taskUUIDs!.isNotEmpty) {
           return _taskUUIDs!.contains(req['Record_UU']?.toString());
+        } else {
+          // IsOpen == true
+          bool isOpen = false;
+          final int? statusId = statusData is Map ? (statusData['id'] as num?)?.toInt() : (statusData is num ? statusData.toInt() : null);
+          if (statusData is Map && statusData['IsOpen'] != null) {
+            final rawIsOpen = statusData['IsOpen'];
+            final isOpenStr = rawIsOpen?.toString().trim().toLowerCase();
+            isOpen = (isOpenStr == 'true' || isOpenStr == 'y' || rawIsOpen == true);
+          } else if (statusId != null) {
+            isOpen = GlobalCache.statusIsOpenMap[statusId] ?? false;
+          }
+          if (!isOpen) return false;
+
+          // Soporte Técnico (Categoría)
+          bool isSoporteTecnico = false;
+          if (statusId != null) {
+            final categoryId = GlobalCache.statusCategoryMap[statusId];
+            if (categoryId != null) {
+              final categoryName = GlobalCache.statusCategoryNameMap[categoryId]?.toLowerCase() ?? '';
+              if (categoryName.contains('soporte técnico') || categoryName.contains('soporte tecnico')) {
+                 isSoporteTecnico = true;
+              }
+            }
+          }
+          if (!isSoporteTecnico) return false;
+
+          // Soporte Lirion (Tipo)
+          bool isSoporteLirion = false;
+          final typeObj = req['R_RequestType_ID'];
+          if (typeObj is Map) {
+            String typeName = (typeObj['Name'] ?? typeObj['identifier'] ?? '').toString().toLowerCase();
+            isSoporteLirion = typeName.contains('soporte lirion');
+          } else if (typeObj != null) {
+            int? typeId = int.tryParse(typeObj.toString());
+            if (typeId != null) {
+              String? name = GlobalCache.requestTypes.keys.cast<String?>().firstWhere((k) => GlobalCache.requestTypes[k] == typeId, orElse: () => null);
+              if (name != null && name.toLowerCase().contains('soporte lirion')) {
+                isSoporteLirion = true;
+              }
+            }
+          }
+          if (!isSoporteLirion) return false;
+          
+          return true;
         }
-        return true;
       }).toList();
     } else {
       List<String> filters = ["IsActive eq true"];
@@ -179,6 +235,52 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
         rawRequests = await fetchRequest(filter: "($uuidsCondition) and $additionalFilter", expand: expand);
       } else {
         rawRequests = await fetchRequest(filter: additionalFilter, expand: expand);
+        rawRequests = rawRequests.where((req) {
+          final statusData = req['R_Status_ID'];
+          final int? statusId = statusData is Map ? (statusData['id'] as num?)?.toInt() : (statusData is num ? statusData.toInt() : null);
+          // IsOpen == true
+          bool isOpen = false;
+          if (statusData is Map && statusData['IsOpen'] != null) {
+            final rawIsOpen = statusData['IsOpen'];
+            final isOpenStr = rawIsOpen?.toString().trim().toLowerCase();
+            isOpen = (isOpenStr == 'true' || isOpenStr == 'y' || rawIsOpen == true);
+          } else if (statusId != null) {
+            isOpen = GlobalCache.statusIsOpenMap[statusId] ?? false;
+          }
+          if (!isOpen) return false;
+
+          // Soporte Técnico (Categoría)
+          bool isSoporteTecnico = false;
+          if (statusId != null) {
+            final categoryId = GlobalCache.statusCategoryMap[statusId];
+            if (categoryId != null) {
+              final categoryName = GlobalCache.statusCategoryNameMap[categoryId]?.toLowerCase() ?? '';
+              if (categoryName.contains('soporte técnico') || categoryName.contains('soporte tecnico')) {
+                 isSoporteTecnico = true;
+              }
+            }
+          }
+          if (!isSoporteTecnico) return false;
+
+          // Soporte Lirion (Tipo)
+          bool isSoporteLirion = false;
+          final typeObj = req['R_RequestType_ID'];
+          if (typeObj is Map) {
+            String typeName = (typeObj['Name'] ?? typeObj['identifier'] ?? '').toString().toLowerCase();
+            isSoporteLirion = typeName.contains('soporte lirion');
+          } else if (typeObj != null) {
+            int? typeId = int.tryParse(typeObj.toString());
+            if (typeId != null) {
+              String? name = GlobalCache.requestTypes.keys.cast<String?>().firstWhere((k) => GlobalCache.requestTypes[k] == typeId, orElse: () => null);
+              if (name != null && name.toLowerCase().contains('soporte lirion')) {
+                isSoporteLirion = true;
+              }
+            }
+          }
+          if (!isSoporteLirion) return false;
+          
+          return true;
+        }).toList();
       }
     }
 
@@ -200,7 +302,7 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
       String cleanStatusName = rawStatusName.contains('_') ? rawStatusName.split('_').last.trim() : rawStatusName.trim();
 
       bool matchesType = true;
-      if (_filterType != null) {
+      if (_filterType != null && _filterType != 'Solicitudes Totales') {
         String categoryName = '';
         final categoryObj = req['R_Category_ID'];
         if (categoryObj is Map) {
@@ -222,7 +324,62 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
         matchesCompliance = category == _filterCompliance;
       }
 
-      return matchesType && matchesStatus && matchesCompliance;
+      bool matchesPriority = true;
+      if (_filterPriority != null) {
+        var rawPriority = req['Priority'];
+
+        // Si la prioridad del request es nula, intentamos obtenerla de la categoría
+        if (rawPriority == null || (rawPriority is String && rawPriority.isEmpty)) {
+          final categoryId = req['R_Category_ID'] is Map ? req['R_Category_ID']['id'] : req['R_Category_ID'];
+          if (categoryId != null) {
+            final cat = GlobalCache.rawCategories.firstWhere((c) => c['id'] == categoryId, orElse: () => {});
+            if (cat.isNotEmpty) {
+              rawPriority = cat['Priority'];
+            }
+          }
+        }
+
+        String mappedPriority = 'Media';
+        if (rawPriority is Map) {
+          mappedPriority = (rawPriority['identifier'] ?? rawPriority['Name'] ?? 'Media').toString();
+        } else if (rawPriority != null) {
+          final pStr = rawPriority.toString();
+          if (pStr == '1') {
+            mappedPriority = 'Urgente';
+          } else if (pStr == '3') {
+            mappedPriority = 'Alta';
+          } else if (pStr == '5') {
+            mappedPriority = 'Media';
+          } else if (pStr == '7') {
+            mappedPriority = 'Baja';
+          } else if (pStr == '9') {
+            mappedPriority = 'Muy baja';
+          }
+        }
+
+        if (_filterPriority == 'Críticos') {
+          matchesPriority = mappedPriority == 'Urgente' || mappedPriority == 'Alta';
+        } else {
+          matchesPriority = mappedPriority == _filterPriority;
+        }
+      }
+      
+      bool matchesChip = true;
+      if (_filterProductChip != null && _filterProductChip != 'mixto') {
+        bool hasChip = req['productChipId'] != null || req['C_BPartner_Product_Chip_ID'] != null;
+        if (_filterProductChip == 'con_ficha' && !hasChip) {
+          matchesChip = false;
+        } else if (_filterProductChip == 'sin_ficha' && hasChip) {
+          matchesChip = false;
+        }
+      }
+      if (_filterSpecificChipId != null) {
+        int? reqChipId = req['productChipId'] is Map ? req['productChipId']['id'] : req['productChipId'];
+        reqChipId ??= req['C_BPartner_Product_Chip_ID'] is Map ? req['C_BPartner_Product_Chip_ID']['id'] : req['C_BPartner_Product_Chip_ID'];
+        if (reqChipId != _filterSpecificChipId) matchesChip = false;
+      }
+
+      return matchesType && matchesStatus && matchesCompliance && matchesPriority && matchesChip;
     }).toList();
 
     final processed = await processRequests(filtered, _statusIdMap);
@@ -307,7 +464,7 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
     
     return Scaffold(
       appBar: AppBar(
-        title: Text('Solicitudes: ${_filterType ?? _filterStatus ?? _filterCompliance ?? "Detalle"}'),
+        title: Text('Solicitudes: ${_filterType ?? _filterStatus ?? _filterCompliance ?? _filterPriority ?? "Detalle"}'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),

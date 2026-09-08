@@ -304,7 +304,9 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
             final data = jsonDecode(utf8.decode(singleBpRes.bodyBytes));
             fetchedSingleBpName = data['Name'];
           }
-        } catch (_) {}
+        } catch (_) {
+      // Ignored: Fail silently
+    }
       }
 
       if (mounted) {
@@ -1310,7 +1312,9 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
             data['AD_Table_ID'] = {'id': tData['records'][0]['id']};
           }
         }
-      } catch (_) {}
+      } catch (_) {
+      // Ignored: Fail silently
+    }
     }
 
     if (isFullAccess &&
@@ -1388,15 +1392,19 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                 mailTextId: 1000015,
               );
             }
-          } catch (_) {}
+          } catch (_) {
+      // Ignored: Fail silently
+    }
         }
-      } catch (_) {}
+      } catch (_) {
+      // Ignored: Fail silently
+    }
 
       if (mounted) {
         if (Navigator.of(context).canPop()) {
           Navigator.of(context).pop(true);
         }
-        ToastMessage.show(context: context, message: 'Solicitud creada correctamente', type: ToastType.help);
+        ToastMessage.show(context: context, message: 'Solicitud creada correctamente', type: ToastType.success);
       }
     } else {
       if (mounted) {

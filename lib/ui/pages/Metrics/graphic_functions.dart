@@ -323,7 +323,6 @@ class GraphicsFunctions {
           '${Endpoint.baseUrl}/api/v1/models/R_Request',
         ).replace(queryParameters: queryParams);
 
-// [Mantenimiento] Log removido:         print("DEBUG API: Consultando página con skip $skip...");
 
         final response = await http.get(
           uri,
@@ -349,13 +348,10 @@ class GraphicsFunctions {
           }
         } else {
           hasMore = false;
-// [Mantenimiento] Log removido:           print(
-// [Mantenimiento] Log removido:             "DEBUG API ERROR: Status ${response.statusCode} - ${response.body}",
-// [Mantenimiento] Log removido:           );
         }
       }
-    } catch (e) {
-// [Mantenimiento] Log removido:       print("DEBUG API EXCEPTION: $e");
+    } catch (_) {
+      // Ignored: Fail silently
     }
     
     return allRecords.where((req) {

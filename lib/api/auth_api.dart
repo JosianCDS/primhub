@@ -36,7 +36,9 @@ Future<List<dynamic>> getRoles(int clientId, String token) async {
       final data = jsonDecode(response.body);
       return data['roles'] ?? [];
     }
-  } catch (_) {}
+  } catch (_) {
+      // Ignored: Fail silently
+    }
   return [];
 }
 
@@ -48,7 +50,9 @@ Future<List<dynamic>> getOrgs(int clientId, int roleId, String token) async {
       final data = jsonDecode(response.body);
       return data['organizations'] ?? [];
     }
-  } catch (_) {}
+  } catch (_) {
+      // Ignored: Fail silently
+    }
   return [];
 }
 
@@ -60,7 +64,9 @@ Future<List<dynamic>> getWarehouses(int clientId, int roleId, int orgId, String 
       final data = jsonDecode(response.body);
       return data['warehouses'] ?? [];
     }
-  } catch (_) {}
+  } catch (_) {
+      // Ignored: Fail silently
+    }
   return [];
 }
 

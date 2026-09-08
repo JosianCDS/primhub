@@ -197,18 +197,31 @@ class _ClientWorkloadPageState extends State<ClientWorkloadPage> {
         final year = int.tryParse(createdStr.substring(0, 4));
         if (year != now.year) continue;
       }
-
-      // Descartar anuladas y archivadas
+      int statusId = -1;
+      final statusObj = req['R_Status_ID'];
+      bool isOpen = false;
       String statusStr = (req['status'] ?? req['R_Status_Name'] ?? '').toString().toLowerCase();
-      if (statusStr.isEmpty) {
-        final statusObj = req['R_Status_ID'];
-        if (statusObj is Map) {
-          statusStr = (statusObj['Name'] ?? statusObj['identifier'] ?? '').toString().toLowerCase();
-        } else if (statusObj is int) {
-           statusStr = GlobalCache.statuses.keys.firstWhere((k) => GlobalCache.statuses[k] == statusObj, orElse: () => '').toLowerCase();
-        }
+      
+      if (statusObj is Map) {
+         statusId = (statusObj['id'] as num?)?.toInt() ?? -1;
+         statusStr = (statusObj['Name'] ?? statusObj['identifier'] ?? statusStr).toString().toLowerCase();
+         final rawIsOpen = statusObj['IsOpen'];
+         final isOpenStr = rawIsOpen?.toString().trim().toLowerCase();
+         if (rawIsOpen != null) {
+            isOpen = isOpenStr == 'true' || isOpenStr == 'y' || rawIsOpen == true;
+         } else {
+            isOpen = GlobalCache.statusIsOpenMap[statusId] ?? false;
+         }
+      } else if (statusObj is num) {
+         statusId = statusObj.toInt();
+         statusStr = GlobalCache.statuses.keys.firstWhere((k) => GlobalCache.statuses[k] == statusObj, orElse: () => statusStr).toLowerCase();
+         isOpen = GlobalCache.statusIsOpenMap[statusId] ?? false;
+      } else if (statusObj == null && req['status'] != null) {
+         statusId = GlobalCache.statuses[req['status']] ?? -1;
+         isOpen = GlobalCache.statusIsOpenMap[statusId] ?? false;
       }
-      if (statusStr.contains('anulada') || statusStr.contains('archivada')) {
+      
+      if (!isOpen) {
         continue;
       }
 

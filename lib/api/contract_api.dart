@@ -66,8 +66,8 @@ class ContractApi {
           hasMore = false;
         }
       }
-    } catch (e) {
-      // [Mantenimiento] Log removido:       debugPrint("Error in _fetchPaginated: $e");
+    } catch (_) {
+      // Ignored: Fail silently
     }
     return allRecords;
   }
@@ -137,8 +137,8 @@ class ContractApi {
       }).toList();
       
       return supportRecords.map((r) => Map<String, dynamic>.from(r)).toList();
-    } catch (e) {
-      // [Mantenimiento] Log removido:       debugPrint("Error obteniendo Product Chips: $e");
+    } catch (_) {
+      // Ignored: Fail silently
     }
     return [];
   }
@@ -198,8 +198,8 @@ class ContractApi {
       }
       return bPartners.values.toList()
         ..sort((a, b) => a['Name'].compareTo(b['Name']));
-    } catch (e) {
-      // [Mantenimiento] Log removido:       debugPrint("Error obteniendo terceros con Product Chips: $e");
+    } catch (_) {
+      // Ignored: Fail silently
     }
     return [];
   }
@@ -221,7 +221,6 @@ class ContractApi {
     }
 
     try {
-      // [Mantenimiento] Log removido:       debugPrint("DEBUG ContractApi: Updating chip $chipId with PUT. URL: $url");
 
       var response = await http.put(
         Uri.parse(url),
@@ -249,11 +248,9 @@ class ContractApi {
       }
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        // [Mantenimiento] Log removido:         debugPrint("Error actualizando ficha (${response.statusCode}): ${response.body}");
       }
       return response.statusCode >= 200 && response.statusCode < 300;
     } catch (e) {
-      // [Mantenimiento] Log removido:       debugPrint("Error actualizando descripción de Product Chip: $e");
       return false;
     }
   }

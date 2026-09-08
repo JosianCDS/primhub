@@ -1,12 +1,7 @@
 import 'dart:convert';
-
 import 'package:http/http.dart' as http;
 import 'package:primhub/endpoint/endpoint.dart';
 
-/// API mínima requerida antes de que exista una sesión autenticada.
-///
-/// Este archivo no debe importar cachés, navegación ni features autenticadas:
-/// forma parte deliberadamente del bundle inicial de Flutter Web.
 Future<Map<String, dynamic>> loginStep1(
   String username,
   String password,

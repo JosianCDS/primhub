@@ -21,6 +21,7 @@ class GlobalCache {
   static List<dynamic> users = [];
   static Map<String, int> statuses = {};
   static Map<int, bool> statusIsFinalCloseMap = {};
+  static Map<int, bool> statusIsOpenMap = {};
   static Map<int, int> statusCategoryMap = {}; // R_Status_ID -> R_StatusCategory_ID
   static Map<int, String> statusCategoryNameMap = {}; // R_StatusCategory_ID -> Name
   static List<Map<String, dynamic>> salesReps = [];
@@ -47,8 +48,6 @@ class GlobalCache {
 
   // --- FASE 1: Carga de datos esenciales (Bloqueante para el Home) ---
   static Future<void> _loadPhase1EssentialData() async {
-// [Mantenimiento] Log removido:     debugPrint("CACHE: Iniciando Fase 1 - Datos esenciales para el Home.");
-
     final bool isAdmin = AccessControl.isAdmin;
     final bool isSupport = AccessControl.isRealSupport;
     final bool isProject = AccessControl.isRealProject;
@@ -94,14 +93,13 @@ class GlobalCache {
     try {
       futures = await Future.wait(fetchFutures);
     } catch (e) {
-// [Mantenimiento] Log removido:       debugPrint("DEBUG CACHE ERROR: Error en Future.wait de Fase 1: $e");
-// [Mantenimiento] Log removido:       debugPrint(stack.toString());
       rethrow;
     }
 
     final statusData = futures[0] as Map<String, dynamic>;
     statuses = statusData['nameToId'] as Map<String, int>;
     statusIsFinalCloseMap = statusData['idToIsFinalClose'] as Map<int, bool>;
+    statusIsOpenMap = statusData['idToIsOpen'] as Map<int, bool>;
     statusCategoryMap = statusData['idToCategoryId'] as Map<int, int>;
     statusCategoryNameMap = statusData['categoryIdToName'] as Map<int, String>;
     
@@ -148,12 +146,7 @@ class GlobalCache {
 
     bPartners = mergedMap.values.toList()..sort((a, b) => (a['Name'] ?? '').compareTo(b['Name'] ?? ''));
     _rawBPartners = bPartners;
-    
-// [Mantenimiento] Log removido:     debugPrint("CACHE: Phase 1 BPartners Loaded (Support + With Chips): ${bPartners.length}");
-
-    final rawUsers = futures[4] as List<dynamic>;
-// [Mantenimiento] Log removido:     debugPrint("CACHE: Recibidos ${rawUsers.length} Usuarios raw.");
-    
+    final rawUsers = futures[4] as List<dynamic>;    
     final allProcessedUsers = rawUsers.map((u) {
       if (u is! Map) return <String, dynamic>{};
       final user = Map<String, dynamic>.from(u);
@@ -176,8 +169,6 @@ class GlobalCache {
       return uBpId != null && customerBpIds.contains(uBpId);
     }).toList();
     
-// [Mantenimiento] Log removido:     debugPrint("CACHE: Phase 1 Users Filtered (Customers Only): ${users.length}");
-
     // Mapeo de Representantes Comerciales (desde la nueva consulta dedicada)
     final localRawSalesReps = (futures[5] as List<dynamic>)
         .map((e) {
@@ -236,7 +227,6 @@ class GlobalCache {
         
         return true;
       } catch (e) {
-        // En caso de cualquier error (por ej. casting estricto en dart2js web)
         return true;
       }
     }).toList();
@@ -266,9 +256,6 @@ class GlobalCache {
     );
 
     requests = List<Map<String, dynamic>>.from(initialRequests);
-// [Mantenimiento] Log removido:     debugPrint(
-// [Mantenimiento] Log removido:       "CACHE: Fase 1 completada. ${requests.length} solicitudes iniciales.",
-// [Mantenimiento] Log removido:     );
   }
 
   static bool _isSyncing = false;
@@ -280,7 +267,7 @@ class GlobalCache {
 
     // Si ya hay una sincronización en curso, esperamos a que termine
     if (_isSyncing) {
-// [Mantenimiento] Log removido:       debugPrint("CACHE: Ya hay una sincronización en curso. Esperando...");
+
       await _syncCompleter?.future;
       return;
     }
@@ -301,7 +288,6 @@ class GlobalCache {
       isDataLoaded = true;
       if (!(_syncCompleter?.isCompleted ?? true)) _syncCompleter?.complete();
     } catch (e) {
-// [Mantenimiento] Log removido:       debugPrint("ERROR en GlobalCache.syncData: $e");
       if (!(_syncCompleter?.isCompleted ?? true)) _syncCompleter?.completeError(e);
       // Marcamos como cargado para no reintentar infinitamente si el error es persistente
       isDataLoaded = true;
@@ -405,6 +391,7 @@ class GlobalCache {
     salesReps.clear();
     statuses.clear();
     statusIsFinalCloseMap.clear();
+    statusIsOpenMap.clear();
     statusCategoryMap.clear();
     requestTypes.clear();
     requestTypeCategoryMap.clear();
@@ -421,7 +408,7 @@ class GlobalCache {
       const expand =
           "R_Status_ID(\$select=Name,IsOpen,IsClosed),R_Group_ID(\$select=Name),R_RequestType_ID(\$select=Name),R_Category_ID(\$select=Name),C_Order_ID(\$select=DocumentNo),C_BPartner_ID(\$select=Name,Description)";
       final freshData = await fetchRequest(
-        filter: "R_Request_ID eq $requestId",
+        filter: "id eq $requestId",
         expand: expand,
       );
       if (freshData.isNotEmpty) {
@@ -438,7 +425,7 @@ class GlobalCache {
         backgroundSyncNotifier.value = !backgroundSyncNotifier.value;
       }
     } catch (e) {
-// [Mantenimiento] Log removido:       debugPrint("Error sync single: $e");
+      // Ignored: silent fail on background single sync
     }
   }
 
@@ -543,9 +530,7 @@ class GlobalCache {
     _activeProjectCompleters[projectId] = completer;
     projectLoadingStatus[projectId] = true;
 
-    try {
-// [Mantenimiento] Log removido:       debugPrint("CACHE: Iniciando carga COMPLETA para Proyecto $projectId");
-      
+    try {      
       final currentYear = DateTime.now().year;
       final threeYearsAgo = currentYear - 3;
       
@@ -572,9 +557,8 @@ class GlobalCache {
         if (onUpdate != null) onUpdate(projectRequestsCache[projectId]!);
       }
 
-// [Mantenimiento] Log removido:       debugPrint("CACHE: Carga completa para Proyecto $projectId (Total: ${projectRequestsCache[projectId]?.length ?? 0} recs).");
-    } catch (e) {
-// [Mantenimiento] Log removido:       debugPrint("CACHE: Error en carga de proyecto $projectId: $e");
+    } catch (_) {
+      // Ignored: Fail silently
     } finally {
       projectLoadingStatus[projectId] = false;
       _activeProjectCompleters.remove(projectId);
@@ -665,8 +649,8 @@ class GlobalCache {
           };
         }
       }
-    } catch (e) {
-// [Mantenimiento] Log removido:       debugPrint("Error fetching admin company: $e");
+    } catch (_) {
+      // Ignored: Fail silently
     }
     return null;
   }

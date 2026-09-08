@@ -132,7 +132,9 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
           Object? extra;
           try {
             extra = GoRouterState.of(context).extra;
-          } catch (_) {}
+          } catch (_) {
+      // Ignored: Fail silently
+    }
 
           final args =
               (extra ?? ModalRoute.of(context)?.settings.arguments)

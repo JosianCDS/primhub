@@ -300,7 +300,9 @@ class FilePreviewManager {
     String textContent = "Error al decodificar.";
     try {
       textContent = utf8.decode(data, allowMalformed: true);
-    } catch (_) {}
+    } catch (_) {
+      // Ignored: Fail silently
+    }
     return Container(
       height: 400,
       width: double.infinity,

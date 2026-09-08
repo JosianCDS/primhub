@@ -57,7 +57,9 @@ class _CustomDrawerState extends State<CustomDrawer> {
             if (partnerId != null) User.cBPartnerID = partnerId;
           }
         }
-      } catch (_) {}
+      } catch (_) {
+      // Ignored: Fail silently
+    }
     }
 
     if (partnerId == null) return;
@@ -84,7 +86,9 @@ class _CustomDrawerState extends State<CustomDrawer> {
           }
         }
       }
-    } catch (_) {}
+    } catch (_) {
+      // Ignored: Fail silently
+    }
   }
 
   void _loadUserInfo() async {

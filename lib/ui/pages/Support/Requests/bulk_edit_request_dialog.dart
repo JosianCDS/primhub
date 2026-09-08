@@ -10,6 +10,7 @@ import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/api/global_cache.dart';
+import 'package:primhub/ui/pages/Support/Requests/bulk_summary_view.dart';
 import 'package:primhub/api/contract_api.dart'; // Para Product Chips
 import 'package:primhub/api/access_control.dart';
 
@@ -30,6 +31,8 @@ class BulkEditRequestDialog extends StatefulWidget {
 class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
   bool _isLoading = true;
   bool _isSaving = false;
+  bool _showSummary = false;
+  final List<Map<String, dynamic>> _results = [];
   int? _processingId;
   int _successCount = 0;
   int _errorCount = 0;
@@ -257,6 +260,8 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
 
     setState(() {
       _isSaving = true;
+      _showSummary = false;
+      _results.clear();
       _successCount = 0;
       _errorCount = 0;
       _currentIndex = 0;
@@ -271,6 +276,10 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
         _processingId = id;
         _currentIndex = i + 1;
       });
+
+      final request = GlobalCache.requests.firstWhere((r) => r['id'] == id, orElse: () => <String, dynamic>{});
+      final documentNo = request['DocumentNo']?.toString() ?? request['documentNo']?.toString() ?? id.toString();
+      final summary = request['Summary']?.toString() ?? '';
 
       final result = await updateRemoteRequest(
         id: id,
@@ -289,7 +298,17 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
         userId: _selectedUserId,
       );
 
-      if (result['success'] == true) {
+      final success = result['success'] == true;
+
+      _results.add({
+        'id': id,
+        'documentNo': documentNo,
+        'summary': summary,
+        'success': success,
+        'error': success ? null : result['message'],
+      });
+
+      if (success) {
         await GlobalCache.syncSingleRequest(id);
         if (mounted) setState(() => _successCount++);
       } else {
@@ -303,10 +322,9 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
       
       setState(() {
         _isSaving = false;
+        _showSummary = true;
         _processingId = null;
       });
-      Navigator.pop(context);
-      ToastMessage.show(context: context, message: 'Edición masiva completada: $_successCount exitosos, $_errorCount errores.', type: ToastType.warning);
       widget.onSaved();
     }
   }
@@ -382,6 +400,22 @@ class _BulkEditRequestDialogState extends State<BulkEditRequestDialog> {
 
   @override
   Widget build(BuildContext context) {
+    if (_showSummary) {
+      return CustomModal(
+        title: 'Resumen de Edición Masiva',
+        width: 600,
+        content: BulkSummaryView(
+          results: _results,
+        ),
+        actions: [
+          CustomButton(
+            text: 'Cerrar',
+            onPressed: () => Navigator.pop(context),
+          ),
+        ],
+      );
+    }
+
     if (_isLoading) {
       return const CustomModal(
         title: 'Edición Masiva',

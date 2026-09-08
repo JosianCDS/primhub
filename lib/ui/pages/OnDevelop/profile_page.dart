@@ -61,7 +61,9 @@ class _ProfilePageState extends State<ProfilePage> {
             if (partnerId != null) User.cBPartnerID = partnerId; // Guardar en memoria
           }
         }
-      } catch (_) {}
+      } catch (_) {
+      // Ignored: Fail silently
+    }
     }
 
     if (partnerId == null) return;

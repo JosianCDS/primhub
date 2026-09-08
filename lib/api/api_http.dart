@@ -2,8 +2,6 @@ import 'dart:convert';
 import 'package:http/http.dart' as http_client;
 import 'package:primhub/api/api_utils.dart';
 import 'package:primhub/api/token.dart';
-
-// Exportamos MultipartRequest y dependencias comúnmente usadas para que el reemplazo de import 'package:http/http.dart' as http no rompa.
 export 'package:http/http.dart' show MultipartRequest, MultipartFile, Response, StreamedResponse, Client;
 
 /// Un wrapper alrededor de package:http/http.dart que intercepta automáticamente
@@ -97,16 +95,10 @@ Future<http_client.StreamedResponse> send(http_client.BaseRequest request) async
     }
   }
 
-  // send consume el request, por lo que no es trivial reintentarlo si falla con 401
-  // Esto es un wrapper básico, si se usa send (por ejemplo en MultipartRequest), 
-  // es responsabilidad del llamante recrear el request si da 401, o se puede lanzar error.
   var response = await request.send();
   if (response.statusCode == 401 && !skipCheck) {
     final refreshed = await handleTokenRefresh();
     if (refreshed) {
-      // Como el request original está "finalizado", no podemos simplemente hacer send(request) de nuevo.
-      // Retornamos el 401 original y que el código que llama a send() lo maneje o recree.
-      // Opcional: Podríamos intentar recrear Requests básicos, pero para Multipart es complejo.
     }
   }
   return response;

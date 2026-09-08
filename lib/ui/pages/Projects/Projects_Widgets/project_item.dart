@@ -82,7 +82,9 @@ class ProjectItem extends StatelessWidget {
         }
         return rProjId?.toString() == projIdStr;
       }).length;
-    } catch (_) {}
+    } catch (_) {
+      // Ignored: Fail silently
+    }
 
     final colorScheme = Theme.of(context).colorScheme;
     final uniformColor = colorScheme.primary;

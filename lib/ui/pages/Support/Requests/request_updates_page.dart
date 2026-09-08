@@ -44,7 +44,6 @@ class _RequestUpdatesPageState extends State<RequestUpdatesPage> {
 
   Future<void> _fetchDetails({bool forceNetwork = false}) async {
     try {
-// [Mantenimiento] Log removido:       debugPrint("DEBUG: [INIT] Fetching details. ID: ${widget.requestId}, DocNo: ${widget.docNo}, Force: $forceNetwork");
 
       // 1. INTENTO EN CACHÉ (Instantáneo si no se fuerza red)
       if (!forceNetwork) {
@@ -62,45 +61,36 @@ class _RequestUpdatesPageState extends State<RequestUpdatesPage> {
         }
 
         if (cached.isNotEmpty) {
-// [Mantenimiento] Log removido:           debugPrint("DEBUG: [CACHE] Found request in GlobalCache.");
           _handleFoundRequest(cached.first);
           return;
         }
       }
 
       // 2. INTENTO API POR ID (Búsqueda principal y más precisa)
-// [Mantenimiento] Log removido:       debugPrint("DEBUG: [STAGE 1] Searching by ID: ${widget.requestId}");
       final reqsId = await fetchRequest(
-        filter: "id eq ${widget.requestId} or R_Request_ID eq ${widget.requestId}",
-        select: "id,DocumentNo,Summary,Description,Help,Result,CDS_EmailSubject,Created,Priority,R_Status_ID,R_Category_ID,R_RequestType_ID,C_BPartner_ID,AD_User_ID,SalesRep_ID,QtySpent,ConfidentialTypeEntry",
+        filter: "id eq ${widget.requestId}",
       );
 
       if (reqsId.isNotEmpty) {
-// [Mantenimiento] Log removido:         debugPrint("DEBUG: [STAGE 1 SUCCESS] Found via internal ID.");
         _handleFoundRequest(reqsId.first);
         return;
       }
 
       // 3. INTENTO API POR DOCUMENT NO (Respaldo si el ID no funcionó)
       if (widget.docNo.isNotEmpty && widget.docNo != widget.requestId.toString()) {
-// [Mantenimiento] Log removido:         debugPrint("DEBUG: [STAGE 2] ID search failed. Searching by DocumentNo: ${widget.docNo}");
         final reqsDoc = await fetchRequest(
           filter: "DocumentNo eq '${widget.docNo}'",
-          select: "id,DocumentNo,Summary,Description,Help,Result,CDS_EmailSubject,Created,Priority,R_Status_ID,R_Category_ID,R_RequestType_ID,C_BPartner_ID,AD_User_ID,SalesRep_ID,QtySpent,ConfidentialTypeEntry",
         );
         if (reqsDoc.isNotEmpty) {
-// [Mantenimiento] Log removido:           debugPrint("DEBUG: [STAGE 2 SUCCESS] Found via DocumentNo.");
           _handleFoundRequest(reqsDoc.first);
           return;
         }
       }
 
-// [Mantenimiento] Log removido:       debugPrint("DEBUG: [FAILED] No request found after all stages for identifier: ${widget.requestId} / ${widget.docNo}");
       
 
-    } catch (e) {
-// [Mantenimiento] Log removido:       debugPrint("DEBUG: [ERROR] Exception in _fetchDetails: $e");
-      
+    } catch (_) {
+      // Ignored: Fail silently
     }
   }
 
@@ -172,6 +162,9 @@ class _RequestUpdatesPageState extends State<RequestUpdatesPage> {
         bPartnerId: _requestDetails?['C_BPartner_ID'] is Map
             ? (_requestDetails!['C_BPartner_ID']['id'] as num?)?.toInt()
             : (_requestDetails?['C_BPartner_ID'] as num?)?.toInt() ?? _requestDetails?['bpId'],
+        salesRepId: _requestDetails?['SalesRep_ID'] is Map
+            ? (_requestDetails!['SalesRep_ID']['id'] as num?)?.toInt()
+            : (_requestDetails?['SalesRep_ID'] as num?)?.toInt() ?? 0,
         summary: (_requestDetails?['Summary'] ?? _requestDetails?['summary'] ?? widget.docNo).toString(),
         description: _memoizedDescription ?? 'Cargando...',
         requestTypeId: _requestDetails?['R_RequestType_ID'] is Map
@@ -382,6 +375,7 @@ class _AddUpdateDialog extends StatefulWidget {
   final int? currentStatusId;
   final int? adUserId;
   final int? bPartnerId;
+  final int? salesRepId;
   final String summary;
   final String description;
   final int? requestTypeId;
@@ -391,6 +385,7 @@ class _AddUpdateDialog extends StatefulWidget {
     this.currentStatusId,
     this.adUserId,
     this.bPartnerId,
+    this.salesRepId,
     required this.summary,
     required this.description,
     this.requestTypeId,
@@ -480,60 +475,34 @@ class _AddUpdateDialogState extends State<_AddUpdateDialog> {
 
     if (mounted) {
       setState(() => _isSaving = false);
-      ToastMessage.show(context: context, message: result['message'] ?? 'Error desconocido', type: ToastType.failure);
+      
       if (result['success'] == true) {
+        ToastMessage.show(context: context, message: result['message'] ?? 'Actualización creada con éxito', type: ToastType.success);
         bool statusChanged = false;
         if (_newStatusId != null && _newStatusId != widget.currentStatusId) {
           final statusResult = await updateRemoteRequest(id: widget.requestId, statusId: _newStatusId!);
           if (statusResult['success'] == true) {
             statusChanged = true;
-            if (mounted) {
-              ToastMessage.show(context: context, message: 'Estado actualizado correctamente', type: ToastType.success);
-            }
           }
         }
 
         // --- INICIO Lógica Correos ---
-        try {
-          int customerBpId = widget.bPartnerId ?? 0;
-          
-          String oldStatusName = '';
-          for (var entry in GlobalCache.statuses.entries) {
-            if (entry.value == widget.currentStatusId) {
-              oldStatusName = entry.key;
-              break;
-            }
-          }
-
-          if (customerBpId > 0 || (widget.adUserId != null && widget.adUserId! > 0)) {
-            if (statusChanged) {
-              // Si el estado cambió, se envía plantilla de Cambio de Estado (1000016)
-              sendRequestStatusEmail(
-                requestId: widget.requestId,
-                adUserId: widget.adUserId ?? 0,
-                bPartnerId: customerBpId,
-                mailTextId: 1000016,
-                updateText: resultHtml,
-                oldStatusName: oldStatusName,
-                updateId: result['id'],
-              );
-            }
-            
-            // SIEMPRE enviamos la de actualización (1000017) porque estamos en el diálogo de crear actualización
-            sendRequestStatusEmail(
-              requestId: widget.requestId,
-              adUserId: widget.adUserId ?? 0,
-              bPartnerId: customerBpId,
-              mailTextId: 1000017,
-              updateText: resultHtml,
-              oldStatusName: oldStatusName,
-              updateId: result['id'],
-            );
-          }
-        } catch (_) {}
+        _sendEmailsInBackground(
+          requestId: widget.requestId,
+          adUserId: widget.adUserId,
+          salesRepId: widget.salesRepId,
+          bPartnerId: widget.bPartnerId,
+          currentStatusId: widget.currentStatusId,
+          statusChanged: statusChanged,
+          resultHtml: resultHtml,
+          updateId: result['id'],
+          context: context,
+        );
         // --- FIN Lógica Correos ---
 
         Navigator.of(context).pop(true);
+      } else {
+        ToastMessage.show(context: context, message: result['message'] ?? 'Error desconocido', type: ToastType.failure);
       }
     }
   }
@@ -565,6 +534,85 @@ class _AddUpdateDialogState extends State<_AddUpdateDialog> {
         ],
       ),
     );
+  }
+
+  Future<void> _sendEmailsInBackground({
+    required int requestId,
+    required int? adUserId,
+    required int? salesRepId,
+    required int? bPartnerId,
+    required int? currentStatusId,
+    required bool statusChanged,
+    required String resultHtml,
+    required int updateId,
+    required BuildContext context,
+  }) async {
+    try {
+      String oldStatusName = '';
+      for (var entry in GlobalCache.statuses.entries) {
+        if (entry.value == currentStatusId) {
+          oldStatusName = entry.key;
+          break;
+        }
+      }
+
+      bool hasAdUser = adUserId != null && adUserId > 0;
+      bool hasSalesRep = salesRepId != null && salesRepId > 0;
+      bool success1 = true;
+      bool success2 = true;
+      bool emailsAttempted = false;
+
+      if (hasAdUser) {
+        emailsAttempted = true;
+        if (statusChanged) {
+          success1 = await sendRequestStatusEmail(
+            requestId: requestId,
+            adUserId: adUserId,
+            bPartnerId: bPartnerId ?? 0,
+            mailTextId: 1000016,
+            updateText: resultHtml,
+            oldStatusName: oldStatusName,
+            updateId: updateId,
+          );
+        }
+        
+        bool s1b = await sendRequestStatusEmail(
+          requestId: requestId,
+          adUserId: adUserId,
+          bPartnerId: bPartnerId ?? 0,
+          mailTextId: 1000017,
+          updateText: resultHtml,
+          oldStatusName: oldStatusName,
+          updateId: updateId,
+        );
+        success1 = success1 && s1b;
+      }
+
+      if (hasSalesRep && salesRepId != adUserId && !statusChanged) {
+        emailsAttempted = true;
+        success2 = await sendRequestStatusEmail(
+          requestId: requestId,
+          adUserId: salesRepId,
+          bPartnerId: bPartnerId ?? 0,
+          mailTextId: 1000017,
+          updateText: resultHtml,
+          oldStatusName: oldStatusName,
+          updateId: updateId,
+        );
+      }
+
+      if (!emailsAttempted) return;
+
+      if (mounted) {
+        if (success1 && success2) {
+          bool isInternal = AccessControl.isAdmin;
+          String msg = isInternal ? 'Correo enviado al cliente' : 'Correo enviado al equipo';
+          ToastMessage.show(context: context, message: msg, type: ToastType.success);
+        } else {
+          ToastMessage.show(context: context, message: 'No se pudo enviar el correo de notificación', type: ToastType.failure);
+        }
+      }
+    } catch (_) {}
   }
 
   @override
@@ -845,7 +893,9 @@ class _ImagePreview extends StatelessWidget {
           return base64Decode(binaryData);
         }
       }
-    } catch (_) {}
+    } catch (_) {
+      // Ignored: Fail silently
+    }
     return null;
   }
 

@@ -22,7 +22,9 @@ class UserInfoLeading extends StatelessWidget {
       } else if (AccessControl.isRealProject) {
         roleName = 'Usuario de Proyecto';
       }
-    } catch (_) {}
+    } catch (_) {
+      // Ignored: Fail silently
+    }
 
     return InkWell(
       onTap: () => context.push('/profile'),

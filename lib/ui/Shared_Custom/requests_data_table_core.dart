@@ -10,6 +10,7 @@ import 'package:primhub/ui/pages/Support/Requests/request_functions.dart'
 import 'package:primhub/api/global_cache.dart';
 import 'package:primhub/ui/widgets/duration_formatter.dart';
 import 'package:primhub/ui/pages/Support/Requests/bulk_edit_request_dialog.dart';
+import 'package:primhub/ui/pages/Support/Requests/bulk_reopen_request_dialog.dart';
 import 'dart:math';
 import 'package:primhub/ui/Shared_Custom/responsive_data_table.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
@@ -559,9 +560,27 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
                       children: [
                         Text(
                           '${_selectedIds.length} seleccionadas',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                            color: Colors.white,
+                          ),
                         ),
                         const Spacer(),
+                        ElevatedButton.icon(
+                          onPressed: () => showDialog(
+                            context: context,
+                            builder: (context) => BulkReopenRequestDialog(
+                              selectedIds: _selectedIds,
+                              onSaved: () =>
+                                  setState(() => _selectedIds.clear()),
+                            ),
+                          ),
+                          icon: const Icon(Icons.restore),
+                          label: const Text('Reabrir Masivamente'),
+                          style: ElevatedButton.styleFrom(
+                            foregroundColor: Colors.orange.shade700,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
                         ElevatedButton.icon(
                           onPressed: () => showDialog(
                             context: context,

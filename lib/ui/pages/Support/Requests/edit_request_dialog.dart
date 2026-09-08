@@ -1032,46 +1032,29 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
         await GlobalCache.syncSingleRequest(widget.request['realId']);
 
         // --- INICIO: Lógica de Correos Automáticos Lirion ---
-        try {
-          int adUserId = _selectedUserId ?? 
-              (widget.request['AD_User_ID'] is Map ? widget.request['AD_User_ID']['id'] : widget.request['AD_User_ID']) ?? 
-              (widget.request['userId']) ?? 0;
-          
-          int customerBpId = _selectedBpId ?? widget.request['bpId'] ?? 0;
+        int adUserId = _selectedUserId ?? 
+            (widget.request['AD_User_ID'] is Map ? widget.request['AD_User_ID']['id'] : widget.request['AD_User_ID']) ?? 
+            (widget.request['userId']) ?? 0;
+        
+        int customerBpId = _selectedBpId ?? widget.request['bpId'] ?? 0;
+        int currentStatusId = widget.request['R_Status_ID'] is Map ? widget.request['R_Status_ID']['id'] : (widget.request['R_Status_ID'] ?? 0);
+        
+        bool statusChanged = (statusIdToSend != null || statusIdentifierToSend != null);
+        bool hasNewComment = newUpdateText.isNotEmpty;
 
-          int currentStatusId = widget.request['R_Status_ID'] is Map ? widget.request['R_Status_ID']['id'] : (widget.request['R_Status_ID'] ?? 0);
-          String oldStatusName = '';
-          for (var entry in GlobalCache.statuses.entries) {
-            if (entry.value == currentStatusId) {
-              oldStatusName = entry.key;
-              break;
-            }
-          }
-
-          if (adUserId > 0 || customerBpId > 0) {
-            bool statusChanged = (statusIdToSend != null || statusIdentifierToSend != null);
-            bool hasNewComment = newUpdateText.isNotEmpty;
-            
-            int? templateId;
-            if (statusChanged) {
-              templateId = 1000016; // Cambio de Estado al editar solicitud
-            } else if (hasNewComment) {
-              templateId = 1000017; // Solicitud Actualizada
-            }
-
-            if (templateId != null) {
-              sendRequestStatusEmail(
-                requestId: widget.request['realId'],
-                updateId: newUpdateId,
-                adUserId: adUserId,
-                bPartnerId: customerBpId,
-                mailTextId: templateId,
-                updateText: newUpdateText,
-                oldStatusName: oldStatusName,
-              );
-            }
-          }
-        } catch (_) {}
+        if ((adUserId > 0 || customerBpId > 0) && (statusChanged || hasNewComment)) {
+          _sendEmailsInBackground(
+            requestId: widget.request['realId'],
+            adUserId: adUserId,
+            salesRepId: _selectedSalesRepId,
+            bPartnerId: customerBpId,
+            currentStatusId: currentStatusId,
+            statusChanged: statusChanged,
+            resultHtml: newUpdateText,
+            updateId: newUpdateId ?? 0,
+            context: context,
+          );
+        }
         // --- FIN: Lógica de Correos Automáticos Lirion ---
       }
 
@@ -1081,6 +1064,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
           if (Navigator.of(context).canPop()) {
             Navigator.of(context).pop(true);
           }
+          
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Solicitud actualizada correctamente'),
@@ -1118,6 +1102,85 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
         setState(() => _isSaving = false);
       }
     }
+  }
+
+  Future<void> _sendEmailsInBackground({
+    required int requestId,
+    required int? adUserId,
+    required int? salesRepId,
+    required int? bPartnerId,
+    required int? currentStatusId,
+    required bool statusChanged,
+    required String resultHtml,
+    required int updateId,
+    required BuildContext context,
+  }) async {
+    try {
+      String oldStatusName = '';
+      for (var entry in GlobalCache.statuses.entries) {
+        if (entry.value == currentStatusId) {
+          oldStatusName = entry.key;
+          break;
+        }
+      }
+
+      bool hasAdUser = adUserId != null && adUserId > 0;
+      bool hasSalesRep = salesRepId != null && salesRepId > 0;
+      bool success1 = true;
+      bool success2 = true;
+      bool emailsAttempted = false;
+
+      if (hasAdUser) {
+        emailsAttempted = true;
+        if (statusChanged) {
+          success1 = await sendRequestStatusEmail(
+            requestId: requestId,
+            adUserId: adUserId,
+            bPartnerId: bPartnerId ?? 0,
+            mailTextId: 1000016,
+            updateText: resultHtml,
+            oldStatusName: oldStatusName,
+            updateId: updateId,
+          );
+        } else {
+          // If status didn't change but there's a comment, send update template 1000017
+          success1 = await sendRequestStatusEmail(
+            requestId: requestId,
+            adUserId: adUserId,
+            bPartnerId: bPartnerId ?? 0,
+            mailTextId: 1000017,
+            updateText: resultHtml,
+            oldStatusName: oldStatusName,
+            updateId: updateId,
+          );
+        }
+      }
+
+      if (hasSalesRep && salesRepId != adUserId && resultHtml.isNotEmpty && !statusChanged) {
+        emailsAttempted = true;
+        success2 = await sendRequestStatusEmail(
+          requestId: requestId,
+          adUserId: salesRepId,
+          bPartnerId: bPartnerId ?? 0,
+          mailTextId: 1000017,
+          updateText: resultHtml,
+          oldStatusName: oldStatusName,
+          updateId: updateId,
+        );
+      }
+
+      if (!emailsAttempted) return;
+
+      if (mounted) {
+        if (success1 && success2) {
+          bool isInternal = AccessControl.isAdmin;
+          String msg = isInternal ? 'Correo enviado al cliente' : 'Correo enviado al equipo';
+          ToastMessage.show(context: context, message: msg, type: ToastType.success);
+        } else {
+          ToastMessage.show(context: context, message: 'No se pudo enviar el correo de notificación', type: ToastType.failure);
+        }
+      }
+    } catch (_) {}
   }
 
   @override

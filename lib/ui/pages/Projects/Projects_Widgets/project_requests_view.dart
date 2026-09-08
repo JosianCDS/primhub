@@ -72,8 +72,6 @@ class _ProjectRequestsViewState extends State<ProjectRequestsView> {
 
   Future<void> _loadRequests({bool resetPage = true}) async {
     // --- DEBUG LOGS ---
-// [Mantenimiento] Log removido:     print("DEBUG: Cargando solicitudes para Proyecto ID: ${widget.projectId}");
-// [Mantenimiento] Log removido:     print("DEBUG: Total solicitudes en Cache: ${GlobalCache.requests.length}");
 
     List<String> taskUUIDs = [];
     Map<String, String> uuidToTaskName = {};
@@ -169,7 +167,6 @@ class _ProjectRequestsViewState extends State<ProjectRequestsView> {
       final cached = GlobalCache.projectRequestsCache[projectId];
       
       if (cached != null && cached.isNotEmpty) {
-// [Mantenimiento] Log removido:         debugPrint("PROJECT_VIEW: Usando datos de caché para Proyecto $projectId (${cached.length} registros)");
         _processRawRequests(cached, uuidToTaskName, uuidToPhaseName, taskIdToTaskName, taskIdToPhaseName, idToPhaseName, resetPage: resetPage);
         
         // Refrescar en fondo igual por si hay cambios o faltan años
@@ -181,7 +178,6 @@ class _ProjectRequestsViewState extends State<ProjectRequestsView> {
           }
         );
       } else {
-// [Mantenimiento] Log removido:         debugPrint("PROJECT_VIEW: Iniciando carga gradual para Proyecto $projectId");
         
         // Lanzar carga gradual en fondo inmediatamente
         GlobalCache.loadProjectRequestsInBackground(
@@ -282,46 +278,38 @@ class _ProjectRequestsViewState extends State<ProjectRequestsView> {
       if (_filters.types.isNotEmpty) {
         bool m = _filters.types.contains(req['type']);
         if (!m) match = false;
-// [Mantenimiento] Log removido:         debugPrint("DEBUG FILTER [Tipo]: Filter: ${_filters.types}, Value: ${req['type']} -> Match: $m");
       }
       if (match && _filters.statuses.isNotEmpty) {
         bool m = _filters.statuses.contains(req['status']);
         if (!m) match = false;
-// [Mantenimiento] Log removido:         debugPrint("DEBUG FILTER [Estado]: Filter: ${_filters.statuses}, Value: ${req['status']} -> Match: $m");
       }
       if (match && _filters.levels.isNotEmpty) {
         String val = (req['level']?.toString().trim() ?? 'N/A').toLowerCase();
         bool m = _filters.levels.any((f) => f.toLowerCase().trim() == val);
         if (!m) match = false;
-// [Mantenimiento] Log removido:         debugPrint("DEBUG FILTER [Prioridad]: Filter: ${_filters.levels}, Value: '$val' -> Match: $m");
       }
       if (match && _filters.phases.isNotEmpty) {
         String val = (req['phaseName']?.toString().trim() ?? '-').toLowerCase();
         bool m = _filters.phases.any((f) => f.toLowerCase().trim() == val);
         if (!m) match = false;
-// [Mantenimiento] Log removido:         debugPrint("DEBUG FILTER [Fase]: Filter: ${_filters.phases}, Value: '$val' -> Match: $m");
       }
       if (match && _filters.tasks.isNotEmpty) {
         String val = (req['taskName']?.toString().trim() ?? '').toLowerCase();
         bool m = _filters.tasks.any((f) => f.toLowerCase().trim() == val);
         if (!m) match = false;
-// [Mantenimiento] Log removido:         debugPrint("DEBUG FILTER [Tarea]: Filter: ${_filters.tasks}, Value: '$val' -> Match: $m");
       }
       if (match && _filters.categories.isNotEmpty) {
         String val = (req['category']?.toString().trim() ?? 'Sin categoría').toLowerCase();
         bool m = _filters.categories.any((f) => f.toLowerCase().trim() == val);
         if (!m) match = false;
-// [Mantenimiento] Log removido:         debugPrint("DEBUG FILTER [Categoría]: Filter: ${_filters.categories}, Value: '$val' -> Match: $m");
       }
       if (match && _filters.salesRepIds.isNotEmpty) {
         bool m = _filters.salesRepIds.contains(req['salesRepId']);
         if (!m) match = false;
-// [Mantenimiento] Log removido:         debugPrint("DEBUG FILTER [RepCom]: Filter: ${_filters.salesRepIds}, Value: ${req['salesRepId']} -> Match: $m");
       }
       if (match && _filters.userIds.isNotEmpty) {
         bool m = _filters.userIds.contains(req['userId']);
         if (!m) match = false;
-// [Mantenimiento] Log removido:         debugPrint("DEBUG FILTER [Usuario]: Filter: ${_filters.userIds}, Value: ${req['userId']} -> Match: $m");
       }
 
       if (match && _searchController.text.isNotEmpty) {
@@ -329,7 +317,6 @@ class _ProjectRequestsViewState extends State<ProjectRequestsView> {
         bool m = req['id'].toString().toLowerCase().contains(search) ||
             (req['descriptionClean'] ?? '').toString().toLowerCase().contains(search);
         if (!m) match = false;
-// [Mantenimiento] Log removido:         debugPrint("DEBUG FILTER [Búsqueda]: Query: '$search' -> Match: $m");
       }
 
       return match;
@@ -473,7 +460,6 @@ class _ProjectRequestsViewState extends State<ProjectRequestsView> {
   int get _activeFilterCount => _filters.activeFilterCount;
 
   Future<void> _showFilterModal() async {
-// [Mantenimiento] Log removido:     debugPrint("MODAL ALL REQUESTS LENGTH: ${_allProjectRequests.length}");
     final phases = _allProjectRequests
         .map((e) => e['phaseName']?.toString().trim() ?? '-')
         .where((e) => e != '-' && e != 'null' && e.isNotEmpty)

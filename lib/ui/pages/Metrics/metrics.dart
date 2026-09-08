@@ -38,8 +38,9 @@ class _MetricsPageState extends State<MetricsPage> {
   int? _selectedProjectId;
   List<dynamic> _projects = [];
   final ValueNotifier<int> _projectsLoadNotifier = ValueNotifier<int>(0);
-
   final _adminViewModeManager = AdminViewModeManager();
+  String _supportProductChipFilter = 'mixto';
+  int? _supportSpecificChipId;
 
   bool _isInit = true;
 
@@ -49,7 +50,7 @@ class _MetricsPageState extends State<MetricsPage> {
   List<double> _supportStatusValues = [];
   List<String> _supportStatusLabels = [];
 
-  int? _supportSelectedYear = DateTime.now().year;
+  final int _supportSelectedYear = DateTime.now().year;
   int? _supportSelectedBpId;
   List<Map<String, dynamic>> _supportBPartners = [];
 
@@ -75,15 +76,30 @@ class _MetricsPageState extends State<MetricsPage> {
   }
 
   Future<void> _initializeData() async {
-    if (GlobalCache.requests.isEmpty && GlobalCache.projects.isEmpty) {
+    if (_isInit) {
       setState(() {
         _isLoading = true;
         _isLoadingSupport = true;
       });
-      await GlobalCache.syncData();
     }
-    
+
+    // Asegurar sincronización básica
+    await GlobalCache.syncData();
+
+    // Esperar a que la Fase 2 (carga completa) termine antes de continuar.
+    // Esto asegura que el skeleton se muestre hasta que los datos históricos estén listos.
+    try {
+      if (GlobalCache.phase2SyncFuture != null) {
+        await GlobalCache.phase2SyncFuture;
+      }
+    } catch (_) {
+      // Ignored: Fail silently
+    }
+
     if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
       if (AccessControl.canViewProjectCharts) {
         _loadProjects();
       }
@@ -113,7 +129,9 @@ class _MetricsPageState extends State<MetricsPage> {
       Object? extra;
       try {
         extra = GoRouterState.of(context).extra;
-      } catch (_) {}
+      } catch (_) {
+      // Ignored: Fail silently
+    }
 
       if (extra is Map && extra['projectId'] != null) {
         _selectedProjectId = extra['projectId'];
@@ -325,7 +343,9 @@ class _MetricsPageState extends State<MetricsPage> {
                     .toList();
               });
             }
-          } catch (_) {}
+          } catch (_) {
+      // Ignored: Fail silently
+    }
         }
       }
     }
@@ -362,9 +382,6 @@ class _MetricsPageState extends State<MetricsPage> {
             p['Name'].toString().trim().isNotEmpty;
       }).toList();
 
-// [Mantenimiento] Log removido:       debugPrint(
-// [Mantenimiento] Log removido:         "DEBUG METRICS: Proyectos válidos recibidos: ${projects.length}",
-// [Mantenimiento] Log removido:       );
 
       if (mounted) {
         setState(() {
@@ -388,7 +405,6 @@ class _MetricsPageState extends State<MetricsPage> {
         }
       }
     } catch (e) {
-// [Mantenimiento] Log removido:       debugPrint("Error cargando proyectos: $e");
       if (mounted) {
         ToastMessage.show(context: context, message: 'Error cargando lista de proyectos: $e', type: ToastType.help);
         setState(() {
@@ -468,7 +484,6 @@ class _MetricsPageState extends State<MetricsPage> {
         });
       }
     } catch (e) {
-// [Mantenimiento] Log removido:       debugPrint("DEBUG ERROR EN METRICS: $e");
       if (mounted) {
         setState(() => _isLoading = false);
         ToastMessage.show(context: context, message: 'Error al calcular métricas: $e', type: ToastType.failure);
@@ -493,9 +508,17 @@ class _MetricsPageState extends State<MetricsPage> {
           } else if (AccessControl.isAdmin && _supportSelectedBpId != null) {
             if (bpId != _supportSelectedBpId) return false;
           }
-          
-          if (req['productChipId'] == null && req['C_BPartner_Product_Chip_ID'] == null) {
+          bool hasChip = req['productChipId'] != null || req['C_BPartner_Product_Chip_ID'] != null;
+          if (_supportProductChipFilter == 'con_ficha' && !hasChip) {
             return false;
+          }
+          if (_supportProductChipFilter == 'sin_ficha' && hasChip) {
+            return false;
+          }
+          if (_supportSpecificChipId != null) {
+            int? reqChipId = req['productChipId'] is Map ? req['productChipId']['id'] : req['productChipId'];
+            reqChipId ??= req['C_BPartner_Product_Chip_ID'] is Map ? req['C_BPartner_Product_Chip_ID']['id'] : req['C_BPartner_Product_Chip_ID'];
+            if (reqChipId != _supportSpecificChipId) return false;
           }
           
           return true;
@@ -518,7 +541,15 @@ class _MetricsPageState extends State<MetricsPage> {
           expand: expand,
         );
         rawRequests = fetchedRequests.where((req) {
-          return req['productChipId'] != null || req['C_BPartner_Product_Chip_ID'] != null;
+          bool hasChip = req['productChipId'] != null || req['C_BPartner_Product_Chip_ID'] != null;
+          if (_supportProductChipFilter == 'con_ficha' && !hasChip) return false;
+          if (_supportProductChipFilter == 'sin_ficha' && hasChip) return false;
+          if (_supportSpecificChipId != null) {
+            int? reqChipId = req['productChipId'] is Map ? req['productChipId']['id'] : req['productChipId'];
+            reqChipId ??= req['C_BPartner_Product_Chip_ID'] is Map ? req['C_BPartner_Product_Chip_ID']['id'] : req['C_BPartner_Product_Chip_ID'];
+            if (reqChipId != _supportSpecificChipId) return false;
+          }
+          return true;
         }).toList();
       }
 
@@ -538,12 +569,10 @@ class _MetricsPageState extends State<MetricsPage> {
         }
 
         // Filtro local por Año
-        if (_supportSelectedYear != null) {
-          String created = req['Created'] ?? '';
-          if (created.length >= 4) {
-            int? year = int.tryParse(created.substring(0, 4));
-            if (year != _supportSelectedYear) continue;
-          }
+        String created = req['Created'] ?? '';
+        if (created.length >= 4) {
+          int? year = int.tryParse(created.substring(0, 4));
+          if (year != _supportSelectedYear) continue;
         }
 
         // Extracción robusta de Estado
@@ -564,29 +593,64 @@ class _MetricsPageState extends State<MetricsPage> {
           );
         }
 
-        if (rawStatusName.isEmpty) rawStatusName = 'Desconocido';
+        String lowerStatus = rawStatusName.toLowerCase();
+        
+        // Excluir Anuladas
+        if (lowerStatus.contains('anulada')) continue;
 
-        // NUEVO FILTRO: Solo admitir estados cuya categoría contenga "Soporte"
         final int? statusId = statusObj is Map ? (statusObj['id'] as num?)?.toInt() : (statusObj is num ? statusObj.toInt() : null);
+
+        bool isOpen = false;
+        if (statusData != null && statusData['IsOpen'] != null) {
+          final rawIsOpen = statusData['IsOpen'];
+          final isOpenStr = rawIsOpen?.toString().trim().toLowerCase();
+          isOpen = (isOpenStr == 'true' || isOpenStr == 'y' || rawIsOpen == true);
+        } else if (statusId != null) {
+          isOpen = GlobalCache.statusIsOpenMap[statusId] ?? false;
+        }
+
+        if (!isOpen) continue;
+
+        // Comprobar si pertenece a la categoría de estado "Soporte Técnico"
+        bool isSoporteTecnico = false;
         if (statusId != null) {
-          int? statusCatId = GlobalCache.statusCategoryMap[statusId];
-          String? catName = statusCatId != null ? GlobalCache.statusCategoryNameMap[statusCatId] : null;
-          if (catName == null || !catName.toLowerCase().contains('soporte')) {
-            continue; // Saltar si la categoría de estado no contiene "soporte"
+          final statusCategoryId = GlobalCache.statusCategoryMap[statusId];
+          if (statusCategoryId != null) {
+            final categoryName = GlobalCache.statusCategoryNameMap[statusCategoryId]?.toLowerCase() ?? '';
+            if (categoryName.contains('soporte técnico') || categoryName.contains('soporte tecnico')) {
+               isSoporteTecnico = true;
+            }
           }
-        } else {
-          continue; // Saltar si no hay estado válido
+        }
+
+        if (!isSoporteTecnico) {
+          continue;
+        }
+
+        // Comprobar si es de tipo "Soporte Lirion"
+        bool isSoporteLirion = false;
+        final typeObj = req['R_RequestType_ID'];
+        if (typeObj is Map) {
+          String typeName = (typeObj['Name'] ?? typeObj['identifier'] ?? '').toString().toLowerCase();
+          isSoporteLirion = typeName.contains('soporte lirion');
+        } else if (typeObj != null) {
+          int? typeId = int.tryParse(typeObj.toString());
+          if (typeId != null) {
+            String? name = GlobalCache.requestTypes.keys.cast<String?>().firstWhere((k) => GlobalCache.requestTypes[k] == typeId, orElse: () => null);
+            if (name != null && name.toLowerCase().contains('soporte lirion')) {
+              isSoporteLirion = true;
+            }
+          }
+        }
+
+        if (!isSoporteLirion) {
+          continue;
         }
 
         String cleanStatus = rawStatusName.contains('_')
             ? rawStatusName.split('_').last.trim()
             : rawStatusName.trim();
-        String lowerStatus = rawStatusName.toLowerCase();
 
-        // Excluir "Anuladas" para no ensuciar las métricas de soporte
-        if (lowerStatus.contains('anulada')) {
-          continue;
-        }
 
         // Prioridad robusta - Siempre leer desde la Categoría para tickets de Soporte
         dynamic rawPriority;
@@ -1058,13 +1122,11 @@ class _MetricsPageState extends State<MetricsPage> {
                       'Métricas de Soporte',
                       Icons.support_agent_rounded,
                     ),
-                    if (!AccessControl.isSupport) ...[
-                      _buildControlCenterContainer(
-                        context,
-                        child: _buildSupportFilters(),
-                      ),
-                      const SizedBox(height: 24),
-                    ],
+                    _buildControlCenterContainer(
+                      context,
+                      child: _buildSupportFilters(),
+                    ),
+                    const SizedBox(height: 24),
 
                     if (!_isLoadingSupport) _buildSupportKPIRow(context),
                     const SizedBox(height: 24),
@@ -1347,6 +1409,14 @@ class _MetricsPageState extends State<MetricsPage> {
               color: Colors.indigo,
               width: cardWidth,
               tooltip: 'Muestra el total histórico de tus solicitudes activas vinculadas a fichas de horas.',
+              onTap: () {
+                context.push(
+                  '/metric-requests',
+                  extra: {
+                    'filterType': 'Solicitudes Totales', // Or whatever name looks good in the app bar
+                  },
+                );
+              },
             ),
             _KPICard(
               title: 'Tickets Críticos',
@@ -1355,6 +1425,14 @@ class _MetricsPageState extends State<MetricsPage> {
               color: Colors.red,
               width: cardWidth,
               tooltip: 'Muestra el total de solicitudes activas de prioridad Urgente o Alta vinculadas a fichas de horas.',
+              onTap: () {
+                context.push(
+                  '/metric-requests',
+                  extra: {
+                    'filterPriority': 'Críticos',
+                  },
+                );
+              },
             ),
           ],
         );
@@ -1708,6 +1786,16 @@ class _MetricsPageState extends State<MetricsPage> {
               _supportStatusLabels,
               donutColors2,
               initialHiddenLabels: const ['Archivada'],
+              onSliceTapped: (label) {
+                context.push(
+                  '/metric-requests',
+                  extra: {
+                    'filterStatus': label,
+                    'filterProductChip': _supportProductChipFilter,
+                    'filterSpecificChipId': _supportSpecificChipId,
+                  },
+                );
+              },
             ),
       action: const Tooltip(
         message: 'Muestra el estado histórico de tus solicitudes activas vinculadas a fichas de horas. Puedes hacer clic en los estados de la leyenda para ocultarlos o mostrarlos.',
@@ -1733,6 +1821,16 @@ class _MetricsPageState extends State<MetricsPage> {
               values: _supportPriorityValues,
               colors: priorityColors,
               tooltipSuffix: 'sol.',
+              onBarTapped: (label) {
+                context.push(
+                  '/metric-requests',
+                  extra: {
+                    'filterPriority': label,
+                    'filterProductChip': _supportProductChipFilter,
+                    'filterSpecificChipId': _supportSpecificChipId,
+                  },
+                );
+              },
             ),
       action: const Tooltip(
         message: 'Muestra la prioridad de tus solicitudes activas vinculadas a fichas de horas.',
@@ -1905,30 +2003,7 @@ class _MetricsPageState extends State<MetricsPage> {
   Widget _buildSupportFilters() {
     return Row(
       children: [
-        Expanded(
-          child: CustomDropdown<int?>(
-            label: 'Año',
-            value: _supportSelectedYear,
-            items: [
-              const DropdownMenuItem<int?>(
-                value: null,
-                child: Text('Todos los Años'),
-              ),
-              ...List.generate(5, (index) => DateTime.now().year - index).map(
-                (year) => DropdownMenuItem<int?>(
-                  value: year,
-                  child: Text(year.toString()),
-                ),
-              ),
-            ],
-            onChanged: (val) {
-              setState(() => _supportSelectedYear = val);
-              _loadSupportMetrics();
-            },
-          ),
-        ),
         if (AccessControl.isAdmin) ...[
-          const SizedBox(width: 16),
           Expanded(
             child: InkWell(
               onTap: _supportBPartners.isEmpty
@@ -1967,6 +2042,84 @@ class _MetricsPageState extends State<MetricsPage> {
             ),
           ),
         ],
+        const SizedBox(width: 16),
+        Expanded(
+          child: CustomDropdown<String>(
+            label: 'Condición Ficha',
+            value: _supportProductChipFilter,
+            items: const [
+              DropdownMenuItem<String>(
+                value: 'mixto',
+                child: Text('Mixto (Todas)'),
+              ),
+              DropdownMenuItem<String>(
+                value: 'con_ficha',
+                child: Text('Con Ficha Asociada'),
+              ),
+              DropdownMenuItem<String>(
+                value: 'sin_ficha',
+                child: Text('Sin Ficha Asociada'),
+              ),
+            ],
+            onChanged: (val) {
+              if (val != null) {
+                setState(() {
+                  _supportProductChipFilter = val;
+                  if (val == 'sin_ficha') _supportSpecificChipId = null;
+                });
+                _loadSupportMetrics();
+              }
+            },
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: CustomDropdown<int?>(
+            label: 'Ficha Específica',
+            value: _supportSpecificChipId,
+            items: [
+              const DropdownMenuItem<int?>(
+                value: null,
+                child: Text('Cualquier Ficha'),
+              ),
+              ...GlobalCache.productChips.where((c) {
+                if (c['IsActive'] != true && c['IsActive'] != 'Y') return false;
+                
+                int? chipBpId;
+                if (c['C_BPartner_ID'] is Map) {
+                  chipBpId = c['C_BPartner_ID']['id'];
+                } else if (c['C_BPartner_ID'] is int) {
+                  chipBpId = c['C_BPartner_ID'];
+                }
+
+                if (AccessControl.isAdmin && _supportSelectedBpId != null) {
+                  if (chipBpId != _supportSelectedBpId) return false;
+                } else if (!AccessControl.isAdmin && User.cBPartnerID != null) {
+                  if (chipBpId != User.cBPartnerID) return false;
+                }
+                
+                return true;
+              }).map((chip) {
+                return DropdownMenuItem<int?>(
+                  value: chip['id'],
+                  child: Text(
+                    chip['Description'] ?? chip['Name'] ?? chip['identifier'] ?? 'Ficha ${chip['id']}',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                );
+              }),
+            ],
+            onChanged: _supportProductChipFilter == 'sin_ficha' ? null : (val) {
+              setState(() {
+                _supportSpecificChipId = val;
+                if (val != null && _supportProductChipFilter == 'mixto') {
+                  _supportProductChipFilter = 'con_ficha';
+                }
+              });
+              _loadSupportMetrics();
+            },
+          ),
+        ),
       ],
     );
   }
@@ -2247,6 +2400,7 @@ class _KPICard extends StatelessWidget {
   final Color color;
   final double width;
   final String? tooltip;
+  final VoidCallback? onTap;
 
   const _KPICard({
     required this.title,
@@ -2255,6 +2409,7 @@ class _KPICard extends StatelessWidget {
     required this.color,
     required this.width,
     this.tooltip,
+    this.onTap,
   });
 
   @override
@@ -2263,11 +2418,8 @@ class _KPICard extends StatelessWidget {
 
     return Container(
       width: width,
-      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.15)),
         boxShadow: [
           BoxShadow(
             color: color.withOpacity(0.05),
@@ -2276,6 +2428,18 @@ class _KPICard extends StatelessWidget {
           ),
         ],
       ),
+      child: Material(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              border: Border.all(color: color.withOpacity(0.15)),
+              borderRadius: BorderRadius.circular(16),
+            ),
       child: Row(
         children: [
           Container(
@@ -2327,6 +2491,9 @@ class _KPICard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+          ),
+        ),
       ),
     );
   }

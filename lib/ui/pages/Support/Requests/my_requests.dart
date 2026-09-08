@@ -147,9 +147,6 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
 
   void _onBackgroundSyncChanged() {
     if (mounted) {
-      // [Mantenimiento] Log removido:       debugPrint(
-      // [Mantenimiento] Log removido:         "DEBUG: [SYNC] Refreshing MyRequests due to global sync notification.",
-      // [Mantenimiento] Log removido:       );
       _refreshRequest(fetchNetwork: false);
     }
   }
@@ -171,7 +168,9 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       Object? extra;
       try {
         extra = GoRouterState.of(context).extra;
-      } catch (_) {}
+      } catch (_) {
+      // Ignored: Fail silently
+    }
 
       final args = extra ?? ModalRoute.of(context)?.settings.arguments;
 
@@ -283,16 +282,13 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   }
 
   Future<void> _initData() async {
-    // [Mantenimiento] Log removido:     debugPrint("DEBUG UI: _initData iniciado.");
     if (_isInit) {
       setState(() {
         _isLoading = true;
       });
     }
 
-    // [Mantenimiento] Log removido:     debugPrint("DEBUG UI: Llamando a GlobalCache.syncData()...");
     await GlobalCache.syncData();
-    // [Mantenimiento] Log removido:     debugPrint("DEBUG UI: GlobalCache.syncData completado.");
 
     // Esperar a que la Fase 2 (carga del año actual) termine antes de continuar.
     // Esto asegura que el skeleton se muestre hasta que los datos estén listos.
@@ -300,18 +296,14 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       if (GlobalCache.phase2SyncFuture != null) {
         await GlobalCache.phase2SyncFuture;
       }
-    } catch (e) {
-      // [Mantenimiento] Log removido:       debugPrint("Error esperando la Fase 2 de la caché: $e");
+    } catch (_) {
+      // Ignored: Fail silently
     }
 
     if (mounted) {
       setState(() {
         _bPartners = GlobalCache.bPartners;
         _users = GlobalCache.users;
-        // [Mantenimiento] Log removido:         debugPrint(
-        // [Mantenimiento] Log removido:           "DEBUG UI: _bPartners poblados con ${_bPartners.length} items.",
-        // [Mantenimiento] Log removido:         );
-        // [Mantenimiento] Log removido:         debugPrint("DEBUG UI: _users poblados con ${_users.length} items.");
         _isLoading = false;
         _isInit = false;
       });
@@ -603,9 +595,6 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     );
 
     if (appliedFilters != null) {
-      // [Mantenimiento] Log removido:       debugPrint(
-      // [Mantenimiento] Log removido:         "DEBUG MY_REQUESTS: Filtros recibidos del modal -> BPs: ${appliedFilters.bpIds}, Chips: ${appliedFilters.productChipIds}",
-      // [Mantenimiento] Log removido:       );
       setState(() {
         _filters = appliedFilters;
         _currentPage = 0;
@@ -613,9 +602,6 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
 
       final currentBPs = Set.from(_filters.bpIds);
       if (!setEquals(originalBPs, currentBPs)) {
-        // [Mantenimiento] Log removido:         debugPrint(
-        // [Mantenimiento] Log removido:           "DEBUG MY_REQUESTS: Cambiaron los Terceros. Reiniciando datos...",
-        // [Mantenimiento] Log removido:         );
         _bpNameCache.clear();
         setState(() => _isLoading = true);
         if (_filters.bpIds.isNotEmpty) {
@@ -625,9 +611,6 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
         }
         _initData();
       } else {
-        // [Mantenimiento] Log removido:         debugPrint(
-        // [Mantenimiento] Log removido:           "DEBUG MY_REQUESTS: No cambiaron los Terceros, pero pueden haber cambiado otros filtros. Refrescando...",
-        // [Mantenimiento] Log removido:         );
         _refreshRequest(
           fetchNetwork: false,
         ); // Solo refresco local ya que los datos base (GlobalCache) son los mismos
@@ -740,9 +723,6 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
 
 
   Future<void> _refreshRequest({bool fetchNetwork = true}) async {
-    // [Mantenimiento] Log removido:     debugPrint(
-    // [Mantenimiento] Log removido:       "DEBUG REFRESH: Calling _refreshRequest(fetchNetwork: $fetchNetwork). Filters: ${_filters.activeFilterCount} active. ChipIds: ${_filters.productChipIds}",
-    // [Mantenimiento] Log removido:     );
     try {
       if (mounted) setState(() => _isLoading = true);
 
@@ -755,9 +735,6 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
 
       // 2. Usar los datos centralizados de la caché (Ya cargados por Fase 1 y 2)
       final List<Map<String, dynamic>> rawAll = List.from(GlobalCache.requests);
-      // [Mantenimiento] Log removido:       debugPrint(
-      // [Mantenimiento] Log removido:         "DEBUG REFRESH: Iniciando filtrado local sobre ${rawAll.length} registros totales en caché.",
-      // [Mantenimiento] Log removido:       );
 
       if (rawAll.isEmpty && fetchNetwork) {
         // Fallback si por alguna razón la caché está vacía pero queremos red
@@ -846,9 +823,6 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
               : (repData as num?)?.toInt();
 
           if (rawAll.indexOf(req) < 10) {
-            // [Mantenimiento] Log removido:             debugPrint(
-            // [Mantenimiento] Log removido:               "DEBUG FILTER [SalesRep]: Buscando: ${_filters.salesRepIds}, Encontrado: $repId (Data: $repData)",
-            // [Mantenimiento] Log removido:             );
           }
 
           if (repId == null || !_filters.salesRepIds.contains(repId)) {
@@ -939,15 +913,6 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
 
           // Log de diagnóstico para el primer registro
           if (rawAll.indexOf(req) == 0) {
-            // [Mantenimiento] Log removido:             debugPrint(
-            // [Mantenimiento] Log removido:               "DEBUG FILTER [Ficha]: Buscando IDs: ${_filters.productChipIds}, Nombres: $selectedChipNames",
-            // [Mantenimiento] Log removido:             );
-            // [Mantenimiento] Log removido:             debugPrint(
-            // [Mantenimiento] Log removido:               "DEBUG FILTER [Ficha]: Registro actual -> ID extraído: $parsedChipId, Nombre extraído: $chipName",
-            // [Mantenimiento] Log removido:             );
-            // [Mantenimiento] Log removido:             debugPrint(
-            // [Mantenimiento] Log removido:               "DEBUG FILTER [Ficha]: Resultado -> matchById: $matchById, matchByName: $matchByName",
-            // [Mantenimiento] Log removido:             );
           }
 
           if (!matchById && !matchByName) {
@@ -1037,7 +1002,6 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
         _updateStatsLocally();
       }
     } catch (e) {
-      // [Mantenimiento] Log removido:       debugPrint("Error in optimized _refreshRequest: $e");
       if (mounted) setState(() => _isLoading = false);
     }
   }

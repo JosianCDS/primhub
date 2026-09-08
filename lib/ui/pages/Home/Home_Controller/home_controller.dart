@@ -135,8 +135,8 @@ class HomeController extends ChangeNotifier {
       validationLoading = false;
       notifyListeners();
 
-    } catch (e) {
-// [Mantenimiento] Log removido:       debugPrint("Error en carga en cascada de Home: $e");
+    } catch (_) {
+      // Ignored: Fail silently
     }
 
 
@@ -523,7 +523,6 @@ class HomeController extends ChangeNotifier {
     final processedResult = await processRequests(allSupportRequests, GlobalCache.statuses);
     final List<Map<String, dynamic>> processedRequests = List<Map<String, dynamic>>.from(processedResult['requests']);
     
-// [Mantenimiento] Log removido:     debugPrint("DEBUG CHIPS: Solicitudes de soporte a procesar: ${processedRequests.length}");
 
     for (var req in processedRequests) {
       final int? reqBpId = (req['bpId'] as num?)?.toInt();
@@ -534,7 +533,6 @@ class HomeController extends ChangeNotifier {
       final double qtySpent = (req['qtySpent'] as num?)?.toDouble() ?? 0.0;
 
       if (linkedChipId != null) {
-// [Mantenimiento] Log removido:         debugPrint("DEBUG CHIPS: Solicitud ${req['code']} VINCULADA a Chip ID: $linkedChipId (Horas: $qtySpent, Cerrada: $isClosed)");
         if (isClosed) {
           chipConsumedHoursMap[linkedChipId] = (chipConsumedHoursMap[linkedChipId] ?? 0.0) + qtySpent;
           chipClosedCountMap[linkedChipId] = (chipClosedCountMap[linkedChipId] ?? 0) + 1;
@@ -543,7 +541,6 @@ class HomeController extends ChangeNotifier {
           chipInProgressCountMap[linkedChipId] = (chipInProgressCountMap[linkedChipId] ?? 0) + 1;
         }
       } else {
-// [Mantenimiento] Log removido:         debugPrint("DEBUG CHIPS: Solicitud ${req['code']} NO VINCULADA (BP: $reqBpId, Horas: $qtySpent) - SE IGNORA PARA CONSUMO DE FICHAS");
         // No vinculado: Ya no lo acumulamos para distribuir FIFO, ya que el usuario indica que si no tiene ficha no debe contarse.
       }
     }
@@ -558,7 +555,6 @@ class HomeController extends ChangeNotifier {
       final int? chipId = int.tryParse(chipIdRaw?.toString() ?? '');
       if (chipId == null) continue;
       
-// [Mantenimiento] Log removido:       debugPrint("DEBUG CHIPS: Analizando Ficha ID $chipId para BP $bpId");
 
       
       // Consumo directo

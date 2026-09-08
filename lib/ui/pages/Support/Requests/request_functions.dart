@@ -240,13 +240,12 @@ Future<List<Map<String, dynamic>>> fetchRequest({String? model = 'R_Request', St
         }
       } else {
         hasMore = false;
-// [Mantenimiento] Log removido:         debugPrint("DEBUG: API Error in fetchRequest ($model): ${response.statusCode} - ${response.body}");
         if (allRecords.isEmpty) throw Exception('Error API: ${response.statusCode}');
       }
     }
-  } catch (e) {
-// [Mantenimiento] Log removido:     debugPrint("DEBUG: Exception in fetchRequest ($model): $e");
-  }
+  } catch (_) {
+      // Ignored: Fail silently
+    }
   return allRecords;
 }
 
@@ -332,9 +331,9 @@ Future<Map<String, dynamic>> fetchRequestPaginated({
         }
       }
     }
-  } catch (e) {
-// [Mantenimiento] Log removido:     debugPrint("Error in fetchRequestPaginated: $e");
-  }
+  } catch (_) {
+      // Ignored: Fail silently
+    }
 
   // Si fetchCount es true pero la API no lo retornó en la respuesta principal,
   // hacemos una petición manual muy rápida sin expand para contar.
@@ -395,9 +394,9 @@ Future<int> fetchRequestCount({String? model = 'R_Request', String? filter}) asy
         return jsonResponse.length;
       }
     }
-  } catch (e) {
-// [Mantenimiento] Log removido:     debugPrint("Error counting records: $e");
-  }
+  } catch (_) {
+      // Ignored: Fail silently
+    }
   return 0;
 }
 
@@ -455,6 +454,7 @@ Future<Map<String, dynamic>> fetchStatusesWithMetadata() async {
 
       final Map<String, int> nameToId = {};
       final Map<int, bool> idToIsFinalClose = {};
+      final Map<int, bool> idToIsOpen = {};
       final Map<int, int> idToCategoryId = {};
       final Map<int, String> categoryIdToName = {};
       final Map<int, int> categoryCounters = {};
@@ -472,6 +472,10 @@ Future<Map<String, dynamic>> fetchStatusesWithMetadata() async {
         final rawIsFinalClose = r['IsFinalClose'] ?? r['isFinalClose'];
         final isFinalCloseStr = rawIsFinalClose?.toString().trim().toLowerCase();
         bool isFinalClose = isFinalCloseStr == 'true' || isFinalCloseStr == 'y' || rawIsFinalClose == true || isClosed;
+
+        final rawIsOpen = r['IsOpen'] ?? r['isOpen'];
+        final isOpenStr = rawIsOpen?.toString().trim().toLowerCase();
+        bool isOpen = isOpenStr == 'true' || isOpenStr == 'y' || rawIsOpen == true;
         
         final categoryIdRaw = r['R_StatusCategory_ID'] ?? r['r_StatusCategory_ID'] ?? r['r_statuscategory_id'];
         int? categoryId;
@@ -494,6 +498,7 @@ Future<Map<String, dynamic>> fetchStatusesWithMetadata() async {
         final formattedName = "$currentCounter. $originalName#_$id";
         nameToId[formattedName] = id;
         idToIsFinalClose[id] = isFinalClose;
+        idToIsOpen[id] = isOpen;
         if (categoryId != null) {
           idToCategoryId[id] = categoryId;
           if (categoryName != null) {
@@ -501,12 +506,12 @@ Future<Map<String, dynamic>> fetchStatusesWithMetadata() async {
           }
         }
       }
-      return {'nameToId': nameToId, 'idToIsFinalClose': idToIsFinalClose, 'idToCategoryId': idToCategoryId, 'categoryIdToName': categoryIdToName};
+      return {'nameToId': nameToId, 'idToIsFinalClose': idToIsFinalClose, 'idToIsOpen': idToIsOpen, 'idToCategoryId': idToCategoryId, 'categoryIdToName': categoryIdToName};
     }
-  } catch (e) {
-// [Mantenimiento] Log removido:     debugPrint("Error fetching statuses: $e");
-  }
-  return {'nameToId': <String, int>{}, 'idToIsFinalClose': <int, bool>{}, 'idToCategoryId': <int, int>{}};
+  } catch (_) {
+      // Ignored: Fail silently
+    }
+  return {'nameToId': <String, int>{}, 'idToIsFinalClose': <int, bool>{}, 'idToIsOpen': <int, bool>{}, 'idToCategoryId': <int, int>{}};
 }
 
 Future<Map<String, int>> fetchStatuses() async {
@@ -544,9 +549,9 @@ Future<Map<String, dynamic>> fetchRequestTypesWithMetadata() async {
       }
       return {'nameToId': nameToId, 'idToCategoryId': idToCategoryId};
     }
-  } catch (e) {
-// [Mantenimiento] Log removido:     debugPrint("Error fetching request types: $e");
-  }
+  } catch (_) {
+      // Ignored: Fail silently
+    }
   return {'nameToId': <String, int>{}, 'idToCategoryId': <int, int>{}};
 }
 
@@ -558,7 +563,6 @@ Future<Map<String, int>> fetchRequestTypes() async {
 Future<List<Map<String, dynamic>>> fetchCategories({bool? isPrimhub}) async {
   try {
     final url = Uri.parse('${Endpoint.baseUrl}/api/v1/models/R_Category');
-// [Mantenimiento] Log removido:     debugPrint("Fetching ALL Categories from: $url");
     
     final response = await http.get(
       url,
@@ -587,11 +591,10 @@ Future<List<Map<String, dynamic>>> fetchCategories({bool? isPrimhub}) async {
         return map;
       }).toList();
     } else {
-// [Mantenimiento] Log removido:       debugPrint("Categories Error: ${response.statusCode} - ${response.body}");
     }
-  } catch (e) {
-// [Mantenimiento] Log removido:     debugPrint("Exception in fetchCategories: $e");
-  }
+  } catch (_) {
+      // Ignored: Fail silently
+    }
   return [];
 }
 
@@ -609,9 +612,9 @@ Future<Map<String, int>> fetchGroups() async {
       final records = jsonResponse['records'] as List;
       return {for (var r in records) r['Name'].toString().trim(): r['id'] as int};
     }
-  } catch (e) {
-// [Mantenimiento] Log removido:     debugPrint("Error fetching groups: $e");
-  }
+  } catch (_) {
+      // Ignored: Fail silently
+    }
   return {};
 }
 
@@ -728,7 +731,9 @@ Future<Map<String, dynamic>> processRequests(List<dynamic> requests, Map<String,
         final DateTime date = DateTime.parse(formattedTime).toLocal();
         formattedTime = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
       }
-    } catch (_) {}
+    } catch (_) {
+      // Ignored: Fail silently
+    }
 
     final bpId = req['C_BPartner_ID'] is Map ? (req['C_BPartner_ID']['id'] as num?)?.toInt() : (req['C_BPartner_ID'] as num?)?.toInt();
     final userId = req['AD_User_ID'] is Map ? (req['AD_User_ID']['id'] as num?)?.toInt() : (req['AD_User_ID'] as num?)?.toInt();
@@ -1264,7 +1269,7 @@ class _RequestAttachmentsDialogState extends State<RequestAttachmentsDialog> {
   }
 }
 
-Future<void> sendRequestStatusEmail({
+Future<bool> sendRequestStatusEmail({
   required int requestId,
   required int bPartnerId,
   required int adUserId,
@@ -1274,9 +1279,6 @@ Future<void> sendRequestStatusEmail({
   int? updateId,
 }) async {
   try {
-    int finalUserId = User.userID ?? 0;
-    if (finalUserId <= 0) return;
-
     // 1. Obtener detalles de la solicitud de la caché
     Map<String, dynamic>? req;
     for (var r in GlobalCache.requests) {
@@ -1297,16 +1299,23 @@ Future<void> sendRequestStatusEmail({
       }
     }
 
-
-
-
-
     final uri = Uri.parse('${Endpoint.baseUrl}/api/v1/processes/sendmailtextcds');
   
     String targetTableName = 'R_Request';
     String targetRecordId = requestId.toString();
     
-    if (mailTextId == 1000017 && updateId != null) {
+    int finalMailTextId = mailTextId;
+    if (Token.client == 1000008) { // AO Energy
+      if (mailTextId == 1000015) {
+        finalMailTextId = 1000018;
+      } else if (mailTextId == 1000016) {
+        finalMailTextId = 1000019;
+      } else if (mailTextId == 1000017) {
+        finalMailTextId = 1000020;
+      }
+    }
+    
+    if ((finalMailTextId == 1000017 || finalMailTextId == 1000020) && updateId != null) {
       targetTableName = 'R_RequestUpdate';
       targetRecordId = updateId.toString();
     }
@@ -1315,7 +1324,9 @@ Future<void> sendRequestStatusEmail({
     Set<int> targetUsers = {};
     if (adUserId > 0) targetUsers.add(adUserId);
 
-    if (targetUsers.isEmpty) return; // No hay a quien enviar
+    if (targetUsers.isEmpty) return true; // No hay a quien enviar, no es un fallo
+
+    bool allSuccess = true;
 
     // Enviar el correo a cada destinatario único ejecutando el proceso de Lirion
     for (int targetUserId in targetUsers) {
@@ -1323,7 +1334,7 @@ Future<void> sendRequestStatusEmail({
         'recordID': targetRecordId,
         'TableName': targetTableName,
         'AD_UserTo_ID': targetUserId.toString(),
-        'R_MailText_ID': mailTextId.toString(),
+        'R_MailText_ID': finalMailTextId.toString(),
       };
 
       final response = await http.post(
@@ -1339,9 +1350,12 @@ Future<void> sendRequestStatusEmail({
         CurrentLogMessage.add('sendRequestStatusEmail exitoso para usuario $targetUserId. Respuesta: ${response.body}', level: 'INFO', tag: 'sendRequestStatusEmail');
       } else {
         CurrentLogMessage.add('sendRequestStatusEmail falló para usuario $targetUserId: ${response.statusCode}, ${response.body}', level: 'ERROR', tag: 'sendRequestStatusEmail');
+        allSuccess = false;
       }
     }
+    return allSuccess;
   } catch (e) {
     CurrentLogMessage.add('Excepcion en sendRequestStatusEmail: $e', level: 'ERROR', tag: 'sendRequestStatusEmail');
+    return false;
   }
 }

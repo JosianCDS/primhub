@@ -9,7 +9,7 @@ class AccessControl {
 
   // Verifica si el rol tiene configuración válida (usado en Login)
   static bool hasHardcodedRole(int? roleId) {
-    return false; // Ya no validamos por UUID, solo confiamos en la configuración
+    return false;
   }
 
   static bool get hasAnyConfig => Token.primConfig != null;
@@ -18,7 +18,7 @@ class AccessControl {
   static bool get _hasSupportConfig => Token.primConfig?.toLowerCase() == 'sp';
   static bool get _hasProjectConfig => Token.primConfig?.toLowerCase() == 'py';
 
-  // Roles reales basados ÚNICAMENTE en el nivel de configuración
+  // Roles reales basados ÚNICAMENTE en el nivel de configuración en Idempiere
   static bool get isRealAdmin => _hasAdminConfig;
 
   static bool get isRealSupport => !isRealAdmin && _hasSupportConfig;

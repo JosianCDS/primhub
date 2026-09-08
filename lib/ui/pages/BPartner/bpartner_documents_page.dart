@@ -52,7 +52,9 @@ class _BPartnerDocumentsPageState extends State<BPartnerDocumentsPage> {
         try {
           final payload = Token.decodePayload(Token.token);
           bpName = payload['client_name'] ?? payload['clientName'] ?? 'Mi Empresa';
-        } catch (_) {}
+        } catch (_) {
+      // Ignored: Fail silently
+    }
 
         // Try to get the actual BPartner name from GlobalCache if available
         final matches = GlobalCache.bPartners.where((e) => e['id'] == User.cBPartnerID);

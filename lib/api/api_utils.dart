@@ -106,5 +106,4 @@ Future<bool> canReuseCurrentToken() async {
 
 // Validación preventiva desactivada (retorna inmediatamente) para dejar que el token se venza naturalmente en iDempiere
 Future<void> preemptiveTokenCheck() async {
-  // Ya no hacemos nada aquí. Esperamos al 401 real.
 }

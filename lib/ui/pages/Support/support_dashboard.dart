@@ -46,6 +46,7 @@ class SupportDashboardPage extends StatefulWidget {
 class _SupportDashboardPageState extends State<SupportDashboardPage> {
   List<Map<String, dynamic>> _supportRecords = [];
   bool _isLoading = true;
+  bool _isLoadingChips = true;
   bool _isLoadingBPartners = false;
   double _totalConsumedHours = 0.0;
   double? _contractedHours;
@@ -125,7 +126,9 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
       Object? extra;
       try {
         extra = GoRouterState.of(context).extra;
-      } catch (_) {}
+      } catch (_) {
+      // Ignored: Fail silently
+    }
 
       final args = extra as Map<String, dynamic>?;
       if (args != null) {
@@ -190,9 +193,12 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                 !_bPartners.any((bp) => bp['id'] == _selectedBpId)) {
               _selectedBpId = null;
             }
+            
+            _isLoadingBPartners = false;
           });
         }
       }
+
       if (_selectedBpId != null) {
         await GlobalCache.loadSupportBpRequestsInBackground(_selectedBpId!);
       }
@@ -241,8 +247,13 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
     }).toList();
 
     if (mounted) {
-      setState(() => _productChips = fetchedChips);
+      setState(() {
+        _productChips = fetchedChips;
+      });
       await _loadContractedHours();
+      if (mounted) {
+        setState(() => _isLoadingChips = false);
+      }
     }
   }
 
@@ -255,15 +266,6 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
     } else if (!AccessControl.isAdmin && User.cBPartnerID != null) {
       conditions.add("(C_BPartner_ID eq ${User.cBPartnerID})");
     }
-
-    // Eliminamos el filtro de año por defecto para ver todo el historial de consumo
-    // si el usuario desea filtrar por año lo hará desde la UI.
-    /*
-    if (_selectedYears.isNotEmpty) {
-      String yearFilterStr = _selectedYears.map((y) => "year(Created) eq $y").join(" or ");
-      conditions.add("($yearFilterStr)");
-    }
-    */
 
     filter = conditions.join(" and ");
 
@@ -645,6 +647,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
       setState(() {
         _selectedBpId = selectedId;
         _isLoading = true;
+        _isLoadingChips = true;
       });
       await _initData(); // Re-inicializar todos los datos para el nuevo tercero
     }
@@ -943,7 +946,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                           availableHours: available,
                           processedChips: _processedChips,
                           selectedChipId: _selectedSummaryChipId,
-                          isLoading: _isLoading,
+                          isLoading: _isLoadingChips,
                           onChipTap: (id) {
                             setState(() {
                               if (_selectedSummaryChipId == id) {

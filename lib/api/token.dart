@@ -46,7 +46,9 @@ class Token {
       await prefs.remove('token_primconfig_id');
       await prefs.remove('last_token_generated_at');
       await prefs.remove('hasShownAdminModeTutorial');
-    } catch (_) {}
+    } catch (_) {
+      // Ignored: Fail silently
+    }
   }
 
   static String tokenType = 'Bearer';

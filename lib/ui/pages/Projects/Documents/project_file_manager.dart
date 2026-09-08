@@ -162,7 +162,6 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
   Future<void> _moveFile(Map<String, dynamic> doc, String currentTableName, int? targetFolderId) async {
     final int docId = doc['id'];
 
-// [Mantenimiento] Log removido:     debugPrint("MOVING DOCUMENT: $docName (ID: $docId) TO FOLDER: $targetFolderId");
     if (_movingFiles.contains(docId)) return; // Ignorar si ya se está moviendo
 
     // Validar si ya está en la carpeta de destino para no hacer peticiones fantasma
