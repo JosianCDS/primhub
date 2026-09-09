@@ -889,7 +889,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
         }
 
         // --- FILTRO DE FICHAS DE PRODUCTO ---
-        if (AccessControl.isAdmin) {
+        if (AccessControl.isAdmin || AccessControl.isExtSupport) {
           final int? parsedChipId = extractProductChipId(req);
           if (_chipFilterMode == ChipFilterMode.onlyWithChip && parsedChipId == null) {
             return false;
@@ -937,7 +937,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
         final hasChipA = (extractProductChipId(a) != null) ? 1 : 0;
         final hasChipB = (extractProductChipId(b) != null) ? 1 : 0;
 
-        if (AccessControl.isAdmin) {
+        if (AccessControl.isAdmin || AccessControl.isExtSupport) {
           if (_chipFilterMode == ChipFilterMode.withChipFirst) {
             if (hasChipA != hasChipB) {
               return hasChipB.compareTo(hasChipA); // 1 (has chip) comes before 0

@@ -1192,8 +1192,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
     if (_currentStatus.isNotEmpty && !statusItems.contains(_currentStatus)) {
       statusItems.add(_currentStatus);
     }
-    final bool isFullAccess =
-        AccessControl.isAdmin || AccessControl.isRealSupport;
+    final bool isFullAccess = AccessControl.isAdmin;
     final bool isProject =
         (widget.request['recordUU'] != null &&
             widget.request['recordUU'].toString().trim().isNotEmpty) ||
@@ -1365,48 +1364,48 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  if (!isProject) ...[
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: _buildSearchableField<int>(
-                            label: 'Ficha de Producto',
-                            hintText: _selectedBpId == null
-                                ? 'Seleccione un tercero'
-                                : 'Seleccione Ficha',
-                            value: _selectedProductChipId,
-                            isLoading: _isLoadingProducts,
-                            isDisabled:
-                                _isLoadingProducts || _selectedBpId == null,
-                            displayText:
-                                _selectedProductChipId != null &&
-                                    _productChips.any(
-                                      (c) => c['id'] == _selectedProductChipId,
-                                    )
-                                ? _productChips.firstWhere(
-                                        (c) =>
-                                            c['id'] == _selectedProductChipId,
-                                      )['Description'] ??
-                                      'Ficha $_selectedProductChipId'
-                                : '',
-                            onTap: () => _openSearchModal<int>(
-                              title: 'Ficha de Producto',
-                              items: _productChips,
-                              currentValue: _selectedProductChipId,
-                              getTitle: (item) =>
-                                  item['Description'] ?? 'Sin Descripción',
+                ],
+                if (!isProject && (AccessControl.isAdmin || AccessControl.isExtSupport)) ...[
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: _buildSearchableField<int>(
+                          label: 'Ficha de Producto',
+                          hintText: _selectedBpId == null
+                              ? 'Seleccione un tercero'
+                              : 'Seleccione Ficha',
+                          value: _selectedProductChipId,
+                          isLoading: _isLoadingProducts,
+                          isDisabled:
+                              _isLoadingProducts || _selectedBpId == null,
+                          displayText:
+                              _selectedProductChipId != null &&
+                                  _productChips.any(
+                                    (c) => c['id'] == _selectedProductChipId,
+                                  )
+                              ? _productChips.firstWhere(
+                                      (c) =>
+                                          c['id'] == _selectedProductChipId,
+                                    )['Description'] ??
+                                    'Ficha $_selectedProductChipId'
+                              : '',
+                          onTap: () => _openSearchModal<int>(
+                            title: 'Ficha de Producto',
+                            items: _productChips,
+                            currentValue: _selectedProductChipId,
+                            getTitle: (item) =>
+                                item['Description'] ?? 'Sin Descripción',
 
-                              getValue: (item) => item['id'] as int,
-                              onSelected: (val) =>
-                                  setState(() => _selectedProductChipId = val),
-                            ),
+                            getValue: (item) => item['id'] as int,
+                            onSelected: (val) =>
+                                setState(() => _selectedProductChipId = val),
                           ),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                  ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
                 ],
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,

@@ -56,8 +56,10 @@ abstract final class DeferredRegistry {
     preloadHome();
     switch (configuration?.toLowerCase()) {
       case 'sp':
+      case 'extsp':
         loadSupport().ignore();
       case 'py':
+      case 'extpy':
         loadProjects().ignore();
     }
   }

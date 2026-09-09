@@ -1634,7 +1634,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
               // SECCIÓN: Ficha de Producto (Solo para Soporte)
               if (!(widget.linkedRecordUU != null &&
                       widget.linkedRecordUU!.isNotEmpty) &&
-                  !AccessControl.isRealSupport) ...[
+                  (AccessControl.isAdmin || AccessControl.isExtSupport)) ...[
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [

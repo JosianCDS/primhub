@@ -101,7 +101,7 @@ class RequestFilterBar extends StatelessWidget {
             padding: const EdgeInsets.all(4),
             visualDensity: VisualDensity.compact,
           ),
-        if (AccessControl.isAdmin && onChipFilterChanged != null)
+        if ((AccessControl.isAdmin || AccessControl.isExtSupport) && onChipFilterChanged != null)
           PopupMenuButton<ChipFilterMode>(
             enabled: !isLoading,
             initialValue: chipFilterMode,

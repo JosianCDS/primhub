@@ -1320,9 +1320,20 @@ Future<bool> sendRequestStatusEmail({
       targetRecordId = updateId.toString();
     }
 
-    // Determinar los destinatarios: Usuario de la solicitud
+    // Determinar los destinatarios: Usuario de la solicitud y Representante Comercial
     Set<int> targetUsers = {};
     if (adUserId > 0) targetUsers.add(adUserId);
+
+    // Agregar Representante Comercial si existe en la solicitud
+    if (req != null && req['SalesRep_ID'] != null) {
+      final salesRepData = req['SalesRep_ID'];
+      int salesRepId = salesRepData is Map 
+          ? (salesRepData['id'] as num).toInt() 
+          : (salesRepData as num).toInt();
+      if (salesRepId > 0) {
+        targetUsers.add(salesRepId);
+      }
+    }
 
     if (targetUsers.isEmpty) return true; // No hay a quien enviar, no es un fallo
 

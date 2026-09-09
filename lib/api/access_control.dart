@@ -14,9 +14,9 @@ class AccessControl {
 
   static bool get hasAnyConfig => Token.primConfig != null;
 
-  static bool get _hasAdminConfig => Token.primConfig?.toLowerCase() == 'ad';
-  static bool get _hasSupportConfig => Token.primConfig?.toLowerCase() == 'sp';
-  static bool get _hasProjectConfig => Token.primConfig?.toLowerCase() == 'py';
+  static bool get _hasAdminConfig => ['ad', 'c', 'dev'].contains(Token.primConfig?.toLowerCase());
+  static bool get _hasSupportConfig => ['sp', 'extsp'].contains(Token.primConfig?.toLowerCase());
+  static bool get _hasProjectConfig => ['py', 'extpy'].contains(Token.primConfig?.toLowerCase());
 
   // Roles reales basados ÚNICAMENTE en el nivel de configuración en Idempiere
   static bool get isRealAdmin => _hasAdminConfig;
@@ -44,16 +44,20 @@ class AccessControl {
     return false;
   }
 
+  // Banderas específicas para los roles extendidos
+  static bool get isExtSupport => Token.primConfig?.toLowerCase() == 'extsp';
+  static bool get isExtProject => Token.primConfig?.toLowerCase() == 'extpy';
+
   // Capacidades de Proyecto
   static bool get canEditProject => isAdmin;
-  static bool get canManageFiles => isAdmin; // Soporte y Proyecto no pueden subir ni borrar archivos
+  static bool get canManageFiles => isAdmin || isExtProject; // Extpy puede subir y borrar archivos
   static bool get canDownloadFiles => true; // Todos pueden descargar y previsualizar
   static bool get canCreateProjectItems => isAdmin;
 
   // Capacidades de Solicitudes (Soporte)
-  static bool get canManageRequests => isAdmin; // Solo admin edita/elimina a fondo
-  static bool get canCreateRequests => isAdmin || isRealSupport; // Proyecto real es Solo Lectura
-  static bool get canAddUpdates => isAdmin || isRealSupport;
+  static bool get canManageRequests => isAdmin || isExtSupport || isExtProject; // Extsp y Extpy pueden editar y borrar
+  static bool get canCreateRequests => isAdmin || isRealSupport || isExtProject; // Extpy puede crear solicitudes de proyecto
+  static bool get canAddUpdates => isAdmin || isRealSupport || isExtProject;
   static bool get canViewRequestDetails => true;
 
   // Capacidades de Métricas
