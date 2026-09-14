@@ -3,6 +3,8 @@ import 'package:primhub/api/admin_view_mode.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 
 class AdminModeViews extends StatefulWidget {
   const AdminModeViews({super.key});
@@ -24,13 +26,21 @@ class SpotlightPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final Path background = Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
-    final Path hole = Path()..addRRect(RRect.fromRectAndRadius(
-      targetRect.inflate(6), // Pequeño margen alrededor del botón
-      const Radius.circular(12),
-    ));
+    final Path background = Path()
+      ..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
+    final Path hole = Path()
+      ..addRRect(
+        RRect.fromRectAndRadius(
+          targetRect.inflate(6), // Pequeño margen alrededor del botón
+          const Radius.circular(12),
+        ),
+      );
 
-    final Path result = Path.combine(PathOperation.difference, background, hole);
+    final Path result = Path.combine(
+      PathOperation.difference,
+      background,
+      hole,
+    );
 
     final Paint paint = Paint()
       ..color = shadowColor.withOpacity(shadowOpacity)
@@ -64,7 +74,8 @@ class _AdminModeViewsState extends State<AdminModeViews> {
 
   Future<void> _checkAndShowTutorial() async {
     final prefs = await SharedPreferences.getInstance();
-    final hasShownTutorial = prefs.getBool('hasShownAdminModeTutorial') ?? false;
+    final hasShownTutorial =
+        prefs.getBool('hasShownAdminModeTutorial') ?? false;
 
     if (!hasShownTutorial) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -77,16 +88,15 @@ class _AdminModeViewsState extends State<AdminModeViews> {
   void _showTutorial() {
     if (_overlayEntry != null) return;
 
-    final renderBox = modeButtonKey.currentContext?.findRenderObject() as RenderBox?;
+    final renderBox =
+        modeButtonKey.currentContext?.findRenderObject() as RenderBox?;
     if (renderBox == null) return;
 
     final position = renderBox.localToGlobal(Offset.zero);
     final size = renderBox.size;
     final targetRect = position & size;
 
-    final modeName = adminViewModeManager.currentMode == AdminViewMode.support
-        ? 'Soporte'
-        : (adminViewModeManager.currentMode == AdminViewMode.project ? 'Proyecto' : 'Mixto');
+    final modeName = _modeLabel(context, adminViewModeManager.currentMode);
 
     _overlayEntry = OverlayEntry(
       builder: (context) {
@@ -118,7 +128,10 @@ class _AdminModeViewsState extends State<AdminModeViews> {
                   child: Material(
                     color: Colors.transparent,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
                       decoration: BoxDecoration(
                         color: Theme.of(context).colorScheme.surface,
                         borderRadius: BorderRadius.circular(8),
@@ -127,16 +140,16 @@ class _AdminModeViewsState extends State<AdminModeViews> {
                             color: Colors.black26,
                             blurRadius: 12,
                             offset: Offset(0, 6),
-                          )
-                        ]
+                          ),
+                        ],
                       ),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          const Text(
-                            "Modo de Vista",
-                            style: TextStyle(
+                          Text(
+                            AppLocale.viewMode.getString(context),
+                            style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
@@ -145,12 +158,21 @@ class _AdminModeViewsState extends State<AdminModeViews> {
                           Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.info_outline, color: colorScheme.primary, size: 20),
+                              Icon(
+                                Icons.info_outline,
+                                color: colorScheme.primary,
+                                size: 20,
+                              ),
                               const SizedBox(width: 8),
                               Text(
-                                "Estás en el Modo $modeName.\nCámbialo desde aquí en cualquier momento.",
+                                AppLocale.viewModeTutorial
+                                    .getStringWithVariables(context, {
+                                      'mode': modeName,
+                                    }),
                                 style: TextStyle(
-                                  color: Theme.of(context).colorScheme.onSurface,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurface,
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
                                 ),
@@ -198,7 +220,11 @@ class _AdminModeViewsState extends State<AdminModeViews> {
     );
   }
 
-  void _confirmAdminModeChange(BuildContext context, AdminViewMode mode, AdminViewModeManager manager) {
+  void _confirmAdminModeChange(
+    BuildContext context,
+    AdminViewMode mode,
+    AdminViewModeManager manager,
+  ) {
     if (manager.currentMode == mode) return;
 
     String modeName = '';
@@ -207,50 +233,50 @@ class _AdminModeViewsState extends State<AdminModeViews> {
 
     switch (mode) {
       case AdminViewMode.mixed:
-        modeName = 'Modo Mixto';
+        modeName = AppLocale.mixedMode.getString(context);
         modeColor = Colors.blueAccent;
-        description = 'En este modo podrás ver tanto los módulos y características de Soporte como los de Proyectos al mismo tiempo. Es ideal para tener una visión global de todo lo que ocurre.';
+        description = AppLocale.mixedModeDescription.getString(context);
         break;
       case AdminViewMode.support:
-        modeName = 'Modo Soporte';
+        modeName = AppLocale.supportMode.getString(context);
         modeColor = Colors.orange;
-        description = 'Al cambiar a Modo Soporte, la interfaz se simplificará para enfocarse únicamente en las herramientas de atención y soporte (fichas, solicitudes). Los módulos exclusivos de Proyectos se ocultarán temporalmente.';
+        description = AppLocale.supportModeDescription.getString(context);
         break;
       case AdminViewMode.project:
-        modeName = 'Modo Proyecto';
+        modeName = AppLocale.projectMode.getString(context);
         modeColor = Colors.teal;
-        description = 'En el Modo Proyecto, tu vista se centrará en la gestión de proyectos, fases y tareas. Las opciones exclusivas de Soporte no serán visibles.';
+        description = AppLocale.projectModeDescription.getString(context);
         break;
     }
 
     showDialog(
       context: context,
       builder: (ctx) => CustomModal(
-        title: 'Cambiar a $modeName',
+        title: AppLocale.changeToMode.getStringWithVariables(context, {'mode': modeName}),
         width: 450,
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              description,
-              style: const TextStyle(fontSize: 15),
-            ),
+            Text(description, style: const TextStyle(fontSize: 15)),
             const SizedBox(height: 16),
-            const Text(
-              'Nota: Podrás volver a cambiar de modo en cualquier momento desde el menú superior.',
-              style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey),
+            Text(
+              AppLocale.modeChangeNote.getString(context),
+              style: const TextStyle(
+                fontStyle: FontStyle.italic,
+                color: Colors.grey,
+              ),
             ),
           ],
         ),
         actions: [
           CustomButton(
-            text: 'Cancelar',
+            text: AppLocale.cancel.getString(context),
             backgroundColor: Colors.grey.shade400,
             onPressed: () => Navigator.of(ctx).pop(),
           ),
           CustomButton(
-            text: 'Aceptar',
+            text: AppLocale.accept.getString(context),
             backgroundColor: modeColor,
             onPressed: () {
               manager.saveMode(mode);
@@ -264,54 +290,99 @@ class _AdminModeViewsState extends State<AdminModeViews> {
 
   Color _getModeColor(AdminViewMode mode) {
     switch (mode) {
-      case AdminViewMode.mixed: return Colors.blueAccent;
-      case AdminViewMode.support: return Colors.orange;
-      case AdminViewMode.project: return Colors.teal;
+      case AdminViewMode.mixed:
+        return Colors.blueAccent;
+      case AdminViewMode.support:
+        return Colors.orange;
+      case AdminViewMode.project:
+        return Colors.teal;
     }
   }
 
-  void _showAdminModeSelectionDialog(BuildContext context, AdminViewModeManager manager) {
+  void _showAdminModeSelectionDialog(
+    BuildContext context,
+    AdminViewModeManager manager,
+  ) {
     final current = manager.currentMode;
 
     showDialog(
       context: context,
       builder: (dialogContext) {
         return CustomModal(
-          title: 'Seleccionar Modo de Vista',
+          title: AppLocale.viewMode.getString(context),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: Icon(Icons.layers, color: _getModeColor(AdminViewMode.mixed)),
-                title: Text('Modo Mixto', style: TextStyle(color: _getModeColor(AdminViewMode.mixed))),
+                leading: Icon(
+                  Icons.layers,
+                  color: _getModeColor(AdminViewMode.mixed),
+                ),
+                title: Text(
+                  AppLocale.mixedMode.getString(context),
+                  style: TextStyle(color: _getModeColor(AdminViewMode.mixed)),
+                ),
                 trailing: current == AdminViewMode.mixed
-                    ? Icon(Icons.check, color: _getModeColor(AdminViewMode.mixed))
+                    ? Icon(
+                        Icons.check,
+                        color: _getModeColor(AdminViewMode.mixed),
+                      )
                     : null,
                 onTap: () {
                   Navigator.pop(dialogContext);
-                  _confirmAdminModeChange(context, AdminViewMode.mixed, manager);
+                  _confirmAdminModeChange(
+                    context,
+                    AdminViewMode.mixed,
+                    manager,
+                  );
                 },
               ),
               ListTile(
-                leading: Icon(Icons.support_agent, color: _getModeColor(AdminViewMode.support)),
-                title: Text('Modo Soporte', style: TextStyle(color: _getModeColor(AdminViewMode.support))),
+                leading: Icon(
+                  Icons.support_agent,
+                  color: _getModeColor(AdminViewMode.support),
+                ),
+                title: Text(
+                  AppLocale.supportMode.getString(context),
+                  style: TextStyle(color: _getModeColor(AdminViewMode.support)),
+                ),
                 trailing: current == AdminViewMode.support
-                    ? Icon(Icons.check, color: _getModeColor(AdminViewMode.support))
+                    ? Icon(
+                        Icons.check,
+                        color: _getModeColor(AdminViewMode.support),
+                      )
                     : null,
                 onTap: () {
                   Navigator.pop(dialogContext);
-                  _confirmAdminModeChange(context, AdminViewMode.support, manager);
+                  _confirmAdminModeChange(
+                    context,
+                    AdminViewMode.support,
+                    manager,
+                  );
                 },
               ),
               ListTile(
-                leading: Icon(Icons.account_tree, color: _getModeColor(AdminViewMode.project)),
-                title: Text('Modo Proyecto', style: TextStyle(color: _getModeColor(AdminViewMode.project))),
+                leading: Icon(
+                  Icons.account_tree,
+                  color: _getModeColor(AdminViewMode.project),
+                ),
+                title: Text(
+                  AppLocale.projectMode.getString(context),
+                  style: TextStyle(color: _getModeColor(AdminViewMode.project)),
+                ),
                 trailing: current == AdminViewMode.project
-                    ? Icon(Icons.check, color: _getModeColor(AdminViewMode.project))
+                    ? Icon(
+                        Icons.check,
+                        color: _getModeColor(AdminViewMode.project),
+                      )
                     : null,
                 onTap: () {
                   Navigator.pop(dialogContext);
-                  _confirmAdminModeChange(context, AdminViewMode.project, manager);
+                  _confirmAdminModeChange(
+                    context,
+                    AdminViewMode.project,
+                    manager,
+                  );
                 },
               ),
             ],
@@ -319,7 +390,7 @@ class _AdminModeViewsState extends State<AdminModeViews> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cerrar'),
+              child: Text(AppLocale.close.getString(context)),
             ),
           ],
         );
@@ -332,7 +403,9 @@ class _AdminModeViewsState extends State<AdminModeViews> {
       key: modeButtonKey,
       icon: const Icon(Icons.more_vert),
       onSelected: (value) {
-        if (value == 'admin_mode') _showAdminModeSelectionDialog(context, manager);
+        if (value == 'admin_mode') {
+          _showAdminModeSelectionDialog(context, manager);
+        }
       },
       itemBuilder: (context) => [
         PopupMenuItem<String>(
@@ -340,7 +413,7 @@ class _AdminModeViewsState extends State<AdminModeViews> {
           child: ListTile(
             leading: const Icon(Icons.admin_panel_settings),
             title: Text(
-              'Modo: ${manager.currentMode == AdminViewMode.support ? 'Soporte' : (manager.currentMode == AdminViewMode.project ? 'Proyecto' : 'Mixto')}',
+              '${AppLocale.viewMode.getString(context)}: ${_modeLabel(context, manager.currentMode)}',
             ),
           ),
         ),
@@ -348,13 +421,16 @@ class _AdminModeViewsState extends State<AdminModeViews> {
     );
   }
 
-  Widget _buildAdminModePopupMenu(BuildContext context, AdminViewModeManager manager) {
+  Widget _buildAdminModePopupMenu(
+    BuildContext context,
+    AdminViewModeManager manager,
+  ) {
     final currentMode = manager.currentMode;
     final currentColor = _getModeColor(currentMode);
 
     return PopupMenuButton<AdminViewMode>(
       key: modeButtonKey,
-      tooltip: 'Cambiar modo de vista',
+      tooltip: AppLocale.viewMode.getString(context),
       onSelected: (AdminViewMode mode) {
         _confirmAdminModeChange(context, mode, manager);
       },
@@ -370,15 +446,22 @@ class _AdminModeViewsState extends State<AdminModeViews> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.admin_panel_settings, color: Colors.white, size: 20),
+              const Icon(
+                Icons.admin_panel_settings,
+                color: Colors.white,
+                size: 20,
+              ),
               const SizedBox(width: 8),
               Text(
                 currentMode == AdminViewMode.support
-                    ? 'Modo Soporte'
+                    ? AppLocale.supportMode.getString(context)
                     : (currentMode == AdminViewMode.project
-                          ? 'Modo Proyecto'
-                          : 'Modo Mixto'),
-                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                          ? AppLocale.projectMode.getString(context)
+                          : AppLocale.mixedMode.getString(context)),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
               const SizedBox(width: 4),
               const Icon(Icons.arrow_drop_down, color: Colors.white, size: 20),
@@ -387,10 +470,13 @@ class _AdminModeViewsState extends State<AdminModeViews> {
         ),
       ),
       itemBuilder: (BuildContext context) {
-        PopupMenuItem<AdminViewMode> buildItem(AdminViewMode mode, String text) {
+        PopupMenuItem<AdminViewMode> buildItem(
+          AdminViewMode mode,
+          String text,
+        ) {
           final isSelected = currentMode == mode;
           final modeColor = _getModeColor(mode);
-          
+
           return PopupMenuItem<AdminViewMode>(
             value: mode,
             child: Container(
@@ -405,7 +491,11 @@ class _AdminModeViewsState extends State<AdminModeViews> {
               child: Row(
                 children: [
                   Icon(
-                    mode == AdminViewMode.mixed ? Icons.layers : (mode == AdminViewMode.support ? Icons.support_agent : Icons.account_tree),
+                    mode == AdminViewMode.mixed
+                        ? Icons.layers
+                        : (mode == AdminViewMode.support
+                              ? Icons.support_agent
+                              : Icons.account_tree),
                     color: modeColor,
                     size: 20,
                   ),
@@ -413,13 +503,14 @@ class _AdminModeViewsState extends State<AdminModeViews> {
                   Text(
                     text,
                     style: TextStyle(
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
                       color: modeColor,
                     ),
                   ),
                   if (isSelected) const Spacer(),
-                  if (isSelected)
-                    Icon(Icons.check, size: 18, color: modeColor),
+                  if (isSelected) Icon(Icons.check, size: 18, color: modeColor),
                 ],
               ),
             ),
@@ -427,12 +518,28 @@ class _AdminModeViewsState extends State<AdminModeViews> {
         }
 
         return [
-          buildItem(AdminViewMode.mixed, 'Modo Mixto'),
-          buildItem(AdminViewMode.support, 'Modo Soporte'),
-          buildItem(AdminViewMode.project, 'Modo Proyecto'),
+          buildItem(
+            AdminViewMode.mixed,
+            AppLocale.mixedMode.getString(context),
+          ),
+          buildItem(
+            AdminViewMode.support,
+            AppLocale.supportMode.getString(context),
+          ),
+          buildItem(
+            AdminViewMode.project,
+            AppLocale.projectMode.getString(context),
+          ),
         ];
       },
     );
   }
 
+  String _modeLabel(BuildContext context, AdminViewMode mode) {
+    return switch (mode) {
+      AdminViewMode.mixed => AppLocale.mixedMode.getString(context),
+      AdminViewMode.support => AppLocale.supportMode.getString(context),
+      AdminViewMode.project => AppLocale.projectMode.getString(context),
+    };
+  }
 }

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 
 import 'package:primhub/ui/Shared_Custom/cardcustom.dart';
-
 
 import 'package:primhub/ui/widgets/duration_formatter.dart';
 
@@ -45,16 +46,14 @@ class UnifiedSupportCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-
     final double availableHours =
-        acquiredHours - consumedHours - inProgressHours; // Actualizado: restar estimadas para reflejar el saldo real disponible
+        acquiredHours -
+        consumedHours -
+        inProgressHours; // Actualizado: restar estimadas para reflejar el saldo real disponible
     final bool isInsufficient = availableHours < 0;
 
     const Color headerIconColor = Color(0xFF4F46E5);
     const Color headerIconBgColor = Color(0xFFEEF2FF);
-
-
-
 
     return CardCustom(
       hover: false,
@@ -103,7 +102,6 @@ class UnifiedSupportCard extends StatelessWidget {
                     ],
                   ),
                 ),
-
               ],
             ),
             const SizedBox(height: 8),
@@ -114,7 +112,7 @@ class UnifiedSupportCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 _MiniStatItem(
-                  label: 'Adquiridas',
+                  label: AppLocale.acquired.getString(context),
                   value: acquiredHours,
                   color: Colors.blueGrey,
                   isHour: true,
@@ -187,7 +185,7 @@ class UnifiedSupportCard extends StatelessWidget {
             // Requests counters
             Row(
               children: [
-                 Expanded(
+                Expanded(
                   child: InkWell(
                     onTap: onInProgressTap,
                     borderRadius: BorderRadius.circular(12),
@@ -298,5 +296,3 @@ class _CompactRequestStat extends StatelessWidget {
     );
   }
 }
-
-

@@ -2,7 +2,8 @@ import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
-
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 
 class ResetPasswordPage extends StatefulWidget {
   const ResetPasswordPage({super.key});
@@ -11,7 +12,8 @@ class ResetPasswordPage extends StatefulWidget {
   State<ResetPasswordPage> createState() => _ResetPasswordPageState();
 }
 
-class _ResetPasswordPageState extends State<ResetPasswordPage> with TickerProviderStateMixin {
+class _ResetPasswordPageState extends State<ResetPasswordPage>
+    with TickerProviderStateMixin {
   final TextEditingController _userController = TextEditingController();
   bool _isLoading = false;
   late AnimationController _animationController;
@@ -32,12 +34,13 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> with TickerProvid
       CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
     );
 
-    _slideAnimation = Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero).animate(
-      CurvedAnimation(
-        parent: _animationController,
-        curve: Curves.easeOutCubic,
-      ),
-    );
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _animationController,
+            curve: Curves.easeOutCubic,
+          ),
+        );
 
     _animationController.forward();
 
@@ -57,7 +60,11 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> with TickerProvid
 
   void _resetPassword() async {
     if (_userController.text.trim().isEmpty) {
-      ToastMessage.show(context: context, message: 'Por favor, ingrese su usuario o correo electrónico', type: ToastType.warning);
+      ToastMessage.show(
+        context: context,
+        message: AppLocale.enterUserOrEmail.getString(context),
+        type: ToastType.warning,
+      );
       return;
     }
 
@@ -72,7 +79,11 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> with TickerProvid
       setState(() {
         _isLoading = false;
       });
-      ToastMessage.show(context: context, message: 'Se han enviado las instrucciones a su correo', type: ToastType.success);
+      ToastMessage.show(
+        context: context,
+        message: AppLocale.instructionsSent.getString(context),
+        type: ToastType.success,
+      );
       context.pop(); // Regresa al login
     }
   }
@@ -126,14 +137,23 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> with TickerProvid
                                   gradient: SweepGradient(
                                     center: Alignment.center,
                                     colors: [
-                                      theme.colorScheme.primary.withOpacity(0.0),
-                                      theme.colorScheme.primary.withOpacity(0.8),
-                                      theme.colorScheme.primaryContainer.withOpacity(0.8),
-                                      theme.colorScheme.primary.withOpacity(0.0),
+                                      theme.colorScheme.primary.withOpacity(
+                                        0.0,
+                                      ),
+                                      theme.colorScheme.primary.withOpacity(
+                                        0.8,
+                                      ),
+                                      theme.colorScheme.primaryContainer
+                                          .withOpacity(0.8),
+                                      theme.colorScheme.primary.withOpacity(
+                                        0.0,
+                                      ),
                                     ],
                                     stops: const [0.0, 0.4, 0.6, 1.0],
                                     transform: GradientRotation(
-                                      _borderAnimationController.value * 2 * 3.14159,
+                                      _borderAnimationController.value *
+                                          2 *
+                                          3.14159,
                                     ),
                                   ),
                                 ),
@@ -157,19 +177,19 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> with TickerProvid
                                 height: 100,
                                 width: 100,
                                 decoration: BoxDecoration(
-                                  color: theme.colorScheme.primary.withOpacity(0.1),
+                                  color: theme.colorScheme.primary.withOpacity(
+                                    0.1,
+                                  ),
                                   shape: BoxShape.circle,
                                 ),
                                 child: Padding(
                                   padding: const EdgeInsets.all(12.0),
-                                  child: Image.asset(
-                                    'assets/LogoPrimHub.png',
-                                  ),
+                                  child: Image.asset('assets/LogoPrimHub.png'),
                                 ),
                               ),
                               const SizedBox(height: 24),
                               Text(
-                                'Recuperar Contraseña',
+                                AppLocale.recoverPassword.getString(context),
                                 textAlign: TextAlign.center,
                                 style: theme.textTheme.titleLarge?.copyWith(
                                   color: theme.colorScheme.onSurface,
@@ -177,7 +197,9 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> with TickerProvid
                               ),
                               const SizedBox(height: 12),
                               Text(
-                                'Ingrese su nombre de usuario o correo electrónico y le enviaremos instrucciones para reiniciar su contraseña.',
+                                AppLocale.recoverPasswordHelp.getString(
+                                  context,
+                                ),
                                 textAlign: TextAlign.center,
                                 style: theme.textTheme.bodyMedium?.copyWith(
                                   color: theme.colorScheme.onSurfaceVariant,
@@ -190,8 +212,12 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> with TickerProvid
                                 onFieldSubmitted: (_) => _resetPassword(),
                                 keyboardType: TextInputType.emailAddress,
                                 decoration: InputDecoration(
-                                  labelText: 'Usuario / Correo',
-                                  hintText: 'Ingrese su usuario',
+                                  labelText: AppLocale.userOrEmail.getString(
+                                    context,
+                                  ),
+                                  hintText: AppLocale.enterUser.getString(
+                                    context,
+                                  ),
                                   prefixIcon: const Icon(Icons.person_rounded),
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
@@ -203,26 +229,35 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> with TickerProvid
                                 duration: const Duration(milliseconds: 500),
                                 switchInCurve: Curves.elasticOut,
                                 switchOutCurve: Curves.easeIn,
-                                transitionBuilder: (child, animation) => ScaleTransition(
-                                  scale: animation,
-                                  child: child,
-                                ),
+                                transitionBuilder: (child, animation) =>
+                                    ScaleTransition(
+                                      scale: animation,
+                                      child: child,
+                                    ),
                                 child: _isLoading
                                     ? Container(
                                         key: const ValueKey('loading'),
                                         width: double.infinity,
-                                        padding: const EdgeInsets.symmetric(vertical: 16),
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 16,
+                                        ),
                                         decoration: BoxDecoration(
                                           color: theme.colorScheme.primary,
-                                          borderRadius: BorderRadius.circular(12),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
                                         ),
                                         child: Row(
-                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
                                           children: [
                                             Text(
-                                              'Enviando...',
+                                              AppLocale.sending.getString(
+                                                context,
+                                              ),
                                               style: TextStyle(
-                                                color: theme.colorScheme.onPrimary,
+                                                color:
+                                                    theme.colorScheme.onPrimary,
                                                 fontWeight: FontWeight.bold,
                                                 fontSize: 16,
                                               ),
@@ -232,7 +267,8 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> with TickerProvid
                                               width: 20,
                                               height: 20,
                                               child: CircularProgressIndicator(
-                                                color: theme.colorScheme.onPrimary,
+                                                color:
+                                                    theme.colorScheme.onPrimary,
                                                 strokeWidth: 2,
                                               ),
                                             ),
@@ -241,11 +277,14 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> with TickerProvid
                                       )
                                     : CustomButton(
                                         key: const ValueKey('button'),
-                                        text: 'Enviar Instrucciones',
+                                        text: AppLocale.sendInstructions
+                                            .getString(context),
                                         onPressed: _resetPassword,
                                         isLoading: false,
                                         width: double.infinity,
-                                        padding: const EdgeInsets.symmetric(vertical: 16),
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 16,
+                                        ),
                                         borderRadius: 12,
                                       ),
                               ),
@@ -255,13 +294,13 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> with TickerProvid
                                   context.pop();
                                 },
                                 child: Text(
-                                  'Volver al Login',
+                                  AppLocale.backToLogin.getString(context),
                                   style: TextStyle(
                                     color: theme.colorScheme.primary,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                              )
+                              ),
                             ],
                           ),
                         ),

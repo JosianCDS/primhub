@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:universal_html/html.dart' as html;
 
@@ -24,7 +26,7 @@ class HelpIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     return IconButton(
       icon: const Icon(Icons.help_outline_rounded),
-      tooltip: 'Ayuda / Manual de Usuario',
+      tooltip: AppLocale.helpManual.getString(context),
       color: color,
       onPressed: _openHelpUrl,
     );

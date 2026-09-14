@@ -1,5 +1,7 @@
 import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 import 'package:primhub/ui/Shared_Custom/admin_mode_views.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/access_control.dart';
@@ -388,7 +390,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
       if (!AccessControl.isAdmin)
         IconButton(
           icon: const Icon(Icons.logout_rounded, color: Colors.red),
-          tooltip: 'Cerrar Sesión',
+          tooltip: AppLocale.logout.getString(context),
           onPressed: () => showLogoutConfirmation(context),
         ),
     ];
@@ -530,7 +532,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
                   : Builder(
                       builder: (ctx) => IconButton(
                         icon: const Icon(Icons.menu_rounded),
-                        tooltip: 'Menú Principal',
+                        tooltip: AppLocale.mainMenu.getString(context),
                         onPressed: () => Scaffold.of(ctx).openDrawer(),
                       ),
                     )),

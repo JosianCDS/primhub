@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 
@@ -67,7 +69,7 @@ class _ProjectListViewState extends State<ProjectListView> {
       children: [
         Padding(
           padding: const EdgeInsets.all(16.0),
-          child: CustomTextField(controller: _searchController, hintText: 'Buscar proyecto...', prefixIcon: const Icon(Icons.search)),
+          child: CustomTextField(controller: _searchController, hintText: AppLocale.searchProject.getString(context), prefixIcon: const Icon(Icons.search)),
         ),
         Expanded(
           child: ListView.builder(

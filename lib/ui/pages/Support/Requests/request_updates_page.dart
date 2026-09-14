@@ -2,6 +2,8 @@ import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 import 'package:flutter_quill/flutter_quill.dart' hide Style;
 import 'package:primhub/ui/pages/Support/Requests/html_editor_utils.dart';
 import 'package:primhub/api/api_http.dart' as http;
@@ -223,7 +225,7 @@ class _RequestUpdatesPageState extends State<RequestUpdatesPage> {
                         children: [
                           Icon(Icons.chat_bubble_outline, size: 48, color: colorScheme.outline),
                           const SizedBox(height: 16),
-                          Text('No hay respuestas aún', style: textTheme.bodyLarge?.copyWith(color: colorScheme.outline)),
+                          Text(AppLocale.noRepliesYet.getString(context), style: textTheme.bodyLarge?.copyWith(color: colorScheme.outline)),
                         ],
                       ),
                     );
@@ -463,7 +465,7 @@ class _AddUpdateDialogState extends State<_AddUpdateDialog> {
   Future<void> _handleSave() async {
     final resultText = _resultController.document.toPlainText().trim();
     if (resultText.isEmpty) {
-      ToastMessage.show(context: context, message: 'El campo de resultado no puede estar vacío.', type: ToastType.warning);
+      ToastMessage.show(context: context, message: AppLocale.resultRequired.getString(context), type: ToastType.warning);
       return;
     }
 
@@ -477,7 +479,7 @@ class _AddUpdateDialogState extends State<_AddUpdateDialog> {
       setState(() => _isSaving = false);
       
       if (result['success'] == true) {
-        ToastMessage.show(context: context, message: result['message'] ?? 'Actualización creada con éxito', type: ToastType.success);
+        ToastMessage.show(context: context, message: result['message'] ?? AppLocale.updateCreated.getString(context), type: ToastType.success);
         bool statusChanged = false;
         if (_newStatusId != null && _newStatusId != widget.currentStatusId) {
           final statusResult = await updateRemoteRequest(id: widget.requestId, statusId: _newStatusId!);
@@ -609,7 +611,7 @@ class _AddUpdateDialogState extends State<_AddUpdateDialog> {
           String msg = isInternal ? 'Correo enviado al cliente' : 'Correo enviado al equipo';
           ToastMessage.show(context: context, message: msg, type: ToastType.success);
         } else {
-          ToastMessage.show(context: context, message: 'No se pudo enviar el correo de notificación', type: ToastType.failure);
+          ToastMessage.show(context: context, message: AppLocale.notificationEmailFailed.getString(context), type: ToastType.failure);
         }
       }
     } catch (_) {}
@@ -618,7 +620,7 @@ class _AddUpdateDialogState extends State<_AddUpdateDialog> {
   @override
   Widget build(BuildContext context) {
     return CustomModal(
-      title: 'Añadir Actualización',
+      title: AppLocale.addUpdate.getString(context),
       width: 600,
       content: SingleChildScrollView(
         child: Column(
@@ -687,12 +689,12 @@ class _AddUpdateDialogState extends State<_AddUpdateDialog> {
                 children: [
                   Expanded(
                     child: CustomDropdown<String>(
-                      label: 'Confidencialidad',
+                      label: AppLocale.confidentiality.getString(context),
                       value: _confidentialType,
-                      items: const [
-                        DropdownMenuItem(value: 'I', child: Text('Nota Interna')),
-                        DropdownMenuItem(value: 'C', child: Text('Visible para Cliente')),
-                        DropdownMenuItem(value: 'P', child: Text('Público')),
+                      items: [
+                        DropdownMenuItem(value: 'I', child: Text(AppLocale.internalNote.getString(context))),
+                        DropdownMenuItem(value: 'C', child: Text(AppLocale.visibleToClient.getString(context))),
+                        DropdownMenuItem(value: 'P', child: Text(AppLocale.publicLabel.getString(context))),
                       ],
                       onChanged: (val) {
                         if (val != null) setState(() => _confidentialType = val);
@@ -1033,12 +1035,12 @@ class _RequestSummaryHeader extends StatelessWidget {
             padding: const EdgeInsets.only(top: 4.0, right: 4.0),
             child: IconButton(
               icon: const Icon(Icons.zoom_out_map),
-              tooltip: 'Ver descripción completa',
+              tooltip: AppLocale.viewFullDescription.getString(context),
               onPressed: () {
                 showDialog(
                   context: context,
                   builder: (BuildContext dialogContext) => CustomModal(
-                    title: 'Descripción Completa',
+                    title: AppLocale.fullDescription.getString(context),
                     width: 600,
                     content: SizedBox(
                       height: 400,
@@ -1091,4 +1093,3 @@ class _RequestSummaryHeader extends StatelessWidget {
     );
   }
 }
-

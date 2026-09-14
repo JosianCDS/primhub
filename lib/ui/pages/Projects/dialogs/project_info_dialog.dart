@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/Shared_Custom/custom_container.dart';
 import 'package:intl/intl.dart';
@@ -37,7 +39,7 @@ class ProjectInfoDialog extends StatelessWidget {
     final isMobile = MediaQuery.of(context).size.width < 600;
 
     return CustomModal(
-      title: 'Ficha Técnica del Proyecto',
+      title: AppLocale.projectTechnicalSheet.getString(context),
       width: 850,
       content: SingleChildScrollView(
         child: Column(
@@ -64,7 +66,7 @@ class ProjectInfoDialog extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          project['Name'] ?? 'Sin Nombre',
+                          project['Name'] ?? AppLocale.unnamed.getString(context),
                           style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
                         ),
                         const SizedBox(height: 4),
@@ -90,7 +92,9 @@ class ProjectInfoDialog extends StatelessWidget {
                                 Icon(Icons.circle, size: 8, color: (project['IsActive'] == true || project['IsActive'] == 'Y') ? Colors.green : Colors.grey),
                                 const SizedBox(width: 4),
                                 Text(
-                                  (project['IsActive'] == true || project['IsActive'] == 'Y') ? 'Activo' : 'Inactivo',
+                                  (project['IsActive'] == true || project['IsActive'] == 'Y')
+                                      ? AppLocale.active.getString(context)
+                                      : AppLocale.inactive.getString(context),
                                   style: TextStyle(fontSize: 13, color: colorScheme.onSurface.withOpacity(0.7)),
                                 ),
                               ],
@@ -111,16 +115,16 @@ class ProjectInfoDialog extends StatelessWidget {
                 final isMobile = MediaQuery.of(context).size.width < 600;
                 
                 final infoWidget = CustomContainer(
-                  title: 'Información General',
+                  title: AppLocale.generalInformation.getString(context),
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     children: [
-                      _buildInfoRow(context, Icons.notes, 'Descripción', project['Description'] ?? 'Sin descripción disponible', isLongText: true),
+                      _buildInfoRow(context, Icons.notes, AppLocale.description.getString(context), project['Description'] ?? AppLocale.noDescriptionAvailable.getString(context), isLongText: true),
                       const Divider(height: 24),
                       Row(
                         children: [
-                          Expanded(child: _buildInfoRow(context, Icons.calendar_today, 'Inicio Contrato', _formatDate(project['DateContract']))),
-                          Expanded(child: _buildInfoRow(context, Icons.event_available, 'Fin Estimado', _formatDate(project['DateFinish']))),
+                          Expanded(child: _buildInfoRow(context, Icons.calendar_today, AppLocale.contractStart.getString(context), _formatDate(project['DateContract']))),
+                          Expanded(child: _buildInfoRow(context, Icons.event_available, AppLocale.estimatedEnd.getString(context), _formatDate(project['DateFinish']))),
                         ],
                       ),
                     ],
@@ -128,15 +132,15 @@ class ProjectInfoDialog extends StatelessWidget {
                 );
 
                 final responsiblesWidget = CustomContainer(
-                  title: 'Responsables',
+                  title: AppLocale.managersTitle.getString(context),
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     children: [
-                      _buildInfoRow(context, Icons.business, 'Cliente', _getIdentifier(project['C_BPartner_ID'])),
+                      _buildInfoRow(context, Icons.business, AppLocale.client.getString(context), _getIdentifier(project['C_BPartner_ID'])),
                       const SizedBox(height: 16),
-                      _buildInfoRow(context, Icons.person_outline, 'Resp. Comercial', _getIdentifier(project['SalesRep_ID'] ?? project['C_BPartnerSR_ID'])),
+                      _buildInfoRow(context, Icons.person_outline, AppLocale.salesRepresentative.getString(context), _getIdentifier(project['SalesRep_ID'] ?? project['C_BPartnerSR_ID'])),
                       const SizedBox(height: 16),
-                      _buildInfoRow(context, Icons.payments_outlined, 'Moneda / Facturación', '${_getIdentifier(project['C_Currency_ID'])} - ${_getIdentifier(project['ProjInvoiceRule'])}'),
+                      _buildInfoRow(context, Icons.payments_outlined, AppLocale.currencyBilling.getString(context), '${_getIdentifier(project['C_Currency_ID'])} - ${_getIdentifier(project['ProjInvoiceRule'])}'),
                     ],
                   ),
                 );
@@ -170,16 +174,16 @@ class ProjectInfoDialog extends StatelessWidget {
                 final isMobile = MediaQuery.of(context).size.width < 600;
                 
                 final metricChildren = [
-                  _buildMetricTile(context, 'Importe Planeado', project['PlannedAmt'], Icons.account_balance_wallet_outlined, colorScheme.primary),
-                  _buildMetricTile(context, 'Importe Comprometido', project['CommittedAmt'], Icons.shopping_bag_outlined, Colors.orange),
-                  _buildMetricTile(context, 'Balance Proyecto', project['ProjectBalanceAmt'], Icons.balance, Colors.blue),
-                  _buildMetricTile(context, 'Cantidad Planeada', project['PlannedQty'], Icons.layers_outlined, colorScheme.secondary, isCurrency: false),
-                  _buildMetricTile(context, 'Cantidad Comprometida', project['CommittedQty'], Icons.inventory_2_outlined, Colors.purple, isCurrency: false),
-                  _buildMetricTile(context, 'Margen Planeado', project['PlannedMarginAmt'], Icons.trending_up, Colors.green),
+                  _buildMetricTile(context, AppLocale.plannedAmount.getString(context), project['PlannedAmt'], Icons.account_balance_wallet_outlined, colorScheme.primary),
+                  _buildMetricTile(context, AppLocale.committedAmount.getString(context), project['CommittedAmt'], Icons.shopping_bag_outlined, Colors.orange),
+                  _buildMetricTile(context, AppLocale.projectBalance.getString(context), project['ProjectBalanceAmt'], Icons.balance, Colors.blue),
+                  _buildMetricTile(context, AppLocale.plannedQuantity.getString(context), project['PlannedQty'], Icons.layers_outlined, colorScheme.secondary, isCurrency: false),
+                  _buildMetricTile(context, AppLocale.committedQuantity.getString(context), project['CommittedQty'], Icons.inventory_2_outlined, Colors.purple, isCurrency: false),
+                  _buildMetricTile(context, AppLocale.plannedMargin.getString(context), project['PlannedMarginAmt'], Icons.trending_up, Colors.green),
                 ];
 
                 return CustomContainer(
-                  title: 'Métricas y Desempeño Financiero',
+                  title: AppLocale.financialMetrics.getString(context),
                   child: isMobile 
                       ? Column(
                           children: metricChildren.map((e) => Padding(padding: const EdgeInsets.only(bottom: 16.0), child: e)).toList(),
@@ -208,7 +212,7 @@ class ProjectInfoDialog extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
-            child: const Text('Cerrar Ventana', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: Text(AppLocale.closeWindow.getString(context), style: const TextStyle(fontWeight: FontWeight.bold)),
           ),
         )
       ],

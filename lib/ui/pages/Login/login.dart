@@ -19,6 +19,8 @@ import 'dart:js' as js;
 import 'package:primhub/navigation/deferred_registry.dart';
 import 'package:primhub/ui/pages/Login/login_selection_args.dart';
 import 'package:primhub/build_version.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -156,13 +158,11 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
       final errorMessage = responseStep1['error'].toString();
 
       if (errorMessage.contains('401')) {
-        _showError('Usuario o Contraseña Incorrectos');
+        _showError(AppLocale.invalidCredentials.getString(context));
       } else if (errorMessage.contains('Failed to fetch') ||
           errorMessage.contains('ClientException') ||
           errorMessage.contains('SocketException')) {
-        _showError(
-          'Verifique su conexion a internet y que sus credenciales sean correctas.',
-        );
+        _showError(AppLocale.connectionError.getString(context));
       } else {
         _showError(errorMessage);
       }
@@ -180,7 +180,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
       // Flujo Normal: Necesitamos seleccionar Cliente -> Rol -> Org
       List clients = responseStep1['clients'];
       if (clients.isEmpty) {
-        _showError('El usuario no tiene clientes asignados.');
+        _showError(AppLocale.noAssignedClients.getString(context));
         return;
       }
 
@@ -230,16 +230,22 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
             );
 
             if (responseFinal == false) {
-              ToastMessage.show(context: context, message: 'Credenciales o configuración incorrectas.', type: ToastType.failure);
+              ToastMessage.show(
+                context: context,
+                message: AppLocale.incorrectConfiguration.getString(context),
+                type: ToastType.failure,
+              );
             } else {
               if (mounted) {
                 FocusScope.of(context).unfocus();
                 await Future.delayed(const Duration(milliseconds: 150));
-                
+
                 if (mounted) {
                   CurrentLogMessage.add("Login exitoso (Auto - Ruta Única).");
                   // Escape the Dart Zone using pure JS eval to force a reload!
-                  js.context.callMethod('eval', ['setTimeout(function(){ window.location.reload(); }, 100);']);
+                  js.context.callMethod('eval', [
+                    'setTimeout(function(){ window.location.reload(); }, 100);',
+                  ]);
                 }
               }
             }
@@ -251,7 +257,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
       if (mounted) {
         FocusScope.of(context).unfocus();
         await Future.delayed(const Duration(milliseconds: 150));
-        
+
         if (mounted) {
           setState(() => _isLoading = false);
           context.push(
@@ -278,14 +284,20 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
 
       CurrentLogMessage.add("Login exitoso. Token guardado.");
       // Escape the Dart Zone using pure JS eval to force a reload!
-      js.context.callMethod('eval', ['setTimeout(function(){ window.location.reload(); }, 100);']);
+      js.context.callMethod('eval', [
+        'setTimeout(function(){ window.location.reload(); }, 100);',
+      ]);
     }
   }
 
   void _showError(String message) {
     if (mounted) {
       setState(() => _isLoading = false);
-      ToastMessage.show(context: context, message: message, type: ToastType.failure);
+      ToastMessage.show(
+        context: context,
+        message: message,
+        type: ToastType.failure,
+      );
     }
   }
 
@@ -297,13 +309,11 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     showDialog(
       context: context,
       builder: (context) => CustomModal(
-        title: 'Configurar URL del Servidor',
+        title: AppLocale.configureServerUrl.getString(context),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'Ingrese la URL base del servidor (ej. https://api.midominio.com)',
-            ),
+            Text(AppLocale.serverAddressHelp.getString(context)),
             const SizedBox(height: 16),
             CustomTextField(
               controller: urlController,
@@ -312,7 +322,9 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
             ),
             const SizedBox(height: 16),
             Text(
-              'Versión de Compilación: $_buildVersion',
+              AppLocale.buildVersion.getStringWithVariables(context, {
+                'version': _buildVersion,
+              }),
               style: const TextStyle(color: Colors.grey, fontSize: 12),
             ),
           ],
@@ -320,10 +332,10 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
+            child: Text(AppLocale.cancel.getString(context)),
           ),
           CustomButton(
-            text: 'Guardar',
+            text: AppLocale.save.getString(context),
             onPressed: () async {
               final newUrl = urlController.text.trim();
               if (newUrl.isNotEmpty) {
@@ -336,7 +348,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                   Navigator.pop(context);
                   ToastMessage.show(
                     context: context,
-                    message: 'URL actualizada correctamente',
+                    message: AppLocale.urlUpdated.getString(context),
                     type: ToastType.success,
                   );
                 }
@@ -495,17 +507,22 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                   keyboardType: TextInputType
                                       .emailAddress, // Sugerencia para gestores de contraseñas
                                   decoration: InputDecoration(
-                                    labelText: 'Usuario',
-                                    hintText: 'Ingrese su usuario',
+                                    labelText: AppLocale.user.getString(
+                                      context,
+                                    ),
+                                    hintText: AppLocale.enterUser.getString(
+                                      context,
+                                    ),
                                     prefixIcon: const Icon(
                                       Icons.person_rounded,
                                     ),
                                     suffixIcon:
                                         (_userFocus.hasFocus &&
                                             (_isCapsLockOn != _isShiftPressed))
-                                        ? const Tooltip(
-                                            message: 'Mayúsculas activadas',
-                                            child: Icon(
+                                        ? Tooltip(
+                                            message: AppLocale.capsLockOn
+                                                .getString(context),
+                                            child: const Icon(
                                               Icons.keyboard_capslock_rounded,
                                               color: Colors.orange,
                                             ),
@@ -529,8 +546,12 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                   onEditingComplete:
                                       _login, // Para que el autocompletado funcione mejor
                                   decoration: InputDecoration(
-                                    labelText: 'Contraseña',
-                                    hintText: 'Ingrese su contraseña',
+                                    labelText: AppLocale.password.getString(
+                                      context,
+                                    ),
+                                    hintText: AppLocale.enterPassword.getString(
+                                      context,
+                                    ),
                                     prefixIcon: const Icon(Icons.lock_rounded),
                                     border: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(12),
@@ -540,9 +561,10 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                       children: [
                                         if (_passFocus.hasFocus &&
                                             (_isCapsLockOn != _isShiftPressed))
-                                          const Tooltip(
-                                            message: 'Mayúsculas activadas',
-                                            child: Icon(
+                                          Tooltip(
+                                            message: AppLocale.capsLockOn
+                                                .getString(context),
+                                            child: const Icon(
                                               Icons.keyboard_capslock_rounded,
                                               color: Colors.orange,
                                             ),
@@ -563,6 +585,45 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                       ],
                                     ),
                                   ),
+                                ),
+                                const SizedBox(height: 24),
+                                CustomDropdown<String>(
+                                  value:
+                                      FlutterLocalization
+                                          .instance
+                                          .currentLocale
+                                          ?.languageCode ??
+                                      'es',
+                                  label: AppLocale.language.getString(context),
+                                  hintText: AppLocale.language.getString(
+                                    context,
+                                  ),
+                                  items: [
+                                    DropdownMenuItem(
+                                      value: 'es',
+                                      child: Text(
+                                        AppLocale.spanish.getString(context),
+                                      ),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 'en',
+                                      child: Text(
+                                        AppLocale.english.getString(context),
+                                      ),
+                                    ),
+                                  ],
+                                  onChanged: (languageCode) async {
+                                    if (languageCode == null) return;
+                                    FlutterLocalization.instance.translate(
+                                      languageCode,
+                                    );
+                                    final prefs =
+                                        await SharedPreferences.getInstance();
+                                    await prefs.setString(
+                                      'languageCode',
+                                      languageCode,
+                                    );
+                                  },
                                 ),
                                 const SizedBox(height: 24),
                                 AnimatedSwitcher(
@@ -618,7 +679,9 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                         )
                                       : CustomButton(
                                           key: const ValueKey('button'),
-                                          text: 'Ingresar',
+                                          text: AppLocale.login.getString(
+                                            context,
+                                          ),
                                           onPressed: _login,
                                           isLoading: false,
                                           width: double.infinity,

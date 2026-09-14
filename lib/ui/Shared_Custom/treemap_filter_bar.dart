@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 import 'package:primhub/api/global_cache.dart';
 import 'package:primhub/ui/Shared_Custom/clearable_dropdown_menu.dart';
 import 'package:primhub/ui/widgets/duration_formatter.dart';
@@ -94,12 +96,12 @@ class TreemapFilterBar extends StatelessWidget {
                   width: itemWidth,
                   child: ClearableDropdownMenu<int?>(
                     initialSelection: selectedBpId,
-                    hintText: 'Todos los Terceros',
+                    hintText: AppLocale.allPartners.getString(context),
                     leadingIcon: const Icon(Icons.business_rounded, size: 20),
                     width: itemWidth,
                     menuHeight: 300,
                     dropdownMenuEntries: [
-                      const DropdownMenuEntry<int?>(value: null, label: 'Todos los Terceros'),
+                      DropdownMenuEntry<int?>(value: null, label: AppLocale.allPartners.getString(context)),
                       ...availableBps.map((bp) => DropdownMenuEntry<int?>(
                         value: bp['id'] as int,
                         label: bp['Name']?.toString() ?? 'Sin Nombre',
@@ -115,7 +117,7 @@ class TreemapFilterBar extends StatelessWidget {
                   width: itemWidth,
                   child: ClearableDropdownMenu<int?>(
                     initialSelection: selectedProjectId,
-                    hintText: selectedBpId != null && availableProjects.isEmpty ? 'Sin Proyectos Disponibles' : 'Todos los Proyectos',
+                    hintText: selectedBpId != null && availableProjects.isEmpty ? AppLocale.noProjectsAvailable.getString(context) : AppLocale.allProjects.getString(context),
                     leadingIcon: const Icon(Icons.folder_outlined, size: 20),
                     width: itemWidth,
                     menuHeight: 300,
@@ -123,7 +125,7 @@ class TreemapFilterBar extends StatelessWidget {
                       if (selectedBpId != null && availableProjects.isEmpty)
                         const DropdownMenuEntry<int?>(value: null, label: 'Sin Proyectos Disponibles')
                       else ...[
-                        const DropdownMenuEntry<int?>(value: null, label: 'Todos los Proyectos'),
+                        DropdownMenuEntry<int?>(value: null, label: AppLocale.allProjects.getString(context)),
                         ...availableProjects.map((p) => DropdownMenuEntry<int?>(
                           value: (p['id'] as num?)?.toInt(),
                           label: p['Name']?.toString() ?? 'Proyecto sin nombre',
@@ -141,12 +143,12 @@ class TreemapFilterBar extends StatelessWidget {
                   child: ClearableDropdownMenu<String>(
                     initialSelection: selectedSalesRep,
                     fallbackText: 'Todos',
-                    hintText: 'Representante',
+                    hintText: AppLocale.representative.getString(context),
                     leadingIcon: const Icon(Icons.person_outline, size: 20),
                     width: itemWidth,
                     menuHeight: 300,
                     dropdownMenuEntries: availableReps.isEmpty 
-                        ? const [DropdownMenuEntry(value: 'Todos', label: 'Todos los Representantes')]
+                        ? [DropdownMenuEntry(value: 'Todos', label: AppLocale.allRepresentatives.getString(context))]
                         : availableReps.map((rep) => DropdownMenuEntry(value: rep, label: rep)).toList(),
                     onSelected: onRepSelected,
                   ),
@@ -158,12 +160,12 @@ class TreemapFilterBar extends StatelessWidget {
                   width: itemWidth,
                   child: ClearableDropdownMenu<int?>(
                     initialSelection: selectedChipId,
-                    hintText: 'Todas las Fichas',
+                    hintText: AppLocale.allSheets.getString(context),
                     leadingIcon: const Icon(Icons.style_outlined, size: 20),
                     width: itemWidth,
                     menuHeight: 300,
                     dropdownMenuEntries: [
-                      const DropdownMenuEntry<int?>(value: null, label: 'Todas las Fichas'),
+                      DropdownMenuEntry<int?>(value: null, label: AppLocale.allSheets.getString(context)),
                       ...GlobalCache.productChips.map((c) => DropdownMenuEntry<int?>(
                             value: int.tryParse(c['id']?.toString() ?? '') ?? 0,
                             label: (c['Description'] ?? c['Name'] ?? 'Ficha sin nombre').toString(),
@@ -180,7 +182,7 @@ class TreemapFilterBar extends StatelessWidget {
                   child: ClearableDropdownMenu<String>(
                     initialSelection: selectedRequestCategory,
                     fallbackText: 'Todas',
-                    hintText: 'Tipo de Solicitud',
+                    hintText: AppLocale.requestType.getString(context),
                     leadingIcon: const Icon(Icons.category_outlined, size: 20),
                     width: itemWidth,
                     menuHeight: 300,
@@ -203,12 +205,12 @@ class TreemapFilterBar extends StatelessWidget {
                       icon: const Icon(Icons.filter_alt_outlined, size: 20),
                       borderRadius: BorderRadius.circular(10),
                       style: theme.textTheme.bodyLarge?.copyWith(color: colorScheme.onSurface),
-                      items: const [
-                        DropdownMenuItem(value: 'all', child: Text('Todo el Historial', overflow: TextOverflow.ellipsis)),
-                        DropdownMenuItem(value: 'this_week', child: Text('Semana Actual', overflow: TextOverflow.ellipsis)),
-                        DropdownMenuItem(value: 'next_15_days', child: Text('15 Días', overflow: TextOverflow.ellipsis)),
-                        DropdownMenuItem(value: 'this_month', child: Text('Mes Actual', overflow: TextOverflow.ellipsis)),
-                        DropdownMenuItem(value: 'overdue', child: Text('Vencidas (Abiertas)', overflow: TextOverflow.ellipsis)),
+                      items: [
+                        DropdownMenuItem(value: 'all', child: Text(AppLocale.allHistory.getString(context), overflow: TextOverflow.ellipsis)),
+                        DropdownMenuItem(value: 'this_week', child: Text(AppLocale.currentWeek.getString(context), overflow: TextOverflow.ellipsis)),
+                        DropdownMenuItem(value: 'next_15_days', child: Text(AppLocale.next15Days.getString(context), overflow: TextOverflow.ellipsis)),
+                        DropdownMenuItem(value: 'this_month', child: Text(AppLocale.currentMonth.getString(context), overflow: TextOverflow.ellipsis)),
+                        DropdownMenuItem(value: 'overdue', child: Text(AppLocale.overdueOpen.getString(context), overflow: TextOverflow.ellipsis)),
                       ],
                       onChanged: (val) {
                         if (val != null) {
@@ -246,7 +248,7 @@ class TreemapFilterBar extends StatelessWidget {
                     border: Border.all(color: colorScheme.secondary.withOpacity(0.3)),
                   ),
                   child: Text(
-                    'Horas Est.: ${DurationFormatter.format(totalHours)}',
+                    AppLocale.estimatedHoursShort.getStringWithVariables(context, {'hours': DurationFormatter.format(totalHours)}),
                     style: TextStyle(
                       color: colorScheme.onSecondaryContainer,
                       fontWeight: FontWeight.bold,
@@ -266,7 +268,7 @@ class TreemapFilterBar extends StatelessWidget {
                     border: Border.all(color: colorScheme.primary.withOpacity(0.3)),
                   ),
                   child: Text(
-                    'Solicitudes: $totalCount',
+                    AppLocale.requestsTotalLabel.getStringWithVariables(context, {'count': '$totalCount'}),
                     style: TextStyle(
                       color: colorScheme.onPrimaryContainer,
                       fontWeight: FontWeight.bold,

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 import 'package:flutter/services.dart';
 import 'package:primhub/api/global_cache.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
@@ -417,9 +419,9 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const CustomModal(
-        title: 'Nueva Ficha de Producto',
-        content: SizedBox(
+      return CustomModal(
+        title: AppLocale.newProductSheet.getString(context),
+        content: const SizedBox(
           height: 200,
           child: Center(child: CircularProgressIndicator()),
         ),
@@ -449,7 +451,7 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
     }
 
     return CustomModal(
-      title: 'Nueva Ficha de Producto',
+      title: AppLocale.newProductSheet.getString(context),
       width: 1000,
       content: Form(
         key: _formKey,
@@ -459,7 +461,7 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                '1. Información Principal',
+                AppLocale.mainInformation.getString(context),
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: Theme.of(context).colorScheme.primary,
@@ -469,8 +471,8 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
               // FILA 1: Tercero y Contacto
               buildPair(
                 _buildSearchableField<int>(
-                  label: 'Tercero Asociado *',
-                  hintText: 'Seleccionar...',
+                  label: AppLocale.associatedPartner.getString(context),
+                  hintText: AppLocale.select.getString(context),
                   value: _selectedBPartnerId,
                   isLoading: false,
                   isDisabled: false,
@@ -495,8 +497,8 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
                   },
                 ),
                 _buildSearchableField<int>(
-                  label: 'Contacto de Facturación *',
-                  hintText: 'Seleccionar...',
+                  label: AppLocale.billingContact.getString(context),
+                  hintText: AppLocale.select.getString(context),
                   value: _selectedContactId,
                   isLoading: _isLoading,
                   isDisabled: _contacts.isEmpty,
@@ -528,8 +530,8 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
               // FILA 2: Dirección y Producto
               buildPair(
                 _buildSearchableField<int>(
-                  label: 'Dirección de Factura *',
-                  hintText: 'Seleccionar...',
+                  label: AppLocale.billingAddress.getString(context),
+                  hintText: AppLocale.select.getString(context),
                   value: _selectedLocationId,
                   isLoading: _isLoading,
                   isDisabled: _locations.isEmpty,
@@ -556,8 +558,8 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
                   },
                 ),
                 _buildSearchableField<int>(
-                  label: 'Producto (Soporte) *',
-                  hintText: 'Seleccionar...',
+                  label: AppLocale.supportProduct.getString(context),
+                  hintText: AppLocale.select.getString(context),
                   value: _selectedProductId,
                   isLoading: _isLoading,
                   isDisabled: _products.isEmpty,
@@ -589,7 +591,7 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
               // FILA 3: Descripción
               CustomTextField(
                 controller: _descriptionController,
-                label: 'Nombre de la Ficha de Producto *',
+                label: AppLocale.productSheetName.getString(context),
                 prefixIcon: Icon(
                   Icons.label_outline,
                   color: Theme.of(context).colorScheme.primary,
@@ -601,7 +603,7 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
               const Divider(height: 48),
 
               Text(
-                '2. Facturación y Contrato',
+                AppLocale.billingAndContract.getString(context),
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: Theme.of(context).colorScheme.primary,
@@ -612,8 +614,8 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
               // FILA 4: Frecuencia y Lista de Precios
               buildPair(
                 _buildSearchableField<String>(
-                  label: 'Tipo de Frecuencia *',
-                  hintText: 'Seleccionar...',
+                  label: AppLocale.frequencyType.getString(context),
+                  hintText: AppLocale.select.getString(context),
                   value: _selectedFrequencyType,
                   isLoading: _isLoading,
                   isDisabled: false,
@@ -653,8 +655,8 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
                   },
                 ),
                 _buildSearchableField<int>(
-                  label: 'Lista de Precios *',
-                  hintText: 'Seleccionar...',
+                  label: AppLocale.priceList.getString(context),
+                  hintText: AppLocale.select.getString(context),
                   value: _selectedPriceListId,
                   isLoading: false,
                   isDisabled: false,
@@ -687,7 +689,7 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
               buildPair(
                 CustomTextField(
                   controller: _qtyController,
-                  label: 'Cantidad *',
+                  label: AppLocale.quantity.getString(context),
                   prefixIcon: Icon(
                     Icons.numbers,
                     color: Theme.of(context).colorScheme.primary,
@@ -704,7 +706,7 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
                 ),
                 CustomTextField(
                   controller: _contractNoController,
-                  label: 'N° de Contrato *',
+                  label: AppLocale.contractNumber.getString(context),
                   prefixIcon: Icon(
                     Icons.receipt_long_outlined,
                     color: Theme.of(context).colorScheme.primary,
@@ -722,7 +724,7 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
                   onTap: () => _selectDate(context, true),
                   child: InputDecorator(
                     decoration: InputDecoration(
-                      labelText: 'Inicio de Servicio *',
+                      labelText: AppLocale.serviceStart.getString(context),
                       prefixIcon: Icon(
                         Icons.calendar_today,
                         color: Theme.of(context).colorScheme.primary,
@@ -738,7 +740,7 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
                     child: Text(
                       _serviceStartDate != null
                           ? "${_serviceStartDate!.day}/${_serviceStartDate!.month}/${_serviceStartDate!.year}"
-                          : 'Seleccionar fecha',
+                          : AppLocale.selectDate.getString(context),
                       style: TextStyle(
                         fontSize: 16,
                         color: _serviceStartDate != null
@@ -752,7 +754,7 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
                   onTap: () => _selectDate(context, false),
                   child: InputDecorator(
                     decoration: InputDecoration(
-                      labelText: 'Fin de Servicio',
+                      labelText: AppLocale.serviceEnd.getString(context),
                       prefixIcon: Icon(
                         Icons.event_busy,
                         color: Theme.of(context).colorScheme.primary,
@@ -768,7 +770,7 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
                     child: Text(
                       _serviceFinishDate != null
                           ? "${_serviceFinishDate!.day}/${_serviceFinishDate!.month}/${_serviceFinishDate!.year}"
-                          : 'Seleccionar fecha',
+                          : AppLocale.selectDate.getString(context),
                       style: TextStyle(
                         fontSize: 16,
                         color: _serviceFinishDate != null
@@ -786,10 +788,10 @@ class _ProductChipFormDialogState extends State<ProductChipFormDialog> {
       actions: [
         TextButton(
           onPressed: _isSaving ? null : () => Navigator.of(context).pop(false),
-          child: const Text('Cancelar'),
+          child: Text(AppLocale.cancel.getString(context)),
         ),
         CustomButton(
-          text: 'Crear Ficha',
+          text: AppLocale.createProductSheet.getString(context),
           onPressed: _isFormValid ? _saveForm : null,
           isLoading: _isSaving,
           backgroundColor: _isFormValid

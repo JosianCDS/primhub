@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:super_drag_and_drop/super_drag_and_drop.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 
 class BreadcrumbNavigator extends StatelessWidget {
   final List<String> currentPath;
@@ -58,7 +60,7 @@ class BreadcrumbNavigator extends StatelessWidget {
                 Icon(_getIconForCrumb(i, currentPath[i]), size: 18, color: color),
                 const SizedBox(width: 8),
                 Text(
-                  currentPath[i].split('.').first,
+                  _localizedCrumb(context, currentPath[i].split('.').first),
                   style: TextStyle(
                     color: color,
                     fontWeight: isLast ? FontWeight.bold : FontWeight.w500,
@@ -93,6 +95,17 @@ class BreadcrumbNavigator extends StatelessWidget {
       scrollDirection: Axis.horizontal,
       child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: crumbs),
     );
+  }
+
+  String _localizedCrumb(BuildContext context, String value) {
+    return switch (value) {
+      'Mis Proyectos' => AppLocale.myProjects.getString(context),
+      'Mis Documentos' => AppLocale.documents.getString(context),
+      'Entregables' => AppLocale.deliverables.getString(context),
+      'Seguimiento' => AppLocale.tracking.getString(context),
+      'General' => AppLocale.general.getString(context),
+      _ => value,
+    };
   }
 }
 

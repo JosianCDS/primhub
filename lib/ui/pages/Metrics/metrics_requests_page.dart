@@ -1,5 +1,7 @@
 import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart'; 
@@ -410,11 +412,11 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
     final bool? confirm = await showDialog<bool>(
       context: context,
       builder: (context) => CustomModal(
-        title: 'Confirmar Eliminación',
-        content: const Text('¿Está seguro de que desea eliminar esta solicitud?'),
+        title: AppLocale.confirmDeletion.getString(context),
+        content: Text(AppLocale.confirmDeleteRequest.getString(context)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-          CustomButton(text: 'Eliminar', backgroundColor: Colors.red, onPressed: () => Navigator.pop(context, true)),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(AppLocale.cancel.getString(context))),
+          CustomButton(text: AppLocale.delete.getString(context), backgroundColor: Colors.red, onPressed: () => Navigator.pop(context, true)),
         ],
       ),
     );
@@ -521,7 +523,10 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   IconButton(icon: const Icon(Icons.chevron_left), onPressed: _currentPage > 0 ? () => setState(() { _currentPage--; _applyPagination(); }) : null),
-                                  Text('Página ${_currentPage + 1} de $totalPages', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                  Text(
+                                    AppLocale.pageOf.getStringWithVariables(context, {'page': '${_currentPage + 1}', 'total': '$totalPages'}),
+                                    style: const TextStyle(fontWeight: FontWeight.bold),
+                                  ),
                                   IconButton(icon: const Icon(Icons.chevron_right), onPressed: _currentPage < totalPages - 1 ? () => setState(() { _currentPage++; _applyPagination(); }) : null),
                                 ],
                               ),

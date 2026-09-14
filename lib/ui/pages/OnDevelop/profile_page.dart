@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 import 'package:primhub/api/api_http.dart' as http;
 
 import 'package:go_router/go_router.dart';
@@ -162,7 +164,7 @@ class _ProfilePageState extends State<ProfilePage> {
         return StatefulBuilder(
           builder: (context, setModalState) {
             return CustomModal(
-              title: 'Cambiar Contraseña',
+              title: AppLocale.changePassword.getString(context),
               width: 450,
               content: Form(
                 key: formKey,
@@ -170,7 +172,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     CustomTextField(
-                      label: 'Nueva Contraseña',
+                      label: AppLocale.newPassword.getString(context),
                       controller: passwordController,
                       obscureText: obscurePassword,
                       suffixIcon: IconButton(
@@ -178,14 +180,14 @@ class _ProfilePageState extends State<ProfilePage> {
                         onPressed: () => setModalState(() => obscurePassword = !obscurePassword),
                       ),
                       validator: (value) {
-                        if (value == null || value.isEmpty) return 'Este campo es obligatorio';
-                        if (value.length < 6) return 'Debe tener al menos 6 caracteres';
+                        if (value == null || value.isEmpty) return AppLocale.requiredField.getString(context);
+                        if (value.length < 6) return AppLocale.passwordMinLength.getString(context);
                         return null;
                       },
                     ),
                     const SizedBox(height: 16),
                     CustomTextField(
-                      label: 'Confirmar Contraseña',
+                      label: AppLocale.confirmPassword.getString(context),
                       controller: confirmPasswordController,
                       obscureText: obscureConfirmPassword,
                       suffixIcon: IconButton(
@@ -193,8 +195,8 @@ class _ProfilePageState extends State<ProfilePage> {
                         onPressed: () => setModalState(() => obscureConfirmPassword = !obscureConfirmPassword),
                       ),
                       validator: (value) {
-                        if (value == null || value.isEmpty) return 'Este campo es obligatorio';
-                        if (value != passwordController.text) return 'Las contraseñas no coinciden';
+                        if (value == null || value.isEmpty) return AppLocale.requiredField.getString(context);
+                        if (value != passwordController.text) return AppLocale.passwordsDoNotMatch.getString(context);
                         return null;
                       },
                     ),
@@ -203,12 +205,12 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
               actions: [
                 CustomButton(
-                  text: 'Cancelar',
+                  text: AppLocale.cancel.getString(context),
                   onPressed: isLoading ? () {} : () => Navigator.of(context).pop(),
                   backgroundColor: Colors.grey[700],
                 ),
                 CustomButton(
-                  text: 'Guardar',
+                  text: AppLocale.save.getString(context),
                   isLoading: isLoading,
                   onPressed: isLoading
                       ? () {}
@@ -244,24 +246,24 @@ class _ProfilePageState extends State<ProfilePage> {
 
     String roleName = 'Usuario';
     if (AccessControl.isRealAdmin) {
-      roleName = 'Administrador del Primhub';
+      roleName = AppLocale.primhubAdministrator.getString(context);
     } else if (AccessControl.isRealSupport) {
-      roleName = 'Usuario de Soporte';
+      roleName = AppLocale.supportUser.getString(context);
     } else if (AccessControl.isRealProject) {
-      roleName = 'Usuario de Proyecto';
+      roleName = AppLocale.projectUser.getString(context);
     }
 
 
     return Scaffold(
       appBar: AppBar(
         leading: !AccessControl.isAdmin ? IconButton(icon: const Icon(Icons.arrow_back), tooltip: 'Volver al Inicio', onPressed: () => context.go('/')) : null,
-        title: const Text('Perfil de Usuario'),
+        title: Text(AppLocale.userProfile.getString(context)),
         actions: [
           IconButton(icon: const Icon(Icons.refresh), tooltip: 'Refrescar', onPressed: () => GlobalCache.forceFullSyncWithProgress(context, onSyncAction: _loadUserInfo)),
           if (!AccessControl.isAdmin)
             IconButton(
               icon: const Icon(Icons.logout, color: Colors.red),
-              tooltip: 'Cerrar Sesión',
+              tooltip: AppLocale.logout.getString(context),
               onPressed: () => showLogoutConfirmation(context),
             ),
         ],
@@ -306,11 +308,11 @@ class _ProfilePageState extends State<ProfilePage> {
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
                     children: [
-                      _buildInfoTile(Icons.person, 'Nombre de Usuario', username),
+                      _buildInfoTile(Icons.person, AppLocale.username.getString(context), username),
                       const Divider(),
-                      _buildInfoTile(Icons.store, 'Socio de Negocio', bPartner),
+                      _buildInfoTile(Icons.store, AppLocale.businessPartner.getString(context), bPartner),
                       const Divider(),
-                      _buildInfoTile(Icons.email, 'Correo Electrónico', email),
+                      _buildInfoTile(Icons.email, AppLocale.email.getString(context), email),
                     ],
                   ),
                 ),
@@ -323,7 +325,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 child: Material(
                   color: Colors.transparent,
                   child: ListTile(
-                    title: const Text('Cambiar Contraseña', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+                    title: Text(AppLocale.changePassword.getString(context), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => _showChangePasswordModal(context),
                   ),

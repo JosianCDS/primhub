@@ -1,6 +1,8 @@
 import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:primhub/ui/Shared_Custom/custom_table.dart';
@@ -113,7 +115,7 @@ class _RequestsDataTableState extends State<RequestsDataTable> {
                 if (widget.showProjectContext) const DataColumn(label: Text('Tarea')),
                 const DataColumn(label: Text('Tipo')),
                 const DataColumn(label: Text('Asunto')),
-                const DataColumn(label: Text('Categoría')),
+                DataColumn(label: Text(AppLocale.category.getString(context))),
                 if (!AccessControl.isProject) const DataColumn(label: Text('Usuario')),
                 if (!AccessControl.isProject) const DataColumn(label: Text('Representante Comercial')),
                 const DataColumn(label: Text('Grupo')),
@@ -146,7 +148,7 @@ class _RequestsDataTableState extends State<RequestsDataTable> {
                           ),
                           IconButton(
                             icon: const Icon(Icons.attach_file),
-                            tooltip: 'Ver / Añadir Adjuntos',
+                            tooltip: AppLocale.attachments.getString(context),
                             onPressed: () {
                               showDialog(
                                 context: context,
@@ -159,7 +161,7 @@ class _RequestsDataTableState extends State<RequestsDataTable> {
                           else if (AccessControl.canViewRequestDetails)
                             IconButton(
                               icon: const Icon(Icons.visibility),
-                              tooltip: 'Ver Detalles',
+                              tooltip: AppLocale.viewDetails.getString(context),
                               onPressed: () => showDialog(
                                 context: context,
                                 builder: (context) => RequestDetailsDialog(req: req),
@@ -275,7 +277,7 @@ class _RequestsDataTableState extends State<RequestsDataTable> {
                         const SizedBox(width: 8),
                         ElevatedButton.icon(
                           icon: const Icon(Icons.edit),
-                          label: const Text('Edición Masiva'),
+                          label: Text(AppLocale.bulkEdit.getString(context)),
                           onPressed: () => showDialog(
                             context: context,
                             builder: (context) => BulkEditRequestDialog(

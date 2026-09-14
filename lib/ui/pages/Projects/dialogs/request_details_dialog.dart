@@ -1,5 +1,7 @@
 import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 import 'package:flutter/services.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
@@ -45,7 +47,7 @@ class RequestDetailsDialog extends StatelessWidget {
                     color: Theme.of(context).colorScheme.primary,
                     onPressed: () {
                       Clipboard.setData(ClipboardData(text: (req['DocumentNo'] ?? req['id']).toString()));
-                      ToastMessage.show(context: context, message: 'Número de ticket copiado al portapapeles', type: ToastType.help);
+                      ToastMessage.show(context: context, message: AppLocale.ticketCopied.getString(context), type: ToastType.help);
                     },
                   ),
                 ],

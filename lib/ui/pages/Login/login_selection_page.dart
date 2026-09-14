@@ -10,6 +10,8 @@ import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/ui/pages/Login/login_selection_args.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 
 class LoginSelectionPage extends StatefulWidget {
   const LoginSelectionPage({this.args, super.key});
@@ -44,7 +46,8 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
       final id = (val as num?)?.toInt();
       if (id != null && !seen.contains(id)) {
         seen.add(id);
-        item['id'] = id; // Ensure the item map has the integer id for the dropdown
+        item['id'] =
+            id; // Ensure the item map has the integer id for the dropdown
         return true;
       }
       return false;
@@ -173,14 +176,18 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
         _selectedOrgId == null) {
       ToastMessage.show(
         context: context,
-        message: 'Por favor seleccione Empresa, Rol y Organización',
+        message: AppLocale.selectLoginContext.getString(context),
         type: ToastType.warning,
       );
       return;
     }
 
     if (_username == null || _password == null) {
-      ToastMessage.show(context: context, message: 'Error de credenciales. Vuelva a iniciar sesión.', type: ToastType.failure);
+      ToastMessage.show(
+        context: context,
+        message: AppLocale.credentialError.getString(context),
+        type: ToastType.failure,
+      );
       return;
     }
 
@@ -229,7 +236,11 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
     if (mounted) {
       if (response == false) {
         setState(() => _isLoading = false);
-        ToastMessage.show(context: context, message: 'Credenciales Incorrectas.', type: ToastType.failure);
+        ToastMessage.show(
+          context: context,
+          message: AppLocale.invalidCredentials.getString(context),
+          type: ToastType.failure,
+        );
       } else {
         // Save preferences before navigating
         final prefs = await SharedPreferences.getInstance();
@@ -239,11 +250,13 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
 
         FocusScope.of(context).unfocus();
         await Future.delayed(const Duration(milliseconds: 150));
-        
+
         if (mounted) {
           CurrentLogMessage.add("Login exitoso. Token guardado.");
           // Escape the Dart Zone using pure JS eval to force a reload!
-          js.context.callMethod('eval', ['setTimeout(function(){ window.location.reload(); }, 100);']);
+          js.context.callMethod('eval', [
+            'setTimeout(function(){ window.location.reload(); }, 100);',
+          ]);
         }
       }
     }
@@ -297,7 +310,7 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      '¿Como deseas ingresar?',
+                      AppLocale.chooseLogin.getString(context),
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 24,
@@ -308,8 +321,8 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
                     const SizedBox(height: 24),
                     CustomDropdown<int>(
                       value: _selectedClientId,
-                      label: 'Empresa',
-                      hintText: 'Seleccione Empresa',
+                      label: AppLocale.company.getString(context),
+                      hintText: AppLocale.selectCompany.getString(context),
                       items: _clients
                           .map(
                             (c) => DropdownMenuItem<int>(
@@ -323,8 +336,8 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
                     const SizedBox(height: 16),
                     CustomDropdown<int>(
                       value: _selectedRoleId,
-                      label: 'Rol',
-                      hintText: 'Seleccione Rol',
+                      label: AppLocale.role.getString(context),
+                      hintText: AppLocale.selectRole.getString(context),
                       items: _roles
                           .map(
                             (r) => DropdownMenuItem<int>(
@@ -340,8 +353,8 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
                     const SizedBox(height: 16),
                     CustomDropdown<int>(
                       value: _selectedOrgId,
-                      label: 'Organización',
-                      hintText: 'Seleccione Organización',
+                      label: AppLocale.organization.getString(context),
+                      hintText: AppLocale.selectOrganization.getString(context),
                       items: _orgs
                           .map(
                             (o) => DropdownMenuItem<int>(
@@ -354,7 +367,7 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
                     ),
                     const SizedBox(height: 24),
                     CustomButton(
-                      text: 'Ingresar',
+                      text: AppLocale.login.getString(context),
                       onPressed:
                           (_selectedClientId != null &&
                               _selectedRoleId != null &&

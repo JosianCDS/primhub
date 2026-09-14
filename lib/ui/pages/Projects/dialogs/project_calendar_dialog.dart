@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 import 'package:primhub/api/api_http.dart' as http;
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/api_utils.dart';
@@ -294,7 +296,7 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (dayRequests.isEmpty)
-                    const Text('No hay solicitudes programadas para este día.'),
+                    Text(AppLocale.noScheduledRequestsToday.getString(context)),
                   if (dayRequests.isNotEmpty) ...[
                     AnimatedSwitcher(
                       duration: const Duration(milliseconds: 300),
@@ -504,14 +506,14 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
                           ),
                           if (!_isGanttView)
                             Text(
-                              '${_getMonthName(_focusedMonth.month)} ${_focusedMonth.year}',
+                              MaterialLocalizations.of(context).formatMonthYear(_focusedMonth),
                               style: theme.textTheme.titleMedium?.copyWith(
                                 color: colorScheme.outline,
                               ),
                             )
                           else
                             Text(
-                              'Diagrama de Gantt$ganttDateText',
+                              '${AppLocale.ganttChart.getString(context)}$ganttDateText',
                               style: theme.textTheme.titleMedium?.copyWith(
                                 color: colorScheme.outline,
                               ),
@@ -566,7 +568,7 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
                             _ViewToggleButton(
                               isSelected: !_isGanttView,
                               icon: Icons.calendar_month,
-                              label: isMobile ? '' : 'Calendario',
+                              label: isMobile ? '' : AppLocale.calendar.getString(context),
                               onTap: () => setState(() => _isGanttView = false),
                             ),
                             _ViewToggleButton(
@@ -616,7 +618,7 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children:
-                          ['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM']
+                          [...MaterialLocalizations.of(context).narrowWeekdays.skip(1), MaterialLocalizations.of(context).narrowWeekdays.first]
                               .map(
                                 (day) => Expanded(
                                   child: Center(
@@ -678,14 +680,14 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
                     children: [
                       _buildLegendItem(
                         colorScheme.primary.withOpacity(0.2),
-                        'Periodo Proyecto',
+                        AppLocale.projectPeriod.getString(context),
                         isPill: true,
                       ),
-                      _buildLegendItem(const Color(0xFF4F47E5), 'Urgente'),
-                      _buildLegendItem(Colors.red.shade700, 'Alta'),
-                      _buildLegendItem(Colors.orange.shade800, 'Media'),
-                      _buildLegendItem(Colors.blue.shade700, 'Baja'),
-                      _buildLegendItem(Colors.grey.shade600, 'Menor'),
+                      _buildLegendItem(const Color(0xFF4F47E5), AppLocale.urgent.getString(context)),
+                      _buildLegendItem(Colors.red.shade700, AppLocale.high.getString(context)),
+                      _buildLegendItem(Colors.orange.shade800, AppLocale.medium.getString(context)),
+                      _buildLegendItem(Colors.blue.shade700, AppLocale.low.getString(context)),
+                      _buildLegendItem(Colors.grey.shade600, AppLocale.veryLow.getString(context)),
                     ],
                   ),
                 ),
@@ -698,14 +700,14 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
     }
 
     return CustomModal(
-      title: 'Seguimiento de Proyecto',
+      title: AppLocale.projectTracking.getString(context),
       width: 1100,
       content: contentWidget,
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
           style: TextButton.styleFrom(foregroundColor: colorScheme.outline),
-          child: const Text('Cerrar'),
+          child: Text(AppLocale.close.getString(context)),
         ),
       ],
     );
@@ -972,8 +974,8 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
 
   Widget _buildGanttView() {
     if (_requests.isEmpty && _projStart == null) {
-      return const Center(
-        child: Text('No hay datos programados para el diagrama.'),
+      return Center(
+        child: Text(AppLocale.noScheduledData.getString(context)),
       );
     }
 
@@ -993,7 +995,7 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
     }
 
     if (minDate == null || maxDate == null) {
-      return const Center(child: Text('Sin fechas válidas para el diagrama.'));
+      return Center(child: Text(AppLocale.noValidGanttDates.getString(context)));
     }
 
     final now = DateTime.now();
@@ -1041,14 +1043,14 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
               children: [
                 _buildLegendItem(
                   colorScheme.primary.withOpacity(0.2),
-                  'Periodo Proyecto',
+                  AppLocale.projectPeriod.getString(context),
                   isPill: true,
                 ),
-                _buildLegendItem(Colors.deepPurple, 'Urgente'),
-                _buildLegendItem(Colors.red.shade700, 'Alta'),
-                _buildLegendItem(Colors.orange.shade800, 'Media'),
-                _buildLegendItem(Colors.blue.shade700, 'Baja'),
-                _buildLegendItem(Colors.teal.shade600, 'Muy baja'),
+                _buildLegendItem(Colors.deepPurple, AppLocale.urgent.getString(context)),
+                _buildLegendItem(Colors.red.shade700, AppLocale.high.getString(context)),
+                _buildLegendItem(Colors.orange.shade800, AppLocale.medium.getString(context)),
+                _buildLegendItem(Colors.blue.shade700, AppLocale.low.getString(context)),
+                _buildLegendItem(Colors.teal.shade600, AppLocale.veryLow.getString(context)),
               ],
             ),
           ),

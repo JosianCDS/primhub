@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
@@ -100,7 +102,7 @@ class _ItemEditDialogState extends State<ItemEditDialog> {
           children: [
             CustomTextField(controller: nameController, label: 'Nombre *'),
             const SizedBox(height: 16),
-            CustomTextField(controller: descController, label: 'Descripción', maxLines: 2),
+            CustomTextField(controller: descController, label: AppLocale.description.getString(context), maxLines: 2),
             if (!isProject) ...[
               const SizedBox(height: 16),
               Row(

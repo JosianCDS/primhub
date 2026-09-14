@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
@@ -65,15 +67,15 @@ class SessionManager {
             context: newContext,
             barrierDismissible: false,
             builder: (_) => CustomModal(
-              title: 'Sesión Cerrada',
+              title: AppLocale.sessionClosed.getString(newContext),
               width: 400,
-              content: const Padding(
-                padding: EdgeInsets.symmetric(vertical: 20.0),
-                child: Text('Por su seguridad, la sesión ha expirado debido a inactividad (50 minutos).'),
+              content: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 20.0),
+                child: Text(AppLocale.inactivitySessionExpired.getString(newContext)),
               ),
               actions: [
                 CustomButton(
-                  text: 'Aceptar',
+                  text: AppLocale.accept.getString(newContext),
                   onPressed: () => Navigator.of(newContext).pop(),
                 ),
               ],
@@ -164,15 +166,15 @@ class SessionManager {
           return PopScope(
             canPop: false,
             child: CustomModal(
-              title: 'Sesión expirada',
+              title: AppLocale.sessionExpired.getString(loginContext),
               width: 400,
-              content: const Padding(
-                padding: EdgeInsets.symmetric(vertical: 20.0),
-                child: Text('Por favor, inicie sesión nuevamente para continuar.'),
+              content: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 20.0),
+                child: Text(AppLocale.signInAgain.getString(loginContext)),
               ),
               actions: [
                 CustomButton(
-                  text: 'Aceptar',
+                  text: AppLocale.accept.getString(loginContext),
                   onPressed: () {
                     _isDialogShowing = false;
                     Navigator.of(dialogContext).pop();

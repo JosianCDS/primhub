@@ -1,6 +1,8 @@
 import 'package:primhub/ui/Shared_Custom/admin_mode_views.dart';
 import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/access_control.dart';
@@ -61,8 +63,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
   Map<String, int> _statusIdMap = {};
   int? _selectedBpId;
   List<Map<String, dynamic>> _productChips = []; // Fichas crudas del API
-  List<Map<String, dynamic>> _allRequests =
-      []; // Todas las solicitudes procesadas
+  List<Map<String, dynamic>> _allRequests = []; // Todas las solicitudes procesadas
   int? _selectedSummaryChipId; // Chip seleccionado para el resumen superior
   final _adminViewModeManager = AdminViewModeManager();
   bool _showInactiveChips = false;
@@ -87,9 +88,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
     int count = 0;
     // Ya no contamos el BPartner aquí porque tiene su selector global arriba
     if (_searchController.text.isNotEmpty) count++;
-    if (_selectedYears.isNotEmpty &&
-        (_selectedYears.length > 1 ||
-            (_selectedYears.first != DateTime.now().year))) {
+    if (_selectedYears.isNotEmpty && (_selectedYears.length > 1 || (_selectedYears.first != DateTime.now().year))) {
       count++;
     }
     return count;
@@ -127,8 +126,8 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
       try {
         extra = GoRouterState.of(context).extra;
       } catch (_) {
-      // Ignored: Fail silently
-    }
+        // Ignored: Fail silently
+      }
 
       final args = extra as Map<String, dynamic>?;
       if (args != null) {
@@ -172,28 +171,21 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                   bool isVendor = isVendorStr == 'true' || isVendorStr == 'y';
 
                   final rawCustomer = bp['IsCustomer'] ?? bp['isCustomer'];
-                  final isCustomerStr = rawCustomer
-                      ?.toString()
-                      .trim()
-                      .toLowerCase();
-                  bool isCustomer =
-                      isCustomerStr == 'true' || isCustomerStr == 'y';
+                  final isCustomerStr = rawCustomer?.toString().trim().toLowerCase();
+                  bool isCustomer = isCustomerStr == 'true' || isCustomerStr == 'y';
                   if (rawCustomer == null) isCustomer = true;
 
                   // REGLA: No debe empezar con "~" y debe ser Cliente
-                  return !name.startsWith('~') &&
-                      isCustomer &&
-                      !isVendor; // Excluir proveedores
+                  return !name.startsWith('~') && isCustomer && !isVendor; // Excluir proveedores
                 })
                 .map((bp) => Map<String, dynamic>.from(bp as Map))
                 .toList();
 
             // Si el tercero seleccionado previamente ya no está en la lista filtrada, lo limpiamos
-            if (_selectedBpId != null &&
-                !_bPartners.any((bp) => bp['id'] == _selectedBpId)) {
+            if (_selectedBpId != null && !_bPartners.any((bp) => bp['id'] == _selectedBpId)) {
               _selectedBpId = null;
             }
-            
+
             _isLoadingBPartners = false;
           });
         }
@@ -229,9 +221,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
     // Usamos GlobalCache para ser consistentes con el Home
     final fetchedChips = GlobalCache.productChips.where((chip) {
       final rawBp = chip['C_BPartner_ID'];
-      final chipBpId = rawBp is Map
-          ? (rawBp['id'] as num?)?.toInt()
-          : (rawBp as num?)?.toInt();
+      final chipBpId = rawBp is Map ? (rawBp['id'] as num?)?.toInt() : (rawBp as num?)?.toInt();
 
       final isActive = chip['IsActive'] == 'Y' || chip['IsActive'] == true;
       if (_showInactiveChips) {
@@ -274,30 +264,18 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
     final String supportFilter = "(C_Project_ID eq null and Record_UU eq null)";
     filter = filter.isNotEmpty ? "$filter and $supportFilter" : supportFilter;
 
-    final rawRequests = await fetchRequest(
-      filter: filter,
-      expand: 'C_Order_ID(\$select=DocumentNo)',
-    );
+    final rawRequests = await fetchRequest(filter: filter, expand: 'C_Order_ID(\$select=DocumentNo)');
 
     final processedData = await processRequests(rawRequests, _statusIdMap);
-    final allRequests = (processedData['requests'] as List<Map<String, dynamic>>)
-        .where((req) => req['productChipId'] != null)
-        .toList();
+    final allRequests = (processedData['requests'] as List<Map<String, dynamic>>).where((req) => req['productChipId'] != null).toList();
 
-
-
-    final List<Map<String, dynamic>> closedRequests = allRequests
-        .where((req) => req['isClosed'] == true)
-        .toList();
-
+    final List<Map<String, dynamic>> closedRequests = allRequests.where((req) => req['isClosed'] == true).toList();
 
     final searchedRequests = closedRequests.where((req) {
       if (_searchController.text.isNotEmpty) {
         final search = _searchController.text.toLowerCase();
         return req['id'].toString().toLowerCase().contains(search) ||
-            (req['descriptionClean'] ?? '').toString().toLowerCase().contains(
-              search,
-            );
+            (req['descriptionClean'] ?? '').toString().toLowerCase().contains(search);
       }
       return true;
     }).toList();
@@ -306,11 +284,8 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
       setState(() {
         _supportRecords = searchedRequests;
         _allRequests = allRequests;
-        _totalConsumedHours =
-            (processedData['consumedHours'] as num?)?.toDouble() ?? 0.0;
-        _inProgressHours =
-            (processedData['inProgressHours'] as num?)?.toDouble() ?? 0.0;
-
+        _totalConsumedHours = (processedData['consumedHours'] as num?)?.toDouble() ?? 0.0;
+        _inProgressHours = (processedData['inProgressHours'] as num?)?.toDouble() ?? 0.0;
       });
       await _loadContractedHours();
     }
@@ -335,7 +310,6 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
       final Map<int, double> chipConsumedMap = {};
       final Map<int, double> chipEstimatedMap = {};
 
-
       for (var req in _allRequests) {
         final chipId = req['productChipId'] as int?;
         final qty = (req['qtySpent'] as num?)?.toDouble() ?? 0.0;
@@ -352,14 +326,8 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
       }
 
       // El total consumido global ahora es la suma de los consumos vinculados
-      double totalConsumedLinked = chipConsumedMap.values.fold(
-        0.0,
-        (a, b) => a + b,
-      );
-      double totalEstimatedLinked = chipEstimatedMap.values.fold(
-        0.0,
-        (a, b) => a + b,
-      );
+      double totalConsumedLinked = chipConsumedMap.values.fold(0.0, (a, b) => a + b);
+      double totalEstimatedLinked = chipEstimatedMap.values.fold(0.0, (a, b) => a + b);
 
       double remainingToDeduct = 0.0; // Ya no hay consumo global FIFO
       double remainingEstimatedToDeduct = 0.0;
@@ -403,12 +371,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
         double totalConsumed = consumedFromThis + additionalConsumption;
         double totalEstimated = estimatedFromThis + additionalEstimation;
 
-        processed.add({
-          ...chip,
-          'available': totalQty - totalConsumed,
-          'consumed': totalConsumed,
-          'estimated': totalEstimated,
-        });
+        processed.add({...chip, 'available': totalQty - totalConsumed, 'consumed': totalConsumed, 'estimated': totalEstimated});
       }
 
       setState(() {
@@ -420,19 +383,15 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
     }
   }
 
-
-
-
-
   List<Map<String, dynamic>> _getFilteredRecords() {
     var filtered = _supportRecords.where((record) {
       if (_searchController.text.isNotEmpty) {
         final search = _searchController.text.toLowerCase();
-        
+
         final matchId = _searchType == 'all' || _searchType == 'ticket'
             ? (record['id']?.toString().toLowerCase().contains(search) ?? false)
             : false;
-            
+
         final matchDesc = _searchType == 'all' || _searchType == 'desc'
             ? (record['description']?.toString().toLowerCase().contains(search) ?? false)
             : false;
@@ -468,10 +427,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
   }
 
   Future<void> _showYearFilterModal() async {
-    final List<int> availableYears = List.generate(
-      10,
-      (i) => DateTime.now().year - i,
-    );
+    final List<int> availableYears = List.generate(10, (i) => DateTime.now().year - i);
     final List<int>? result = await showDialog<List<int>>(
       context: context,
       builder: (context) {
@@ -487,8 +443,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                     CheckboxListTile(
                       title: const Text('Todos los Años'),
                       value: tempSelection.isEmpty,
-                      onChanged: (v) =>
-                          setDialogState(() => tempSelection.clear()),
+                      onChanged: (v) => setDialogState(() => tempSelection.clear()),
                     ),
                     const Divider(),
                     ...availableYears.map((year) {
@@ -507,14 +462,8 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                 ),
               ),
               actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, null),
-                  child: const Text('Cancelar'),
-                ),
-                CustomButton(
-                  text: 'Aplicar',
-                  onPressed: () => Navigator.pop(context, tempSelection),
-                ),
+                TextButton(onPressed: () => Navigator.pop(context, null), child: const Text('Cancelar')),
+                CustomButton(text: 'Aplicar', onPressed: () => Navigator.pop(context, tempSelection)),
               ],
             );
           },
@@ -540,7 +489,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
     showDialog(
       context: context,
       builder: (ctx) => CustomModal(
-        title: 'Exportar Tabla Actual',
+        title: AppLocale.exportCurrentTable.getString(context),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -570,12 +519,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancelar'),
-          ),
-        ],
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar'))],
       ),
     );
   }
@@ -593,14 +537,12 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
         ];
 
         return CustomModal(
-          title: 'Filtrar por Tercero',
+          title: AppLocale.filterByPartner.getString(context),
           width: 500,
           content: StatefulBuilder(
             builder: (BuildContext context, StateSetter setModalState) {
               final filteredItems = items.where((item) {
-                return (item['Name'] as String).toLowerCase().contains(
-                  searchQuery.toLowerCase(),
-                );
+                return (item['Name'] as String).toLowerCase().contains(searchQuery.toLowerCase());
               }).toList();
 
               return SizedBox(
@@ -608,10 +550,9 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                 child: Column(
                   children: [
                     CustomTextField(
-                      hintText: 'Buscar tercero...',
+                      hintText: AppLocale.searchPartner.getString(context),
                       prefixIcon: const Icon(Icons.search),
-                      onChanged: (val) =>
-                          setModalState(() => searchQuery = val),
+                      onChanged: (val) => setModalState(() => searchQuery = val),
                     ),
                     const SizedBox(height: 10),
                     Expanded(
@@ -634,10 +575,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
             },
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(_selectedBpId),
-              child: const Text('Cancelar'),
-            ),
+            TextButton(onPressed: () => Navigator.of(context).pop(_selectedBpId), child: Text(AppLocale.cancel.getString(context))),
           ],
         );
       },
@@ -653,12 +591,9 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
     }
   }
 
-
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
 
     final filteredRecords = _getFilteredRecords();
     final int totalItems = filteredRecords.length;
@@ -667,12 +602,8 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
       _currentPage = totalPages > 0 ? totalPages - 1 : 0;
     }
     final int startIndex = _currentPage * _rowsPerPage;
-    final int endIndex = (startIndex + _rowsPerPage < totalItems)
-        ? startIndex + _rowsPerPage
-        : totalItems;
-    final paginatedRecords = totalItems > 0
-        ? filteredRecords.sublist(startIndex, endIndex)
-        : <Map<String, dynamic>>[];
+    final int endIndex = (startIndex + _rowsPerPage < totalItems) ? startIndex + _rowsPerPage : totalItems;
+    final paginatedRecords = totalItems > 0 ? filteredRecords.sublist(startIndex, endIndex) : <Map<String, dynamic>>[];
 
     return Scaffold(
       appBar: AppBar(
@@ -682,17 +613,17 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
             : Builder(
                 builder: (ctx) => IconButton(
                   icon: const Icon(Icons.menu_rounded),
-                  tooltip: 'Menú Principal',
+                  tooltip: AppLocale.mainMenu.getString(context),
                   onPressed: () => Scaffold.of(ctx).openDrawer(),
                 ),
               ),
-        title: const Text('Dashboard De Horas De Soporte'),
+        title: Text(AppLocale.supportHoursDashboard.getString(context)),
         actions: [
           if (AccessControl.isAdmin) const AdminModeViews(),
           const HelpIcon(),
           IconButton(
             icon: const Icon(Icons.refresh),
-            tooltip: 'Refrescar',
+            tooltip: AppLocale.refresh.getString(context),
             onPressed: () {
               setState(() => _isLoading = true);
               GlobalCache.forceFullSyncWithProgress(context, onSyncAction: _refreshData);
@@ -701,24 +632,19 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
           if (!AccessControl.isAdmin)
             IconButton(
               icon: const Icon(Icons.logout_rounded, color: Colors.red),
-              tooltip: 'Cerrar Sesión',
+              tooltip: AppLocale.logout.getString(context),
               onPressed: () => showLogoutConfirmation(context),
             ),
         ],
       ),
-      drawer: AccessControl.isAdmin
-          ? const CustomDrawer(currentRoute: '/support')
-          : null,
-      bottomNavigationBar:
-          (MediaQuery.of(context).size.width < 900 && !AccessControl.isAdmin)
+      drawer: AccessControl.isAdmin ? const CustomDrawer(currentRoute: '/support') : null,
+      bottomNavigationBar: (MediaQuery.of(context).size.width < 900 && !AccessControl.isAdmin)
           ? const ProjectBottomNav(currentRoute: '/support')
           : null,
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (MediaQuery.of(context).size.width >= 900 &&
-              !AccessControl.isAdmin)
-            const ProjectSideBar(currentRoute: '/support'),
+          if (MediaQuery.of(context).size.width >= 900 && !AccessControl.isAdmin) const ProjectSideBar(currentRoute: '/support'),
           Expanded(
             child: SafeArea(
               child: SingleChildScrollView(
@@ -736,184 +662,143 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(12),
                                 child: Stack(
-                            children: [
-                              InkWell(
-                                onTap:
-                                    (_bPartners.isEmpty || !GlobalCache.isDataLoaded || _isLoadingBPartners)
-                                    ? null
-                                    : _showBPartnerFilterModal,
-                                borderRadius: BorderRadius.circular(12),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 16,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .surfaceContainerHighest
-                                        .withOpacity(
-                                          (_bPartners.isEmpty ||
-                                                  !GlobalCache.isDataLoaded ||
-                                                  _isLoadingBPartners)
-                                              ? 0.15
-                                              : 0.35,
+                                  children: [
+                                    InkWell(
+                                      onTap: (_bPartners.isEmpty || !GlobalCache.isDataLoaded || _isLoadingBPartners)
+                                          ? null
+                                          : _showBPartnerFilterModal,
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                                        decoration: BoxDecoration(
+                                          color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(
+                                            (_bPartners.isEmpty || !GlobalCache.isDataLoaded || _isLoadingBPartners) ? 0.15 : 0.35,
+                                          ),
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(color: Theme.of(context).colorScheme.outline.withOpacity(0.3)),
                                         ),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.outline.withOpacity(0.3),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.business_outlined,
-                                        color:
-                                            (_bPartners.isEmpty ||
-                                                !GlobalCache.isDataLoaded ||
-                                                _isLoadingBPartners)
-                                            ? Theme.of(context).colorScheme.primary.withOpacity(0.5)
-                                            : Theme.of(context).colorScheme.primary,
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
+                                        child: Row(
                                           children: [
-                                            Text(
-                                              'Tercero a Consultar',
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .labelSmall
-                                                  ?.copyWith(
-                                                    color: Theme.of(
+                                            Icon(
+                                              Icons.business_outlined,
+                                              color: (_bPartners.isEmpty || !GlobalCache.isDataLoaded || _isLoadingBPartners)
+                                                  ? Theme.of(context).colorScheme.primary.withOpacity(0.5)
+                                                  : Theme.of(context).colorScheme.primary,
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    AppLocale.partnerToQuery.getString(context),
+                                                    style: Theme.of(
                                                       context,
-                                                    ).colorScheme.onSurfaceVariant,
+                                                    ).textTheme.labelSmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
                                                   ),
-                                            ),
-                                            const SizedBox(height: 2),
-                                            Row(
-                                              children: [
-                                                Expanded(
-                                                  child: Text(
-                                                    !GlobalCache.isDataLoaded
-                                                        ? 'Sincronizando información...'
-                                                        : (_isLoadingBPartners
-                                                            ? 'Cargando terceros...'
-                                                            : (_selectedBpId == null
-                                                                  ? 'Selecciona un tercero para ver sus fichas'
-                                                                  : (_bPartners.firstWhere(
-                                                                          (bp) =>
-                                                                              bp['id'] ==
-                                                                              _selectedBpId,
-                                                                          orElse: () => {
-                                                                            'Name':
-                                                                                'Tercero Seleccionado',
-                                                                          },
-                                                                        )['Name'] ??
-                                                                        'Tercero $_selectedBpId'))),
-                                                    style: Theme.of(context)
-                                                        .textTheme
-                                                        .bodyLarge
-                                                        ?.copyWith(
-                                                          fontWeight: FontWeight.w500,
-                                                          color:
-                                                              (!GlobalCache.isDataLoaded || _isLoadingBPartners)
-                                                              ? Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.5)
-                                                              : null,
+                                                  const SizedBox(height: 2),
+                                                  Row(
+                                                    children: [
+                                                      Expanded(
+                                                        child: Text(
+                                                          !GlobalCache.isDataLoaded
+                                                              ? 'Sincronizando información...'
+                                                              : (_isLoadingBPartners
+                                                                    ? 'Cargando terceros...'
+                                                                    : (_selectedBpId == null
+                                                                          ? AppLocale.selectPartner.getString(context)
+                                                                          : (_bPartners.firstWhere(
+                                                                                  (bp) => bp['id'] == _selectedBpId,
+                                                                                  orElse: () => {'Name': 'Tercero Seleccionado'},
+                                                                                )['Name'] ??
+                                                                                'Tercero $_selectedBpId'))),
+                                                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                                            fontWeight: FontWeight.w500,
+                                                            color: (!GlobalCache.isDataLoaded || _isLoadingBPartners)
+                                                                ? Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.5)
+                                                                : null,
+                                                          ),
+                                                          overflow: TextOverflow.ellipsis,
                                                         ),
-                                                    overflow: TextOverflow.ellipsis,
+                                                      ),
+                                                    ],
                                                   ),
-                                                ),
-                                              ],
+                                                ],
+                                              ),
                                             ),
+                                            if (GlobalCache.isDataLoaded && !_isLoadingBPartners)
+                                              Icon(
+                                                Icons.search,
+                                                color: (_bPartners.isEmpty)
+                                                    ? Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.5)
+                                                    : Theme.of(context).colorScheme.onSurfaceVariant,
+                                              )
+                                            else
+                                              SizedBox(
+                                                width: 18,
+                                                height: 18,
+                                                child: CircularProgressIndicator(
+                                                  strokeWidth: 2,
+                                                  valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.primary),
+                                                ),
+                                              ),
                                           ],
                                         ),
                                       ),
-                                      if (GlobalCache.isDataLoaded && !_isLoadingBPartners)
-                                        Icon(
-                                          Icons.search,
-                                          color: (_bPartners.isEmpty)
-                                              ? Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.5)
-                                              : Theme.of(
-                                                  context,
-                                                ).colorScheme.onSurfaceVariant,
-                                        )
-                                      else
-                                        SizedBox(
-                                          width: 18,
-                                          height: 18,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            valueColor: AlwaysStoppedAnimation<Color>(
-                                              Theme.of(context).colorScheme.primary,
-                                            ),
+                                    ),
+                                    if (_isLoadingBPartners || !GlobalCache.isDataLoaded)
+                                      Positioned(
+                                        left: 0,
+                                        right: 0,
+                                        bottom: 0,
+                                        child: SizedBox(
+                                          height: 3,
+                                          child: LinearProgressIndicator(
+                                            backgroundColor: Colors.transparent,
+                                            valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.primary),
                                           ),
                                         ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              if (_isLoadingBPartners || !GlobalCache.isDataLoaded)
-                                Positioned(
-                                  left: 0,
-                                  right: 0,
-                                  bottom: 0,
-                                  child: SizedBox(
-                                    height: 3,
-                                    child: LinearProgressIndicator(
-                                      backgroundColor: Colors.transparent,
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        Theme.of(context).colorScheme.primary,
                                       ),
-                                    ),
-                                  ),
+                                  ],
                                 ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      // Toggle para ver fichas inactivas
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.35),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
-                          ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            Text(
-                              'Ver Fichas Inactivas',
-                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                color: Theme.of(context).colorScheme.onSurfaceVariant,
                               ),
                             ),
-                            const SizedBox(height: 4),
-                            Switch(
-                              value: _showInactiveChips,
-                              onChanged: (val) {
-                                setState(() {
-                                  _showInactiveChips = val;
-                                  _selectedSummaryChipId = null; // Resetear selección
-                                });
-                                _fetchProductChips();
-                              },
+                            const SizedBox(width: 16),
+                            // Toggle para ver fichas inactivas
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.35),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Theme.of(context).colorScheme.outline.withOpacity(0.3)),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    AppLocale.showInactiveSheets.getString(context),
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.labelSmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Switch(
+                                    value: _showInactiveChips,
+                                    onChanged: (val) {
+                                      setState(() {
+                                        _showInactiveChips = val;
+                                        _selectedSummaryChipId = null; // Resetear selección
+                                      });
+                                      _fetchProductChips();
+                                    },
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
                       ),
-                    ],
-                  ),
-                ),
-              // --- NUEVA TARJETA DE RESUMEN PREMIUM ---
+                    // --- NUEVA TARJETA DE RESUMEN PREMIUM ---
                     Builder(
                       builder: (context) {
                         double contracted = _contractedHours ?? 0.0;
@@ -922,19 +807,12 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                         double available = contracted - consumed;
 
                         if (_selectedSummaryChipId != null) {
-                          final chip = _processedChips.firstWhere(
-                            (c) => c['id'] == _selectedSummaryChipId,
-                            orElse: () => {},
-                          );
+                          final chip = _processedChips.firstWhere((c) => c['id'] == _selectedSummaryChipId, orElse: () => {});
                           if (chip.isNotEmpty) {
-                            contracted =
-                                (chip['Qty'] as num?)?.toDouble() ?? 0.0;
-                            consumed =
-                                (chip['consumed'] as num?)?.toDouble() ?? 0.0;
-                            inProgress =
-                                (chip['estimated'] as num?)?.toDouble() ?? 0.0;
-                            available =
-                                (chip['available'] as num?)?.toDouble() ?? 0.0;
+                            contracted = (chip['Qty'] as num?)?.toDouble() ?? 0.0;
+                            consumed = (chip['consumed'] as num?)?.toDouble() ?? 0.0;
+                            inProgress = (chip['estimated'] as num?)?.toDouble() ?? 0.0;
+                            available = (chip['available'] as num?)?.toDouble() ?? 0.0;
                           }
                         } else {
                           available = contracted - consumed;
@@ -959,11 +837,10 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                           },
                           onRefresh: () => _initData(forceSync: true),
                           allowRename: true,
-                          emptyMessage:
-                              AccessControl.isAdmin && _selectedBpId == null
-                              ? (_showInactiveChips 
-                                  ? 'No hay fichas inactivas en el sistema' 
-                                  : '(Como administrador) seleccione un tercero para ver sus fichas de producto')
+                          emptyMessage: AccessControl.isAdmin && _selectedBpId == null
+                              ? (_showInactiveChips
+                                    ? 'No hay fichas inactivas en el sistema'
+                                    : '(Como administrador) seleccione un tercero para ver sus fichas de producto')
                               : null,
                           attachmentCarousel: (_selectedBpId != null || (!AccessControl.isAdmin && User.cBPartnerID != null))
                               ? BPartnerAttachmentsPreview(bPartnerId: _selectedBpId ?? User.cBPartnerID!)
@@ -973,7 +850,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                     ),
                     const SizedBox(height: 30),
                     CustomContainer(
-                      title: 'Registro de Horas Consumidas',
+                      title: AppLocale.consumedHoursLog.getString(context),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -1019,9 +896,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                               children: [
                                 Text(
                                   '${totalItems == 0 ? 0 : (_currentPage * _rowsPerPage) + 1} - ${((_currentPage + 1) * _rowsPerPage < totalItems) ? (_currentPage + 1) * _rowsPerPage : totalItems} de $totalItems',
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                                  style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
                                 ),
                                 const SizedBox(width: 16),
                                 Row(
@@ -1029,15 +904,11 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                                   children: [
                                     IconButton(
                                       icon: const Icon(Icons.chevron_left),
-                                      onPressed: _currentPage > 0
-                                          ? () => setState(() => _currentPage--)
-                                          : null,
+                                      onPressed: _currentPage > 0 ? () => setState(() => _currentPage--) : null,
                                     ),
                                     IconButton(
                                       icon: const Icon(Icons.chevron_right),
-                                      onPressed: _currentPage < totalPages - 1
-                                          ? () => setState(() => _currentPage++)
-                                          : null,
+                                      onPressed: _currentPage < totalPages - 1 ? () => setState(() => _currentPage++) : null,
                                     ),
                                   ],
                                 ),
@@ -1055,10 +926,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                                     child: Center(
                                       child: Text(
                                         'No hay registros de horas consumidas para este filtro.',
-                                        style: TextStyle(
-                                          color: Colors.grey,
-                                          fontSize: 16,
-                                        ),
+                                        style: TextStyle(color: Colors.grey, fontSize: 16),
                                       ),
                                     ),
                                   )
@@ -1067,20 +935,12 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
                                       if (constraints.maxWidth < 800) {
                                         return _MobileRecordList(
                                           records: paginatedRecords,
-                                          onRecordTap: (record) =>
-                                              _showRequestDetails(
-                                                context,
-                                                record,
-                                              ),
+                                          onRecordTap: (record) => _showRequestDetails(context, record),
                                         );
                                       } else {
                                         return _DesktopRecordTable(
                                           records: paginatedRecords,
-                                          onRecordTap: (record) =>
-                                              _showRequestDetails(
-                                                context,
-                                                record,
-                                              ),
+                                          onRecordTap: (record) => _showRequestDetails(context, record),
                                         );
                                       }
                                     },
@@ -1114,7 +974,6 @@ class _SupportDashboardFilterBar extends StatelessWidget {
   final int? selectedBpId;
 
   const _SupportDashboardFilterBar({
-
     required this.searchController,
     required this.isAscending,
     required this.rowsPerPage,
@@ -1149,7 +1008,11 @@ class _SupportDashboardFilterBar extends StatelessWidget {
                 flex: 2,
                 child: CustomTextField(
                   controller: searchController,
-                  hintText: searchType == 'ticket' ? 'Buscar por ticket...' : (searchType == 'desc' ? 'Buscar por descripción...' : 'Buscar por ticket o descripción...'),
+                  hintText: searchType == 'ticket'
+                      ? AppLocale.searchTicket.getString(context)
+                      : (searchType == 'desc'
+                            ? AppLocale.searchDescription.getString(context)
+                            : AppLocale.searchTicketOrDescription.getString(context)),
                   prefixIcon: const Icon(Icons.search),
                 ),
               ),
@@ -1158,10 +1021,10 @@ class _SupportDashboardFilterBar extends StatelessWidget {
                 width: 140,
                 child: CustomDropdown<String>(
                   value: searchType,
-                  items: const [
-                    DropdownMenuItem(value: 'all', child: Text('Ambos')),
+                  items: [
+                    DropdownMenuItem(value: 'all', child: Text(AppLocale.both.getString(context))),
                     DropdownMenuItem(value: 'ticket', child: Text('Ticket')),
-                    DropdownMenuItem(value: 'desc', child: Text('Descripción')),
+                    DropdownMenuItem(value: 'desc', child: Text(AppLocale.description.getString(context))),
                   ],
                   onChanged: (val) {
                     if (val != null) onSearchTypeChanged(val);
@@ -1183,7 +1046,9 @@ class _SupportDashboardFilterBar extends StatelessWidget {
                             label: Text(() {
                               if (selectedYears.isEmpty) return 'Año: Todos';
                               if (selectedYears.length == 1) {
-                                if (selectedYears.first == DateTime.now().year) return 'Año: Actual';
+                                if (selectedYears.first == DateTime.now().year) {
+                                  return 'Año: Actual';
+                                }
                                 return 'Año: ${selectedYears.first}';
                               }
                               return 'Años: ${selectedYears.length}';
@@ -1192,21 +1057,20 @@ class _SupportDashboardFilterBar extends StatelessWidget {
                           ),
                         ),
                       ActionChip(
-                        avatar: Icon(
-                          isAscending ? Icons.arrow_upward : Icons.arrow_downward,
-                          size: 16,
-                        ),
-                        label: Text(isAscending ? 'Más antiguas' : 'Más recientes'),
+                        avatar: Icon(isAscending ? Icons.arrow_upward : Icons.arrow_downward, size: 16),
+                        label: Text(isAscending ? AppLocale.oldest.getString(context) : AppLocale.newest.getString(context)),
                         onPressed: onSortChanged,
                       ),
                       const SizedBox(width: 16),
                       DropdownButton<int>(
                         value: rowsPerPage,
                         items: [10, 25, 50, 100]
-                            .map((int value) => DropdownMenuItem<int>(
-                                  value: value,
-                                  child: Text('$value filas'),
-                                ))
+                            .map(
+                              (int value) => DropdownMenuItem<int>(
+                                value: value,
+                                child: Text(AppLocale.rows.getStringWithVariables(context, {'count': '$value'})),
+                              ),
+                            )
                             .toList(),
                         onChanged: onRowsPerPageChanged,
                       ),
@@ -1214,14 +1078,10 @@ class _SupportDashboardFilterBar extends StatelessWidget {
                       IconButton(
                         icon: const Icon(Icons.filter_alt_off),
                         onPressed: onClearFilters,
-                        tooltip: 'Limpiar filtros',
+                        tooltip: AppLocale.clearFilters.getString(context),
                       ),
                       const SizedBox(width: 16),
-                      CustomButton(
-                        text: 'Exportar Tabla Actual',
-                        onPressed: onExport,
-                        icon: Icons.download,
-                      ),
+                      CustomButton(text: AppLocale.exportCurrentTable.getString(context), onPressed: onExport, icon: Icons.download),
                     ],
                   ),
                 ),
@@ -1238,19 +1098,15 @@ class _SupportDashboardFilterBar extends StatelessWidget {
               children: [
                 Expanded(
                   flex: 3,
-                  child: CustomTextField(
-                    controller: searchController,
-                    hintText: 'Buscar...',
-                    prefixIcon: const Icon(Icons.search),
-                  ),
+                  child: CustomTextField(controller: searchController, hintText: 'Buscar...', prefixIcon: const Icon(Icons.search)),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   flex: 2,
                   child: CustomDropdown<String>(
                     value: searchType,
-                    items: const [
-                      DropdownMenuItem(value: 'all', child: Text('Ambos')),
+                    items: [
+                      DropdownMenuItem(value: 'all', child: Text(AppLocale.both.getString(context))),
                       DropdownMenuItem(value: 'ticket', child: Text('Ticket')),
                       DropdownMenuItem(value: 'desc', child: Text('Desc')),
                     ],
@@ -1273,7 +1129,9 @@ class _SupportDashboardFilterBar extends StatelessWidget {
                     label: Text(() {
                       if (selectedYears.isEmpty) return 'Año: Todos';
                       if (selectedYears.length == 1) {
-                        if (selectedYears.first == DateTime.now().year) return 'Año: Actual';
+                        if (selectedYears.first == DateTime.now().year) {
+                          return 'Año: Actual';
+                        }
                         return 'Año: ${selectedYears.first}';
                       }
                       return 'Años: ${selectedYears.length}';
@@ -1281,33 +1139,28 @@ class _SupportDashboardFilterBar extends StatelessWidget {
                     onPressed: onShowYearFilter,
                   ),
                 ActionChip(
-                  avatar: Icon(
-                    isAscending ? Icons.arrow_upward : Icons.arrow_downward,
-                    size: 16,
-                  ),
-                  label: Text(isAscending ? 'Más antiguas' : 'Más recientes'),
+                  avatar: Icon(isAscending ? Icons.arrow_upward : Icons.arrow_downward, size: 16),
+                  label: Text(isAscending ? AppLocale.oldest.getString(context) : AppLocale.newest.getString(context)),
                   onPressed: onSortChanged,
                 ),
                 DropdownButton<int>(
                   value: rowsPerPage,
                   items: [10, 25, 50, 100]
-                      .map((int value) => DropdownMenuItem<int>(
-                            value: value,
-                            child: Text('$value filas'),
-                          ))
+                      .map(
+                        (int value) => DropdownMenuItem<int>(
+                          value: value,
+                          child: Text(AppLocale.rows.getStringWithVariables(context, {'count': '$value'})),
+                        ),
+                      )
                       .toList(),
                   onChanged: onRowsPerPageChanged,
                 ),
                 IconButton(
                   icon: const Icon(Icons.filter_alt_off),
                   onPressed: onClearFilters,
-                  tooltip: 'Limpiar filtros',
+                  tooltip: AppLocale.clearFilters.getString(context),
                 ),
-                CustomButton(
-                  text: 'Exportar',
-                  onPressed: onExport,
-                  icon: Icons.download,
-                ),
+                CustomButton(text: AppLocale.export.getString(context), onPressed: onExport, icon: Icons.download),
               ],
             ),
           ],
@@ -1319,9 +1172,7 @@ class _SupportDashboardFilterBar extends StatelessWidget {
 
 void _showRequestDetails(BuildContext context, Map<String, dynamic> record) {
   final double h = (record['qtySpent'] as num?)?.toDouble() ?? 0.0;
-  final qtyPlanController = TextEditingController(
-    text: DurationFormatter.format(h),
-  );
+  final qtyPlanController = TextEditingController(text: DurationFormatter.format(h));
 
   showDialog(
     context: context,
@@ -1332,37 +1183,24 @@ void _showRequestDetails(BuildContext context, Map<String, dynamic> record) {
           mainAxisSize: MainAxisSize.min,
           children: [
             CustomTextField(
-              controller: TextEditingController(
-                text: record['descriptionClean'] ?? '',
-              ),
-              label: 'Descripción',
+              controller: TextEditingController(text: record['descriptionClean'] ?? ''),
+              label: AppLocale.description.getString(context),
               readOnly: true,
               maxLines: 3,
             ),
             const SizedBox(height: 16),
             CustomTextField(
-              controller: TextEditingController(
-                text: record['dateStartPlan'] ?? '',
-              ),
+              controller: TextEditingController(text: record['dateStartPlan'] ?? ''),
               label: 'Fecha de Cierre',
               readOnly: true,
               prefixIcon: const Icon(Icons.calendar_today),
             ),
             const SizedBox(height: 16),
-            CustomTextField(
-              controller: qtyPlanController,
-              label: 'Horas Consumidas',
-              readOnly: true,
-            ),
+            CustomTextField(controller: qtyPlanController, label: AppLocale.consumedHours.getString(context), readOnly: true),
           ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cerrar'),
-        ),
-      ],
+      actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text(AppLocale.close.getString(context)))],
     ),
   );
 }
@@ -1378,10 +1216,10 @@ class _DesktopRecordTable extends StatelessWidget {
     return CustomTable(
       columns: [
         const DataColumn(label: Text('Ticket')),
-        const DataColumn(label: Text('Descripción')),
-        const DataColumn(label: Text('Estado')),
-        const DataColumn(label: Text('Horas Consumidas')),
-        const DataColumn(label: Text('Ficha de Producto')),
+        DataColumn(label: Text(AppLocale.description.getString(context))),
+        DataColumn(label: Text(AppLocale.status.getString(context))),
+        DataColumn(label: Text(AppLocale.consumedHours.getString(context))),
+        DataColumn(label: Text(AppLocale.productSheet.getString(context))),
       ],
       rows: records.map((record) {
         final double h = (record['qtySpent'] as num?)?.toDouble() ?? 0.0;
@@ -1406,28 +1244,16 @@ class _DesktopRecordTable extends StatelessWidget {
               Tooltip(
                 message: record['descriptionClean'] ?? '',
                 waitDuration: const Duration(milliseconds: 500),
-                child: SizedBox(
-                  width: 300,
-                  child: Text(
-                    record['descriptionClean'] ?? '',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
+                child: SizedBox(width: 300, child: Text(record['descriptionClean'] ?? '', maxLines: 2, overflow: TextOverflow.ellipsis)),
               ),
             ),
             DataCell(Text(record['status'] ?? '')),
-            DataCell(
-              Text(hours, style: const TextStyle(fontWeight: FontWeight.bold)),
-            ),
+            DataCell(Text(hours, style: const TextStyle(fontWeight: FontWeight.bold))),
             DataCell(
               Text(() {
                 final chipId = record['productChipId'];
                 if (chipId == null) return 'N/A';
-                final found = GlobalCache.productChips.firstWhere(
-                  (c) => c['id'] == chipId,
-                  orElse: () => {},
-                );
+                final found = GlobalCache.productChips.firstWhere((c) => c['id'] == chipId, orElse: () => {});
                 if (found.isEmpty) return '#$chipId';
                 return found['Description'] ?? found['Name'] ?? '#$chipId';
               }()),
@@ -1453,10 +1279,7 @@ class _MobileRecordList extends StatelessWidget {
       itemCount: records.length,
       itemBuilder: (context, index) {
         final record = records[index];
-        return _SupportRecordCard(
-          record: record,
-          onTap: () => onRecordTap(record),
-        );
+        return _SupportRecordCard(record: record, onTap: () => onRecordTap(record));
       },
     );
   }
@@ -1488,19 +1311,11 @@ class _SupportRecordCard extends StatelessWidget {
             children: [
               Text(
                 'Ticket #${record['id']}',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: colorScheme.primary,
-                ),
+                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.primary),
               ),
               if (AccessControl.isAdmin) ...[
                 const SizedBox(height: 8),
-                Text(
-                  subject,
-                  style: theme.textTheme.bodyLarge,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                Text(subject, style: theme.textTheme.bodyLarge, maxLines: 2, overflow: TextOverflow.ellipsis),
               ],
               const Divider(height: 24),
               Row(
@@ -1508,21 +1323,12 @@ class _SupportRecordCard extends StatelessWidget {
                 children: [
                   Text(
                     record['status'] ?? '',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: Colors.green,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: theme.textTheme.bodySmall?.copyWith(color: Colors.green, fontWeight: FontWeight.bold),
                   ),
                   Chip(
                     label: Text(hours),
-                    avatar: Icon(
-                      Icons.timer_outlined,
-                      size: 16,
-                      color: colorScheme.secondary,
-                    ),
-                    backgroundColor: colorScheme.secondaryContainer.withOpacity(
-                      0.5,
-                    ),
+                    avatar: Icon(Icons.timer_outlined, size: 16, color: colorScheme.secondary),
+                    backgroundColor: colorScheme.secondaryContainer.withOpacity(0.5),
                     visualDensity: VisualDensity.compact,
                   ),
                 ],
@@ -1574,10 +1380,7 @@ class _BPartnerAttachmentsDialogState extends State<BPartnerAttachmentsDialog> {
       return;
     }
 
-    FilePickerResult? result = await FilePicker.platform.pickFiles(
-      type: FileType.any,
-      withData: true,
-    );
+    FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.any, withData: true);
 
     if (result == null || result.files.isEmpty) return;
 
@@ -1591,12 +1394,12 @@ class _BPartnerAttachmentsDialogState extends State<BPartnerAttachmentsDialog> {
 
     const tableName = 'C_BPartner';
     final String fullTableUrl = '${Endpoint.baseUrl}/api/v1/models/$tableName';
-    
+
     final convertedFile = {'title': file.name, 'base64': base64Encode(file.bytes!)};
-    
+
     final success = await postAttachments(
-      recordID: widget.bPartnerId, 
-      tableName: fullTableUrl, 
+      recordID: widget.bPartnerId,
+      tableName: fullTableUrl,
       convertedFile: convertedFile,
       shouldUpdateStatus: false,
     );
@@ -1643,54 +1446,63 @@ class _BPartnerAttachmentsDialogState extends State<BPartnerAttachmentsDialog> {
                   leading: const Icon(Icons.insert_drive_file),
                   title: Text(att['name'] ?? 'Sin nombre'),
                   onTap: () {
-                    FilePreviewManager.showPreview(context, {'id': widget.bPartnerId, 'Status': 'N/A', 'VersionNo': 'N/A'}, fullTableUrl, att['name'] ?? '', () async {
-                      if (!AccessControl.isAdmin) {
-                        ToastMessage.show(context: context, message: 'No tienes permisos para borrar adjuntos.', type: ToastType.help);
-                        return;
-                      }
-
-                      final confirm = await showDialog<bool>(
-                        context: context,
-                        builder: (ctx) => CustomModal(
-                          title: 'Eliminar Archivo',
-                          content: Text('¿Estás seguro de que deseas eliminar "${att['name'] ?? ''}"?'),
-                          actions: [
-                            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-                            CustomButton(text: 'Eliminar', backgroundColor: Colors.red, onPressed: () => Navigator.pop(ctx, true)),
-                          ],
-                        ),
-                      );
-
-                      if (confirm != true) return;
-
-                      try {
-                        setState(() => _isLoading = true);
-                        final url = Uri.parse('$fullTableUrl/${widget.bPartnerId}/attachments/${Uri.encodeComponent(att['name'] ?? '')}');
-                        final response = await http.delete(url, headers: {'Authorization': Token.token});
-                        if (response.statusCode == 200 || response.statusCode == 204) {
-                          if (mounted) {
-                            setState(() {
-                              _attachments.removeWhere((item) => item['name'] == att['name']);
-                              _isLoading = false;
-                            });
-                            ToastMessage.show(context: context, message: 'Adjunto eliminado', type: ToastType.help);
-                            // _loadAttachments(); // Removed to avoid stale cache issues
-                          }
-                        } else {
-                          if (mounted) {
-                            setState(() => _isLoading = false);
-                            ToastMessage.show(context: context, message: 'Error al eliminar adjunto', type: ToastType.failure);
-                          }
+                    FilePreviewManager.showPreview(
+                      context,
+                      {'id': widget.bPartnerId, 'Status': 'N/A', 'VersionNo': 'N/A'},
+                      fullTableUrl,
+                      att['name'] ?? '',
+                      () async {
+                        if (!AccessControl.isAdmin) {
+                          ToastMessage.show(context: context, message: 'No tienes permisos para borrar adjuntos.', type: ToastType.help);
+                          return;
                         }
-                      } catch (e) {
-                        if (mounted) setState(() => _isLoading = false);
-                      }
-                    }, () {}, canDelete: AccessControl.isAdmin);
+
+                        final confirm = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => CustomModal(
+                            title: 'Eliminar Archivo',
+                            content: Text('¿Estás seguro de que deseas eliminar "${att['name'] ?? ''}"?'),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+                              CustomButton(text: 'Eliminar', backgroundColor: Colors.red, onPressed: () => Navigator.pop(ctx, true)),
+                            ],
+                          ),
+                        );
+
+                        if (confirm != true) return;
+
+                        try {
+                          setState(() => _isLoading = true);
+                          final url = Uri.parse('$fullTableUrl/${widget.bPartnerId}/attachments/${Uri.encodeComponent(att['name'] ?? '')}');
+                          final response = await http.delete(url, headers: {'Authorization': Token.token});
+                          if (response.statusCode == 200 || response.statusCode == 204) {
+                            if (mounted) {
+                              setState(() {
+                                _attachments.removeWhere((item) => item['name'] == att['name']);
+                                _isLoading = false;
+                              });
+                              ToastMessage.show(context: context, message: 'Adjunto eliminado', type: ToastType.help);
+                              // _loadAttachments(); // Removed to avoid stale cache issues
+                            }
+                          } else {
+                            if (mounted) {
+                              setState(() => _isLoading = false);
+                              ToastMessage.show(context: context, message: 'Error al eliminar adjunto', type: ToastType.failure);
+                            }
+                          }
+                        } catch (e) {
+                          if (mounted) setState(() => _isLoading = false);
+                        }
+                      },
+                      () {},
+                      canDelete: AccessControl.isAdmin,
+                    );
                   },
                   trailing: IconButton(
                     icon: const Icon(Icons.download, color: Color(0xFF4F47E5)),
                     tooltip: 'Descargar',
-                    onPressed: () => downloadAttachment(context: context, recordID: widget.bPartnerId, tableName: fullTableUrl, fileName: att['name']),
+                    onPressed: () =>
+                        downloadAttachment(context: context, recordID: widget.bPartnerId, tableName: fullTableUrl, fileName: att['name']),
                   ),
                 );
               },
@@ -1699,7 +1511,8 @@ class _BPartnerAttachmentsDialogState extends State<BPartnerAttachmentsDialog> {
       ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cerrar')),
-        if (AccessControl.isAdmin) CustomButton(text: 'Subir Archivo', icon: Icons.upload_file, isLoading: _isUploading, onPressed: _uploadAttachment),
+        if (AccessControl.isAdmin)
+          CustomButton(text: 'Subir Archivo', icon: Icons.upload_file, isLoading: _isUploading, onPressed: _uploadAttachment),
       ],
     );
   }

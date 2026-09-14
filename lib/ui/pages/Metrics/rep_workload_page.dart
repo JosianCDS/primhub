@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/global_cache.dart';
 import 'package:primhub/api/access_control.dart';
@@ -415,7 +417,7 @@ class _RepWorkloadPageState extends State<RepWorkloadPage> {
             Padding(
               padding: const EdgeInsets.only(bottom: 16.0),
               child: Text(
-                'Mostrando ${mappedRequests.length} solicitudes de $title',
+                AppLocale.showingRequestsFrom.getStringWithVariables(context, {'count': '${mappedRequests.length}', 'source': title}),
                 style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
               ),
             ),
@@ -448,12 +450,12 @@ class _RepWorkloadPageState extends State<RepWorkloadPage> {
         ),
         actions: [
           CustomButton(
-            text: 'Cerrar',
+            text: AppLocale.close.getString(context),
             backgroundColor: Colors.grey.shade600,
             onPressed: () => Navigator.pop(context),
           ),
           CustomButton(
-            text: 'Expandir a Mis Solicitudes',
+            text: AppLocale.expandToRequests.getString(context),
             icon: Icons.open_in_new,
             onPressed: () {
               Navigator.pop(context);
@@ -480,11 +482,11 @@ class _RepWorkloadPageState extends State<RepWorkloadPage> {
         leading: Builder(
           builder: (ctx) => IconButton(
             icon: const Icon(Icons.arrow_back, color: Colors.white),
-            tooltip: 'Volver',
+            tooltip: AppLocale.back.getString(context),
             onPressed: () => context.go('/metrics'),
           ),
         ),
-        title: const Text('Carga por Representante'),
+        title: Text(AppLocale.representativeWorkload.getString(context)),
         centerTitle: true,
         backgroundColor: colorScheme.primary,
         elevation: 0,
@@ -493,47 +495,44 @@ class _RepWorkloadPageState extends State<RepWorkloadPage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.info_outline, color: Colors.white),
-            tooltip: 'Información del Treemap',
+            tooltip: AppLocale.treemapInformation.getString(context),
             onPressed: () {
               showDialog(
                 context: context,
                 builder: (context) => CustomModal(
-                  title: 'Información del Treemap',
+                  title: AppLocale.treemapInformation.getString(context),
                   width: 500,
                   content: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'El Treemap te permite visualizar rápidamente la carga de trabajo de cada representante comercial en tiempo real.',
-                        style: TextStyle(fontSize: 14),
-                      ),
+                      Text(AppLocale.treemapIntro.getString(context), style: const TextStyle(fontSize: 14)),
                       const SizedBox(height: 16),
-                      const Text('Funcionalidades:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      Text(AppLocale.features.getString(context), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                       const SizedBox(height: 8),
                       ListTile(
                         leading: const Icon(Icons.open_in_new, color: Colors.deepPurple),
-                        title: const Text('Explorar Solicitudes'),
-                        subtitle: const Text('Haz clic en cualquier bloque o en el ícono de expandir de las cabeceras para ver la lista rápida de solicitudes.'),
+                        title: Text(AppLocale.exploreRequests.getString(context)),
+                        subtitle: Text(AppLocale.exploreRequestsHelp.getString(context)),
                         contentPadding: EdgeInsets.zero,
                       ),
                       ListTile(
                         leading: const Icon(Icons.filter_alt_rounded, color: Colors.deepPurple),
-                        title: const Text('Expandir a Mis Solicitudes'),
-                        subtitle: const Text('Desde la lista rápida, usa el botón inferior para ir a "Mis Solicitudes" y filtrar todo por ese Tercero o Representante.'),
+                        title: Text(AppLocale.expandToRequests.getString(context)),
+                        subtitle: Text(AppLocale.expandToRequestsHelp.getString(context)),
                         contentPadding: EdgeInsets.zero,
                       ),
                       ListTile(
                         leading: const Icon(Icons.article_rounded, color: Colors.deepPurple),
-                        title: const Text('Ir a Solicitud Específica'),
-                        subtitle: const Text('Haz clic en una tarjeta específica dentro de la lista rápida para buscar esa solicitud directamente en "Mis Solicitudes".'),
+                        title: Text(AppLocale.goToSpecificRequest.getString(context)),
+                        subtitle: Text(AppLocale.goToSpecificRequestHelp.getString(context)),
                         contentPadding: EdgeInsets.zero,
                       ),
                     ],
                   ),
                   actions: [
                     CustomButton(
-                      text: 'Entendido',
+                      text: AppLocale.understood.getString(context),
                       onPressed: () => Navigator.pop(context),
                     ),
                   ],
@@ -619,7 +618,7 @@ class _RepWorkloadPageState extends State<RepWorkloadPage> {
                                               
                                               _openTreemapNodeModal(
                                                 context: context,
-                                                title: 'Rep: $rep, Cliente: $clientName',
+                                                title: '${AppLocale.representativeShort.getString(context)}: $rep, ${AppLocale.client.getString(context)}: $clientName',
                                                 rawRequests: requests.where((r) {
                                                    final bpData = r['C_BPartner_ID'];
                                                    final rBpName = bpData is Map ? (bpData['identifier'] ?? bpData['Name'] ?? 'Sin Tercero').toString() : 'Sin Tercero';

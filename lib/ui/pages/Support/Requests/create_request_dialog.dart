@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 import 'package:flutter_quill/flutter_quill.dart' hide Style;
 import 'package:primhub/ui/pages/Support/Requests/html_editor_utils.dart';
 import 'package:flutter/services.dart'; // Para FilteringTextInputFormatter
@@ -480,7 +482,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     showDialog(
       context: context,
       builder: (context) => CustomModal(
-        title: 'Guía de Categorías / Síntomas',
+        title: AppLocale.categoryGuide.getString(context),
         width: 800,
         content: Container(
           constraints: BoxConstraints(
@@ -1558,14 +1560,14 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                   Expanded(
                     flex: 10,
                     child: _buildSearchableField<String>(
-                      label: AccessControl.isSupport ? 'Categoría *' : 'Categoría',
-                      hintText: 'Seleccione Categoría',
+                      label: '${AppLocale.category.getString(context)}${AccessControl.isSupport ? ' *' : ''}',
+                      hintText: AppLocale.selectCategory.getString(context),
                       value: _selectedCategory,
                       isLoading: _isLoadingCategories,
                       isDisabled: false,
                       displayText: _selectedCategory ?? '',
                       onTap: () => _openSearchModal<String>(
-                        title: 'Categoría',
+                        title: AppLocale.category.getString(context),
                         items: _categoryMap.keys.toList(),
                         currentValue: _selectedCategory,
                         getTitle: (item) => item.toString(),
@@ -1599,7 +1601,7 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                     padding: const EdgeInsets.symmetric(horizontal: 4.0),
                     child: IconButton(
                       icon: const Icon(Icons.info_outline, color: Colors.blue),
-                      tooltip: 'Ver guía de categorías',
+                      tooltip: AppLocale.viewCategoryGuide.getString(context),
                       onPressed: _showCategoryHelpModal,
                     ),
                   ),
@@ -1858,14 +1860,14 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
                     Expanded(
                       child: CustomDropdown<String>(
                         value: _selectedEnvironment,
-                        items: const [
-                          DropdownMenuItem(
+                        items: [
+                          const DropdownMenuItem(
                             value: 'test',
                             child: Text('Test (Pruebas)'),
                           ),
                           DropdownMenuItem(
                             value: 'producción',
-                            child: Text('Producción'),
+                            child: Text(AppLocale.production.getString(context)),
                           ),
                         ],
                         onChanged: (val) =>

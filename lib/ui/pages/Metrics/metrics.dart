@@ -1,5 +1,7 @@
 import 'package:primhub/ui/Shared_Custom/custom_toast.dart' hide ColorTheme;
 import 'package:flutter/material.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 import 'package:primhub/ui/pages/Metrics/custom_chart.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/ui/Shared_Custom/custom_container.dart';
@@ -238,7 +240,7 @@ class _MetricsPageState extends State<MetricsPage> {
               ),
               ListTile(
                 leading: const Icon(Icons.group),
-                title: const Text('Todos los Proyectos'),
+                title: Text(AppLocale.allProjects.getString(context)),
                 trailing: !_adminViewModeManager.isViewingMine
                     ? Icon(
                         Icons.check,
@@ -719,7 +721,7 @@ class _MetricsPageState extends State<MetricsPage> {
             }).toList();
 
             return CustomModal(
-              title: 'Seleccionar Tercero',
+              title: AppLocale.selectPartnerTitle.getString(context),
               width: 500,
               content: SizedBox(
                 height: 400,
@@ -760,9 +762,9 @@ class _MetricsPageState extends State<MetricsPage> {
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       ListTile(
-                                        title: const Text(
-                                          'Todos los Terceros',
-                                          style: TextStyle(
+                                        title: Text(
+                                          AppLocale.allPartners.getString(context),
+                                          style: const TextStyle(
                                             fontWeight: FontWeight.bold,
                                           ),
                                         ),
@@ -838,7 +840,7 @@ class _MetricsPageState extends State<MetricsPage> {
                       children: [
                         TextField(
                           decoration: InputDecoration(
-                            hintText: 'Buscar proyecto...',
+                            hintText: AppLocale.searchProject.getString(context),
                             prefixIcon: const Icon(Icons.search),
                             suffixIcon: isLoading
                                 ? const Padding(
@@ -959,7 +961,7 @@ class _MetricsPageState extends State<MetricsPage> {
             Text(
               _adminViewModeManager.isViewingMine
                   ? 'Mis Proyectos'
-                  : 'Todos los Proyectos',
+                  : AppLocale.allProjects.getString(context),
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
             const Icon(Icons.arrow_drop_down),
@@ -1018,7 +1020,7 @@ class _MetricsPageState extends State<MetricsPage> {
 
         return [
           buildItem(true, 'Mis Proyectos', Icons.person),
-          buildItem(false, 'Todos los Proyectos', Icons.group),
+          buildItem(false, AppLocale.allProjects.getString(context), Icons.group),
         ];
       },
     );
@@ -1037,11 +1039,11 @@ class _MetricsPageState extends State<MetricsPage> {
             : Builder(
                 builder: (ctx) => IconButton(
                   icon: const Icon(Icons.menu_rounded),
-                  tooltip: 'Menú Principal',
+                  tooltip: AppLocale.mainMenu.getString(context),
                   onPressed: () => Scaffold.of(ctx).openDrawer(),
                 ),
               ),
-        title: const Text('Indicadores (BI)'),
+        title: Text(AppLocale.indicators.getString(context)),
         actions: [
           if (AccessControl.isAdmin) ..._buildAdminAppBarActions(context),
           const HelpIcon(),
@@ -1060,7 +1062,7 @@ class _MetricsPageState extends State<MetricsPage> {
           if (!AccessControl.isAdmin)
             IconButton(
               icon: const Icon(Icons.logout_rounded, color: Colors.red),
-              tooltip: 'Cerrar Sesión',
+              tooltip: AppLocale.logout.getString(context),
               onPressed: () => showLogoutConfirmation(context),
             ),
         ],
@@ -1088,7 +1090,7 @@ class _MetricsPageState extends State<MetricsPage> {
                   if (AccessControl.canViewProjectCharts) ...[
                     _buildSectionHeader(
                       context,
-                      'Métricas de Proyecto',
+                      AppLocale.projectMetrics.getString(context),
                       Icons.insights_rounded,
                     ),
                     _buildControlCenterContainer(
@@ -1100,7 +1102,7 @@ class _MetricsPageState extends State<MetricsPage> {
                     if (_selectedProjectId == null)
                       _buildWaitingForSelection(
                         context,
-                        'Seleccione un proyecto para visualizar sus indicadores',
+                        AppLocale.selectProjectMetrics.getString(context),
                       )
                     else if (_isLoading)
                       _buildSkeletonGrid()
@@ -1122,7 +1124,7 @@ class _MetricsPageState extends State<MetricsPage> {
                   if (AccessControl.canViewSupportCharts) ...[
                     _buildSectionHeader(
                       context,
-                      'Métricas de Soporte',
+                      AppLocale.supportMetrics.getString(context),
                       Icons.support_agent_rounded,
                     ),
                     _buildControlCenterContainer(
@@ -1147,7 +1149,7 @@ class _MetricsPageState extends State<MetricsPage> {
                     ),
                     _buildSectionHeader(
                       context,
-                      'Indicadores Internos',
+                      AppLocale.internalIndicators.getString(context),
                       Icons.admin_panel_settings_rounded,
                     ),
                     LayoutBuilder(
@@ -1161,8 +1163,8 @@ class _MetricsPageState extends State<MetricsPage> {
                               width: cardWidth,
                               child: _buildInternalIndicatorCard(
                                 context,
-                                title: 'Carga por Representante',
-                                description: 'Visualiza el volumen de solicitudes agrupadas por Representante Comercial en un Treemap interactivo.',
+                                title: AppLocale.representativeWorkload.getString(context),
+                                description: AppLocale.representativeWorkloadHelp.getString(context),
                                 icon: Icons.person_pin_circle_rounded,
                                 color: Colors.deepPurple,
                                 route: '/rep-workload',
@@ -1172,8 +1174,8 @@ class _MetricsPageState extends State<MetricsPage> {
                               width: cardWidth,
                               child: _buildInternalIndicatorCard(
                                 context,
-                                title: 'Carga por Tercero',
-                                description: 'Visualiza el volumen de solicitudes agrupadas por Cliente/Tercero en un Treemap interactivo.',
+                                title: AppLocale.partnerWorkload.getString(context),
+                                description: AppLocale.partnerWorkloadHelp.getString(context),
                                 icon: Icons.business_rounded,
                                 color: Colors.teal,
                                 route: '/client-workload',
@@ -1254,7 +1256,7 @@ class _MetricsPageState extends State<MetricsPage> {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 Text(
-                  'Ver Detalle',
+                  AppLocale.viewDetail.getString(context),
                   style: TextStyle(
                     color: color,
                     fontWeight: FontWeight.bold,
@@ -1351,21 +1353,21 @@ class _MetricsPageState extends State<MetricsPage> {
           runSpacing: 16,
           children: [
             _KPICard(
-              title: 'Total Solicitudes',
+              title: AppLocale.totalRequests.getString(context),
               value: totalComp.toString(),
               icon: Icons.assignment_rounded,
               color: Colors.blue,
               width: cardWidth,
             ),
             _KPICard(
-              title: 'Cumplimiento',
+              title: AppLocale.compliance.getString(context),
               value: '${completedPct.toStringAsFixed(1)}%',
               icon: Icons.check_circle_outline_rounded,
               color: ColorTheme.success,
               width: cardWidth,
             ),
             _KPICard(
-              title: 'Pendientes',
+              title: AppLocale.pending.getString(context),
               value: pendingCount.toString(),
               icon: Icons.pending_actions_rounded,
               color: ColorTheme.atention,
@@ -1406,7 +1408,7 @@ class _MetricsPageState extends State<MetricsPage> {
           runSpacing: 16,
           children: [
             _KPICard(
-              title: 'Solicitudes Totales',
+              title: AppLocale.totalRequests.getString(context),
               value: total.toString(),
               icon: Icons.confirmation_number_rounded,
               color: Colors.indigo,
@@ -1422,7 +1424,7 @@ class _MetricsPageState extends State<MetricsPage> {
               },
             ),
             _KPICard(
-              title: 'Tickets Críticos',
+              title: AppLocale.criticalTickets.getString(context),
               value: urgentCount.toString(),
               icon: Icons.warning_amber_rounded,
               color: Colors.red,
@@ -1544,10 +1546,10 @@ class _MetricsPageState extends State<MetricsPage> {
     }).toList();
 
     Widget complianceChart = _buildChartCard(
-      'Porcentaje de Cumplimiento',
+      AppLocale.compliancePercentage.getString(context),
       300,
       _complianceValues.isEmpty
-          ? _buildEmptyView()
+          ? _buildEmptyView(context)
           : _buildDonutWithLegend(
               _complianceValues,
               _complianceLabels,
@@ -1565,10 +1567,10 @@ class _MetricsPageState extends State<MetricsPage> {
     );
 
     Widget statusChart = _buildChartCard(
-      'Solicitudes por estado',
+      AppLocale.requestStatus.getString(context),
       300,
       _statusValues.isEmpty
-          ? _buildEmptyView()
+          ? _buildEmptyView(context)
           : _buildDonutWithLegend(
               _statusValues,
               _statusLabels,
@@ -1592,10 +1594,10 @@ class _MetricsPageState extends State<MetricsPage> {
         _moduleEvaluacionValues.any((v) => v > 0);
 
     Widget moduleStackedChart = _buildChartCard(
-      'Estado de Solicitudes por Módulo',
+      AppLocale.requestStatusByModule.getString(context),
       300,
       !hasModuleStatusData
-          ? _buildEmptyView()
+          ? _buildEmptyView(context)
           : StatefulBuilder(
               builder: (context, setStateLegend) {
                 return Column(
@@ -1713,10 +1715,10 @@ class _MetricsPageState extends State<MetricsPage> {
         _modulePercentageValues.any((v) => v > 0);
 
     Widget modulePctChart = _buildChartCard(
-      'Avance del Proyecto por Módulo (%)',
+      AppLocale.projectProgressByModule.getString(context),
       300,
       !hasModulePercentageData
-          ? _buildEmptyView()
+          ? _buildEmptyView(context)
           : CustomBarChart(
               labels: _moduleLabels,
               fullLabels: _moduleFullLabels,
@@ -1780,10 +1782,10 @@ class _MetricsPageState extends State<MetricsPage> {
     ];
 
     Widget statusChart = _buildChartCard(
-      'Estado de Solicitudes',
+      AppLocale.requestStatus.getString(context),
       300,
       _supportStatusValues.isEmpty
-          ? _buildEmptyView()
+          ? _buildEmptyView(context)
           : _buildDonutWithLegend(
               _supportStatusValues,
               _supportStatusLabels,
@@ -1815,20 +1817,25 @@ class _MetricsPageState extends State<MetricsPage> {
     }).toList();
 
     Widget priorityChart = _buildChartCard(
-      'Solicitudes por Prioridad',
+      AppLocale.requestsByPriority.getString(context),
       300,
       _supportPriorityValues.isEmpty
-          ? _buildEmptyView()
+          ? _buildEmptyView(context)
           : CustomBarChart(
-              labels: _supportPriorityLabels,
+              labels: _supportPriorityLabels.map(_localizedPriority).toList(),
               values: _supportPriorityValues,
               colors: priorityColors,
               tooltipSuffix: 'sol.',
               onBarTapped: (label) {
+                final localizedLabels = _supportPriorityLabels
+                    .map(_localizedPriority)
+                    .toList();
+                final index = localizedLabels.indexOf(label);
+                final rawLabel = index >= 0 ? _supportPriorityLabels[index] : label;
                 context.push(
                   '/metric-requests',
                   extra: {
-                    'filterPriority': label,
+                    'filterPriority': rawLabel,
                     'filterProductChip': _supportProductChipFilter,
                     'filterSpecificChipId': _supportSpecificChipId,
                   },
@@ -1862,6 +1869,17 @@ class _MetricsPageState extends State<MetricsPage> {
     );
   }
 
+  String _localizedPriority(String priority) {
+    return switch (priority) {
+      'Urgente' => AppLocale.urgent.getString(context),
+      'Alta' => AppLocale.high.getString(context),
+      'Media' => AppLocale.medium.getString(context),
+      'Baja' => AppLocale.low.getString(context),
+      'Muy baja' => AppLocale.veryLow.getString(context),
+      _ => priority,
+    };
+  }
+
   Widget _buildDonutWithLegend(
     List<double> values,
     List<String> labels,
@@ -1887,10 +1905,10 @@ class _MetricsPageState extends State<MetricsPage> {
         child: SizedBox(height: height, child: child),
       );
 
-  Widget _buildEmptyView() => const Center(
+  Widget _buildEmptyView(BuildContext context) => Center(
     child: Text(
-      "Este grafico no tiene suficiente información",
-      style: TextStyle(color: Colors.grey),
+      AppLocale.insufficientChartData.getString(context),
+      style: const TextStyle(color: Colors.grey),
     ),
   );
 
@@ -1983,7 +2001,7 @@ class _MetricsPageState extends State<MetricsPage> {
                 Expanded(
                   child: Text(
                     _selectedProjectId == null
-                        ? 'Seleccione un Proyecto'
+                        ? AppLocale.selectProject.getString(context)
                         : (_projects.firstWhere(
                                 (p) => p['id'] == _selectedProjectId,
                                 orElse: () => {'Name': 'Desconocido'},
@@ -2002,7 +2020,7 @@ class _MetricsPageState extends State<MetricsPage> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text("Proyecto:", style: TextStyle(fontWeight: FontWeight.bold)),
+              Text('${AppLocale.project.getString(context)}:', style: const TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               filterContent,
             ],
@@ -2010,7 +2028,7 @@ class _MetricsPageState extends State<MetricsPage> {
         } else {
           return Row(
             children: [
-              const Text("Proyecto:", style: TextStyle(fontWeight: FontWeight.bold)),
+              Text('${AppLocale.project.getString(context)}:', style: const TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(width: 15),
               Expanded(child: filterContent),
             ],
@@ -2048,7 +2066,7 @@ class _MetricsPageState extends State<MetricsPage> {
                     Expanded(
                       child: Text(
                         _supportSelectedBpId == null
-                            ? 'Todos los Terceros'
+                            ? AppLocale.allPartners.getString(context)
                             : (_supportBPartners.firstWhere(
                                     (bp) => bp['id'] == _supportSelectedBpId,
                                     orElse: () => {'Name': 'Desconocido'},
@@ -2063,12 +2081,12 @@ class _MetricsPageState extends State<MetricsPage> {
               ),
             ),
           CustomDropdown<String>(
-            label: 'Condición Ficha',
+            label: AppLocale.sheetCondition.getString(context),
             value: _supportProductChipFilter,
-            items: const [
+            items: [
               DropdownMenuItem<String>(
                 value: 'mixto',
-                child: Text('Mixto (Todas)'),
+                child: Text(AppLocale.mixedAll.getString(context)),
               ),
               DropdownMenuItem<String>(
                 value: 'con_ficha',
@@ -2090,12 +2108,12 @@ class _MetricsPageState extends State<MetricsPage> {
             },
           ),
           CustomDropdown<int?>(
-            label: 'Ficha Específica',
+            label: AppLocale.specificSheet.getString(context),
             value: _supportSpecificChipId,
             items: [
-              const DropdownMenuItem<int?>(
+              DropdownMenuItem<int?>(
                 value: null,
-                child: Text('Cualquier Ficha'),
+                child: Text(AppLocale.anySheet.getString(context)),
               ),
               ...GlobalCache.productChips.where((c) {
                 if (c['IsActive'] != true && c['IsActive'] != 'Y') return false;
@@ -2524,4 +2542,3 @@ class _KPICard extends StatelessWidget {
     );
   }
 }
-

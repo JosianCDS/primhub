@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
@@ -108,7 +110,7 @@ class RequestFilterBar extends StatelessWidget {
           children: [
             if (isLargeScreen)
               buildResponsiveButton(
-                tooltip: 'Filtros',
+                tooltip: AppLocale.filters.getString(context),
                 onPressed: isLoading ? null : onShowFilters,
                 icon: Icons.filter_list,
                 backgroundColor: activeFilterCount > 0
@@ -184,7 +186,7 @@ class RequestFilterBar extends StatelessWidget {
               label: SizedBox(
                 width: 165,
                 child: Text(
-                  _getChipFilterLabel(chipFilterMode),
+                  _getChipFilterLabel(context, chipFilterMode),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -209,14 +211,17 @@ class RequestFilterBar extends StatelessWidget {
           items: [10, 25, 50, 100]
               .map((int value) => DropdownMenuItem<int>(
                     value: value,
-                    child: Text('$value filas'),
+                    child: Text(AppLocale.rows.getStringWithVariables(
+                      context,
+                      {'count': '$value'},
+                    )),
                   ))
               .toList(),
           onChanged: isLoading ? null : onRowsPerPageChanged,
         ),
         TextButton.icon(
           icon: const Icon(Icons.filter_alt_off, size: 18),
-          label: const Text('Limpiar'),
+          label: Text(AppLocale.clear.getString(context)),
           onPressed: isLoading ? null : onClearFilters,
         ),
       ],
@@ -231,7 +236,7 @@ class RequestFilterBar extends StatelessWidget {
                     Expanded(
                       child: CustomTextField(
                         controller: searchController,
-                        hintText: 'Buscar por ticket, asunto o descripción...',
+                        hintText: AppLocale.searchRequests.getString(context),
                         prefixIcon: const Icon(Icons.search),
                       ),
                     ),
@@ -245,7 +250,7 @@ class RequestFilterBar extends StatelessWidget {
                             Padding(
                               padding: const EdgeInsets.only(left: 8.0),
                               child: CustomButton(
-                                text: showCalendar ? 'Ver Lista' : 'Calendario/Gantt',
+                                text: showCalendar ? AppLocale.viewList.getString(context) : AppLocale.calendarGantt.getString(context),
                                 onPressed: isLoading ? null : onShowCalendar,
                                 icon: showCalendar ? Icons.list_alt : Icons.calendar_month,
                                 backgroundColor: Theme.of(context).colorScheme.tertiary,
@@ -255,7 +260,7 @@ class RequestFilterBar extends StatelessWidget {
                           Padding(
                             padding: const EdgeInsets.only(left: 8.0),
                             child: CustomButton(
-                              text: showHistory ? 'Ver Activas' : 'Ver Histórico',
+                              text: showHistory ? AppLocale.viewActive.getString(context) : AppLocale.viewHistory.getString(context),
                               onPressed: isLoading ? null : onToggleHistory,
                               icon: showHistory ? Icons.list : Icons.history,
                               backgroundColor: Theme.of(context).colorScheme.secondary,
@@ -266,7 +271,7 @@ class RequestFilterBar extends StatelessWidget {
                             Padding(
                               padding: const EdgeInsets.only(left: 8.0),
                               child: CustomButton(
-                                text: 'Crear Solicitud',
+                                text: AppLocale.createRequest.getString(context),
                                 onPressed: isLoading ? null : onAddRequest,
                                 icon: Icons.add,
                               ),
@@ -275,7 +280,7 @@ class RequestFilterBar extends StatelessWidget {
                             Padding(
                               padding: const EdgeInsets.only(left: 8.0),
                               child: CustomButton(
-                                text: 'Exportar Tabla',
+                                text: AppLocale.exportTable.getString(context),
                                 onPressed: isLoading ? null : onExport,
                                 icon: Icons.download,
                               ),
@@ -307,7 +312,7 @@ class RequestFilterBar extends StatelessWidget {
                     children: [
                       if (!AccessControl.isRealSupport)
                         buildResponsiveButton(
-                          tooltip: showCalendar ? 'Ver Lista' : 'Calendario/Gantt',
+                          tooltip: showCalendar ? AppLocale.viewList.getString(context) : AppLocale.calendarGantt.getString(context),
                           onPressed: isLoading ? null : onShowCalendar,
                           icon: showCalendar ? Icons.list_alt : Icons.calendar_month,
                           backgroundColor: theme.colorScheme.tertiary,
@@ -328,12 +333,12 @@ class RequestFilterBar extends StatelessWidget {
                         ),
                       if (AccessControl.canCreateRequests)
                         buildResponsiveButton(
-                          tooltip: 'Crear Solicitud',
+                          tooltip: AppLocale.createRequest.getString(context),
                           onPressed: isLoading ? null : onAddRequest,
                           icon: Icons.add,
                         ),
                       buildResponsiveButton(
-                        tooltip: 'Filtros',
+                        tooltip: AppLocale.filters.getString(context),
                         onPressed: isLoading ? null : onShowFilters,
                         icon: Icons.filter_list,
                         backgroundColor: activeFilterCount > 0
@@ -384,10 +389,10 @@ class RequestFilterBar extends StatelessWidget {
     );
   }
 
-  String _getChipFilterLabel(ChipFilterMode mode) {
+  String _getChipFilterLabel(BuildContext context, ChipFilterMode mode) {
     switch (mode) {
       case ChipFilterMode.mixed:
-        return 'Estado de Fichas';
+        return AppLocale.sheetStatus.getString(context);
       case ChipFilterMode.withChipFirst:
         return 'Con ficha primero';
       case ChipFilterMode.withoutChipFirst:
