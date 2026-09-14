@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:primhub/api/api_http.dart' as http;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 import 'package:primhub/api/contract_api.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/token.dart';
@@ -531,14 +533,14 @@ class GlobalCache {
   ) async {
     ToastMessage.show(
       context: context,
-      message: 'Verificando información nueva...',
+      message: AppLocale.checkingNewInformation.getString(context),
       type: ToastType.help,
     );
     if (await checkIfSyncNeeded()) {
       if (context.mounted) {
         ToastMessage.show(
           context: context,
-          message: 'Sincronizando...',
+          message: AppLocale.synchronizing.getString(context),
           type: ToastType.help,
         );
       }
@@ -547,7 +549,7 @@ class GlobalCache {
       if (context.mounted) {
         ToastMessage.show(
           context: context,
-          message: 'Sincronizado',
+          message: AppLocale.synchronized.getString(context),
           type: ToastType.success,
         );
       }
@@ -751,4 +753,3 @@ class GlobalCache {
     return null;
   }
 }
-

@@ -6,6 +6,8 @@ import 'package:primhub/api/global_cache.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/api/api_utils.dart';
 import 'package:primhub/api/session_manager.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 
 class SplashLoadingPage extends StatefulWidget {
   const SplashLoadingPage({super.key});
@@ -16,7 +18,6 @@ class SplashLoadingPage extends StatefulWidget {
 
 class _SplashLoadingPageState extends State<SplashLoadingPage>
     with SingleTickerProviderStateMixin {
-  final String _loadingMessage = "Conectando con el servidor...";
   late AnimationController _progressController;
   late Animation<double> _progressAnimation;
 
@@ -124,7 +125,7 @@ class _SplashLoadingPageState extends State<SplashLoadingPage>
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  _loadingMessage,
+                  AppLocale.connectingServer.getString(context),
                   style: TextStyle(
                     color: theme.colorScheme.onSurfaceVariant,
                     fontWeight: FontWeight.w500,

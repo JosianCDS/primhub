@@ -7,10 +7,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:primhub/api/token.dart';
 import 'package:flutter/foundation.dart';
 import 'package:universal_html/html.dart' as html;
+import 'package:flutter_localization/flutter_localization.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const MainApp());
+  await FlutterLocalization.instance.ensureInitialized();
+  final prefs = await SharedPreferences.getInstance();
+  final languageCode = prefs.getString('languageCode') ?? 'es';
+  runApp(MainApp(initialLanguageCode: languageCode));
   _hydratePreferences();
 }
 

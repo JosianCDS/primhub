@@ -3,7 +3,8 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/api/session_manager.dart';
-import 'package:flutter_quill/flutter_quill.dart' show FlutterQuillLocalizations;
+import 'package:flutter_quill/flutter_quill.dart'
+    show FlutterQuillLocalizations;
 import 'package:toastification/toastification.dart';
 import 'package:primhub/navigation/deferred_registry.dart';
 import 'package:primhub/navigation/navigation_service.dart';
@@ -12,6 +13,8 @@ import 'package:primhub/ui/pages/Metrics/client_workload_page.dart';
 import 'package:primhub/ui/pages/Login/login.dart';
 import 'package:primhub/ui/pages/Login/login_selection_page.dart';
 import 'package:primhub/ui/pages/Login/login_selection_args.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 
 final ValueNotifier<bool> sessionHydrated = ValueNotifier(false);
 
@@ -139,7 +142,10 @@ final router = GoRouter(
     ),
     GoRoute(
       path: '/client-workload',
-      pageBuilder: (context, state) => NoTransitionPage(key: state.pageKey, child: const ClientWorkloadPage()),
+      pageBuilder: (context, state) => NoTransitionPage(
+        key: state.pageKey,
+        child: const ClientWorkloadPage(),
+      ),
     ),
     GoRoute(
       path: '/metric-requests',
@@ -209,8 +215,34 @@ final router = GoRouter(
   ],
 );
 
-class MainApp extends StatelessWidget {
-  const MainApp({super.key});
+class MainApp extends StatefulWidget {
+  final String initialLanguageCode;
+
+  const MainApp({super.key, this.initialLanguageCode = 'es'});
+
+  @override
+  State<MainApp> createState() => _MainAppState();
+}
+
+class _MainAppState extends State<MainApp> {
+  final FlutterLocalization _localization = FlutterLocalization.instance;
+
+  @override
+  void initState() {
+    super.initState();
+    _localization.init(
+      mapLocales: const [
+        MapLocale('es', AppLocale.es),
+        MapLocale('en', AppLocale.en),
+      ],
+      initLanguageCode: widget.initialLanguageCode,
+    );
+    _localization.onTranslatedLanguage = _onLanguageChanged;
+  }
+
+  void _onLanguageChanged(Locale? locale) {
+    if (mounted) setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -228,20 +260,17 @@ class MainApp extends StatelessWidget {
             theme: AppThemes.lightTheme,
             darkTheme: AppThemes.darkTheme,
             themeMode: themeMode,
-            localizationsDelegates: const [
+            localizationsDelegates: [
+              ..._localization.localizationsDelegates,
               GlobalMaterialLocalizations.delegate,
               GlobalWidgetsLocalizations.delegate,
               GlobalCupertinoLocalizations.delegate,
               FlutterQuillLocalizations.delegate,
             ],
-            supportedLocales: const [
-              Locale('en', ''),
-              Locale('es', ''),
-            ],
+            supportedLocales: _localization.supportedLocales,
+            locale: _localization.currentLocale,
             builder: (context, child) {
-              return ToastificationWrapper(
-                child: child!,
-              );
+              return ToastificationWrapper(child: child!);
             },
           ),
         );

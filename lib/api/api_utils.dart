@@ -3,6 +3,8 @@ import 'package:primhub/api/auth_api.dart';
 import 'package:primhub/api/session_manager.dart';
 import 'package:primhub/api/token.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/global_cache.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
@@ -55,11 +57,11 @@ Future<void> showLogoutConfirmation(BuildContext context) async {
   final bool? shouldLogout = await showDialog<bool>(
     context: context,
     builder: (context) => CustomModal(
-      title: 'Cerrar Sesión',
-      content: const Text('¿Seguro que quieres cerrar sesión?'),
+      title: AppLocale.logout.getString(context),
+      content: Text(AppLocale.logoutQuestion.getString(context)),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-        CustomButton(text: 'Sí, salir', backgroundColor: Colors.red, onPressed: () => Navigator.pop(context, true)),
+        TextButton(onPressed: () => Navigator.pop(context, false), child: Text(AppLocale.cancel.getString(context))),
+        CustomButton(text: AppLocale.yesLogout.getString(context), backgroundColor: Colors.red, onPressed: () => Navigator.pop(context, true)),
       ],
     ),
   );

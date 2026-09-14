@@ -1,5 +1,7 @@
 import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/ui/widgets/custom_drawer.dart';
@@ -75,13 +77,23 @@ class _BPartnerDocumentsPageState extends State<BPartnerDocumentsPage> {
     });
   }
 
+  String _localizedTitle(BuildContext context) {
+    final section = AccessControl.isAdmin
+        ? AppLocale.supportDocuments.getString(context)
+        : AppLocale.documents.getString(context);
+    final view = widget.viewType == 'General'
+        ? AppLocale.general.getString(context)
+        : AppLocale.tracking.getString(context);
+    return '$section: $view';
+  }
+
   @override
   Widget build(BuildContext context) {
     final String route = widget.viewType == 'General' ? '/bpartner-docs/general' : '/bpartner-docs/seguimiento';
 
     if (_isLoading) {
       return Scaffold(
-        appBar: AppBar(title: Text('${AccessControl.isAdmin ? "Documentos de Soporte" : "Documentos"}: ${widget.viewType}')),
+        appBar: AppBar(title: Text(_localizedTitle(context))),
         drawer: CustomDrawer(currentRoute: route),
         body: const Center(child: CircularProgressIndicator()),
       );
@@ -90,7 +102,7 @@ class _BPartnerDocumentsPageState extends State<BPartnerDocumentsPage> {
     if (_selectedBPartnerIds.isEmpty && !AccessControl.isAdmin) {
       return Scaffold(
         appBar: AppBar(
-          title: Text('${AccessControl.isAdmin ? "Documentos de Soporte" : "Documentos"}: ${widget.viewType}'),
+          title: Text(_localizedTitle(context)),
           leading: Builder(
             builder: (ctx) => IconButton(
               icon: const Icon(Icons.menu_rounded),
@@ -110,7 +122,7 @@ class _BPartnerDocumentsPageState extends State<BPartnerDocumentsPage> {
                 !AccessControl.isAdmin)
               ProjectSideBar(currentRoute: route),
             Expanded(
-              child: const Center(child: Text('No hay información del Tercero asociado (C_BPartner_ID).')),
+              child: Center(child: Text(AppLocale.noPartnerInformation.getString(context))),
             ),
           ],
         ),
@@ -119,14 +131,14 @@ class _BPartnerDocumentsPageState extends State<BPartnerDocumentsPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('${AccessControl.isAdmin ? "Documentos de Soporte" : "Documentos"}: ${widget.viewType}'),
+        title: Text(_localizedTitle(context)),
         leadingWidth: !AccessControl.isAdmin ? 220 : null,
         leading: !AccessControl.isAdmin
             ? const UserInfoLeading()
             : Builder(
                 builder: (ctx) => IconButton(
                   icon: const Icon(Icons.menu_rounded),
-                  tooltip: 'Menú Principal',
+                  tooltip: AppLocale.mainMenu.getString(context),
                   onPressed: () => Scaffold.of(ctx).openDrawer(),
                 ),
               ),
@@ -168,7 +180,7 @@ class _BPartnerDocumentsPageState extends State<BPartnerDocumentsPage> {
           if (!AccessControl.isAdmin)
             IconButton(
               icon: const Icon(Icons.logout_rounded, color: Colors.red),
-              tooltip: 'Cerrar Sesión',
+              tooltip: AppLocale.logout.getString(context),
               onPressed: () => showLogoutConfirmation(context),
             ),
         ],
@@ -192,7 +204,7 @@ class _BPartnerDocumentsPageState extends State<BPartnerDocumentsPage> {
               Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: CustomContainer(
-                  title: 'Filtrar por Tercero',
+                  title: AppLocale.filterByPartner.getString(context),
                   action: const Icon(
                     Icons.filter_alt_rounded,
                     color: Colors.grey,
@@ -210,7 +222,7 @@ class _BPartnerDocumentsPageState extends State<BPartnerDocumentsPage> {
               ),
             Expanded(
               child: _selectedBPartnerIds.isEmpty
-                  ? const Center(child: Text('Seleccione un tercero para ver sus documentos.'))
+                  ? Center(child: Text(AppLocale.selectPartnerDocuments.getString(context)))
                   : _selectedBPartnerIds.length == 1
                       ? _buildTerceroContainer(_selectedBPartnerIds.first, context, true)
                       : ListView.builder(
@@ -302,7 +314,7 @@ class _DocsBpSelector extends StatelessWidget {
       builder: (BuildContext context) {
         String searchQuery = '';
         return CustomModal(
-          title: 'Seleccionar Tercero',
+          title: AppLocale.selectPartnerTitle.getString(context),
           width: 500,
           content: StatefulBuilder(
             builder: (BuildContext context, StateSetter setState) {
@@ -318,7 +330,7 @@ class _DocsBpSelector extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     CustomTextField(
-                      hintText: 'Filtrar...',
+                      hintText: AppLocale.filterHint.getString(context),
                       prefixIcon: const Icon(Icons.filter_list),
                       onChanged: (val) => setState(() => searchQuery = val),
                     ),
@@ -334,8 +346,8 @@ class _DocsBpSelector extends StatelessWidget {
                         }
 
                         return CheckboxListTile(
-                          title: const Text(
-                            'Todos los terceros',
+                          title: Text(
+                            AppLocale.allPartners.getString(context),
                             style: TextStyle(fontWeight: FontWeight.bold),
                           ),
                           tristate: true,
@@ -387,11 +399,11 @@ class _DocsBpSelector extends StatelessWidget {
           ),
           actions: <Widget>[
             TextButton(
-              child: const Text('Cancelar'),
+              child: Text(AppLocale.cancel.getString(context)),
               onPressed: () => Navigator.of(context).pop(),
             ),
             CustomButton(
-              text: 'Aplicar',
+              text: AppLocale.apply.getString(context),
               onPressed: () {
                 onSelectionChanged(tempSelectedBpIds);
                 Navigator.of(context).pop();
@@ -413,7 +425,7 @@ class _DocsBpSelector extends StatelessWidget {
       displayText = 'Sincronizando terceros...';
     } else if (selectedBpIds.isEmpty) {
       if (bPartners.isEmpty) return const SizedBox.shrink();
-      displayText = 'Ningún tercero seleccionado';
+      displayText = AppLocale.noPartnerSelected.getString(context);
     } else if (selectedBpIds.length == 1) {
       final bp = bPartners.firstWhere(
         (p) => p['id'] == selectedBpIds.first,
@@ -421,7 +433,7 @@ class _DocsBpSelector extends StatelessWidget {
       );
       displayText = bp['Name'] ?? 'Tercero sin nombre';
     } else if (selectedBpIds.length == bPartners.length) {
-      displayText = 'Todos los terceros seleccionados';
+      displayText = AppLocale.allPartnersSelected.getString(context);
     } else {
       displayText = '${selectedBpIds.length} terceros seleccionados';
     }

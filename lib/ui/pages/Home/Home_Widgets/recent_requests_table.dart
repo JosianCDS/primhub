@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/Shared_Custom/custom_container.dart';
@@ -22,7 +24,7 @@ class RecentRequestsTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CustomContainer(
-      title: 'Solicitudes Recientes',
+      title: AppLocale.recentRequests.getString(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -43,7 +45,7 @@ class RecentRequestsTable extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           Center(
-            child: CustomButton(text: 'Ver todas las solicitudes', onPressed: () => context.push('/my-requests', extra: {
+            child: CustomButton(text: AppLocale.viewAllRequests.getString(context), onPressed: () => context.push('/my-requests', extra: {
               if (selectedBpIds != null && selectedBpIds!.isNotEmpty)
                 'bpIds': selectedBpIds,
             })),
@@ -64,22 +66,22 @@ class _DesktopRequestTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final List<ResponsiveDataColumn> fixedColumns = [
-      const ResponsiveDataColumn(label: 'Acciones'),
+      ResponsiveDataColumn(label: AppLocale.actions.getString(context)),
       const ResponsiveDataColumn(label: 'Ticket'),
-      const ResponsiveDataColumn(label: 'Estado'),
-      if (AccessControl.isAdmin || AccessControl.isSupport) const ResponsiveDataColumn(label: 'Tipo de Solicitud'),
+      ResponsiveDataColumn(label: AppLocale.status.getString(context)),
+      if (AccessControl.isAdmin || AccessControl.isSupport) ResponsiveDataColumn(label: AppLocale.requestType.getString(context)),
     ];
 
     final List<ResponsiveDataColumn> scrollableColumns = [
-      const ResponsiveDataColumn(label: 'Categoría'),
-      const ResponsiveDataColumn(label: 'Asunto'),
-      const ResponsiveDataColumn(label: 'Prioridad'),
-      if (AccessControl.isAdmin) const ResponsiveDataColumn(label: 'Tercero'),
-      if (AccessControl.isAdmin) const ResponsiveDataColumn(label: 'Usuario'),
-      if (AccessControl.isAdmin) const ResponsiveDataColumn(label: 'Rep. Comercial'),
-      const ResponsiveDataColumn(label: 'Descripción'),
-      const ResponsiveDataColumn(label: 'Horas'),
-      const ResponsiveDataColumn(label: 'Ficha de Producto'),
+      ResponsiveDataColumn(label: AppLocale.category.getString(context)),
+      ResponsiveDataColumn(label: AppLocale.subject.getString(context)),
+      ResponsiveDataColumn(label: AppLocale.priority.getString(context)),
+      if (AccessControl.isAdmin) ResponsiveDataColumn(label: AppLocale.businessPartner.getString(context)),
+      if (AccessControl.isAdmin) ResponsiveDataColumn(label: AppLocale.user.getString(context)),
+      if (AccessControl.isAdmin) ResponsiveDataColumn(label: AppLocale.salesRepresentative.getString(context)),
+      ResponsiveDataColumn(label: AppLocale.description.getString(context)),
+      ResponsiveDataColumn(label: AppLocale.hours.getString(context)),
+      ResponsiveDataColumn(label: AppLocale.productSheet.getString(context)),
     ];
 
     return ResponsiveDataTable<Map<String, dynamic>>(

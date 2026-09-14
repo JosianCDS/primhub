@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/api/admin_view_mode.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
@@ -82,11 +84,11 @@ class _ProjectCreateDialogState extends State<ProjectCreateDialog> {
             const SizedBox(height: 16),
 
             if (creationType == 'Project') ...[
-              CustomTextField(controller: valueController, label: 'Código (Value)'),
+              CustomTextField(controller: valueController, label: AppLocale.codeValue.getString(context)),
               const SizedBox(height: 16),
               CustomTextField(controller: nameController, label: 'Nombre'),
               const SizedBox(height: 16),
-              CustomTextField(controller: descController, label: 'Descripción', maxLines: 3),
+              CustomTextField(controller: descController, label: AppLocale.description.getString(context), maxLines: 3),
               const SizedBox(height: 16),
               DropdownButtonFormField<int>(
                 value: selectedProjectTypeId,
@@ -220,7 +222,7 @@ class _ProjectCreateDialogState extends State<ProjectCreateDialog> {
               const SizedBox(height: 16),
             ],
 
-            if (creationType != 'Project') ...[CustomTextField(controller: nameController, label: 'Nombre'), const SizedBox(height: 16), CustomTextField(controller: descController, label: 'Descripción', maxLines: 2)],
+            if (creationType != 'Project') ...[CustomTextField(controller: nameController, label: AppLocale.name.getString(context)), const SizedBox(height: 16), CustomTextField(controller: descController, label: AppLocale.description.getString(context), maxLines: 2)],
           ],
         ),
       ),

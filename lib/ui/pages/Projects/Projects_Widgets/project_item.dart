@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/access_control.dart';
 
@@ -167,15 +169,15 @@ class ProjectItem extends StatelessWidget {
                 children: [
                   _buildCounterBadge(
                     Icons.layers_outlined, 
-                    '$totalPhases Fases',
+                    AppLocale.phasesCount.getStringWithVariables(context, {'count': '$totalPhases'}),
                   ),
                   _buildCounterBadge(
                     Icons.task_alt, 
-                    '$totalTasks Tareas',
+                    AppLocale.tasksCount.getStringWithVariables(context, {'count': '$totalTasks'}),
                   ),
                   _buildCounterBadge(
                     Icons.assignment_ind_outlined, 
-                    '$totalRequests Solicitudes',
+                    AppLocale.requestsCount.getStringWithVariables(context, {'count': '$totalRequests'}),
                   ),
                 ],
               ),
@@ -184,11 +186,11 @@ class ProjectItem extends StatelessWidget {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  _buildActionButton(context, Icons.folder_open, 'Entregables', Colors.indigo.shade500, () => onShowFiles(project, 'Entregables')),
-                  _buildActionButton(context, Icons.assignment, 'Seguimiento', Colors.indigo.shade500, () => onShowFiles(project, 'Seguimiento')),
-                  _buildActionButton(context, Icons.assignment_add, 'General', Colors.indigo.shade500, () => onShowFiles(project, 'General')),
+                  _buildActionButton(context, Icons.folder_open, AppLocale.deliverables.getString(context), Colors.indigo.shade500, () => onShowFiles(project, 'Entregables')),
+                  _buildActionButton(context, Icons.assignment, AppLocale.tracking.getString(context), Colors.indigo.shade500, () => onShowFiles(project, 'Seguimiento')),
+                  _buildActionButton(context, Icons.assignment_add, AppLocale.general.getString(context), Colors.indigo.shade500, () => onShowFiles(project, 'General')),
                   if (AccessControl.isAdmin || AccessControl.isProject)
-                    _buildActionButton(context, Icons.calendar_today, 'Calendario', Colors.teal.shade500, () {
+                    _buildActionButton(context, Icons.calendar_today, AppLocale.calendar.getString(context), Colors.teal.shade500, () {
                       if (MediaQuery.of(context).size.width < 600) {
                         context.push('/project-calendar', extra: project);
                       } else {
@@ -199,11 +201,11 @@ class ProjectItem extends StatelessWidget {
                       }
                     }),
                   if (AccessControl.isAdmin)
-                    _buildActionButton(context, Icons.list_alt, 'Solicitudes', Colors.teal.shade500, () {
+                    _buildActionButton(context, Icons.list_alt, AppLocale.requests.getString(context), Colors.teal.shade500, () {
                       context.push('/project-requests', extra: {'projectId': projId, 'showAllGroups': true});
                     }),
                   if (AccessControl.isAdmin)
-                    _buildActionButton(context, Icons.info_outline, 'Información', Colors.blue.shade500, () {
+                    _buildActionButton(context, Icons.info_outline, AppLocale.information.getString(context), Colors.blue.shade500, () {
                       showDialog(
                         context: context,
                         builder: (context) => ProjectInfoDialog(project: project),
@@ -224,7 +226,7 @@ class ProjectItem extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        isExpanded ? 'Ocultar Detalles' : 'Ver Detalles',
+                        isExpanded ? AppLocale.hideDetails.getString(context) : AppLocale.viewDetails.getString(context),
                         style: TextStyle(
                           color: uniformColor,
                           fontWeight: FontWeight.bold,

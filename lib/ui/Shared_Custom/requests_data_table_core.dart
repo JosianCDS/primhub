@@ -1,5 +1,7 @@
 
 import 'package:flutter/material.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_html/flutter_html.dart';
@@ -228,9 +230,9 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
 
     final fixedCols = [
       ResponsiveDataColumn(
-        label: 'Acciones',
+        label: AppLocale.actions.getString(context),
         suffixIcon: Tooltip(
-          message: 'Haz clic en el título de las columnas con el ícono de flechas para ordenar los datos de forma ascendente o descendente.',
+          message: AppLocale.sortingHelp.getString(context),
           child: Padding(
             padding: const EdgeInsets.only(left: 4.0),
             child: Icon(Icons.info_outline, size: 16, color: theme.colorScheme.primary),
@@ -239,10 +241,10 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
       ),
       const ResponsiveDataColumn(label: 'Ticket', sortKey: 'id'),
       if (!isLaptop) ...[
-        const ResponsiveDataColumn(label: 'Estado', sortKey: 'status'),
+        ResponsiveDataColumn(label: AppLocale.status.getString(context), sortKey: 'status'),
         if (AccessControl.isAdmin || AccessControl.isSupport)
-          const ResponsiveDataColumn(
-            label: 'Tipo de Solicitud',
+          ResponsiveDataColumn(
+            label: AppLocale.requestType.getString(context),
             sortKey: 'situation',
           ),
       ],
@@ -280,7 +282,7 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
               IconButton(
                 tooltip: AccessControl.canManageRequests
                     ? 'Editar'
-                    : 'Ver Detalles',
+                    : AppLocale.viewDetails.getString(context),
                 icon: Icon(
                   AccessControl.canManageRequests
                       ? Icons.edit
@@ -314,42 +316,42 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
 
     final scrollableCols = [
       if (isLaptop) ...[
-        const ResponsiveDataColumn(label: 'Estado', sortKey: 'status'),
+        ResponsiveDataColumn(label: AppLocale.status.getString(context), sortKey: 'status'),
         if (AccessControl.isAdmin || AccessControl.isSupport)
-          const ResponsiveDataColumn(
-            label: 'Tipo de Solicitud',
+          ResponsiveDataColumn(
+            label: AppLocale.requestType.getString(context),
             sortKey: 'situation',
           ),
       ],
-      const ResponsiveDataColumn(label: 'Categoría', sortKey: 'category'),
-      const ResponsiveDataColumn(label: 'Asunto'),
-      const ResponsiveDataColumn(label: 'Prioridad', sortKey: 'priority'),
+      ResponsiveDataColumn(label: AppLocale.category.getString(context), sortKey: 'category'),
+      ResponsiveDataColumn(label: AppLocale.subject.getString(context)),
+      ResponsiveDataColumn(label: AppLocale.priority.getString(context), sortKey: 'priority'),
       if (widget.showProjectContext)
-        const ResponsiveDataColumn(label: 'Fase', sortKey: 'phase'),
+        ResponsiveDataColumn(label: AppLocale.phase.getString(context), sortKey: 'phase'),
       if (widget.showProjectContext)
-        const ResponsiveDataColumn(label: 'Tarea', sortKey: 'task'),
+        ResponsiveDataColumn(label: AppLocale.task.getString(context), sortKey: 'task'),
       if (AccessControl.isAdmin)
-        const ResponsiveDataColumn(label: 'Tercero', sortKey: 'bp'),
+        ResponsiveDataColumn(label: AppLocale.businessPartner.getString(context), sortKey: 'bp'),
       if (AccessControl.isAdmin)
-        const ResponsiveDataColumn(label: 'Usuario', sortKey: 'user'),
+        ResponsiveDataColumn(label: AppLocale.user.getString(context), sortKey: 'user'),
       if (AccessControl.isAdmin)
-        const ResponsiveDataColumn(
-          label: 'Rep. Comercial',
+        ResponsiveDataColumn(
+          label: AppLocale.salesRepresentative.getString(context),
           sortKey: 'salesRep',
         ),
-      const ResponsiveDataColumn(label: 'Descripción'),
-      const ResponsiveDataColumn(
-        label: 'Horas Consumidas',
+      ResponsiveDataColumn(label: AppLocale.description.getString(context)),
+      ResponsiveDataColumn(
+        label: AppLocale.consumedHours.getString(context),
         sortKey: 'qtySpent',
         numeric: true,
       ),
       if (!widget.showProjectContext)
-        const ResponsiveDataColumn(
-          label: 'Ficha de Producto',
+        ResponsiveDataColumn(
+          label: AppLocale.productSheet.getString(context),
           sortKey: 'productChip',
         ),
       if (AccessControl.isAdmin)
-        const ResponsiveDataColumn(label: 'Creado', sortKey: 'created'),
+        ResponsiveDataColumn(label: AppLocale.created.getString(context), sortKey: 'created'),
     ];
 
     List<DataCell> buildScrollableCells(Map<String, dynamic> alert) {
@@ -533,7 +535,7 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
               runSpacing: 8.0,
               children: [
                 buildBulkButton(
-                  tooltip: 'Reabrir Masivamente',
+                  tooltip: AppLocale.bulkReopen.getString(context),
                   icon: Icons.restore,
                   backgroundColor: Colors.orange.shade700,
                   textColor: Colors.white,
@@ -556,7 +558,7 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
                   },
                 ),
                 buildBulkButton(
-                  tooltip: 'Edición Masiva',
+                  tooltip: AppLocale.bulkEdit.getString(context),
                   icon: Icons.edit,
                   onPressed: () {
                     if (_selectedIds.isEmpty) {

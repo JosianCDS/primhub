@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 import 'package:primhub/ui/widgets/duration_formatter.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
@@ -58,7 +60,7 @@ class RequestStatsCard extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Text(
-                'Estado de Horas',
+                AppLocale.hoursStatus.getString(context),
                 style: theme.textTheme.labelLarge?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: isInsufficient ? colorScheme.error : colorScheme.onSurface,
@@ -71,23 +73,23 @@ class RequestStatsCard extends StatelessWidget {
                   showDialog(
                     context: context,
                     builder: (context) => CustomModal(
-                      title: 'Estado de Horas',
+                      title: AppLocale.hoursStatus.getString(context),
                       width: 450,
-                      content: const Column(
+                      content: Column(
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Para que el tiempo de una solicitud se registre, esta debe estar vinculada a una Ficha de Producto.'),
-                          SizedBox(height: 12),
-                          Text('• Consumidas: Horas de solicitudes que ya están Cerradas. Estas horas se descuentan definitivamente del saldo de tu ficha y forman parte del histórico y del Dashboard de Horas.'),
-                          SizedBox(height: 8),
-                          Text('• Estimadas (En Proceso): Horas de solicitudes que siguen activas o en proceso. Se retienen del saldo de forma preventiva para evitar excesos, pero no se descuentan definitivamente hasta que se cierre el ticket.'),
-                          SizedBox(height: 8),
-                          Text('• Disponibles: Horas restantes (libres) que aún tienes disponibles para utilizar.'),
+                          Text(AppLocale.hoursHelpIntro.getString(context)),
+                          const SizedBox(height: 12),
+                          Text(AppLocale.consumedHelp.getString(context)),
+                          const SizedBox(height: 8),
+                          Text(AppLocale.estimatedHelp.getString(context)),
+                          const SizedBox(height: 8),
+                          Text(AppLocale.availableHelp.getString(context)),
                         ],
                       ),
                       actions: [
-                        CustomButton(text: 'Entendido', onPressed: () => Navigator.pop(context)),
+                        CustomButton(text: AppLocale.understood.getString(context), onPressed: () => Navigator.pop(context)),
                       ],
                     ),
                   );
@@ -114,9 +116,9 @@ class RequestStatsCard extends StatelessWidget {
             spacing: 20.0,
             runSpacing: 8.0,
             children: [
-              _buildCompactStat(context, 'Consumidas', consumedHours, colorScheme.error),
-              _buildCompactStat(context, 'Estimadas', estimatedHours, colorScheme.tertiary),
-              _buildCompactStat(context, 'Disponibles', availableHours, colorScheme.primary),
+              _buildCompactStat(context, AppLocale.consumedHours.getString(context), consumedHours, colorScheme.error),
+              _buildCompactStat(context, AppLocale.estimated.getString(context), estimatedHours, colorScheme.tertiary),
+              _buildCompactStat(context, AppLocale.available.getString(context), availableHours, colorScheme.primary),
             ],
           ),
           const SizedBox(height: 16),

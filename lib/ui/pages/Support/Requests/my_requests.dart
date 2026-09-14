@@ -2,6 +2,8 @@ import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 import 'package:flutter/rendering.dart';
 
 
@@ -706,7 +708,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
               value: 'exception_dialog',
               child: ListTile(
                 leading: const Icon(Icons.shield_outlined),
-                title: const Text('Excepción de Horas'),
+                title: Text(AppLocale.hoursException.getString(context)),
               ),
             ),
           ],
@@ -1209,7 +1211,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
           }
 
           return CustomModal(
-            title: 'Exportar Solicitudes',
+            title: AppLocale.exportRequests.getString(context),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1277,19 +1279,19 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
             children: [
               CustomTextField(
                 controller: TextEditingController(text: req['situation']),
-                label: 'Tipo de Solicitud',
+                label: AppLocale.requestType.getString(context),
                 readOnly: true,
               ),
               const SizedBox(height: 16),
               CustomTextField(
                 controller: TextEditingController(text: req['emailSubject']),
-                label: 'Asunto',
+                label: AppLocale.subject.getString(context),
                 readOnly: true,
               ),
               const SizedBox(height: 16),
               CustomTextField(
                 controller: TextEditingController(text: req['category']),
-                label: 'Categoría',
+                label: AppLocale.category.getString(context),
                 readOnly: true,
               ),
               const SizedBox(height: 16),
@@ -1347,12 +1349,12 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                     padding: const EdgeInsets.only(top: 4.0, right: 4.0),
                     child: IconButton(
                       icon: const Icon(Icons.zoom_out_map),
-                      tooltip: 'Ver descripción completa',
+                      tooltip: AppLocale.viewFullDescription.getString(context),
                       onPressed: () {
                         showDialog(
                           context: context,
                           builder: (BuildContext dialogContext) => CustomModal(
-                            title: 'Descripción Completa',
+                            title: AppLocale.fullDescription.getString(context),
                             width: 600,
                             content: SizedBox(
                               height: 400,
@@ -1562,16 +1564,16 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   Widget _buildExceptionHoursInkWell() {
     return InkWell(
       onTap: _showExceptionDialog,
-      child: const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 16.0),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.shield_outlined),
-            SizedBox(width: 8),
+            const Icon(Icons.shield_outlined),
+            const SizedBox(width: 8),
             Text(
-              'Excepción de Horas',
-              style: TextStyle(fontWeight: FontWeight.bold),
+              AppLocale.hoursException.getString(context),
+              style: const TextStyle(fontWeight: FontWeight.bold),
             ),
           ],
         ),
@@ -1601,7 +1603,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       if (!AccessControl.isAdmin)
         IconButton(
           icon: const Icon(Icons.logout_rounded, color: Colors.red),
-          tooltip: 'Cerrar Sesión',
+          tooltip: AppLocale.logout.getString(context),
           onPressed: () => showLogoutConfirmation(context),
         ),
     ];
@@ -1610,14 +1612,14 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       appBar: AppBar(
         title: Text(
           _showCalendar
-              ? 'Calendario de Solicitudes'
-              : 'Mis Solicitudes De Soporte',
+              ? AppLocale.requestsCalendar.getString(context)
+              : AppLocale.supportRequests.getString(context),
         ),
         leadingWidth: !AccessControl.isAdmin ? 220 : null,
         leading: _showCalendar
             ? IconButton(
                 icon: const Icon(Icons.arrow_back),
-                tooltip: 'Volver al Listado',
+                tooltip: AppLocale.back.getString(context),
                 onPressed: () {
                   setState(() => _showCalendar = false);
                   if (_outerScrollController.hasClients) {
@@ -1813,15 +1815,15 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                                 Padding(
                                   padding: const EdgeInsets.only(bottom: 4.0),
                                   child: Text(
-                                    '$_totalRecords solicitudes encontradas en total',
+                                    AppLocale.requestsFound.getStringWithVariables(context, {'count': '$_totalRecords'}),
                                     style: Theme.of(context).textTheme.titleMedium,
                                   ),
                                 ),
                                 if (_selectedYears.length == 1 &&
                                     _selectedYears.first == DateTime.now().year)
-                                  const Text(
-                                    "Mostrando solicitudes del año actual.",
-                                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                                  Text(
+                                    AppLocale.currentYearRequests.getString(context),
+                                    style: const TextStyle(color: Colors.grey, fontSize: 12),
                                   ),
                               ],
                             ),

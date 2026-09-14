@@ -1,5 +1,7 @@
 import 'package:primhub/ui/Shared_Custom/admin_mode_views.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/admin_view_mode.dart';
@@ -39,7 +41,8 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   late final HomeController _controller;
   final _adminViewModeManager = AdminViewModeManager();
-  final bool _isEnforcedDelayActive = false; // Desactivado el retardo obligatorio
+  final bool _isEnforcedDelayActive =
+      false; // Desactivado el retardo obligatorio
 
   @override
   void initState() {
@@ -60,8 +63,6 @@ class _HomePageState extends State<HomePage> {
     setState(() {});
     _controller.initData();
   }
-
-
 
   void _showRequestDetails(Map<String, dynamic> record) {
     // El mapa record en recentRequests tiene una estructura plana o anidada en 'original'.
@@ -111,7 +112,7 @@ class _HomePageState extends State<HomePage> {
                 children: [
                   CustomTextField(
                     controller: TextEditingController(text: descriptionClean),
-                    label: 'Descripción',
+                    label: AppLocale.description.getString(context),
                     readOnly: true,
                     maxLines: 5,
                   ),
@@ -119,13 +120,13 @@ class _HomePageState extends State<HomePage> {
                     padding: const EdgeInsets.only(top: 4.0, right: 4.0),
                     child: IconButton(
                       icon: const Icon(Icons.zoom_out_map),
-                      tooltip: 'Ver descripción completa',
+                      tooltip: AppLocale.viewFullDescription.getString(context),
                       onPressed: () {
                         showDialog(
                           context: context,
                           builder: (BuildContext dialogContext) {
                             return CustomModal(
-                              title: 'Descripción Completa',
+                              title: AppLocale.fullDescription.getString(context),
                               width: 600,
                               content: SizedBox(
                                 height: 400,
@@ -238,7 +239,8 @@ class _HomePageState extends State<HomePage> {
                       children: [
                         AnimatedCopyWidget(
                           textToCopy: documentNo,
-                          snackBarMessage: 'Código del plan copiado al portapapeles',
+                          snackBarMessage:
+                              'Código del plan copiado al portapapeles',
                           leadingText: Text(documentNo),
                           iconSize: 16,
                         ),
@@ -342,7 +344,7 @@ class _HomePageState extends State<HomePage> {
               : Builder(
                   builder: (ctx) => IconButton(
                     icon: const Icon(Icons.menu_rounded),
-                    tooltip: 'Menú Principal',
+                    tooltip: AppLocale.mainMenu.getString(context),
                     onPressed: () => Scaffold.of(ctx).openDrawer(),
                   ),
                 ),
@@ -350,10 +352,11 @@ class _HomePageState extends State<HomePage> {
           actions: [
             if (AccessControl.isAdmin) AdminModeViews(),
             const HelpIcon(),
-            if (MediaQuery.of(context).size.width < 900 && !AccessControl.isAdmin)
+            if (MediaQuery.of(context).size.width < 900 &&
+                !AccessControl.isAdmin)
               PopupMenuButton<String>(
                 icon: const Icon(Icons.folder_shared_outlined),
-                tooltip: 'Documentos de Soporte',
+                tooltip: AppLocale.supportDocuments.getString(context),
                 onSelected: (value) => context.push(value),
                 itemBuilder: (context) => [
                   const PopupMenuItem(
@@ -371,15 +374,18 @@ class _HomePageState extends State<HomePage> {
               tooltip: 'Refrescar',
               onPressed: () {
                 setState(() => _controller.isLoading = true);
-                GlobalCache.forceFullSyncWithProgress(context, onSyncAction: () async {
-                  await _controller.initData(forceRefresh: true);
-                });
+                GlobalCache.forceFullSyncWithProgress(
+                  context,
+                  onSyncAction: () async {
+                    await _controller.initData(forceRefresh: true);
+                  },
+                );
               },
             ),
             if (!AccessControl.isAdmin)
               IconButton(
                 icon: const Icon(Icons.logout_rounded, color: Colors.red),
-                tooltip: 'Cerrar Sesión',
+                tooltip: AppLocale.logout.getString(context),
                 onPressed: () => showLogoutConfirmation(context),
               ),
           ],
@@ -425,8 +431,8 @@ class _HomePageState extends State<HomePage> {
 
                               if (!hasProjectsContent &&
                                   !hasSupportContent &&
-                                  !_controller.isLoading && 
-                                  !_controller.validationLoading && 
+                                  !_controller.isLoading &&
+                                  !_controller.validationLoading &&
                                   !_isEnforcedDelayActive) {
                                 return Padding(
                                   padding: const EdgeInsets.symmetric(
@@ -532,11 +538,19 @@ class _HomePageState extends State<HomePage> {
                                           const SizedBox(height: 32),
                                           OutlinedButton.icon(
                                             onPressed: () {
-                                              setState(() => _controller.isLoading = true);
-                                              GlobalCache.forceFullSyncWithProgress(context, onSyncAction: () async {
-                                                await _controller.initData(forceRefresh: true);
-                                                setState(() {});
-                                              });
+                                              setState(
+                                                () => _controller.isLoading =
+                                                    true,
+                                              );
+                                              GlobalCache.forceFullSyncWithProgress(
+                                                context,
+                                                onSyncAction: () async {
+                                                  await _controller.initData(
+                                                    forceRefresh: true,
+                                                  );
+                                                  setState(() {});
+                                                },
+                                              );
                                             },
                                             icon: const Icon(Icons.refresh),
                                             label: const Text(
@@ -572,7 +586,9 @@ class _HomePageState extends State<HomePage> {
                                 horizontal: 16.0,
                               ),
                               child: CustomContainer(
-                                title: 'Proyectos a Visualizar',
+                                title: AppLocale.projectsToDisplay.getString(
+                                  context,
+                                ),
                                 action: const Icon(
                                   Icons.filter_alt_rounded,
                                   color: Colors.grey,
@@ -595,20 +611,27 @@ class _HomePageState extends State<HomePage> {
                               child: LayoutBuilder(
                                 builder: (context, constraints) {
                                   if (_controller.isLoading) {
-                                    int columns = (constraints.maxWidth / 360).floor();
+                                    int columns = (constraints.maxWidth / 360)
+                                        .floor();
                                     if (columns < 1) columns = 1;
                                     double spacing = 20;
-                                    double itemWidth = (constraints.maxWidth - (spacing * (columns - 1))) / columns;
+                                    double itemWidth =
+                                        (constraints.maxWidth -
+                                            (spacing * (columns - 1))) /
+                                        columns;
                                     if (itemWidth > 420) itemWidth = 420;
-                                    if (itemWidth > constraints.maxWidth) itemWidth = constraints.maxWidth;
+                                    if (itemWidth > constraints.maxWidth) {
+                                      itemWidth = constraints.maxWidth;
+                                    }
                                     if (itemWidth <= 0) itemWidth = 100;
-                                 
+
                                     return Center(
                                       child: Wrap(
                                         spacing: spacing,
                                         runSpacing: spacing,
                                         alignment: WrapAlignment.center,
-                                        crossAxisAlignment: WrapCrossAlignment.center,
+                                        crossAxisAlignment:
+                                            WrapCrossAlignment.center,
                                         children: List.generate(
                                           columns > 3 ? 3 : columns,
                                           (index) => CustomSkeleton(
@@ -628,18 +651,28 @@ class _HomePageState extends State<HomePage> {
                                       )
                                       .toList();
 
-                                  final bool showCreateCard = AccessControl.isAdmin && 
-                                      (_controller.selectedProjectIds.isEmpty || 
-                                       _controller.selectedProjectIds.length == _controller.projects.length);
+                                  final bool showCreateCard =
+                                      AccessControl.isAdmin &&
+                                      (_controller.selectedProjectIds.isEmpty ||
+                                          _controller
+                                                  .selectedProjectIds
+                                                  .length ==
+                                              _controller.projects.length);
 
-                                  if (activeProjects.isEmpty && !showCreateCard) {
+                                  if (activeProjects.isEmpty &&
+                                      !showCreateCard) {
                                     return const SizedBox.shrink();
                                   }
 
-                                  int totalItems = activeProjects.length + (showCreateCard ? 1 : 0);
-                                  int columns = (constraints.maxWidth / 360).floor();
+                                  int totalItems =
+                                      activeProjects.length +
+                                      (showCreateCard ? 1 : 0);
+                                  int columns = (constraints.maxWidth / 360)
+                                      .floor();
                                   if (columns < 1) columns = 1;
-                                  if (columns > totalItems) columns = totalItems;
+                                  if (columns > totalItems) {
+                                    columns = totalItems;
+                                  }
 
                                   double spacing = 20;
                                   double itemWidth =
@@ -668,18 +701,22 @@ class _HomePageState extends State<HomePage> {
                                           SizedBox(
                                             width: itemWidth,
                                             child: DottedCreateCard(
-                                              title: 'Crear Proyecto',
+                                              title: AppLocale.createProject
+                                                  .getString(context),
                                               height: 332,
                                               onTap: () async {
                                                 final result = await Navigator.push(
                                                   context,
                                                   MaterialPageRoute(
-                                                    builder: (context) => const ProjectFormPage(),
+                                                    builder: (context) =>
+                                                        const ProjectFormPage(),
                                                   ),
                                                 );
                                                 if (result == true) {
                                                   // Si se creó exitosamente, refrescamos los datos
-                                                  await _controller.initData(forceRefresh: true);
+                                                  await _controller.initData(
+                                                    forceRefresh: true,
+                                                  );
                                                 }
                                               },
                                             ),
@@ -738,7 +775,8 @@ class _HomePageState extends State<HomePage> {
                                 horizontal: 16.0,
                               ),
                               child: CustomContainer(
-                                title: 'Filtrar Soporte por Tercero',
+                                title: AppLocale.filterSupportByPartner
+                                    .getString(context),
                                 action: const Icon(
                                   Icons.filter_alt_rounded,
                                   color: Colors.grey,
@@ -754,7 +792,9 @@ class _HomePageState extends State<HomePage> {
                             ),
                           const SizedBox(height: 20),
                           if (AccessControl.isSupport) ...[
-                            if (_controller.validationLoading || _isEnforcedDelayActive || _controller.isLoading)
+                            if (_controller.validationLoading ||
+                                _isEnforcedDelayActive ||
+                                _controller.isLoading)
                               Column(
                                 children: [
                                   Wrap(
@@ -786,6 +826,72 @@ class _HomePageState extends State<HomePage> {
                                   if (AccessControl.isAdmin &&
                                       bpsToRender.isEmpty &&
                                       !_controller.isLoading) {
+                                    return Column(
+                                      children: [
+                                        Wrap(
+                                          spacing: 20,
+                                          runSpacing: 20,
+                                          alignment: WrapAlignment.center,
+                                          children: [
+                                            SizedBox(
+                                              width: 350,
+                                              child: DottedCreateCard(
+                                                title: AppLocale
+                                                    .createProductSheet
+                                                    .getString(context),
+                                                height: 278,
+                                                onTap: () async {
+                                                  final result =
+                                                      await showDialog<dynamic>(
+                                                        context: context,
+                                                        builder: (_) =>
+                                                            const ProductChipFormDialog(),
+                                                      );
+                                                  if (result != null &&
+                                                      context.mounted) {
+                                                    if (result is int) {
+                                                      await GlobalCache.syncData(
+                                                        force: true,
+                                                      );
+                                                      if (context.mounted) {
+                                                        _controller
+                                                            .updateSelectedSupportBps(
+                                                              [result],
+                                                            );
+                                                      }
+                                                    } else {
+                                                      _controller.initData(
+                                                        forceRefresh: true,
+                                                      );
+                                                    }
+                                                  }
+                                                },
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        Center(
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 40.0,
+                                            ),
+                                            child: Text(
+                                              AppLocale.selectPartnerForSheets
+                                                  .getString(context),
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodyLarge
+                                                  ?.copyWith(
+                                                    color: textColor
+                                                        .withOpacity(0.6),
+                                                  ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  }
+
                                   return Column(
                                     children: [
                                       Wrap(
@@ -793,189 +899,156 @@ class _HomePageState extends State<HomePage> {
                                         runSpacing: 20,
                                         alignment: WrapAlignment.center,
                                         children: [
-                                          SizedBox(
-                                            width: 350,
-                                            child: DottedCreateCard(
-                                              title: 'Crear Ficha',
-                                              height: 278,
-                                              onTap: () async {
-                                                final result = await showDialog<dynamic>(
-                                                  context: context,
-                                                  builder: (_) => const ProductChipFormDialog(),
-                                                );
-                                                if (result != null && context.mounted) {
-                                                  if (result is int) {
-                                                    await GlobalCache.syncData(force: true);
-                                                    if (context.mounted) {
-                                                      _controller.updateSelectedSupportBps([result]);
-                                                    }
-                                                  } else {
-                                                    _controller.initData(forceRefresh: true);
-                                                  }
-                                                }
-                                              },
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      Center(
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 40.0,
-                                          ),
-                                          child: Text(
-                                            "Selecciona el tercero para ver su informacion",
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .bodyLarge
-                                                ?.copyWith(
-                                                  color: textColor.withOpacity(0.6),
-                                                ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  );
-                                }
-
-                                return Column(
-                                  children: [
-                                    Wrap(
-                                      spacing: 20,
-                                      runSpacing: 20,
-                                      alignment: WrapAlignment.center,
-                                      children: [
-                                        if (AccessControl.isAdmin)
-                                          SizedBox(
-                                            width: 350,
-                                            child: DottedCreateCard(
-                                              title: 'Crear Ficha',
-                                              height: 278, // Match UnifiedSupportCard intrinsic height
-                                              onTap: () async {
-                                                final result = await showDialog<dynamic>(
-                                                  context: context,
-                                                  builder: (_) => const ProductChipFormDialog(),
-                                                );
-                                                if (result != null && context.mounted) {
-                                                  if (result is int) {
-                                                    await GlobalCache.syncData(force: true);
-                                                    if (context.mounted) {
-                                                      _controller.updateSelectedSupportBps([result]);
-                                                    }
-                                                  } else {
-                                                    _controller.initData(forceRefresh: true);
-                                                  }
-                                                }
-                                              },
-                                            ),
-                                          ),
-                                        ..._controller.supportProductChips
-                                          .where((chip) {
-                                            final rawBp = chip['C_BPartner_ID'];
-                                            final chipBpId = rawBp is Map
-                                                ? (rawBp['id'] as num?)?.toInt()
-                                                : (rawBp as num?)?.toInt();
-
-                                            final isActive =
-                                                chip['IsActive'] == 'Y' ||
-                                                chip['IsActive'] == true;
-                                            return bpsToRender.contains(
-                                                  chipBpId,
-                                                ) &&
-                                                isActive;
-                                          })
-                                          .map((chip) {
-                                            final rawBp = chip['C_BPartner_ID'];
-                                            final chipBpId = rawBp is Map
-                                                ? (rawBp['id'] as num?)?.toInt()
-                                                : (rawBp as num?)?.toInt();
-                                            final bpInfo = _controller
-                                                .supportBPartners
-                                                .firstWhere(
-                                                  (bp) => bp['id'] == chipBpId,
-                                                  orElse: () =>
-                                                      <String, dynamic>{
-                                                        'Name':
-                                                            'Tercero $chipBpId',
-                                                      },
-                                                );
-                                            final bpName = bpInfo['Name'];
-
-                                            // Stats globales del BP para los contadores de solicitudes (no por chip, ya que no hay link directo usualmente)
-                                            return SizedBox(
+                                          if (AccessControl.isAdmin)
+                                            SizedBox(
                                               width: 350,
-                                              child: UnifiedSupportCard(
-                                                isLoading:
-                                                    _controller.isLoading,
-                                                bpName: bpName,
-                                                productLabel:
-                                                    chip['Description'],
-                                                frequency:
-                                                    chip['FrequencyType'] is Map
-                                                    ? chip['FrequencyType']['identifier']
-                                                    : chip['FrequencyType'],
-                                                serviceStartDate:
-                                                    chip['service_start_date'],
-                                                serviceFinishDate:
-                                                    chip['service_finish_date'],
-                                                acquiredHours:
-                                                    (chip['Qty'] as num?)
-                                                        ?.toDouble() ??
-                                                    0.0,
-                                                inProgressHours:
-                                                    (chip['inProgressHours']
-                                                            as num?)
-                                                        ?.toDouble() ??
-                                                    0.0,
-                                                consumedHours:
-                                                    (chip['consumedHours']
-                                                            as num?)
-                                                        ?.toDouble() ??
-                                                    0.0,
-                                                inProgressRequestsCount:
-                                                    (chip['inProgressRequestsCount']
-                                                            as num?)
-                                                        ?.toInt() ??
-                                                    0,
-                                                closedRequestsCount:
-                                                    (chip['closedRequestsCount']
-                                                            as num?)
-                                                        ?.toInt() ??
-                                                    0,
-                                                onInProgressTap: () {
-                                                  context.push(
-                                                    '/my-requests',
-                                                    extra: {
-                                                      'bpId': chipBpId,
-                                                      'chipId': chip['id'],
-                                                      'showHistory': false,
-                                                    },
-                                                  );
+                                              child: DottedCreateCard(
+                                                title: AppLocale
+                                                    .createProductSheet
+                                                    .getString(context),
+                                                height:
+                                                    278, // Match UnifiedSupportCard intrinsic height
+                                                onTap: () async {
+                                                  final result =
+                                                      await showDialog<dynamic>(
+                                                        context: context,
+                                                        builder: (_) =>
+                                                            const ProductChipFormDialog(),
+                                                      );
+                                                  if (result != null &&
+                                                      context.mounted) {
+                                                    if (result is int) {
+                                                      await GlobalCache.syncData(
+                                                        force: true,
+                                                      );
+                                                      if (context.mounted) {
+                                                        _controller
+                                                            .updateSelectedSupportBps(
+                                                              [result],
+                                                            );
+                                                      }
+                                                    } else {
+                                                      _controller.initData(
+                                                        forceRefresh: true,
+                                                      );
+                                                    }
+                                                  }
                                                 },
-                                                onClosedTap: () {
-                                                  context.push(
-                                                    '/support',
-                                                    extra: {
-                                                      'bpId': chipBpId,
-                                                      'chipId': chip['id'],
+                                              ),
+                                            ),
+                                          ..._controller.supportProductChips
+                                              .where((chip) {
+                                                final rawBp =
+                                                    chip['C_BPartner_ID'];
+                                                final chipBpId = rawBp is Map
+                                                    ? (rawBp['id'] as num?)
+                                                          ?.toInt()
+                                                    : (rawBp as num?)?.toInt();
+
+                                                final isActive =
+                                                    chip['IsActive'] == 'Y' ||
+                                                    chip['IsActive'] == true;
+                                                return bpsToRender.contains(
+                                                      chipBpId,
+                                                    ) &&
+                                                    isActive;
+                                              })
+                                              .map((chip) {
+                                                final rawBp =
+                                                    chip['C_BPartner_ID'];
+                                                final chipBpId = rawBp is Map
+                                                    ? (rawBp['id'] as num?)
+                                                          ?.toInt()
+                                                    : (rawBp as num?)?.toInt();
+                                                final bpInfo = _controller
+                                                    .supportBPartners
+                                                    .firstWhere(
+                                                      (bp) =>
+                                                          bp['id'] == chipBpId,
+                                                      orElse: () =>
+                                                          <String, dynamic>{
+                                                            'Name':
+                                                                'Tercero $chipBpId',
+                                                          },
+                                                    );
+                                                final bpName = bpInfo['Name'];
+
+                                                // Stats globales del BP para los contadores de solicitudes (no por chip, ya que no hay link directo usualmente)
+                                                return SizedBox(
+                                                  width: 350,
+                                                  child: UnifiedSupportCard(
+                                                    isLoading:
+                                                        _controller.isLoading,
+                                                    bpName: bpName,
+                                                    productLabel:
+                                                        chip['Description'],
+                                                    frequency:
+                                                        chip['FrequencyType']
+                                                            is Map
+                                                        ? chip['FrequencyType']['identifier']
+                                                        : chip['FrequencyType'],
+                                                    serviceStartDate:
+                                                        chip['service_start_date'],
+                                                    serviceFinishDate:
+                                                        chip['service_finish_date'],
+                                                    acquiredHours:
+                                                        (chip['Qty'] as num?)
+                                                            ?.toDouble() ??
+                                                        0.0,
+                                                    inProgressHours:
+                                                        (chip['inProgressHours']
+                                                                as num?)
+                                                            ?.toDouble() ??
+                                                        0.0,
+                                                    consumedHours:
+                                                        (chip['consumedHours']
+                                                                as num?)
+                                                            ?.toDouble() ??
+                                                        0.0,
+                                                    inProgressRequestsCount:
+                                                        (chip['inProgressRequestsCount']
+                                                                as num?)
+                                                            ?.toInt() ??
+                                                        0,
+                                                    closedRequestsCount:
+                                                        (chip['closedRequestsCount']
+                                                                as num?)
+                                                            ?.toInt() ??
+                                                        0,
+                                                    onInProgressTap: () {
+                                                      context.push(
+                                                        '/my-requests',
+                                                        extra: {
+                                                          'bpId': chipBpId,
+                                                          'chipId': chip['id'],
+                                                          'showHistory': false,
+                                                        },
+                                                      );
                                                     },
-                                                  );
-                                                },
-                                                onAvailableHoursTap: () {
-                                                  context.push(
-                                                    '/support',
-                                                    extra: {
-                                                      'bpId': chipBpId,
-                                                      'chipId': chip['id'],
+                                                    onClosedTap: () {
+                                                      context.push(
+                                                        '/support',
+                                                        extra: {
+                                                          'bpId': chipBpId,
+                                                          'chipId': chip['id'],
+                                                        },
+                                                      );
                                                     },
-                                                  );
-                                                },
-                                                onShowAllContracts: () =>
-                                                    _showAllContractsModal(
-                                                      context,
-                                                      _controller
-                                                          .supportProductChips
-                                                          .where((c) {
+                                                    onAvailableHoursTap: () {
+                                                      context.push(
+                                                        '/support',
+                                                        extra: {
+                                                          'bpId': chipBpId,
+                                                          'chipId': chip['id'],
+                                                        },
+                                                      );
+                                                    },
+                                                    onShowAllContracts: () =>
+                                                        _showAllContractsModal(
+                                                          context,
+                                                          _controller.supportProductChips.where((
+                                                            c,
+                                                          ) {
                                                             final rawBp =
                                                                 c['C_BPartner_ID'];
                                                             final cBpId =
@@ -987,24 +1060,26 @@ class _HomePageState extends State<HomePage> {
                                                                       ?.toInt();
                                                             return cBpId ==
                                                                 chipBpId;
-                                                          })
-                                                          .toList(),
-                                                      bpName,
-                                                    ),
-                                              ),
-                                            );
-                                          }),
-                                      ],
-                                    ),
-                                  ],
-                                );
-                              },
-                            ),
+                                                          }).toList(),
+                                                          bpName,
+                                                        ),
+                                                  ),
+                                                );
+                                              }),
+                                        ],
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
                           ],
                           if (AccessControl.isSupport &&
                               (!AccessControl.isAdmin ||
-                                  _controller.selectedSupportBpIds.isNotEmpty) && 
-                              !(_controller.validationLoading || _isEnforcedDelayActive)) ...[
+                                  _controller
+                                      .selectedSupportBpIds
+                                      .isNotEmpty) &&
+                              !(_controller.validationLoading ||
+                                  _isEnforcedDelayActive)) ...[
                             const SizedBox(height: 30),
                             Padding(
                               padding: const EdgeInsets.symmetric(
@@ -1012,7 +1087,9 @@ class _HomePageState extends State<HomePage> {
                               ),
                               child: RecentRequestsTable(
                                 requests: _controller.recentRequests,
-                                isLoading: _controller.isLoading || _controller.validationLoading,
+                                isLoading:
+                                    _controller.isLoading ||
+                                    _controller.validationLoading,
                                 selectedBpIds: _controller.selectedSupportBpIds,
                                 onEdit: _showRequestDetails,
                               ),
@@ -1055,7 +1132,7 @@ class _SupportBpSelector extends StatelessWidget {
       builder: (BuildContext context) {
         String searchQuery = ''; // Variable de estado para la búsqueda
         return CustomModal(
-          title: 'Seleccionar Terceros',
+          title: AppLocale.selectPartners.getString(context),
           width: 500,
           content: StatefulBuilder(
             builder: (BuildContext context, StateSetter setState) {
@@ -1073,7 +1150,7 @@ class _SupportBpSelector extends StatelessWidget {
                   children: [
                     // Campo de búsqueda
                     CustomTextField(
-                      hintText: 'Buscar tercero...',
+                      hintText: AppLocale.searchPartner.getString(context),
                       prefixIcon: const Icon(Icons.search),
                       onChanged: (val) => setState(() => searchQuery = val),
                     ),
@@ -1089,8 +1166,8 @@ class _SupportBpSelector extends StatelessWidget {
                         }
 
                         return CheckboxListTile(
-                          title: const Text(
-                            'Todos los terceros',
+                          title: Text(
+                            AppLocale.allPartners.getString(context),
                             style: TextStyle(fontWeight: FontWeight.bold),
                           ),
                           tristate: true,
@@ -1143,7 +1220,7 @@ class _SupportBpSelector extends StatelessWidget {
           ),
           actions: <Widget>[
             TextButton(
-              child: const Text('Cancelar'),
+              child: Text(AppLocale.cancel.getString(context)),
               onPressed: () => Navigator.of(context).pop(),
             ),
             CustomButton(
@@ -1171,7 +1248,7 @@ class _SupportBpSelector extends StatelessWidget {
       displayText = 'Sincronizando terceros...';
     } else if (selectedBpIds.isEmpty) {
       if (bPartners.isEmpty) return const SizedBox.shrink();
-      displayText = 'Ningún tercero seleccionado';
+      displayText = AppLocale.noPartnerSelected.getString(context);
     } else if (selectedBpIds.length == 1) {
       final bp = bPartners.firstWhere(
         (p) => p['id'] == selectedBpIds.first,
@@ -1179,7 +1256,7 @@ class _SupportBpSelector extends StatelessWidget {
       );
       displayText = bp['Name'] ?? 'Tercero sin nombre';
     } else if (selectedBpIds.length == bPartners.length) {
-      displayText = 'Todos los terceros seleccionados';
+      displayText = AppLocale.allPartnersSelected.getString(context);
     } else {
       displayText = '${selectedBpIds.length} terceros seleccionados';
     }

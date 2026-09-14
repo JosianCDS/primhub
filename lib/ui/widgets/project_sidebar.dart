@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/access_control.dart';
 
@@ -14,29 +16,29 @@ class ProjectSideBar extends StatelessWidget {
     final colorScheme = theme.colorScheme;
 
     List<Map<String, dynamic>> items = [
-      {'route': '/', 'icon': Icons.dashboard_outlined, 'selectedIcon': Icons.dashboard, 'label': 'Dashboard'},
+      {'route': '/', 'icon': Icons.dashboard_outlined, 'selectedIcon': Icons.dashboard, 'label': AppLocale.dashboard.getString(context)},
     ];
 
     if (AccessControl.isSupport) {
-      items.add({'route': '/my-requests', 'icon': Icons.help_outline, 'selectedIcon': Icons.help, 'label': 'Mis Solicitudes'});
+      items.add({'route': '/my-requests', 'icon': Icons.help_outline, 'selectedIcon': Icons.help, 'label': AppLocale.myRequests.getString(context)});
       items.add({
         'isExpansion': true,
-        'label': 'Documentos',
+        'label': AppLocale.documents.getString(context),
         'icon': Icons.folder_shared_outlined,
         'selectedIcon': Icons.folder_shared_rounded,
         'children': [
-          {'route': '/bpartner-docs/general', 'icon': Icons.insert_drive_file_outlined, 'selectedIcon': Icons.insert_drive_file, 'label': 'General'},
-          {'route': '/bpartner-docs/seguimiento', 'icon': Icons.insert_drive_file_outlined, 'selectedIcon': Icons.insert_drive_file, 'label': 'Seguimiento'},
+          {'route': '/bpartner-docs/general', 'icon': Icons.insert_drive_file_outlined, 'selectedIcon': Icons.insert_drive_file, 'label': AppLocale.general.getString(context)},
+          {'route': '/bpartner-docs/seguimiento', 'icon': Icons.insert_drive_file_outlined, 'selectedIcon': Icons.insert_drive_file, 'label': AppLocale.tracking.getString(context)},
         ],
       });
-      items.add({'route': '/support', 'icon': Icons.schedule_outlined, 'selectedIcon': Icons.schedule, 'label': 'Horas'});
+      items.add({'route': '/support', 'icon': Icons.schedule_outlined, 'selectedIcon': Icons.schedule, 'label': AppLocale.hours.getString(context)});
     }
 
     if (AccessControl.isProject) {
-      items.add({'route': '/deliverables', 'icon': Icons.folder_outlined, 'selectedIcon': Icons.folder, 'label': 'Proyectos'});
+      items.add({'route': '/deliverables', 'icon': Icons.folder_outlined, 'selectedIcon': Icons.folder, 'label': AppLocale.projects.getString(context)});
     }
 
-    items.add({'route': '/metrics', 'icon': Icons.bar_chart_outlined, 'selectedIcon': Icons.bar_chart, 'label': 'Métricas'});
+    items.add({'route': '/metrics', 'icon': Icons.bar_chart_outlined, 'selectedIcon': Icons.bar_chart, 'label': AppLocale.metrics.getString(context)});
 
     int selectedIndex = items.indexWhere((item) => item['route'] == currentRoute);
     if (selectedIndex == -1) selectedIndex = 0;

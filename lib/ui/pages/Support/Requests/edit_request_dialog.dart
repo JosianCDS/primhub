@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 import 'package:flutter_quill/flutter_quill.dart' hide Style;
 import 'package:primhub/ui/pages/Support/Requests/html_editor_utils.dart';
 import 'package:go_router/go_router.dart';
@@ -414,7 +416,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
     showDialog(
       context: context,
       builder: (context) => CustomModal(
-        title: 'Guía de Categorías / Síntomas',
+        title: AppLocale.categoryGuide.getString(context),
         width: 800,
         content: Container(
           constraints: BoxConstraints(
@@ -1188,7 +1190,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
             widget.request['C_Project_ID'].toString().isNotEmpty);
 
     return CustomModal(
-      title: 'Editar Solicitud ${widget.request['id']}',
+      title: AppLocale.editRequest.getStringWithVariables(context, {'id': '${widget.request['id']}'}),
       width: 700,
       content: Scrollbar(
         controller: _modalScrollController,
@@ -1239,7 +1241,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                           );
                           ToastMessage.show(
                             context: context,
-                            message: 'Número de ticket copiado al portapapeles',
+                            message: AppLocale.ticketCopied.getString(context),
                             type: ToastType.help,
                           );
                         },
@@ -1254,7 +1256,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                     children: [
                       Expanded(
                         child: _buildSearchableField<int>(
-                          label: 'Tercero',
+                          label: AppLocale.businessPartner.getString(context),
                           hintText: 'Seleccione Tercero',
                           value: _selectedBpId,
                           isLoading: _isLoadingBPartners,
@@ -1300,7 +1302,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                       const SizedBox(width: 16),
                       Expanded(
                         child: _buildSearchableField<int>(
-                          label: 'Usuario',
+                          label: AppLocale.user.getString(context),
                           hintText: _selectedBpId == null
                               ? 'Seleccione un tercero'
                               : 'Seleccione Usuario',
@@ -1355,7 +1357,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                     children: [
                       Expanded(
                         child: _buildSearchableField<int>(
-                          label: 'Ficha de Producto',
+                          label: AppLocale.productSheet.getString(context),
                           hintText: _selectedBpId == null
                               ? 'Seleccione un tercero'
                               : 'Seleccione Ficha',
@@ -1396,7 +1398,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                   children: [
                     Expanded(
                       child: _buildSearchableField<String>(
-                        label: 'Tipo de Solicitud',
+                        label: AppLocale.requestType.getString(context),
                         hintText: 'Seleccione Tipo',
                         value: _selectedType,
                         isLoading: _isLoadingTypes,
@@ -1425,7 +1427,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                 const SizedBox(height: 16),
                 CustomTextField(
                   controller: _subjectController,
-                  label: 'Asunto',
+                  label: AppLocale.subject.getString(context),
                   readOnly: _isReadOnly,
                 ),
                 const SizedBox(height: 16),
@@ -1435,14 +1437,14 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                     Expanded(
                       flex: 10,
                       child: _buildSearchableField<String>(
-                        label: 'Categoría',
-                        hintText: 'Seleccione Categoría',
+                        label: AppLocale.category.getString(context),
+                        hintText: AppLocale.selectCategory.getString(context),
                         value: _selectedCategory,
                         isLoading: _isLoadingCategories,
                         isDisabled: _isReadOnly || _isLoadingCategories,
                         displayText: _selectedCategory ?? '',
                         onTap: () => _openSearchModal<String>(
-                          title: 'Categoría',
+                          title: AppLocale.category.getString(context),
                           items: _categoryMap.keys.toList(),
                           currentValue: _selectedCategory,
                           getTitle: (item) => item.toString(),
@@ -1487,14 +1489,14 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                           Icons.info_outline,
                           color: Colors.blue,
                         ),
-                        tooltip: 'Ver guía de categorías',
+                        tooltip: AppLocale.viewCategoryGuide.getString(context),
                         onPressed: _showCategoryHelpModal,
                       ),
                     ),
                     Expanded(
                       flex: 10,
                       child: _buildSearchableField<String>(
-                        label: 'Prioridad',
+                        label: AppLocale.priority.getString(context),
                         hintText: 'Seleccione Prioridad',
                         value: _currentPriority,
                         isLoading: false,
@@ -1531,8 +1533,8 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                     children: [
                       Expanded(
                         child: _buildSearchableField<String>(
-                          label: 'Grupo',
-                          hintText: 'Seleccione Grupo',
+                          label: AppLocale.group.getString(context),
+                          hintText: AppLocale.selectGroup.getString(context),
                           value: _selectedGroup,
                           isLoading: _isLoadingGroups,
                           isDisabled: _isReadOnly || _isLoadingGroups,
@@ -1551,8 +1553,8 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                       const SizedBox(width: 16),
                       Expanded(
                         child: _buildSearchableField<int>(
-                          label: 'Representante Comercial',
-                          hintText: 'Seleccione Representante',
+                          label: AppLocale.salesRepresentative.getString(context),
+                          hintText: AppLocale.selectRepresentative.getString(context),
                           value: _selectedSalesRepId,
                           isLoading: _isLoadingSalesReps,
                           isDisabled: _isReadOnly || _isLoadingSalesReps,
@@ -1589,8 +1591,8 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                     children: [
                       Expanded(
                         child: _buildSearchableField<String>(
-                          label: 'Estado',
-                          hintText: 'Seleccione Estado',
+                          label: AppLocale.status.getString(context),
+                          hintText: AppLocale.selectStatus.getString(context),
                           value: _currentStatus,
                           isLoading: false,
                           isDisabled: false,
@@ -1622,7 +1624,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                           child: AbsorbPointer(
                             child: CustomTextField(
                               controller: _dateStartController,
-                              label: 'Fecha de Inicio Planeada',
+                              label: AppLocale.plannedStartDate.getString(context),
                               readOnly: true,
                               hintText: 'YYYY-MM-DD',
                               prefixIcon: const Icon(Icons.calendar_today),
@@ -1642,7 +1644,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                           child: AbsorbPointer(
                             child: CustomTextField(
                               controller: _dateCompleteController,
-                              label: 'Fecha de Cierre',
+                              label: AppLocale.closingDate.getString(context),
                               readOnly: true,
                               hintText: 'YYYY-MM-DD',
                               prefixIcon: const Icon(Icons.calendar_today),
@@ -1655,7 +1657,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                   const SizedBox(height: 16),
                   CustomTextField(
                     controller: _qtyUsedController,
-                    label: 'Horas Invertidas',
+                    label: AppLocale.investedHours.getString(context),
                     readOnly: _isReadOnly,
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
@@ -1668,7 +1670,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                   if (AccessControl.isAdmin) ...[
                     CustomTextField(
                       controller: _estimatedDevHoursController,
-                      label: 'Horas estimadas (Desarrollo)',
+                      label: AppLocale.estimatedDevelopmentHours.getString(context),
                       readOnly: _isReadOnly,
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
@@ -1725,7 +1727,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                           )
                         : QuillExpandableField(
                             controller: _summaryQuillController,
-                            label: 'Descripción / Resumen',
+                            label: AppLocale.descriptionSummary.getString(context),
                             readOnly: _isReadOnly,
                             height: 150,
                           ),
@@ -1742,7 +1744,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
             Navigator.pop(context);
             widget.onDelete();
           },
-          child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
+          child: Text(AppLocale.delete.getString(context), style: const TextStyle(color: Colors.red)),
         ),
         // BOTÓN DE RESPONDER (Estilo limpio)
         TextButton.icon(
@@ -1750,8 +1752,8 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
               ? null
               : () => _handleSave(navigateToReply: true),
           icon: const Icon(Icons.reply, size: 20),
-          label: const Text(
-            'Responder',
+          label: Text(
+            AppLocale.reply.getString(context),
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
           style: TextButton.styleFrom(
@@ -1760,7 +1762,7 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
         ),
         TextButton(
           onPressed: _isSaving ? null : () => Navigator.pop(context),
-          child: const Text('Cancelar'),
+          child: Text(AppLocale.cancel.getString(context)),
         ),
         CustomButton(
           text: 'Guardar',

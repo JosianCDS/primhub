@@ -1,6 +1,8 @@
 import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 
 import 'package:primhub/api/token.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
@@ -344,14 +346,14 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
       backgroundColor: Colors.white,
       appBar: AppBar(
         title: Text(
-          _isNewProject ? 'Nuevo Proyecto' : 'Editar Proyecto',
+          _isNewProject ? AppLocale.createProject.getString(context) : AppLocale.project.getString(context),
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: [
           if (!_isLoading)
             Padding(
               padding: const EdgeInsets.only(right: 16),
-              child: CustomButton(text: 'Guardar', onPressed: _save),
+              child: CustomButton(text: AppLocale.save.getString(context), onPressed: _save),
             ),
         ],
       ),
@@ -412,13 +414,13 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildSectionHeader(
-            'Información General',
+            AppLocale.generalInformation.getString(context),
             Icons.info_outline_rounded,
           ),
           const SizedBox(height: 24),
           CustomTextField(
             controller: _nameController,
-            label: 'Nombre del Proyecto *',
+            label: AppLocale.projectName.getString(context),
             prefixIcon: const Icon(
               Icons.drive_file_rename_outline_rounded,
               size: 20,
@@ -430,7 +432,7 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
           const SizedBox(height: 16),
           CustomTextField(
             controller: _descriptionController,
-            label: 'Descripción',
+            label: AppLocale.description.getString(context),
             prefixIcon: const Icon(Icons.description_outlined, size: 20),
             maxLines: 3,
           ),
@@ -440,7 +442,7 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
               Expanded(
                 child: CustomTextField(
                   controller: _valueController,
-                  label: 'Código (Opcional)',
+                  label: AppLocale.optionalCode.getString(context),
                   prefixIcon: const Icon(Icons.tag_rounded, size: 20),
                 ),
               ),
@@ -448,9 +450,9 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Activo',
-                    style: TextStyle(
+                  Text(
+                    AppLocale.active.getString(context),
+                    style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                       color: Colors.grey,
@@ -476,12 +478,12 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildSectionHeader(
-            'Maestros y Responsables',
+            AppLocale.managers.getString(context),
             Icons.people_outline_rounded,
           ),
           const SizedBox(height: 24),
           _buildSearchField(
-            label: 'Tercero (Cliente) *',
+            label: AppLocale.clientPartner.getString(context),
             controller: _bPartnerController,
             items: _bPartners,
             idKey: 'C_BPartner_ID',
@@ -493,7 +495,7 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
           ),
           const SizedBox(height: 16),
           _buildSearchField(
-            label: 'Representante Comercial *',
+            label: '${AppLocale.salesRepresentative.getString(context)} *',
             controller: _salesRepController,
             items: _users,
             idKey: 'AD_User_ID',
@@ -508,7 +510,7 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
           ),
           const SizedBox(height: 16),
           _buildSearchField(
-            label: 'Término de Pago',
+            label: AppLocale.paymentTerm.getString(context),
             controller: _paymentTermController,
             items: _paymentTerms,
             idKey: 'id',
@@ -521,7 +523,7 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
           ),
           const SizedBox(height: 16),
           _buildSearchField(
-            label: 'Regla de Factura *',
+            label: AppLocale.invoiceRule.getString(context),
             controller: _invoiceRuleController,
             items: _invoiceRules,
             idKey: 'id',
@@ -546,10 +548,10 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildSectionHeader('Fechas y Moneda', Icons.calendar_month_rounded),
+          _buildSectionHeader(AppLocale.datesAndCurrency.getString(context), Icons.calendar_month_rounded),
           const SizedBox(height: 24),
           _buildSearchField(
-            label: 'Moneda *',
+            label: AppLocale.currency.getString(context),
             controller: _currencyController,
             items: _currencies,
             idKey: 'C_Currency_ID',
@@ -584,13 +586,13 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
           ),
           const SizedBox(height: 16),
           _buildDatePicker(
-            'Fecha de Inicio de proyecto',
+            AppLocale.projectStartDate.getString(context),
             _dateContract,
             (d) => setState(() => _dateContract = d),
           ),
           const SizedBox(height: 16),
           _buildDatePicker(
-            'Fecha Terminación',
+            AppLocale.endDate.getString(context),
             _dateFinish,
             (d) => setState(() => _dateFinish = d),
           ),
@@ -606,7 +608,7 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildSectionHeader(
-            'Totales',
+            AppLocale.totals.getString(context),
             Icons.monetization_on_outlined,
           ),
           const SizedBox(height: 24),
@@ -625,14 +627,14 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
           runSpacing: 16,
           children: [
             _buildFinancialItem(
-              'Total Planeado',
+              AppLocale.plannedTotal.getString(context),
               _plannedAmtController,
               Icons.payments_outlined,
               isWide,
               constraints.maxWidth,
             ),
             _buildFinancialItem(
-              'Cantidad Planeada',
+              AppLocale.plannedQuantity.getString(context),
               _plannedQtyController,
               Icons.inventory_2_outlined,
               isWide,
@@ -672,7 +674,7 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildSectionHeader(
-            'Historia',
+            AppLocale.history.getString(context),
             Icons.history_rounded,
           ),
           const SizedBox(height: 24),
@@ -680,7 +682,7 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
           const SizedBox(height: 20),
           CustomTextField(
             controller: _projectBalanceController,
-            label: 'Balance del Proyecto',
+            label: AppLocale.projectBalance.getString(context),
             prefixIcon: const Icon(
               Icons.account_balance_wallet_rounded,
               color: Colors.green,
@@ -703,14 +705,14 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
           runSpacing: 16,
           children: [
             _buildFinancialItem(
-              'Cuenta Facturada',
+              AppLocale.invoicedAmount.getString(context),
               _invoicedAmtController,
               Icons.receipt_long_outlined,
               isWide,
               constraints.maxWidth,
             ),
             _buildFinancialItem(
-              'Cantidad Facturada',
+              AppLocale.invoicedQuantity.getString(context),
               _invoicedQtyController,
               Icons.fact_check_outlined,
               isWide,

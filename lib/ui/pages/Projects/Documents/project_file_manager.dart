@@ -1,5 +1,7 @@
 import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localization/flutter_localization.dart';
+import 'package:primhub/localization/app_locale.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/ImagesManagment/download_attachments.dart';
@@ -410,7 +412,7 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-              child: CustomTextField(controller: _searchController, hintText: 'Buscar documento...', prefixIcon: const Icon(Icons.search)),
+              child: CustomTextField(controller: _searchController, hintText: AppLocale.searchDocument.getString(context), prefixIcon: const Icon(Icons.search)),
             ),
             if (widget.headerWidget != null)
               Padding(
@@ -566,7 +568,7 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
           children: [
             Icon(Icons.folder_open, size: 48, color: Colors.grey[400]),
             const SizedBox(height: 16),
-            Text("No hay documentos.", style: TextStyle(color: Colors.grey[600])),
+            Text(AppLocale.noDocuments.getString(context), style: TextStyle(color: Colors.grey[600])),
           ],
         ),
       );
@@ -772,4 +774,3 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
     );
   }
 }
-
