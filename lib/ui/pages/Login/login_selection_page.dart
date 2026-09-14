@@ -3,10 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:primhub/api/auth_entry_api.dart';
 import 'package:primhub/api/auth_api.dart' deferred as session_auth;
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:js' as js;
 import 'package:primhub/api/token.dart';
 import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
-import 'package:primhub/navigation/deferred_registry.dart';
 import 'package:primhub/ui/pages/Login/login_selection_args.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -36,6 +37,20 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
   bool _isLoading = false;
   bool _isInit = true;
 
+  List<dynamic> _uniqueById(List<dynamic> list) {
+    final seen = <int>{};
+    return list.where((item) {
+      final val = item['id'];
+      final id = (val as num?)?.toInt();
+      if (id != null && !seen.contains(id)) {
+        seen.add(id);
+        item['id'] = id; // Ensure the item map has the integer id for the dropdown
+        return true;
+      }
+      return false;
+    }).toList();
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -43,7 +58,7 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
       final args = widget.args;
       if (args != null) {
         _tempToken = args.token;
-        _clients = args.clients;
+        _clients = _uniqueById(args.clients);
         _username = args.username;
         _password = args.password;
         Token.preAuth = _tempToken;
@@ -98,7 +113,7 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
 
     if (mounted) {
       setState(() {
-        _roles = roles;
+        _roles = _uniqueById(roles);
         _isLoading = false;
       });
     }
@@ -119,7 +134,7 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
 
     if (mounted) {
       setState(() {
-        _orgs = orgs;
+        _orgs = _uniqueById(orgs);
         _isLoading = false;
       });
     }
@@ -156,10 +171,10 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
     if (_selectedClientId == null ||
         _selectedRoleId == null ||
         _selectedOrgId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Por favor seleccione Empresa, Rol y Organización'),
-        ),
+      ToastMessage.show(
+        context: context,
+        message: 'Por favor seleccione Empresa, Rol y Organización',
+        type: ToastType.warning,
       );
       return;
     }
@@ -222,10 +237,14 @@ class _LoginSelectionPageState extends State<LoginSelectionPage> {
         await prefs.setInt('last_login_role_id', _selectedRoleId!);
         await prefs.setInt('last_login_org_id', _selectedOrgId!);
 
-        setState(() => _isLoading = false);
-        CurrentLogMessage.add("Login exitoso. Token guardado.");
-        DeferredRegistry.preloadForConfiguration(Token.primConfig);
-        context.go('/splash');
+        FocusScope.of(context).unfocus();
+        await Future.delayed(const Duration(milliseconds: 150));
+        
+        if (mounted) {
+          CurrentLogMessage.add("Login exitoso. Token guardado.");
+          // Escape the Dart Zone using pure JS eval to force a reload!
+          js.context.callMethod('eval', ['setTimeout(function(){ window.location.reload(); }, 100);']);
+        }
       }
     }
   }

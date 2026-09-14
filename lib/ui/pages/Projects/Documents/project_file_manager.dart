@@ -206,7 +206,7 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
           }
         }
       });
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Moviendo archivo...'), duration: Duration(seconds: 1)));
+      ToastMessage.show(context: context, message: 'Moviendo archivo...', type: ToastType.help);
     });
 
     // --- 2. LLAMADA A LA API EN SEGUNDO PLANO ---
@@ -220,7 +220,7 @@ class ProjectFileManagerState extends State<ProjectFileManager> {
         ToastMessage.show(context: context, message: 'Archivo movido correctamente', type: ToastType.help);
         _fetchDocuments(showLoading: false); // Sincronizar IDs silenciosamente
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${result['error']}'), backgroundColor: Colors.red, duration: const Duration(seconds: 5)));
+        ToastMessage.show(context: context, message: 'Error: ${result['error']}', type: ToastType.failure);
         _fetchDocuments(showLoading: false); // Revertir visualmente el fallo
       }
     });

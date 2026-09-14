@@ -11,6 +11,8 @@ import 'package:primhub/api/global_cache.dart';
 import 'package:primhub/ui/widgets/duration_formatter.dart';
 import 'package:primhub/ui/pages/Support/Requests/bulk_edit_request_dialog.dart';
 import 'package:primhub/ui/pages/Support/Requests/bulk_reopen_request_dialog.dart';
+import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
+import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'dart:math';
 import 'package:primhub/ui/Shared_Custom/responsive_data_table.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
@@ -188,6 +190,41 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
     final theme = Theme.of(context);
 
     final bool isLaptop = MediaQuery.of(context).size.width < 1600;
+    final bool isMobile = MediaQuery.of(context).size.width < 800;
+
+    Widget buildBulkButton({
+      required String tooltip,
+      required IconData icon,
+      required VoidCallback onPressed,
+      Color? backgroundColor,
+      Color? textColor,
+    }) {
+      if (isMobile) {
+        return Tooltip(
+          message: tooltip,
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: backgroundColor ?? theme.colorScheme.primary,
+              borderRadius: BorderRadius.circular(8.0),
+            ),
+            child: IconButton(
+              icon: Icon(icon, color: textColor ?? theme.colorScheme.onPrimary, size: 20),
+              onPressed: onPressed,
+            ),
+          ),
+        );
+      } else {
+        return CustomButton(
+          text: tooltip,
+          icon: icon,
+          backgroundColor: backgroundColor,
+          textColor: textColor,
+          onPressed: onPressed,
+        );
+      }
+    }
 
     final fixedCols = [
       ResponsiveDataColumn(
@@ -487,10 +524,97 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
       ];
     }
 
+    final bulkActionsWidget = AccessControl.canManageRequests
+        ? Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8.0,
+              runSpacing: 8.0,
+              children: [
+                buildBulkButton(
+                  tooltip: 'Reabrir Masivamente',
+                  icon: Icons.restore,
+                  backgroundColor: Colors.orange.shade700,
+                  textColor: Colors.white,
+                  onPressed: () {
+                    if (_selectedIds.isEmpty) {
+                      ToastMessage.show(
+                        context: context,
+                        message: 'Seleccione una o mas solicitudes para empezar el proceso de: Edicion masiva o Reapertura de solicitud/es segun corresponda',
+                        type: ToastType.warning,
+                      );
+                      return;
+                    }
+                    showDialog(
+                      context: context,
+                      builder: (context) => BulkReopenRequestDialog(
+                        selectedIds: _selectedIds,
+                        onSaved: () => setState(() => _selectedIds.clear()),
+                      ),
+                    );
+                  },
+                ),
+                buildBulkButton(
+                  tooltip: 'Edición Masiva',
+                  icon: Icons.edit,
+                  onPressed: () {
+                    if (_selectedIds.isEmpty) {
+                      ToastMessage.show(
+                        context: context,
+                        message: 'Seleccione una o mas solicitudes para empezar el proceso de: Edicion masiva o Reapertura de solicitud/es segun corresponda',
+                        type: ToastType.warning,
+                      );
+                      return;
+                    }
+                    showDialog(
+                      context: context,
+                      builder: (context) => BulkEditRequestDialog(
+                        selectedIds: _selectedIds,
+                        onSaved: () => setState(() => _selectedIds.clear()),
+                      ),
+                    );
+                  },
+                ),
+                if (_selectedIds.isNotEmpty)
+                  Text(
+                    '${_selectedIds.length} seleccionadas',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+              ],
+            ),
+          )
+        : const SizedBox.shrink();
+
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (widget.serverSidePagination && widget.paginationControls != null)
-          widget.paginationControls!,
+          LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth < 600) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (AccessControl.canManageRequests) bulkActionsWidget,
+                    widget.paginationControls!,
+                  ],
+                );
+              }
+              return Stack(
+                alignment: Alignment.centerLeft,
+                children: [
+                  widget.paginationControls!,
+                  if (AccessControl.canManageRequests) bulkActionsWidget,
+                ],
+              );
+            },
+          )
+        else if (AccessControl.canManageRequests)
+          bulkActionsWidget,
         Expanded(
           child: Stack(
             clipBehavior: Clip.none,
@@ -525,6 +649,13 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
                 scrollableCellBuilder: buildScrollableCells,
                 mobileCardBuilder: (item) => RequestMobileCard(
                   request: item,
+                  showCheckbox: AccessControl.canManageRequests,
+                  isSelected: _selectedIds.contains(_getRealId(item)),
+                  onSelectChanged: (selected) {
+                    final realId = _getRealId(item);
+                    final index = _sortedRequests.indexWhere((r) => _getRealId(r) == realId);
+                    if (index != -1) _handleRowSelection(selected ?? false, index, realId);
+                  },
                   onEdit: widget.onEdit,
                   onGoToUpdates: () {
                     GoRouter.of(context).push(
@@ -543,60 +674,6 @@ class _RequestsDataTableCoreState extends State<RequestsDataTableCore> {
                   },
                 ),
               ),
-
-              // BARRA DE EDICIÓN MASIVA (Flotante)
-              if (_selectedIds.isNotEmpty && AccessControl.canManageRequests)
-                Positioned(
-                  bottom: widget.serverSidePagination ? 60 : 16,
-                  left: 16,
-                  right: 16,
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.secondaryContainer,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      children: [
-                        Text(
-                          '${_selectedIds.length} seleccionadas',
-                          style: const TextStyle(
-                            color: Colors.white,
-                          ),
-                        ),
-                        const Spacer(),
-                        ElevatedButton.icon(
-                          onPressed: () => showDialog(
-                            context: context,
-                            builder: (context) => BulkReopenRequestDialog(
-                              selectedIds: _selectedIds,
-                              onSaved: () =>
-                                  setState(() => _selectedIds.clear()),
-                            ),
-                          ),
-                          icon: const Icon(Icons.restore),
-                          label: const Text('Reabrir Masivamente'),
-                          style: ElevatedButton.styleFrom(
-                            foregroundColor: Colors.orange.shade700,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        ElevatedButton.icon(
-                          onPressed: () => showDialog(
-                            context: context,
-                            builder: (context) => BulkEditRequestDialog(
-                              selectedIds: _selectedIds,
-                              onSaved: () =>
-                                  setState(() => _selectedIds.clear()),
-                            ),
-                          ),
-                          icon: const Icon(Icons.edit),
-                          label: const Text('Edición Masiva'),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
             ],
           ),
         ),

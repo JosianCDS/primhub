@@ -12,7 +12,10 @@ import 'package:primhub/ui/Shared_Custom/custom_button.dart';
 import 'package:primhub/ui/Shared_Custom/custom_inputs.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:universal_html/html.dart' as html;
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:js' as js;
 import 'package:primhub/navigation/deferred_registry.dart';
 import 'package:primhub/ui/pages/Login/login_selection_args.dart';
 import 'package:primhub/build_version.dart';
@@ -230,10 +233,14 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
               ToastMessage.show(context: context, message: 'Credenciales o configuración incorrectas.', type: ToastType.failure);
             } else {
               if (mounted) {
-                setState(() => _isLoading = false);
-                CurrentLogMessage.add("Login exitoso (Auto - Ruta Única).");
-                DeferredRegistry.preloadForConfiguration(Token.primConfig);
-                context.go('/splash');
+                FocusScope.of(context).unfocus();
+                await Future.delayed(const Duration(milliseconds: 150));
+                
+                if (mounted) {
+                  CurrentLogMessage.add("Login exitoso (Auto - Ruta Única).");
+                  // Escape the Dart Zone using pure JS eval to force a reload!
+                  js.context.callMethod('eval', ['setTimeout(function(){ window.location.reload(); }, 100);']);
+                }
               }
             }
             return; // Evita ir a la pantalla de selección
@@ -242,16 +249,21 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
       }
 
       if (mounted) {
-        setState(() => _isLoading = false);
-        context.push(
-          '/login-selection',
-          extra: LoginSelectionArgs(
-            token: tempToken,
-            clients: clients,
-            username: username,
-            password: password,
-          ),
-        );
+        FocusScope.of(context).unfocus();
+        await Future.delayed(const Duration(milliseconds: 150));
+        
+        if (mounted) {
+          setState(() => _isLoading = false);
+          context.push(
+            '/login-selection',
+            extra: LoginSelectionArgs(
+              token: tempToken,
+              clients: clients,
+              username: username,
+              password: password,
+            ),
+          );
+        }
       }
       return;
     } else {
@@ -265,8 +277,8 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
       });
 
       CurrentLogMessage.add("Login exitoso. Token guardado.");
-      DeferredRegistry.preloadForConfiguration(Token.primConfig);
-      context.go('/splash');
+      // Escape the Dart Zone using pure JS eval to force a reload!
+      js.context.callMethod('eval', ['setTimeout(function(){ window.location.reload(); }, 100);']);
     }
   }
 
@@ -322,10 +334,10 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                 });
                 if (mounted) {
                   Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('URL actualizada correctamente'),
-                    ),
+                  ToastMessage.show(
+                    context: context,
+                    message: 'URL actualizada correctamente',
+                    type: ToastType.success,
                   );
                 }
               }

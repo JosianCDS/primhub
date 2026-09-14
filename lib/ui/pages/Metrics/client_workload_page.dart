@@ -479,89 +479,25 @@ class _ClientWorkloadPageState extends State<ClientWorkloadPage> {
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
             tooltip: 'Refrescar',
-            onPressed: () => GlobalCache.performSmartSync(context, () async {
-              _loadData();
-            }),
+            onPressed: () {
+              setState(() => _isLoading = true);
+              GlobalCache.forceFullSyncWithProgress(context, onSyncAction: () async {
+                _loadData();
+              });
+            },
           ),
         ],
       ),
       body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Filtros
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
-                  child: TreemapFilterBar(
-              selectedBpId: _selectedBpId,
-              selectedProjectId: _selectedProjectId,
-              selectedSalesRep: _selectedSalesRep,
-              selectedChipId: _selectedChipId,
-              selectedRequestCategory: _selectedRequestCategory,
-              timeFilter: _timeFilter,
-              availableBps: _availableBps,
-              availableProjects: _availableProjects,
-              availableReps: _availableReps,
-              availableCategories: _availableCategories,
-              totalCount: _groupedRequests.values.fold<int>(0, (sum, list) => sum + list.length),
-              totalHours: _groupedRequests.values.fold<double>(0.0, (sum, list) {
-                 return sum + list.fold<double>(0.0, (reqSum, req) {
-                   final val = req['PrimHub_Estimated_development_hours'];
-                   return reqSum + ((val as num?)?.toDouble() ?? 0.0);
-                 });
-              }),
-              onBpSelected: (val) {
-                if (val != null) {
-                  setState(() => _selectedBpId = val == -1 ? null : val);
-                  _loadData();
-                }
-              },
-              onProjectSelected: (val) {
-                if (val != null) {
-                  setState(() => _selectedProjectId = val == -1 ? null : val);
-                  _loadData();
-                }
-              },
-              onRepSelected: (val) {
-                if (val != null) {
-                  setState(() => _selectedSalesRep = val == 'Todos' ? null : val);
-                  _loadData();
-                }
-              },
-              onChipSelected: (val) {
-                setState(() => _selectedChipId = val);
-                _loadData();
-              },
-              onCategorySelected: (val) {
-                if (val != null) {
-                  setState(() => _selectedRequestCategory = val == 'Todas' ? null : val);
-                  _loadData();
-                }
-              },
-              onTimeFilterChanged: (val) {
-                setState(() => _timeFilter = val);
-                _loadData();
-              },
-              onClearFilters: () {
-                setState(() {
-                  _selectedBpId = null;
-                  _selectedProjectId = null;
-                  _selectedChipId = null;
-                  _selectedRequestCategory = null;
-                  _selectedSalesRep = null;
-                });
-                _loadData();
-              },
-            ),
-                ),
-
-                // Treemap Board
-                Expanded(
-                  child: (!GlobalCache.isFullyLoaded || _isLoading)
-                      ? Padding(
-                          padding: const EdgeInsets.all(24.0).copyWith(top: 8.0),
-                          child: const CustomSkeleton(),
-                        )
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final bool isMobile = constraints.maxWidth < 800;
+            
+            Widget treemapBoard = (!GlobalCache.isFullyLoaded || _isLoading)
+                ? Padding(
+                    padding: const EdgeInsets.all(24.0).copyWith(top: 8.0),
+                    child: const CustomSkeleton(),
+                  )
                       : _sortedBps.isEmpty
                           ? const Center(child: Text('No hay solicitudes con los filtros actuales.'))
                           : Padding(
@@ -778,9 +714,81 @@ class _ClientWorkloadPageState extends State<ClientWorkloadPage> {
                                   );
                                 },
                               ),
-                            ),
+                            );
+
+            Widget content = Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
+                  child: TreemapFilterBar(
+                    selectedBpId: _selectedBpId,
+                    selectedProjectId: _selectedProjectId,
+                    selectedSalesRep: _selectedSalesRep,
+                    selectedChipId: _selectedChipId,
+                    selectedRequestCategory: _selectedRequestCategory,
+                    timeFilter: _timeFilter,
+                    availableBps: _availableBps,
+                    availableProjects: _availableProjects,
+                    availableReps: _availableReps,
+                    availableCategories: _availableCategories,
+                    totalCount: _groupedRequests.values.fold<int>(0, (sum, list) => sum + list.length),
+                    totalHours: _groupedRequests.values.fold<double>(0.0, (sum, list) {
+                       return sum + list.fold<double>(0.0, (reqSum, req) {
+                         final val = req['PrimHub_Estimated_development_hours'];
+                         return reqSum + ((val as num?)?.toDouble() ?? 0.0);
+                       });
+                    }),
+                    onBpSelected: (val) {
+                      if (val != null) {
+                        setState(() => _selectedBpId = val == -1 ? null : val);
+                        _loadData();
+                      }
+                    },
+                    onProjectSelected: (val) {
+                      if (val != null) {
+                        setState(() => _selectedProjectId = val == -1 ? null : val);
+                        _loadData();
+                      }
+                    },
+                    onRepSelected: (val) {
+                      if (val != null) {
+                        setState(() => _selectedSalesRep = val == 'Todos' ? null : val);
+                        _loadData();
+                      }
+                    },
+                    onChipSelected: (val) {
+                      setState(() => _selectedChipId = val);
+                      _loadData();
+                    },
+                    onCategorySelected: (val) {
+                      if (val != null) {
+                        setState(() => _selectedRequestCategory = val == 'Todas' ? null : val);
+                        _loadData();
+                      }
+                    },
+                    onTimeFilterChanged: (val) {
+                      setState(() => _timeFilter = val);
+                      _loadData();
+                    },
+                    onClearFilters: () {
+                      setState(() {
+                        _selectedBpId = null;
+                        _selectedProjectId = null;
+                        _selectedChipId = null;
+                        _selectedRequestCategory = null;
+                        _selectedSalesRep = null;
+                      });
+                      _loadData();
+                    },
+                  ),
                 ),
-          ],
+                isMobile ? SizedBox(height: 800, child: treemapBoard) : Expanded(child: treemapBoard),
+              ],
+            );
+
+            return isMobile ? SingleChildScrollView(child: content) : content;
+          },
         ),
       ),
     );

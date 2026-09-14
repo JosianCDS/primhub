@@ -694,7 +694,8 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
             icon: const Icon(Icons.refresh),
             tooltip: 'Refrescar',
             onPressed: () {
-              GlobalCache.performSmartSync(context, _refreshData);
+              setState(() => _isLoading = true);
+              GlobalCache.forceFullSyncWithProgress(context, onSyncAction: _refreshData);
             },
           ),
           if (!AccessControl.isAdmin)

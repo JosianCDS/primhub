@@ -826,14 +826,10 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                   if (totalEstimatedAndConsumedForChip + inputQty >
                       chipTotalQty) {
                     if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'La solicitud consumirá más horas de las que tiene disponible dicha ficha de producto. Disponibles: ${DurationFormatter.format(chipTotalQty - totalEstimatedAndConsumedForChip)} h, Intentando registrar: ${DurationFormatter.format(inputQty)} h',
-                          ),
-                          backgroundColor: Colors.red,
-                          duration: const Duration(seconds: 5),
-                        ),
+                      ToastMessage.show(
+                        context: context,
+                        message: 'La solicitud consumirá más horas de las que tiene disponible dicha ficha de producto. Disponibles: ${DurationFormatter.format(chipTotalQty - totalEstimatedAndConsumedForChip)} h, Intentando registrar: ${DurationFormatter.format(inputQty)} h',
+                        type: ToastType.failure,
                       );
                       setState(() => _isSaving = false);
                     }
@@ -888,12 +884,10 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
         if (_selectedUserId == null) {
           if (mounted) {
             setState(() => _isSaving = false);
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Debe seleccionar un usuario para el nuevo tercero antes de guardar.',
-                ),
-              ),
+            ToastMessage.show(
+              context: context,
+              message: 'Debe seleccionar un usuario para el nuevo tercero antes de guardar.',
+              type: ToastType.warning,
             );
           }
           return;
@@ -947,12 +941,10 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
             response.statusCode != 204) {
           if (mounted) {
             setState(() => _isSaving = false);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'Error al actualizar el tercero: ${response.body}',
-                ),
-              ),
+            ToastMessage.show(
+              context: context,
+              message: 'Error al actualizar el tercero: ${response.body}',
+              type: ToastType.failure,
             );
           }
           return;
@@ -963,14 +955,10 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
       if (!_categoryMap.containsKey(_selectedCategory)) {
         if (mounted) {
           setState(() => _isSaving = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'La categoría actual no es válida o no está disponible. Por favor, seleccione una nueva categoría antes de guardar.',
-              ),
-              backgroundColor: Colors.orange,
-              duration: Duration(seconds: 5),
-            ),
+          ToastMessage.show(
+            context: context,
+            message: 'La categoría actual no es válida o no está disponible. Por favor, seleccione una nueva categoría antes de guardar.',
+            type: ToastType.warning,
           );
         }
         return;
@@ -1065,10 +1053,10 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
             Navigator.of(context).pop(true);
           }
           
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Solicitud actualizada correctamente'),
-            ),
+          ToastMessage.show(
+            context: context,
+            message: 'Solicitud actualizada correctamente',
+            type: ToastType.success,
           );
           widget.onSave();
 
@@ -1079,12 +1067,10 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
             );
           }
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error: ${result['error']}'),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 10),
-            ),
+          ToastMessage.show(
+            context: context,
+            message: 'Error: ${result['error']}',
+            type: ToastType.failure,
           );
         }
       }
@@ -1251,12 +1237,10 @@ class _EditRequestDialogState extends State<EditRequestDialog> {
                               text: widget.request['id'].toString(),
                             ),
                           );
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Número de ticket copiado al portapapeles',
-                              ),
-                            ),
+                          ToastMessage.show(
+                            context: context,
+                            message: 'Número de ticket copiado al portapapeles',
+                            type: ToastType.help,
                           );
                         },
                       ),

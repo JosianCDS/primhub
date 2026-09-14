@@ -9,7 +9,7 @@ import 'package:primhub/api/contract_api.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:primhub/api/api_utils.dart';
-
+import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 
 Future<Map<String, dynamic>> loginStep1(String username, String password) async {
   try {
@@ -97,7 +97,7 @@ Future<bool> finalizeLogin(String username, String password, Map<String, dynamic
       if (config == false && !AccessControl.hasHardcodedRole(Token.rol)) {
         Token.primConfig = null;
         Token.primConfigId = null;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('El Rol no tiene configuración.'), backgroundColor: Colors.red));
+        ToastMessage.show(context: context, message: 'El Rol no tiene configuración.', type: ToastType.failure);
         Token.clear();
         User.userID = null;
         User.cBPartnerID = null;

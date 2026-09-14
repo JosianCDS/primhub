@@ -62,33 +62,62 @@ class RequestFilterBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
 
-
     return LayoutBuilder(
       builder: (context, constraints) {
-        final bool isLargeScreen = constraints.maxWidth >= 600;
+        final bool isLargeScreen = constraints.maxWidth >= 800;
+        final theme = Theme.of(context);
+
+        Widget buildResponsiveButton({
+          required String tooltip,
+          required IconData icon,
+          required VoidCallback? onPressed,
+          Color? backgroundColor,
+          Color? textColor,
+        }) {
+          if (!isLargeScreen) {
+            return Tooltip(
+              message: tooltip,
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: backgroundColor ?? theme.colorScheme.primary,
+                  borderRadius: BorderRadius.circular(8.0),
+                ),
+                child: IconButton(
+                  icon: Icon(icon, color: textColor ?? theme.colorScheme.onPrimary, size: 20),
+                  onPressed: onPressed,
+                ),
+              ),
+            );
+          } else {
+            return CustomButton(
+              text: tooltip,
+              icon: icon,
+              backgroundColor: backgroundColor,
+              textColor: textColor,
+              onPressed: onPressed,
+            );
+          }
+        }
 
         final filterChips = Wrap(
           spacing: 16.0,
           runSpacing: 8.0,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            if (!isLargeScreen && AccessControl.canCreateRequests)
-              CustomButton(
-                text: 'Crear Solicitud',
-                onPressed: isLoading ? null : onAddRequest,
-                icon: Icons.add,
+            if (isLargeScreen)
+              buildResponsiveButton(
+                tooltip: 'Filtros',
+                onPressed: isLoading ? null : onShowFilters,
+                icon: Icons.filter_list,
+                backgroundColor: activeFilterCount > 0
+                    ? theme.colorScheme.primaryContainer
+                    : null,
+                textColor: activeFilterCount > 0
+                    ? theme.colorScheme.onPrimaryContainer
+                    : null,
               ),
-            CustomButton(
-              text: 'Filtros',
-              onPressed: isLoading ? null : onShowFilters,
-              icon: Icons.filter_list,
-              backgroundColor: activeFilterCount > 0
-                  ? Theme.of(context).colorScheme.primaryContainer
-                  : null,
-              textColor: activeFilterCount > 0
-                  ? Theme.of(context).colorScheme.onPrimaryContainer
-                  : null,
-            ),
 
         if (activeFilterCount > 0)
           Chip(
@@ -277,26 +306,43 @@ class RequestFilterBar extends StatelessWidget {
                     runSpacing: 8.0,
                     children: [
                       if (!AccessControl.isRealSupport)
-                        CustomButton(
-                          text: showCalendar ? 'Ver Lista' : 'Calendario/Gantt',
+                        buildResponsiveButton(
+                          tooltip: showCalendar ? 'Ver Lista' : 'Calendario/Gantt',
                           onPressed: isLoading ? null : onShowCalendar,
                           icon: showCalendar ? Icons.list_alt : Icons.calendar_month,
-                          backgroundColor: Theme.of(context).colorScheme.tertiary,
-                          textColor: Theme.of(context).colorScheme.onTertiary,
+                          backgroundColor: theme.colorScheme.tertiary,
+                          textColor: theme.colorScheme.onTertiary,
                         ),
-                      CustomButton(
-                        text: showHistory ? 'Ver Activas' : 'Ver Bitácora',
+                      buildResponsiveButton(
+                        tooltip: showHistory ? 'Ver Activas' : 'Ver Bitácora',
                         onPressed: isLoading ? null : onToggleHistory,
                         icon: showHistory ? Icons.list : Icons.history,
-                        backgroundColor: Theme.of(context).colorScheme.secondary,
-                        textColor: Theme.of(context).colorScheme.onSecondary,
+                        backgroundColor: theme.colorScheme.secondary,
+                        textColor: theme.colorScheme.onSecondary,
                       ),
                       if (onExport != null)
-                        CustomButton(
-                          text: 'Exportar',
+                        buildResponsiveButton(
+                          tooltip: 'Exportar',
                           onPressed: isLoading ? null : onExport,
                           icon: Icons.download,
                         ),
+                      if (AccessControl.canCreateRequests)
+                        buildResponsiveButton(
+                          tooltip: 'Crear Solicitud',
+                          onPressed: isLoading ? null : onAddRequest,
+                          icon: Icons.add,
+                        ),
+                      buildResponsiveButton(
+                        tooltip: 'Filtros',
+                        onPressed: isLoading ? null : onShowFilters,
+                        icon: Icons.filter_list,
+                        backgroundColor: activeFilterCount > 0
+                            ? theme.colorScheme.primaryContainer
+                            : null,
+                        textColor: activeFilterCount > 0
+                            ? theme.colorScheme.onPrimaryContainer
+                            : null,
+                      ),
                     ],
                   ),
                 ],

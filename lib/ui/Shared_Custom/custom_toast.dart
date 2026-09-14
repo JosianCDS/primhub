@@ -48,6 +48,45 @@ class ToastMessage {
       progressBarTheme: ProgressIndicatorThemeData(color: backgroundColor, circularTrackColor: backgroundColor.withOpacity(0.2)),
     );
   }
+
+  static ToastificationItem showProgress({
+    required BuildContext context,
+    required String title,
+    required ValueNotifier<double> progressNotifier,
+  }) {
+    return toastification.show(
+      type: ToastificationType.info,
+      style: ToastificationStyle.flatColored,
+      title: Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(color: ColorTheme.info)),
+      description: ValueListenableBuilder<double>(
+        valueListenable: progressNotifier,
+        builder: (context, value, child) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              LinearProgressIndicator(
+                value: value,
+                backgroundColor: ColorTheme.info.withOpacity(0.2),
+                color: ColorTheme.info,
+              ),
+              const SizedBox(height: 4),
+              Text('${(value * 100).toInt()}% completado', style: TextStyle(color: ColorTheme.info)),
+            ],
+          );
+        },
+      ),
+      alignment: Alignment.bottomCenter,
+      autoCloseDuration: const Duration(minutes: 5), // Keep open until dismissed
+      icon: const Icon(Icons.sync, color: ColorTheme.info),
+      showProgressBar: false,
+    );
+  }
+
+  static void dismiss(ToastificationItem item) {
+    toastification.dismiss(item);
+  }
 }
 
 class ColorTheme {

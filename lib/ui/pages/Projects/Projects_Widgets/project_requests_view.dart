@@ -419,7 +419,10 @@ class _ProjectRequestsViewState extends State<ProjectRequestsView> {
               : 'Solicitudes de Proyecto',
         ),
         actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _initData),
+          IconButton(icon: const Icon(Icons.refresh), onPressed: () {
+            setState(() => _isLoading = true);
+            GlobalCache.forceFullSyncWithProgress(context, onSyncAction: _initData);
+          }),
         ],
       ),
       body: SafeArea(
@@ -573,10 +576,10 @@ class _ProjectRequestsViewState extends State<ProjectRequestsView> {
 
   Future<void> _deleteRequest(dynamic id) async {
     if (!AccessControl.canManageRequests) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No tienes permisos para eliminar solicitudes.'),
-        ),
+      ToastMessage.show(
+        context: context,
+        message: 'No tienes permisos para eliminar solicitudes.',
+        type: ToastType.failure,
       );
       return;
     }

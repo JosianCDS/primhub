@@ -12,6 +12,7 @@ import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/api_utils.dart';
 import 'package:primhub/api/auth_api.dart';
+import 'package:primhub/api/global_cache.dart';
 import '../../Shared_Custom/custom_button.dart';
 import '../../Shared_Custom/custom_inputs.dart';
 import '../../Shared_Custom/custom_toast.dart';
@@ -256,7 +257,7 @@ class _ProfilePageState extends State<ProfilePage> {
         leading: !AccessControl.isAdmin ? IconButton(icon: const Icon(Icons.arrow_back), tooltip: 'Volver al Inicio', onPressed: () => context.go('/')) : null,
         title: const Text('Perfil de Usuario'),
         actions: [
-          IconButton(icon: const Icon(Icons.refresh), tooltip: 'Refrescar', onPressed: _loadUserInfo),
+          IconButton(icon: const Icon(Icons.refresh), tooltip: 'Refrescar', onPressed: () => GlobalCache.forceFullSyncWithProgress(context, onSyncAction: _loadUserInfo)),
           if (!AccessControl.isAdmin)
             IconButton(
               icon: const Icon(Icons.logout, color: Colors.red),

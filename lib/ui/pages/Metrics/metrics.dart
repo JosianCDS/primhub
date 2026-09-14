@@ -1047,12 +1047,15 @@ class _MetricsPageState extends State<MetricsPage> {
           const HelpIcon(),
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () => GlobalCache.performSmartSync(context, () async {
-              if (AccessControl.canViewProjectCharts) await _loadMetrics();
-              if (AccessControl.canViewSupportCharts) {
-                await _loadSupportMetrics();
-              }
-            }),
+            onPressed: () {
+              setState(() => _isLoading = true);
+              GlobalCache.forceFullSyncWithProgress(context, onSyncAction: () async {
+                if (AccessControl.canViewProjectCharts) await _loadMetrics();
+                if (AccessControl.canViewSupportCharts) {
+                  await _loadSupportMetrics();
+                }
+              });
+            },
           ),
           if (!AccessControl.isAdmin)
             IconButton(
@@ -1948,64 +1951,83 @@ class _MetricsPageState extends State<MetricsPage> {
   }
 
   Widget _buildProjectFilters() {
-    return Row(
-      children: [
-        const Text("Proyecto:", style: TextStyle(fontWeight: FontWeight.bold)),
-        const SizedBox(width: 15),
-        Expanded(
-          child: InkWell(
-            onTap: _showProjectSearchModal,
-            child: InputDecorator(
-              decoration: InputDecoration(
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8.0),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 16,
-                ),
-                suffixIcon: _isProjectsLoading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: Padding(
-                          padding: EdgeInsets.all(12),
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      )
-                    : null,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobile = constraints.maxWidth < 600;
+        
+        final filterContent = InkWell(
+          onTap: _showProjectSearchModal,
+          child: InputDecorator(
+            decoration: InputDecoration(
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8.0),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text(
-                      _selectedProjectId == null
-                          ? 'Seleccione un Proyecto'
-                          : (_projects.firstWhere(
-                                  (p) => p['id'] == _selectedProjectId,
-                                  orElse: () => {'Name': 'Desconocido'},
-                                )['Name'] ??
-                                'Sin Nombre'),
-                      overflow: TextOverflow.ellipsis,
-                    ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 16,
+              ),
+              suffixIcon: _isProjectsLoading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: Padding(
+                        padding: EdgeInsets.all(12),
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                  : null,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    _selectedProjectId == null
+                        ? 'Seleccione un Proyecto'
+                        : (_projects.firstWhere(
+                                (p) => p['id'] == _selectedProjectId,
+                                orElse: () => {'Name': 'Desconocido'},
+                              )['Name'] ??
+                              'Sin Nombre'),
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  const Icon(Icons.search, color: Colors.grey),
-                ],
-              ),
+                ),
+                const Icon(Icons.search, color: Colors.grey),
+              ],
             ),
           ),
-        ),
-      ],
+        );
+
+        if (isMobile) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text("Proyecto:", style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              filterContent,
+            ],
+          );
+        } else {
+          return Row(
+            children: [
+              const Text("Proyecto:", style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(width: 15),
+              Expanded(child: filterContent),
+            ],
+          );
+        }
+      },
     );
   }
 
   Widget _buildSupportFilters() {
-    return Row(
-      children: [
-        if (AccessControl.isAdmin) ...[
-          Expanded(
-            child: InkWell(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobile = constraints.maxWidth < 600;
+
+        final List<Widget> filters = [
+          if (AccessControl.isAdmin)
+            InkWell(
               onTap: _supportBPartners.isEmpty
                   ? null
                   : _showBPartnerSearchModal,
@@ -2040,11 +2062,7 @@ class _MetricsPageState extends State<MetricsPage> {
                 ),
               ),
             ),
-          ),
-        ],
-        const SizedBox(width: 16),
-        Expanded(
-          child: CustomDropdown<String>(
+          CustomDropdown<String>(
             label: 'Condición Ficha',
             value: _supportProductChipFilter,
             items: const [
@@ -2071,10 +2089,7 @@ class _MetricsPageState extends State<MetricsPage> {
               }
             },
           ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: CustomDropdown<int?>(
+          CustomDropdown<int?>(
             label: 'Ficha Específica',
             value: _supportSpecificChipId,
             items: [
@@ -2119,8 +2134,19 @@ class _MetricsPageState extends State<MetricsPage> {
               _loadSupportMetrics();
             },
           ),
-        ),
-      ],
+        ];
+
+        if (isMobile) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: filters.expand((f) => [f, const SizedBox(height: 16)]).toList()..removeLast(),
+          );
+        } else {
+          return Row(
+            children: filters.expand((f) => [Expanded(child: f), const SizedBox(width: 16)]).toList()..removeLast(),
+          );
+        }
+      },
     );
   }
 }

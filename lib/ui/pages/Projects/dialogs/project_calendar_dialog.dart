@@ -1,13 +1,14 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:primhub/api/api_http.dart' as http;
+import 'package:go_router/go_router.dart';
 import 'package:primhub/api/api_utils.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/ui/Shared_Custom/custom_modal.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
-import 'package:go_router/go_router.dart';
 import 'package:flutter/services.dart';
+import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 
 class ProjectCalendarDialog extends StatefulWidget {
   final Map<String, dynamic> project;
@@ -1225,17 +1226,10 @@ class _ProjectCalendarDialogState extends State<ProjectCalendarDialog> {
                                                       '${req['DocumentNo'] ?? ''}',
                                                 ),
                                               );
-                                              ScaffoldMessenger.of(
-                                                context,
-                                              ).showSnackBar(
-                                                const SnackBar(
-                                                  content: Text(
-                                                    'Ticket copiado',
-                                                  ),
-                                                  duration: Duration(
-                                                    seconds: 1,
-                                                  ),
-                                                ),
+                                              ToastMessage.show(
+                                                context: context,
+                                                message: 'Ticket copiado',
+                                                type: ToastType.help,
                                               );
                                             },
                                             child: const Icon(

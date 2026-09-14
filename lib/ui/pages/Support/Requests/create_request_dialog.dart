@@ -992,13 +992,10 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
           _errorRoleController.text.trim().isEmpty ||
           _errorTimeController.text.trim().isEmpty ||
           _errorWindowController.text.trim().isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Por favor llene todos los datos adicionales (obligatorios)',
-            ),
-            backgroundColor: Colors.red,
-          ),
+        ToastMessage.show(
+          context: context,
+          message: 'Por favor llene todos los datos adicionales (obligatorios)',
+          type: ToastType.failure,
         );
         return;
       }
@@ -1082,14 +1079,10 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
 
               if (totalEstimatedAndConsumedForChip + qty > chipTotalQty) {
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'La solicitud consumirá más horas de las que tiene disponible dicha ficha de producto. Disponibles: ${DurationFormatter.format(chipTotalQty - totalEstimatedAndConsumedForChip)} h, Intentando registrar: ${DurationFormatter.format(qty)} h',
-                      ),
-                      backgroundColor: Colors.red,
-                      duration: const Duration(seconds: 5),
-                    ),
+                  ToastMessage.show(
+                    context: context,
+                    message: 'La solicitud consumirá más horas de las que tiene disponible dicha ficha de producto. Disponibles: ${DurationFormatter.format(chipTotalQty - totalEstimatedAndConsumedForChip)} h, Intentando registrar: ${DurationFormatter.format(qty)} h',
+                    type: ToastType.failure,
                   );
                   setState(() => _isSubmitting = false);
                 }
@@ -1254,12 +1247,16 @@ class _CreateRequestDialogState extends State<CreateRequestDialog> {
     if (isFullAccess) {
       repIdToAssign = _selectedSalesRepId;
     }
-    // 2. Si no hay rep, usar el usuario actual si es un rep válido.
+    // 2. Si no hay rep, usar el usuario actual si es un rep válido (o forzar si es Extsp).
     if (repIdToAssign == null && userId != null) {
-      final currentUserIsRep = _salesReps.any(
-        (rep) => (rep['AD_User_ID'] ?? rep['id']) == userId,
-      );
-      if (currentUserIsRep) repIdToAssign = userId;
+      if (AccessControl.isExtSupport) {
+        repIdToAssign = userId;
+      } else {
+        final currentUserIsRep = _salesReps.any(
+          (rep) => (rep['AD_User_ID'] ?? rep['id']) == userId,
+        );
+        if (currentUserIsRep) repIdToAssign = userId;
+      }
     }
     // 3. Como fallback (y necesario para soporte/proyecto), usar el rep del tercero si existe.
     if (repIdToAssign == null && _selectedBpId != null) {

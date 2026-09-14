@@ -466,9 +466,12 @@ class _ProjectRequestsPageState extends State<ProjectRequestsPage> {
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Refrescar',
-            onPressed: () => GlobalCache.performSmartSync(context, () async {
-              await _initData();
-            }),
+            onPressed: () {
+              setState(() => _isLoading = true);
+              GlobalCache.forceFullSyncWithProgress(context, onSyncAction: () async {
+                await _initData();
+              });
+            },
           ),
         ],
       ),

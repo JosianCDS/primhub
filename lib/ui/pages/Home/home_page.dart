@@ -370,7 +370,8 @@ class _HomePageState extends State<HomePage> {
               icon: const Icon(Icons.refresh),
               tooltip: 'Refrescar',
               onPressed: () {
-                GlobalCache.performSmartSync(context, () async {
+                setState(() => _controller.isLoading = true);
+                GlobalCache.forceFullSyncWithProgress(context, onSyncAction: () async {
                   await _controller.initData(forceRefresh: true);
                 });
               },
@@ -531,8 +532,10 @@ class _HomePageState extends State<HomePage> {
                                           const SizedBox(height: 32),
                                           OutlinedButton.icon(
                                             onPressed: () {
-                                              setState(() {
-                                                _controller.initData();
+                                              setState(() => _controller.isLoading = true);
+                                              GlobalCache.forceFullSyncWithProgress(context, onSyncAction: () async {
+                                                await _controller.initData(forceRefresh: true);
+                                                setState(() {});
                                               });
                                             },
                                             icon: const Icon(Icons.refresh),

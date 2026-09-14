@@ -92,6 +92,24 @@ class ContractApi {
       finalBpIds.add(User.cBPartnerID!);
     }
 
+    if (finalBpIds.isEmpty && AccessControl.isExtSupport && User.userID != null) {
+      try {
+        final reqUrl = "${Endpoint.request}?\$select=C_BPartner_ID&\$filter=SalesRep_ID eq ${User.userID}";
+        final reqRes = await _fetchPaginated(reqUrl);
+        final Set<int> uniqueBpIds = {};
+        for (var r in reqRes) {
+          final bpField = r['C_BPartner_ID'];
+          if (bpField is Map && bpField['id'] != null) {
+            uniqueBpIds.add((bpField['id'] as num).toInt());
+          }
+        }
+        finalBpIds.addAll(uniqueBpIds);
+        if (finalBpIds.isEmpty) {
+          finalBpIds.add(-1); 
+        }
+      } catch (_) {}
+    }
+
     // Filtramos por activo o incluimos todos explícitamente si includeInactive es true
     String filter = includeInactive 
         ? "(IsActive eq 'Y' or IsActive eq 'N' or IsActive eq true or IsActive eq false)" 
@@ -150,8 +168,30 @@ class ContractApi {
         "${Endpoint.baseUrl}/api/v1/models/$productChipEndpoint";
 
     // Solo pedimos los activos y expandimos C_BPartner_ID y M_Product_ID
+    String filter = "(IsActive eq 'Y' or IsActive eq true)";
+
+    if (AccessControl.isExtSupport && User.userID != null) {
+      try {
+        final reqUrl = "${Endpoint.request}?\$select=C_BPartner_ID&\$filter=SalesRep_ID eq ${User.userID}";
+        final reqRes = await _fetchPaginated(reqUrl);
+        final Set<int> uniqueBpIds = {};
+        for (var r in reqRes) {
+          final bpField = r['C_BPartner_ID'];
+          if (bpField is Map && bpField['id'] != null) {
+            uniqueBpIds.add((bpField['id'] as num).toInt());
+          }
+        }
+        if (uniqueBpIds.isNotEmpty) {
+          String bpFilter = uniqueBpIds.map((id) => "C_BPartner_ID eq $id").join(' or ');
+          filter = "$filter and ($bpFilter)";
+        } else {
+           filter = "$filter and (C_BPartner_ID eq -1)"; 
+        }
+      } catch (_) {}
+    }
+
     final String baseUrl =
-        "$endpoint?\$filter=(IsActive eq 'Y' or IsActive eq true)&\$expand=C_BPartner_ID(\$select=Name,IsActive),M_Product_ID";
+        "$endpoint?\$filter=$filter&\$expand=C_BPartner_ID(\$select=Name,IsActive),M_Product_ID";
 
     try {
       final records = await _fetchPaginated(baseUrl);

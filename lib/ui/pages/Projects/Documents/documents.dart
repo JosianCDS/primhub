@@ -361,12 +361,17 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
       IconButton(
         icon: const Icon(Icons.refresh),
         tooltip: 'Refrescar',
-        onPressed: () => _showingFiles
-            ? _fileManagerKey.currentState?.refresh()
-            : GlobalCache.performSmartSync(
-                context,
-                () async => await _loadProjects(forceRefresh: true),
-              ),
+        onPressed: () {
+          if (_showingFiles) {
+            _fileManagerKey.currentState?.refresh();
+          } else {
+            setState(() => _isLoadingProjects = true);
+            GlobalCache.forceFullSyncWithProgress(
+              context,
+              onSyncAction: () async => await _loadProjects(forceRefresh: true),
+            );
+          }
+        },
       ),
       if (!AccessControl.isAdmin)
         IconButton(

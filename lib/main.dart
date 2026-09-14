@@ -5,6 +5,8 @@ import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/theme/theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:primhub/api/token.dart';
+import 'package:flutter/foundation.dart';
+import 'package:universal_html/html.dart' as html;
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,6 +16,15 @@ void main() {
 
 Future<void> _hydratePreferences() async {
   final prefs = await SharedPreferences.getInstance();
+
+  // Si estamos en la web y es una pestaña nueva, limpiamos credenciales para forzar inicio de sesión.
+  if (kIsWeb) {
+    if (html.window.sessionStorage['primhub_session_active'] == null) {
+      await Token.clear();
+      html.window.sessionStorage['primhub_session_active'] = '1';
+    }
+  }
+
   final isDark = prefs.getBool('is_dark_mode') ?? false;
   AppThemes.themeModeNotifier.value = isDark ? ThemeMode.dark : ThemeMode.light;
   await AdminViewModeManager().loadMode();

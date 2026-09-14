@@ -1324,8 +1324,8 @@ Future<bool> sendRequestStatusEmail({
     Set<int> targetUsers = {};
     if (adUserId > 0) targetUsers.add(adUserId);
 
-    // Agregar Representante Comercial si existe en la solicitud
-    if (req != null && req['SalesRep_ID'] != null) {
+    // Agregar Representante Comercial si existe en la solicitud (Excepto en Cambio de Estado = 1000016)
+    if (mailTextId != 1000016 && req != null && req['SalesRep_ID'] != null) {
       final salesRepData = req['SalesRep_ID'];
       int salesRepId = salesRepData is Map 
           ? (salesRepData['id'] as num).toInt() 

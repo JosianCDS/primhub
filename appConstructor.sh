@@ -101,4 +101,14 @@ END{
 rm -f "$SNIPPET_FILE"
 
 echo "Versión $VERSION aplicada y auto-update habilitado en $INDEX_FILE."
+
+echo "Configurando .htaccess para prevenir caché de index.html y archivos JS..."
+cat > "$BUILD_DIR/.htaccess" <<EOF
+<FilesMatch "\.(html|js)$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires 0
+</FilesMatch>
+EOF
+
 echo "Proceso completo."

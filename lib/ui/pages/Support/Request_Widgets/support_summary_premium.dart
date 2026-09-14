@@ -666,11 +666,7 @@ class SupportSummaryPremium extends StatelessWidget {
                     if (success) {
                       Navigator.pop(context);
                       onRefresh();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Ficha actualizada correctamente'),
-                        ),
-                      );
+                      ToastMessage.show(context: context, message: 'Ficha actualizada correctamente', type: ToastType.success);
                     } else {
                       setModalState(() => isSaving = false);
                       ToastMessage.show(context: context, message: 'Error al actualizar la ficha', type: ToastType.failure);

@@ -10,6 +10,9 @@ class RequestMobileCard extends StatelessWidget {
   final VoidCallback onGoToUpdates;
   final VoidCallback onShowAttachments;
   final bool isReadOnly;
+  final bool isSelected;
+  final bool showCheckbox;
+  final ValueChanged<bool?>? onSelectChanged;
 
   const RequestMobileCard({
     super.key,
@@ -18,6 +21,9 @@ class RequestMobileCard extends StatelessWidget {
     required this.onGoToUpdates,
     required this.onShowAttachments,
     this.isReadOnly = false,
+    this.isSelected = false,
+    this.showCheckbox = false,
+    this.onSelectChanged,
   });
 
   @override
@@ -38,8 +44,28 @@ class RequestMobileCard extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
+      color: isSelected ? theme.colorScheme.primary.withOpacity(0.05) : null,
+      shape: isSelected
+          ? RoundedRectangleBorder(
+              side: BorderSide(color: theme.colorScheme.primary, width: 1.5),
+              borderRadius: BorderRadius.circular(12),
+            )
+          : RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
       child: InkWell(
-        onTap: () => onEdit(request),
+        onTap: () {
+          if (showCheckbox && onSelectChanged != null) {
+            onSelectChanged!(!isSelected);
+          } else {
+            onEdit(request);
+          }
+        },
+        onLongPress: () {
+           if (onSelectChanged != null) {
+              onSelectChanged!(!isSelected);
+           }
+        },
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(12.0),
@@ -49,17 +75,30 @@ class RequestMobileCard extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (showCheckbox)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8.0),
+                      child: Checkbox(
+                        value: isSelected,
+                        onChanged: onSelectChanged,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
-                            Text(
-                              'Ticket #${request['id']}',
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: colorScheme.primary,
+                            Flexible(
+                              child: Text(
+                                'Ticket #${request['id']}',
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: colorScheme.primary,
+                                  fontSize: 15,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                             const SizedBox(width: 4),
@@ -82,18 +121,18 @@ class RequestMobileCard extends StatelessWidget {
                   ),
                   if (isReadOnly) ...[
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: Colors.green.withOpacity(0.15),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(color: Colors.green.shade700),
                       ),
                       child: Text(
-                        'Desarrollo Est: ${request['PrimHub_Estimated_development_hours'] ?? 0}h',
+                        'Est: ${request['PrimHub_Estimated_development_hours'] ?? 0}h',
                         style: TextStyle(
                           color: Colors.green.shade800,
                           fontWeight: FontWeight.bold,
-                          fontSize: 12,
+                          fontSize: 11,
                         ),
                       ),
                     ),

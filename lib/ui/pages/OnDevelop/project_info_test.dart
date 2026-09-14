@@ -9,6 +9,7 @@ import 'package:primhub/endpoint/endpoint.dart';
 import 'package:primhub/ui/Shared_Custom/custom_table.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
 import '../../widgets/custom_drawer.dart';
+import 'package:primhub/api/global_cache.dart';
 
 class ProjectInfoTestPage extends StatefulWidget {
   const ProjectInfoTestPage({super.key});
@@ -131,7 +132,10 @@ class _ProjectInfoTestPageState extends State<ProjectInfoTestPage> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Prueba Info Proyecto'),
-          actions: [IconButton(icon: const Icon(Icons.refresh), tooltip: 'Refrescar', onPressed: _initData)],
+          actions: [IconButton(icon: const Icon(Icons.refresh), tooltip: 'Refrescar', onPressed: () {
+            setState(() => _isLoading = true);
+            GlobalCache.forceFullSyncWithProgress(context, onSyncAction: _initData);
+          })],
           bottom: const TabBar(
             isScrollable: true,
             tabs: [

@@ -7,6 +7,7 @@ import 'package:primhub/api/contract_api.dart';
 import 'package:primhub/api/access_control.dart';
 import 'package:primhub/api/token.dart';
 import 'package:primhub/endpoint/endpoint.dart';
+import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 import 'package:primhub/ui/pages/Projects/Documents/documents_logic.dart';
 import 'package:primhub/ui/pages/Support/Requests/request_functions.dart';
 
@@ -45,9 +46,12 @@ class GlobalCache {
   static final Set<int> _archivedYearsLoaded = {};
   static Completer<void>? _phase2Completer;
   static Future<void>? get phase2SyncFuture => _phase2Completer?.future;
+  
+  static Completer<void>? _phase2bCompleter;
+  static Future<void>? get phase2bSyncFuture => _phase2bCompleter?.future;
 
   // --- FASE 1: Carga de datos esenciales (Bloqueante para el Home) ---
-  static Future<void> _loadPhase1EssentialData() async {
+  static Future<void> _loadPhase1EssentialData({ValueNotifier<double>? progressNotifier}) async {
     final bool isAdmin = AccessControl.isAdmin;
     final bool isSupport = AccessControl.isRealSupport;
     final bool isProject = AccessControl.isRealProject;
@@ -89,9 +93,24 @@ class GlobalCache {
       fetchFutures.add(_fetchAdminCompany());
     }
 
+    final List<Future<dynamic>> trackedFutures = [];
+    if (progressNotifier != null) {
+      int completed = 0;
+      final total = fetchFutures.length;
+      for (var f in fetchFutures) {
+        trackedFutures.add(f.then((v) {
+          completed++;
+          progressNotifier.value = (completed / total) * 0.5;
+          return v;
+        }));
+      }
+    } else {
+      trackedFutures.addAll(fetchFutures);
+    }
+
     final List<dynamic> futures;
     try {
-      futures = await Future.wait(fetchFutures);
+      futures = await Future.wait(trackedFutures);
     } catch (e) {
       rethrow;
     }
@@ -240,12 +259,19 @@ class GlobalCache {
 
     // Solicitudes iniciales filtradas por rol
     String? initialFilter;
-    if (!isAdmin && User.cBPartnerID != null) {
-      initialFilter = "C_BPartner_ID eq ${User.cBPartnerID}";
-      if (isProject) {
-        initialFilter += " and C_Project_ID gt 0";
-      } else if (isSupport) {
-        initialFilter += " and Record_UU eq null";
+    if (!isAdmin) {
+      if (AccessControl.isExtSupport && User.userID != null) {
+        initialFilter = "SalesRep_ID eq ${User.userID}";
+      } else if (User.cBPartnerID != null) {
+        initialFilter = "C_BPartner_ID eq ${User.cBPartnerID}";
+      }
+      
+      if (initialFilter != null) {
+        if (isProject) {
+          initialFilter += " and C_Project_ID gt 0";
+        } else if (isSupport) {
+          initialFilter += " and Record_UU eq null";
+        }
       }
     }
 
@@ -262,7 +288,7 @@ class GlobalCache {
   static Completer<void>? _syncCompleter;
 
   /// Sincroniza los datos de la caché con el servidor.
-  static Future<void> syncData({bool force = false}) async {
+  static Future<void> syncData({bool force = false, ValueNotifier<double>? progressNotifier}) async {
     if (isDataLoaded && !force) return;
 
     // Si ya hay una sincronización en curso, esperamos a que termine
@@ -275,15 +301,16 @@ class GlobalCache {
     _isSyncing = true;
     _syncCompleter = Completer<void>();
     _phase2Completer = Completer<void>();
+    _phase2bCompleter = Completer<void>();
     
     try {
       // Limpiar datos si es forzado para asegurar frescura total
       if (force) clear();
 
-      await _loadPhase1EssentialData();
+      await _loadPhase1EssentialData(progressNotifier: progressNotifier);
       
       // Lanzar Fase 2 (datos pesados/históricos) sin bloquear el flujo principal
-      _loadPhase2HistoricalData();
+      _loadPhase2HistoricalData(progressNotifier: progressNotifier);
       
       isDataLoaded = true;
       if (!(_syncCompleter?.isCompleted ?? true)) _syncCompleter?.complete();
@@ -297,7 +324,7 @@ class GlobalCache {
     }
   }
 
-  static Future<void> _loadPhase2HistoricalData() async {
+  static Future<void> _loadPhase2HistoricalData({ValueNotifier<double>? progressNotifier}) async {
     try {
       final currentYear = DateTime.now().year;
       final bool isAdmin = AccessControl.isAdmin;
@@ -307,7 +334,9 @@ class GlobalCache {
       String getFilterForYear(int year) {
         String filter = "Created ge '$year-01-01T00:00:00Z' and Created le '$year-12-31T23:59:59Z'";
         if (!isAdmin) {
-          if (User.cBPartnerID != null) {
+          if (AccessControl.isExtSupport && User.userID != null) {
+            filter += " and SalesRep_ID eq ${User.userID}";
+          } else if (User.cBPartnerID != null) {
             filter += " and C_BPartner_ID eq ${User.cBPartnerID}";
           }
           if (isProject) {
@@ -337,6 +366,7 @@ class GlobalCache {
 
       // Desbloquear la UI de Mis Solicitudes ahora que el año actual está listo
       if (!(_phase2Completer?.isCompleted ?? true)) _phase2Completer?.complete();
+      if (progressNotifier != null) progressNotifier.value = 0.75;
 
       // 2. Cargar el historial (últimos 3 años) en background real (Fase 2b)
       final List<Future<List<Map<String, dynamic>>>> futures = [];
@@ -347,7 +377,10 @@ class GlobalCache {
         futures.add(fetchRequest(
           filter: getFilterForYear(year),
           expand: 'C_Order_ID(\$select=DocumentNo),C_BPartner_ID(\$select=Name,Description)',
-        ));
+        ).then((v) {
+          if (progressNotifier != null) progressNotifier.value += (0.25 / 3);
+          return v;
+        }));
       }
 
       final List<List<Map<String, dynamic>>> results = await Future.wait(futures);
@@ -370,12 +403,16 @@ class GlobalCache {
       }
 
       isFullyLoaded = true;
+      if (progressNotifier != null) progressNotifier.value = 1.0;
+      if (!(_phase2bCompleter?.isCompleted ?? true)) _phase2bCompleter?.complete();
+      
       if (newHistoryAdded) {
         backgroundSyncNotifier.value = !backgroundSyncNotifier.value;
       }
 
     } catch (e) {
       if (!(_phase2Completer?.isCompleted ?? true)) _phase2Completer?.completeError(e);
+      if (!(_phase2bCompleter?.isCompleted ?? true)) _phase2bCompleter?.completeError(e);
     }
   }
 
@@ -437,12 +474,18 @@ class GlobalCache {
     if (!isDataLoaded) return true;
     try {
       String? reqFilter;
-      if (!AccessControl.isAdmin && User.cBPartnerID != null) {
-        reqFilter = "C_BPartner_ID eq ${User.cBPartnerID}";
-        if (AccessControl.isRealProject) {
-          reqFilter += " and C_Project_ID gt 0";
-        } else if (AccessControl.isRealSupport) {
-          reqFilter += " and Record_UU eq null";
+      if (!AccessControl.isAdmin) {
+        if (AccessControl.isExtSupport && User.userID != null) {
+          reqFilter = "SalesRep_ID eq ${User.userID}";
+        } else if (User.cBPartnerID != null) {
+          reqFilter = "C_BPartner_ID eq ${User.cBPartnerID}";
+        }
+        if (reqFilter != null) {
+          if (AccessControl.isRealProject) {
+            reqFilter += " and C_Project_ID gt 0";
+          } else if (AccessControl.isRealSupport) {
+            reqFilter += " and Record_UU eq null";
+          }
         }
       }
       final reqUri = Uri.parse(
@@ -486,31 +529,84 @@ class GlobalCache {
     BuildContext context,
     Future<void> Function() onSyncAction,
   ) async {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Verificando información nueva...'),
-        duration: Duration(milliseconds: 1500),
-      ),
+    ToastMessage.show(
+      context: context,
+      message: 'Verificando información nueva...',
+      type: ToastType.help,
     );
     if (await checkIfSyncNeeded()) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Sincronizando...'),
-            backgroundColor: Theme.of(context).colorScheme.primary,
-          ),
+        ToastMessage.show(
+          context: context,
+          message: 'Sincronizando...',
+          type: ToastType.help,
         );
       }
       await onSyncAction();
     } else {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Sincronizado'),
-            backgroundColor: Colors.green,
-          ),
+        ToastMessage.show(
+          context: context,
+          message: 'Sincronizado',
+          type: ToastType.success,
         );
       }
+    }
+  }
+
+  static bool _isForceSyncing = false;
+
+  static Future<void> forceFullSyncWithProgress(
+    BuildContext context, {
+    required Future<void> Function() onSyncAction,
+  }) async {
+    if (_isForceSyncing) {
+      ToastMessage.show(
+        context: context,
+        message: 'Ya hay una actualización en progreso',
+        type: ToastType.help,
+      );
+      return;
+    }
+    _isForceSyncing = true;
+    
+    final progressNotifier = ValueNotifier<double>(0.0);
+    
+    // We can't import custom_toast here because it might cause a circular dependency or it's not imported.
+    // Wait, global_cache is in api/. Let's just import custom_toast dynamically if needed, 
+    // or better yet, since CustomToast is in ui/Shared_Custom, let's just do it directly.
+    // Oh, I need to make sure I add the import at the top. Let's add it in another chunk.
+    final item = ToastMessage.showProgress(
+      context: context,
+      title: 'Actualizando Información...',
+      progressNotifier: progressNotifier,
+    );
+
+    try {
+      await syncData(force: true, progressNotifier: progressNotifier);
+      if (phase2SyncFuture != null) await phase2SyncFuture;
+      if (phase2bSyncFuture != null) await phase2bSyncFuture;
+
+      if (context.mounted) {
+        ToastMessage.dismiss(item);
+        ToastMessage.show(
+          context: context,
+          message: 'Sincronización completa',
+          type: ToastType.success,
+        );
+        await onSyncAction();
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ToastMessage.dismiss(item);
+        ToastMessage.show(
+          context: context,
+          message: 'Error al sincronizar: $e',
+          type: ToastType.failure,
+        );
+      }
+    } finally {
+      _isForceSyncing = false;
     }
   }
   static final Map<int, Completer<void>> _activeProjectCompleters = {};

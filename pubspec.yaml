@@ -44,3 +44,7 @@ flutter:
   assets:
     - assets/LogoPrimHub.png
     - assets/sla_icon.svg
+
+dependency_overrides:
+  html: 0.15.4
+

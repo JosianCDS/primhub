@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 
 class AnimatedCopyWidget extends StatefulWidget {
   final String textToCopy;
@@ -54,9 +55,7 @@ class _AnimatedCopyWidgetState extends State<AnimatedCopyWidget> with SingleTick
     if (!mounted) return;
 
     if (widget.snackBarMessage.isNotEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(widget.snackBarMessage), duration: const Duration(seconds: 1)),
-      );
+      ToastMessage.show(context: context, message: widget.snackBarMessage, type: ToastType.help);
     }
 
     setState(() {

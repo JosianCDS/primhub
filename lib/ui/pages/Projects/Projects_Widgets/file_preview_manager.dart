@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:primhub/ui/Shared_Custom/custom_toast.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -201,10 +202,10 @@ class FilePreviewManager {
                           );
                           onStatusChanged();
                           if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Nombre visual actualizado'),
-                              ),
+                            ToastMessage.show(
+                              context: context,
+                              message: 'Nombre visual actualizado',
+                              type: ToastType.success,
                             );
                           }
                         },

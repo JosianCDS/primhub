@@ -1126,10 +1126,10 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
 
   Future<void> _deleteRequest(dynamic id) async {
     if (!AccessControl.canManageRequests) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No tienes permisos para eliminar solicitudes.'),
-        ),
+      ToastMessage.show(
+        context: context,
+        message: 'No tienes permisos para eliminar solicitudes.',
+        type: ToastType.failure,
       );
       return;
     }
@@ -1494,12 +1494,10 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
               onPressed: () {
                 ValidationManager.setExceptions(tempSelectedIds);
                 Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Excepciones de validación de horas actualizadas.',
-                    ),
-                  ),
+                ToastMessage.show(
+                  context: context,
+                  message: 'Excepciones de validación de horas actualizadas.',
+                  type: ToastType.success,
                 );
               },
             ),
@@ -1590,9 +1588,12 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       Padding(
         padding: const EdgeInsets.only(right: 8.0),
         child: IconButton(
-          onPressed: () => GlobalCache.performSmartSync(context, () async {
-            await _initData();
-          }),
+          onPressed: () {
+            setState(() => _isLoading = true);
+            GlobalCache.forceFullSyncWithProgress(context, onSyncAction: () async {
+              await _initData();
+            });
+          },
           icon: const Icon(Icons.refresh),
           tooltip: 'Refrescar',
         ),
