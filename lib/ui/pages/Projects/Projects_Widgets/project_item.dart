@@ -15,9 +15,9 @@ class ProjectItem extends StatelessWidget {
   final Map<String, int> statusIdMap;
   final Map<String, String> priorityMap;
   final VoidCallback onRefresh;
-  final Function(String type, int id, String name, String desc) onEdit;
-  final Function(int projectId, String name, String desc) onCreatePhase;
-  final Function(int phaseId, String name, String desc) onCreateTask;
+  final Function(String type, int id, Map<String, dynamic> data) onEdit;
+  final Function(int projectId, Map<String, dynamic> data) onCreatePhase;
+  final Function(int phaseId, int projectId, Map<String, dynamic> data) onCreateTask;
   final Function(Map<String, dynamic> project, String viewType) onShowFiles;
   final VoidCallback? onToggleExpansion;
   final bool isArchived;
@@ -140,7 +140,10 @@ class ProjectItem extends StatelessWidget {
                       icon: const Icon(Icons.edit, size: 20, color: Colors.blueGrey),
                       tooltip: isArchived ? 'Reactivar Proyecto' : 'Editar Proyecto',
                       onPressed: () {
-                        onEdit('project', projId, project['Name'] ?? '', project['Description'] ?? '');
+                        onEdit('project', projId, {
+                          'Name': project['Name'] ?? '',
+                          'Description': project['Description'] ?? '',
+                        });
                       },
                       constraints: const BoxConstraints(),
                       padding: const EdgeInsets.all(4),
@@ -274,7 +277,7 @@ class ProjectItem extends StatelessWidget {
                               onPressed: () {
                                 showDialog(
                                   context: context,
-                                  builder: (context) => PhaseCreateDialog(onSave: (name, desc) => onCreatePhase(projId, name, desc)),
+                                  builder: (context) => PhaseCreateDialog(onSave: (data) => onCreatePhase(projId, data)),
                                 );
                               },
                             ),

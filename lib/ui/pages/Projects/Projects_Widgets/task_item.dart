@@ -16,7 +16,7 @@ class TaskItem extends StatefulWidget {
   final Map<String, int> statusIdMap;
   final Map<String, String> priorityMap;
   final VoidCallback onRefresh;
-  final Function(String type, int id, String name, String desc) onEdit;
+  final Function(String type, int id, Map<String, dynamic> data) onEdit;
   final bool isArchived;
   final int projectId;
 
@@ -198,7 +198,8 @@ class _TaskItemState extends State<TaskItem> {
                                 type: 'task',
                                 currentName: taskName,
                                 currentDesc: widget.task['Description'] ?? '',
-                                onSave: (name, desc) => widget.onEdit('task', taskId, name, desc),
+                                currentData: widget.task,
+                                onSave: (data) => widget.onEdit('task', taskId, data),
                               ),
                             );
                           },

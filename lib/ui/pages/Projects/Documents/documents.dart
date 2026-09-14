@@ -182,6 +182,13 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
 
     if (result == true) {
       _loadProjects(forceRefresh: true);
+      if (mounted) {
+        ToastMessage.show(
+          context: context,
+          message: project == null ? 'Proyecto creado exitosamente' : 'Proyecto actualizado exitosamente',
+          type: ToastType.success,
+        );
+      }
     }
   }
 
@@ -226,16 +233,22 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
   // Métodos de fases y tareas
   Future<void> _createPhase(
     int projectId,
-    String name,
-    String description,
+    Map<String, dynamic> data,
   ) async {
     setState(() {
       _isLoadingProjects = true;
       _expandedProjectIds.add(projectId);
     });
-    final result = await _logic.createPhase(projectId, name, description);
+    final result = await _logic.createPhase(projectId, data);
     if (result['success'] == true) {
       _loadProjects(forceRefresh: true);
+      if (mounted) {
+        ToastMessage.show(
+          context: context,
+          message: 'Fase creada exitosamente',
+          type: ToastType.success,
+        );
+      }
     } else {
       if (mounted) {
         setState(() => _isLoadingProjects = false);
@@ -244,23 +257,22 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
     }
   }
 
-  Future<void> _createTask(int phaseId, String name, String description) async {
-    final project = _projects.firstWhere(
-      (p) =>
-          (p['C_ProjectPhase'] as List? ?? []).any((ph) => ph['id'] == phaseId),
-      orElse: () => null,
-    );
+  Future<void> _createTask(int phaseId, int projectId, Map<String, dynamic> data) async {
     setState(() {
       _isLoadingProjects = true;
-      if (project != null) {
-        final rawId = project['id'];
-        final id = rawId is int ? rawId : int.tryParse(rawId.toString()) ?? 0;
-        _expandedProjectIds.add(id);
-      }
+      _expandedProjectIds.add(projectId);
+      data['C_Project_ID'] = projectId;
     });
-    final result = await _logic.createTask(phaseId, name, description);
+    final result = await _logic.createTask(phaseId, data);
     if (result['success'] == true) {
       _loadProjects(forceRefresh: true);
+      if (mounted) {
+        ToastMessage.show(
+          context: context,
+          message: 'Tarea creada exitosamente',
+          type: ToastType.success,
+        );
+      }
     } else {
       if (mounted) {
         setState(() => _isLoadingProjects = false);
@@ -623,7 +635,7 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
                         });
                       },
                       // Al editar, abrimos el formulario de administrador
-                      onEdit: (type, id, name, desc) async {
+                      onEdit: (type, id, data) async {
                         if (type == 'project') {
                           _navigateToForm(project: project);
                         } else {
@@ -634,11 +646,17 @@ class _DeliverablesPageState extends State<DeliverablesPage> {
                           final result = await _logic.updateItem(
                             type,
                             id,
-                            name,
-                            desc,
+                            data,
                           );
                           if (result['success'] == true) {
                             _loadProjects(forceRefresh: true);
+                            if (mounted) {
+                              ToastMessage.show(
+                                context: context,
+                                message: 'Actualizado exitosamente',
+                                type: ToastType.success,
+                              );
+                            }
                           } else if (mounted) {
                             setState(() => _isLoadingProjects = false);
                             ToastMessage.show(context: context, message: 'Error al actualizar: ${result['error']}', type: ToastType.failure);

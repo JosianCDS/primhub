@@ -154,6 +154,9 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
     _projInvoiceRule = p['ProjInvoiceRule'] is Map
         ? p['ProjInvoiceRule']['id']
         : p['ProjInvoiceRule'];
+    _invoiceRuleController.text = p['ProjInvoiceRule'] is Map
+        ? (p['ProjInvoiceRule']['identifier'] ?? p['ProjInvoiceRule']['id']?.toString() ?? '')
+        : (p['ProjInvoiceRule']?.toString() ?? '');
 
     _plannedAmtController.text = (p['PlannedAmt'] ?? 0.0).toString();
     _plannedQtyController.text = (p['PlannedQty'] ?? 0).toString();
@@ -235,7 +238,7 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
                 _currencyController.text = 'Balboa';
               }
             }
-            if (_projInvoiceRule == null) {
+            if (_projInvoiceRule == null || _projInvoiceRule!.isEmpty) {
               String ruleId = '-';
               String ruleName = 'Ninguno';
               
@@ -250,6 +253,14 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
               _projInvoiceRule = ruleId;
               _invoiceRuleController.text = ruleName;
             }
+          } else {
+             // Es edición. Actualizar nombre de Regla de Factura si está vacío pero tenemos ID
+             if (_projInvoiceRule != null && _invoiceRuleController.text.isEmpty) {
+                final rule = _invoiceRules.firstWhere((r) => r['id'] == _projInvoiceRule, orElse: () => <String, String>{});
+                if (rule.isNotEmpty) {
+                  _invoiceRuleController.text = rule['name'] ?? '';
+                }
+             }
           }
 
           _isLoading = false;
@@ -302,14 +313,14 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
         "M_PriceList_Version_ID": {"id": _mPriceListVersionId},
       if (_cPaymentTermId != null) "C_PaymentTerm_ID": {"id": _cPaymentTermId},
 
-      "PlannedAmt": pDouble(_plannedAmtController.text),
-      "PlannedQty": pDouble(_plannedQtyController.text),
-      "PlannedMarginAmt": pDouble(_plannedMarginAmtController.text),
-      "CommittedAmt": pDouble(_committedAmtController.text),
-      "CommittedQty": pDouble(_committedQtyController.text),
-      "InvoicedAmt": pDouble(_invoicedAmtController.text),
-      "InvoicedQty": pDouble(_invoicedQtyController.text),
-      "ProjectBalanceAmt": pDouble(_projectBalanceController.text),
+      if (!_isReactivation) "PlannedAmt": pDouble(_plannedAmtController.text),
+      if (!_isReactivation) "PlannedQty": pDouble(_plannedQtyController.text),
+      if (!_isReactivation) "PlannedMarginAmt": pDouble(_plannedMarginAmtController.text),
+      if (!_isReactivation) "CommittedAmt": pDouble(_committedAmtController.text),
+      if (!_isReactivation) "CommittedQty": pDouble(_committedQtyController.text),
+      if (!_isReactivation) "InvoicedAmt": pDouble(_invoicedAmtController.text),
+      if (!_isReactivation) "InvoicedQty": pDouble(_invoicedQtyController.text),
+      // ProjectBalanceAmt is a virtual column in iDempiere, NEVER send it.
     };
 
     final result = await _logic.saveProject(data, id: widget.project?['id']);
@@ -752,6 +763,12 @@ class _ProjectFormPageState extends State<ProjectFormPage> {
           controller: controller,
           label: label,
           prefixIcon: Icon(icon, color: Theme.of(context).colorScheme.primary),
+          validator: (v) {
+            if (label.contains('*') && (v == null || v.trim().isEmpty)) {
+              return 'Este campo es obligatorio';
+            }
+            return null;
+          },
         ),
       ),
     );

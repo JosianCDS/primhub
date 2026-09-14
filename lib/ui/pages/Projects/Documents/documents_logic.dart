@@ -367,15 +367,18 @@ class ProjectsLogic {
   // 5. MÉTODOS DE ESTRUCTURA
   Future<Map<String, dynamic>> createPhase(
     int projectId,
-    String name,
-    String description,
+    Map<String, dynamic> data,
   ) async {
     try {
       final url = Uri.parse('${Endpoint.baseUrl}/api/v1/models/C_ProjectPhase');
       final body = {
         'C_Project_ID': {'id': projectId},
-        'Name': name,
-        'Description': description,
+        'Name': data['Name'] ?? '',
+        'Description': data['Description'] ?? '',
+        'SeqNo': data['SeqNo'] ?? 10,
+        'PlannedAmt': data['PlannedAmt'] ?? 0.0,
+        'CommittedAmt': data['CommittedAmt'] ?? 0.0,
+        'ProjInvoiceRule': data['ProjInvoiceRule'] ?? 'I',
         'IsActive': true,
       };
       var response = await http.post(
@@ -419,15 +422,18 @@ class ProjectsLogic {
 
   Future<Map<String, dynamic>> createTask(
     int phaseId,
-    String name,
-    String description,
+    Map<String, dynamic> data,
   ) async {
     try {
       final url = Uri.parse('${Endpoint.baseUrl}/api/v1/models/C_ProjectTask');
       final body = {
         'C_ProjectPhase_ID': {'id': phaseId},
-        'Name': name,
-        'Description': description,
+        'Name': data['Name'] ?? '',
+        'Description': data['Description'] ?? '',
+        'SeqNo': data['SeqNo'] ?? 10,
+        'PlannedAmt': data['PlannedAmt'] ?? 0.0,
+        'CommittedAmt': data['CommittedAmt'] ?? 0.0,
+        'ProjInvoiceRule': data['ProjInvoiceRule'] ?? 'I',
         'IsActive': true,
       };
       var response = await http.post(
@@ -472,8 +478,7 @@ class ProjectsLogic {
   Future<Map<String, dynamic>> updateItem(
     String type,
     int id,
-    String name,
-    String description,
+    Map<String, dynamic> data,
   ) async {
     try {
       String endpoint = type == 'project'
@@ -487,7 +492,7 @@ class ProjectsLogic {
           'Content-Type': 'application/json',
           'Authorization': Token.token,
         },
-        body: jsonEncode({'Name': name, 'Description': description}),
+        body: jsonEncode(data),
       );
 
       if (response.statusCode == 401) {
@@ -499,7 +504,7 @@ class ProjectsLogic {
               'Content-Type': 'application/json',
               'Authorization': Token.token,
             },
-            body: jsonEncode({'Name': name, 'Description': description}),
+            body: jsonEncode(data),
           );
         } else {
           return {'success': false, 'error': 'Sesión expirada'};

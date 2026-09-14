@@ -11,8 +11,8 @@ class PhaseItem extends StatelessWidget {
   final Map<String, int> statusIdMap;
   final Map<String, String> priorityMap;
   final VoidCallback onRefresh;
-  final Function(String type, int id, String name, String desc) onEdit;
-  final Function(int phaseId, String name, String desc) onCreateTask;
+  final Function(String type, int id, Map<String, dynamic> data) onEdit;
+  final Function(int phaseId, int projectId, Map<String, dynamic> data) onCreateTask;
   final bool isArchived;
   final int projectId;
 
@@ -85,7 +85,7 @@ class PhaseItem extends StatelessWidget {
                       showDialog(
                         context: context,
                         builder: (context) => TaskCreateDialog(
-                          onSave: (name, desc) => onCreateTask(phaseId, name, desc),
+                          onSave: (data) => onCreateTask(phaseId, projectId, data),
                         ),
                       );
                     },
@@ -102,7 +102,8 @@ class PhaseItem extends StatelessWidget {
                           type: 'phase',
                           currentName: phase['Name'],
                           currentDesc: phase['Description'] ?? '',
-                          onSave: (name, desc) => onEdit('phase', phaseId, name, desc),
+                          currentData: phase,
+                          onSave: (data) => onEdit('phase', phaseId, data),
                         ),
                       );
                     },
